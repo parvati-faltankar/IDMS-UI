@@ -13,7 +13,7 @@ import StatusBadge from './components/common/StatusBadge';
 import { PURCHASE_REQUISITION_LAYOUT, purchaseRequisitionFieldLabels } from './formLayoutRegistry';
 import type { PurchaseRequisitionDocument } from './purchaseRequisitionCatalogueData';
 import { cn } from './utils/classNames';
-import { formatDate, formatDateTime } from './utils/dateFormat';
+import { formatDate, formatDateTime } from './utils/dateFormat'
 import {
   loadDraftFormLayoutConfig,
   loadPublishedFormLayoutConfig,
