@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>my-react-app</title>
+    <script>
+      (function () {
+        try {
+          var theme = window.localStorage.getItem('app-theme');
+          var appearance = window.localStorage.getItem('app-theme-mode');
+          var supportedThemes = ['excellon', 'bajaj', 'tata-motors', 'ola', 'eka', 'hero', 'royal-enfield'];
+          document.documentElement.dataset.theme = supportedThemes.indexOf(theme) >= 0 ? theme : 'excellon';
+          document.documentElement.dataset.appearance = appearance === 'dark' ? 'dark' : 'light';
+          document.documentElement.style.colorScheme = appearance === 'dark' ? 'dark' : 'light';
+        } catch (error) {
+          document.documentElement.dataset.theme = 'excellon';
+          document.documentElement.dataset.appearance = 'light';
+          document.documentElement.style.colorScheme = 'light';
+        }
+      })();
+    </script>
+    <style>
+      html, body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+      #root {
+        width: 100%;
+        height: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
