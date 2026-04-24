@@ -4441,6 +4441,15 @@ h3 {
 
 .form-layout-settings__table-wrap {
   overflow-x: auto;
+  width: 100%;
+}
+
+.form-layout-settings__table {
+  width: 100%;
+}
+
+.form-layout-settings__table thead th {
+  text-align: left;
 }
 
 .form-layout-settings__table th,

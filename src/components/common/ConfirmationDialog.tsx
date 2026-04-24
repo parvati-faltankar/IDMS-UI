@@ -1,6 +1,8 @@
-import React, { useRef } from 'react';
-import { useDialogFocusTrap } from '../../hooks/useDialogFocusTrap';
-import { cn } from '../../utils/classNames';
+import React from 'react';
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
+import AppButton from '../app/AppButton';
+import AppDialog from '../app/AppDialog';
 
 interface ConfirmationDialogProps {
   isOpen: boolean;
@@ -21,57 +23,40 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
   onConfirm,
   onClose,
 }) => {
-  const cancelButtonRef = useRef<HTMLButtonElement | null>(null);
-  const { containerRef, handleKeyDown } = useDialogFocusTrap<HTMLDivElement>({
-    isOpen,
-    onClose,
-    initialFocusRef: cancelButtonRef,
-    fallbackFocusRef: cancelButtonRef,
-  });
-
   const titleId = `${(title ?? 'confirmation').replace(/\s+/g, '-').toLowerCase()}-title`;
 
   return (
-    <div className={cn('confirmation-dialog', isOpen && 'confirmation-dialog--open')} aria-hidden={!isOpen}>
-      <button
-        type="button"
-        className="confirmation-dialog__backdrop"
-        onClick={onClose}
-        tabIndex={isOpen ? 0 : -1}
-        aria-label={title ? `Close ${title}` : 'Close confirmation'}
-      />
-      <div
-        ref={containerRef}
-        className="confirmation-dialog__panel"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={title ? titleId : undefined}
-        onKeyDown={handleKeyDown}
-      >
-        <div className="confirmation-dialog__body">
-          {title && (
-            <h2 id={titleId} className="confirmation-dialog__title">
-              {title}
-            </h2>
-          )}
-          <p className="confirmation-dialog__description">{description}</p>
-        </div>
-
-        <div className="confirmation-dialog__actions">
-          <button
-            ref={cancelButtonRef}
-            type="button"
-            onClick={onClose}
-            className="btn btn--outline confirmation-dialog__button"
-          >
+    <AppDialog
+      open={isOpen}
+      onClose={onClose}
+      titleId={title ? titleId : undefined}
+      paperClassName="confirmation-dialog__panel"
+      width={420}
+      actions={
+        <Box className="confirmation-dialog__actions" sx={{ display: 'flex', gap: 1.25, width: '100%', justifyContent: 'flex-end' }}>
+          <AppButton autoFocus onClick={onClose} tone="outline" className="confirmation-dialog__button">
             {cancelLabel}
-          </button>
-          <button type="button" onClick={onConfirm} className="btn btn--primary confirmation-dialog__button">
+          </AppButton>
+          <AppButton onClick={onConfirm} tone="primary" className="confirmation-dialog__button">
             {confirmLabel}
-          </button>
-        </div>
-      </div>
-    </div>
+          </AppButton>
+        </Box>
+      }
+      paperSx={{
+        overflow: 'hidden',
+      }}
+    >
+      <Box className="confirmation-dialog__body" sx={{ display: 'grid', gap: 1 }}>
+        {title && (
+          <Typography id={titleId} className="confirmation-dialog__title" variant="h6" sx={{ m: 0 }}>
+            {title}
+          </Typography>
+        )}
+        <Typography className="confirmation-dialog__description" variant="body2" color="text.secondary">
+          {description}
+        </Typography>
+      </Box>
+    </AppDialog>
   );
 };
 

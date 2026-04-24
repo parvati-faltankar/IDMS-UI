@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import CssBaseline from '@mui/material/CssBaseline';
+import { StyledEngineProvider, ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
 import {
   applyAppearanceMode,
   applyThemeKey,
@@ -12,6 +14,7 @@ import {
   type ThemeKey,
 } from './themeRegistry';
 import { ThemeContext, type ThemeContextValue } from './themeContext';
+import { createAppMuiTheme } from './materialTheme';
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [themeKey, setThemeKey] = useState<ThemeKey>(() => initializeTheme());
@@ -42,5 +45,19 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     [appearanceMode, themeKey]
   );
 
-  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+  const muiTheme = useMemo(
+    () => createAppMuiTheme(themeKey, appearanceMode),
+    [appearanceMode, themeKey]
+  );
+
+  return (
+    <ThemeContext.Provider value={value}>
+      <StyledEngineProvider injectFirst>
+        <MuiThemeProvider theme={muiTheme}>
+          <CssBaseline />
+          {children}
+        </MuiThemeProvider>
+      </StyledEngineProvider>
+    </ThemeContext.Provider>
+  );
 };

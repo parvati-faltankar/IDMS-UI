@@ -1,6 +1,6 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
-import { useDialogFocusTrap } from '../../hooks/useDialogFocusTrap';
+import AppDrawer from '../app/AppDrawer';
 import { cn } from '../../utils/classNames';
 
 interface SideDrawerProps {
@@ -31,31 +31,28 @@ const SideDrawer: React.FC<SideDrawerProps> = ({
   contentClassName,
 }) => {
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
-  const { containerRef, handleKeyDown } = useDialogFocusTrap<HTMLDivElement>({
-    isOpen,
-    onClose,
-    initialFocusRef,
-    fallbackFocusRef: closeButtonRef,
-  });
   const titleId = `${title.replace(/\s+/g, '-').toLowerCase()}-title`;
+  const isNarrow = panelClassName?.includes('side-drawer__panel--narrow');
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      initialFocusRef?.current?.focus();
+
+      if (!initialFocusRef?.current) {
+        closeButtonRef.current?.focus();
+      }
+    }, 80);
+
+    return () => window.clearTimeout(timer);
+  }, [initialFocusRef, isOpen]);
 
   return (
-    <div className={cn('side-drawer', isOpen && 'side-drawer--open')} aria-hidden={!isOpen}>
-      <button
-        type="button"
-        className="side-drawer__backdrop"
-        onClick={onClose}
-        tabIndex={isOpen ? 0 : -1}
-        aria-label={`Close ${title}`}
-      />
-      <aside
-        ref={containerRef}
-        className={cn('side-drawer__panel', panelClassName)}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        onKeyDown={handleKeyDown}
-      >
+    <AppDrawer open={isOpen} onClose={onClose} width={isNarrow ? 384 : 960}>
+      <aside aria-labelledby={titleId} className={cn(panelClassName)}>
         <div className="side-drawer__header">
           <div className="side-drawer__header-copy">
             <h2 id={titleId} className="brand-page-title side-drawer__title">
@@ -70,11 +67,11 @@ const SideDrawer: React.FC<SideDrawerProps> = ({
               ref={closeButtonRef}
               type="button"
               onClick={onClose}
-            className="side-drawer__close"
-            aria-label={`Close ${title}`}
-          >
-            <X size={15} />
-          </button>
+              className="side-drawer__close"
+              aria-label={`Close ${title}`}
+            >
+              <X size={15} />
+            </button>
           </div>
         </div>
 
@@ -82,7 +79,7 @@ const SideDrawer: React.FC<SideDrawerProps> = ({
 
         {footer && <div className="side-drawer__footer">{footer}</div>}
       </aside>
-    </div>
+    </AppDrawer>
   );
 };
 

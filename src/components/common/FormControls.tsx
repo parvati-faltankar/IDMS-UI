@@ -1,4 +1,5 @@
 import React from 'react';
+import { AppInputPrimitive, AppSelectPrimitive, AppTextareaPrimitive } from '../app/AppFormPrimitives';
 import { cn } from '../../utils/classNames';
 import { DatePicker } from './DatePicker';
 
@@ -52,10 +53,12 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
     }
 
     return (
-      <input
+      <AppInputPrimitive
         ref={ref}
         {...props}
         type={type}
+        hasError={Boolean(error)}
+        aria-invalid={Boolean(error)}
         readOnly={readOnly}
         disabled={disabled}
         tabIndex={getDerivedTabIndex(tabIndex, Boolean(readOnly || disabled))}
@@ -72,19 +75,24 @@ interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   error?: string;
 }
 
-export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(({ options, error, className, ...props }, ref) => (
-  <select
-    ref={ref}
-    {...props}
-    className={cn('field-select appearance-none', error && 'field-select--error', className)}
-  >
-    {options?.map((option) => (
-      <option key={option.value} value={option.value}>
-        {option.label}
-      </option>
-    ))}
-  </select>
-));
+export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
+  ({ options, error, className, children, ...props }, ref) => (
+    <AppSelectPrimitive
+      ref={ref}
+      {...props}
+      hasError={Boolean(error)}
+      aria-invalid={Boolean(error)}
+      className={cn('field-select appearance-none', error && 'field-select--error', className)}
+    >
+      {options?.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+      {children}
+    </AppSelectPrimitive>
+  )
+);
 
 Select.displayName = 'Select';
 
@@ -94,9 +102,11 @@ interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement
 
 export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
   ({ error, className, readOnly, disabled, tabIndex, ...props }, ref) => (
-    <textarea
+    <AppTextareaPrimitive
       ref={ref}
       {...props}
+      hasError={Boolean(error)}
+      aria-invalid={Boolean(error)}
       readOnly={readOnly}
       disabled={disabled}
       tabIndex={getDerivedTabIndex(tabIndex, Boolean(readOnly || disabled))}
