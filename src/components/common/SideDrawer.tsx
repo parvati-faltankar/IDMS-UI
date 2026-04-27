@@ -33,6 +33,9 @@ const SideDrawer: React.FC<SideDrawerProps> = ({
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const titleId = `${title.replace(/\s+/g, '-').toLowerCase()}-title`;
   const isNarrow = panelClassName?.includes('side-drawer__panel--narrow');
+  const isWide = panelClassName?.includes('side-drawer__panel--wide');
+  const isChart = panelClassName?.includes('side-drawer__panel--chart');
+  const drawerWidth = isChart ? 620 : isNarrow ? 384 : isWide ? 720 : 960;
 
   useEffect(() => {
     if (!isOpen) {
@@ -51,7 +54,7 @@ const SideDrawer: React.FC<SideDrawerProps> = ({
   }, [initialFocusRef, isOpen]);
 
   return (
-    <AppDrawer open={isOpen} onClose={onClose} width={isNarrow ? 384 : 960}>
+    <AppDrawer open={isOpen} onClose={onClose} width={drawerWidth}>
       <aside aria-labelledby={titleId} className={cn(panelClassName)}>
         <div className="side-drawer__header">
           <div className="side-drawer__header-copy">

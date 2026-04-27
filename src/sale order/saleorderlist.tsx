@@ -15,16 +15,16 @@ import {
 import AppShell from '../components/AppShell';
 import CancelDocumentDialog from '../components/common/CancelDocumentDialog';
 import CatalogueInsightCards from '../components/common/CatalogueInsightCards';
+import CommonDataGrid from '../components/common/CommonDataGrid';
+import type { DataGridColumn } from '../components/common/dataGridTypes';
 import DocumentPreviewDrawer from '../components/common/DocumentPreviewDrawer';
 import { Input, Select } from '../components/common/FormControls';
 import SideDrawer from '../components/common/SideDrawer';
-import SortableTableHeader from '../components/common/SortableTableHeader';
 import StatusBadge from '../components/common/StatusBadge';
 import type { RequisitionPriority, RequisitionStatus } from '../purchaseRequisitionCatalogueData';
 import { cn } from '../utils/classNames';
 import { formatDate, formatDateTime } from '../utils/dateFormat';
 import type { SortState } from '../utils/sortState';
-import { buildNumberColumnAggregation } from '../utils/tableColumnAggregations';
 import { extendedSaleOrderDocuments, type SaleOrderDocument } from './saleOrderData';
 
 interface SaleOrderListProps {
@@ -631,14 +631,6 @@ const SaleOrderList: React.FC<SaleOrderListProps> = ({
 
   const activeFilterCount = useMemo(() => getActiveFilterCount(filters), [filters]);
   const hasActiveFilters = activeFilterCount > 0;
-  const totalAmountAggregation = useMemo(
-    () =>
-      buildNumberColumnAggregation(sortedRows, {
-        selector: (item) => item.totalAmount,
-        formatter: formatInsightAmount,
-      }),
-    [sortedRows]
-  );
 
   const cancelDocument = useMemo(
     () => documents.find((document) => document.id === cancelDocumentId) ?? null,
@@ -772,6 +764,133 @@ const SaleOrderList: React.FC<SaleOrderListProps> = ({
     </div>
   );
 
+  const gridColumns: DataGridColumn<SaleOrderDocument>[] = [
+      {
+        id: 'number',
+        label: 'SO No.',
+        type: 'text',
+        width: 146,
+        getValue: (item) => item.number,
+        renderCell: (item) => (
+          <button
+            type="button"
+            onClick={() => handlePreviewDocument(item.id)}
+            className="catalogue-table__document-link"
+          >
+            {item.number}
+          </button>
+        ),
+      },
+      {
+        id: 'orderDateTime',
+        label: 'Document date & time',
+        type: 'date',
+        width: 196,
+        getValue: (item) => item.orderDateTime,
+        renderCell: (item) => {
+          const documentDateTime = formatDateTime(item.orderDateTime);
+          return (
+            <div className="catalogue-table__datetime">
+              {documentDateTime.dateLabel}, {documentDateTime.timeLabel}
+            </div>
+          );
+        },
+      },
+      {
+        id: 'customerName',
+        label: 'Customer',
+        type: 'text',
+        width: 188,
+        getValue: (item) => item.customerName,
+        renderCell: (item) => (
+          <div className="catalogue-table__truncate" title={item.customerName}>
+            {item.customerName}
+          </div>
+        ),
+      },
+      {
+        id: 'orderSource',
+        label: 'Order source',
+        type: 'text',
+        width: 148,
+        getValue: (item) => item.orderSource,
+        renderCell: (item) => item.orderSource,
+      },
+      {
+        id: 'salesExecutive',
+        label: 'Sales executive',
+        type: 'text',
+        width: 164,
+        getValue: (item) => item.salesExecutive,
+        renderCell: (item) => item.salesExecutive,
+      },
+      {
+        id: 'requestedDeliveryDate',
+        label: 'Requested delivery',
+        type: 'date',
+        width: 154,
+        getValue: (item) => item.requestedDeliveryDate,
+        renderCell: (item) => formatDate(item.requestedDeliveryDate),
+      },
+      {
+        id: 'validTillDate',
+        label: 'Valid till',
+        type: 'date',
+        width: 142,
+        getValue: (item) => item.validTillDate,
+        renderCell: (item) => formatDate(item.validTillDate),
+      },
+      {
+        id: 'priority',
+        label: 'Priority',
+        type: 'status',
+        width: 116,
+        getValue: (item) => item.priority,
+        options: [
+          { value: 'Low', label: 'Low' },
+          { value: 'Medium', label: 'Medium' },
+          { value: 'High', label: 'High' },
+        ],
+        renderCell: (item) => <StatusBadge kind="priority" value={item.priority} />,
+      },
+      {
+        id: 'status',
+        label: 'Status',
+        type: 'status',
+        width: 154,
+        getValue: (item) => item.status,
+        options: [
+          { value: 'Draft', label: 'Draft' },
+          { value: 'Pending Approval', label: 'Pending Approval' },
+          { value: 'Approved', label: 'Approved' },
+          { value: 'Rejected', label: 'Rejected' },
+          { value: 'Cancelled', label: 'Cancelled' },
+        ],
+        renderCell: (item) => <StatusBadge kind="requisition-status" value={item.status} />,
+      },
+      {
+        id: 'totalAmount',
+        label: 'Total amount',
+        type: 'number',
+        width: 154,
+        getValue: (item) => item.totalAmount,
+        renderCell: (item) => item.totalAmount,
+      },
+      {
+        id: 'actions',
+        label: 'Action',
+        type: 'actions',
+        width: 86,
+        sortable: false,
+        filterable: false,
+        groupable: false,
+        hideable: false,
+        defaultPin: 'right',
+        getValue: () => '',
+        renderCell: (item) => renderActionMenu(item),
+      },
+    ];
+
   return (
     <AppShell activeLeaf="sale-order" onSaleOrderClick={onNavigateToSaleOrderList}>
       <div className="catalogue-toolbar">
@@ -888,64 +1007,15 @@ const SaleOrderList: React.FC<SaleOrderListProps> = ({
 
         {loadState === 'ready' && sortedRows.length > 0 && catalogueViewMode === 'list' && (
           <div className="catalogue-table-scroll">
-            <table className="catalogue-table">
-              <thead>
-                <tr>
-                  <SortableTableHeader label="SO No." sortKey="number" sortState={sortState} onSortChange={handleSortChange} />
-                  <SortableTableHeader label="Document date & time" sortKey="orderDateTime" sortState={sortState} onSortChange={handleSortChange} dataType="date" />
-                  <SortableTableHeader label="Customer" sortKey="customerName" sortState={sortState} onSortChange={handleSortChange} />
-                  <SortableTableHeader label="Order source" sortKey="orderSource" sortState={sortState} onSortChange={handleSortChange} />
-                  <SortableTableHeader label="Sales executive" sortKey="salesExecutive" sortState={sortState} onSortChange={handleSortChange} />
-                  <SortableTableHeader label="Requested delivery" sortKey="requestedDeliveryDate" sortState={sortState} onSortChange={handleSortChange} dataType="date" />
-                  <SortableTableHeader label="Valid till" sortKey="validTillDate" sortState={sortState} onSortChange={handleSortChange} dataType="date" />
-                  <SortableTableHeader label="Priority" sortKey="priority" sortState={sortState} onSortChange={handleSortChange} dataType="status" />
-                  <SortableTableHeader label="Status" sortKey="status" sortState={sortState} onSortChange={handleSortChange} dataType="status" />
-                  <SortableTableHeader label="Total amount" sortKey="totalAmount" sortState={sortState} onSortChange={handleSortChange} dataType="number" aggregation={totalAmountAggregation} />
-                  <th className="catalogue-table__action-header">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedRows.map((item) => {
-                  const documentDateTime = formatDateTime(item.orderDateTime);
-
-                  return (
-                    <tr key={item.id}>
-                      <td>
-                        <button
-                          type="button"
-                          onClick={() => handlePreviewDocument(item.id)}
-                          className="catalogue-table__document-link"
-                        >
-                          {item.number}
-                        </button>
-                      </td>
-                      <td>
-                        <div className="catalogue-table__datetime">
-                          {documentDateTime.dateLabel}, {documentDateTime.timeLabel}
-                        </div>
-                      </td>
-                      <td>
-                        <div className="catalogue-table__truncate" title={item.customerName}>
-                          {item.customerName}
-                        </div>
-                      </td>
-                      <td>{item.orderSource}</td>
-                      <td>{item.salesExecutive}</td>
-                      <td>{formatDate(item.requestedDeliveryDate)}</td>
-                      <td>{formatDate(item.validTillDate)}</td>
-                      <td>
-                        <StatusBadge kind="priority" value={item.priority} />
-                      </td>
-                      <td>
-                        <StatusBadge kind="requisition-status" value={item.status} />
-                      </td>
-                      <td>{item.totalAmount}</td>
-                      <td className="catalogue-table__action-cell">{renderActionMenu(item)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <CommonDataGrid
+              gridId="sale-order-catalogue"
+              rows={sortedRows}
+              columns={gridColumns}
+              rowId={(item) => item.id}
+              sortState={sortState}
+              onSortChange={handleSortChange}
+              chartTitle="Sale Order"
+            />
           </div>
         )}
 

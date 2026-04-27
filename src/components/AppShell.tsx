@@ -34,13 +34,23 @@ import ekaLogo from '../assets/Eka-Logo-White.png';
 import heroLogo from '../assets/Hero-Logo.svg';
 import royalEnfieldLogo from '../assets/Royal-Enfield-Logo-White.png';
 import ThemeSwitcher from './common/ThemeSwitcher';
+import GlobalSearchPanel from './common/GlobalSearchPanel';
 import { useTheme } from '../theme/useTheme';
-import { searchGlobalRecords, type GlobalSearchResult } from '../search/globalSearch';
+import type { GlobalSearchResult } from '../search/globalSearch';
 import { resolveVoiceCommand, type VoiceCommandResolution } from '../search/voiceCommand';
+import {
+  loadRecentSearches,
+  recordRecentSearch,
+  resolveSearchExperience,
+  searchModuleShortcuts,
+  searchScopeOptions,
+  type SearchRecentEntry,
+  type SearchScopeId,
+} from '../search/searchExperience';
+import type { SearchInsightMatch } from '../search/searchInsights';
 import { formatDate } from '../utils/dateFormat';
 
 type ActiveLeaf =
-  | 'dashboard'
   | 'purchase-requisition'
   | 'purchase-order'
   | 'purchase-receipt'
@@ -53,7 +63,6 @@ type ActiveLeaf =
   | null;
 
 export interface SidebarProps {
-  onDashboardClick?: () => void;
   onPurchaseRequisitionClick?: () => void;
   onPurchaseOrderClick?: () => void;
   onPurchaseReceiptClick?: () => void;
@@ -299,29 +308,8 @@ function getWakeCommand(transcript: string) {
   };
 }
 
-function highlightMatch(value: string, query: string) {
-  const normalizedValue = value.toLowerCase();
-  const normalizedQuery = query.trim().toLowerCase();
-  const matchIndex = normalizedQuery ? normalizedValue.indexOf(normalizedQuery) : -1;
-
-  if (matchIndex < 0) {
-    return value;
-  }
-
-  return (
-    <>
-      {value.slice(0, matchIndex)}
-      <mark className="app-topbar__search-highlight">
-        {value.slice(matchIndex, matchIndex + normalizedQuery.length)}
-      </mark>
-      {value.slice(matchIndex + normalizedQuery.length)}
-    </>
-  );
-}
-
 const Sidebar: React.FC<SidebarComponentProps> = ({
   isCollapsed,
-  onDashboardClick,
   onPurchaseRequisitionClick,
   onPurchaseOrderClick,
   onPurchaseReceiptClick,
@@ -342,13 +330,13 @@ const Sidebar: React.FC<SidebarComponentProps> = ({
     activeLeaf === 'sale-invoice' ||
     activeLeaf === 'delivery';
   const [expandedLevel1, setExpandedLevel1] = useState<Record<string, boolean>>({
-    Procurement: !isSalesLeaf && activeLeaf !== 'dashboard',
+    Procurement: !isSalesLeaf,
     Sales: isSalesLeaf,
     Inventory: false,
     Services: false,
   });
   const [expandedLevel2, setExpandedLevel2] = useState<Record<string, boolean>>({
-    Procurement_Pages: !isSalesLeaf && activeLeaf !== 'dashboard',
+    Procurement_Pages: !isSalesLeaf,
     Sales_Pages: isSalesLeaf,
     Inventory_Pages: false,
     Services_Pages: false,
@@ -448,17 +436,6 @@ const Sidebar: React.FC<SidebarComponentProps> = ({
   };
 
   const sidebarCollapsed = isCollapsed && !isMobileOpen;
-  const handleDashboardClick = () => {
-    if (onDashboardClick) {
-      onDashboardClick();
-    } else {
-      navigateToHash('#/dashboard');
-    }
-
-    if (isMobileOpen) {
-      onCloseMobile();
-    }
-  };
 
   return (
     <aside
@@ -469,20 +446,6 @@ const Sidebar: React.FC<SidebarComponentProps> = ({
       )}
     >
       <nav className="app-sidebar__nav" aria-label="Primary navigation">
-        <button
-          type="button"
-          onClick={handleDashboardClick}
-          className={cn(
-            'app-sidebar__level1 app-sidebar__dashboard-link',
-            activeLeaf === 'dashboard' && 'app-sidebar__dashboard-link--active',
-            sidebarCollapsed && 'app-sidebar__level1--collapsed'
-          )}
-          title={sidebarCollapsed ? 'Dashboard' : undefined}
-        >
-          <LayoutDashboard size={18} strokeWidth={1.9} aria-hidden="true" />
-          {!sidebarCollapsed && <span>Dashboard</span>}
-        </button>
-
         {menuStructure.map((level1) => {
           const isLevel1Expanded = expandedLevel1[level1.label];
 
@@ -576,17 +539,6 @@ const Sidebar: React.FC<SidebarComponentProps> = ({
         })}
       </nav>
 
-      <div className="app-sidebar__footer">
-        {!sidebarCollapsed && (
-          <div className="app-sidebar__footer-text">
-            Signed in as <span className="app-sidebar__footer-user">alex.kumar</span>
-          </div>
-        )}
-        <button type="button" className={cn('app-sidebar__logout', sidebarCollapsed && 'app-sidebar__logout--collapsed')}>
-          <LogOut size={18} />
-          {!sidebarCollapsed && <span>Logout</span>}
-        </button>
-      </div>
     </aside>
   );
 };
@@ -600,16 +552,20 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 }) => {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
+  const [selectedSearchScope, setSelectedSearchScope] = useState<SearchScopeId>('all');
+  const [recentSearches, setRecentSearches] = useState<SearchRecentEntry[]>(() => loadRecentSearches());
   const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
   const [activeSearchIndex, setActiveSearchIndex] = useState(0);
   const [voiceState, setVoiceState] = useState<VoiceState>('idle');
   const [voiceTranscript, setVoiceTranscript] = useState('');
   const [voiceMessage, setVoiceMessage] = useState('Say a command like “open sale invoice of Neha”.');
   const [voiceSuggestions, setVoiceSuggestions] = useState<GlobalSearchResult[]>([]);
+  const [voiceInsight, setVoiceInsight] = useState<SearchInsightMatch | null>(null);
   const [isVoicePanelOpen, setIsVoicePanelOpen] = useState(false);
   const [activeVoiceSuggestionIndex, setActiveVoiceSuggestionIndex] = useState(0);
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
   const globalSearchRef = useRef<HTMLDivElement | null>(null);
+  const globalSearchInputRef = useRef<HTMLInputElement | null>(null);
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
   const voiceModeRef = useRef<VoiceMode>('direct');
   const voiceTimeoutRef = useRef<number | null>(null);
@@ -619,17 +575,15 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   const startVoiceRecognitionRef = useRef<(mode?: VoiceMode) => void>(() => undefined);
   const { themeKey, theme } = useTheme();
   const deferredSearchQuery = useDeferredValue(globalSearchQuery);
-  const globalSearchGroups = useMemo(
-    () => searchGlobalRecords(deferredSearchQuery),
-    [deferredSearchQuery]
+  const searchResolution = useMemo(
+    () => resolveSearchExperience(deferredSearchQuery, selectedSearchScope),
+    [deferredSearchQuery, selectedSearchScope]
   );
-  const flatSearchResults = useMemo(
-    () => globalSearchGroups.flatMap((group) => group.results),
-    [globalSearchGroups]
-  );
-  const shouldShowSearchPanel = isGlobalSearchOpen && globalSearchQuery.trim().length > 0;
-  const activeSearchResultId = flatSearchResults[activeSearchIndex]
-    ? `global-search-result-${flatSearchResults[activeSearchIndex].entity}-${flatSearchResults[activeSearchIndex].id}`
+  const flatSearchResults = searchResolution.flatResults;
+  const shouldShowSearchPanel = isGlobalSearchOpen;
+  const resolvedActiveSearchIndex = Math.min(activeSearchIndex, Math.max(flatSearchResults.length - 1, 0));
+  const activeSearchResultId = flatSearchResults[resolvedActiveSearchIndex]
+    ? `global-search-result-${flatSearchResults[resolvedActiveSearchIndex].entity}-${flatSearchResults[resolvedActiveSearchIndex].id}`
     : undefined;
   const isVoiceListening = voiceState === 'listening';
 
@@ -651,20 +605,25 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                 ? royalEnfieldLogo
                 : excellonLogo;
   const moduleLabel =
-    activeLeaf === 'dashboard'
-      ? 'Dashboard'
-      : activeLeaf === 'purchase-requisition' ||
-          activeLeaf === 'purchase-order' ||
-          activeLeaf === 'purchase-receipt' ||
-          activeLeaf === 'purchase-invoice'
-        ? 'Procurement'
-        : activeLeaf === 'sale-order' ||
+    activeLeaf === 'purchase-requisition' ||
+    activeLeaf === 'purchase-order' ||
+    activeLeaf === 'purchase-receipt' ||
+    activeLeaf === 'purchase-invoice'
+      ? 'Procurement'
+      : activeLeaf === 'sale-order' ||
           activeLeaf === 'sale-allocation-requisition' ||
           activeLeaf === 'sale-allocation' ||
           activeLeaf === 'sale-invoice' ||
           activeLeaf === 'delivery'
-          ? 'Sales'
-          : 'Workspace';
+        ? 'Sales'
+        : 'Workspace';
+
+  function clearVoiceTimeout() {
+    if (voiceTimeoutRef.current) {
+      window.clearTimeout(voiceTimeoutRef.current);
+      voiceTimeoutRef.current = null;
+    }
+  }
 
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
@@ -675,6 +634,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
       if (!globalSearchRef.current?.contains(event.target as Node) && voiceState !== 'listening') {
         setIsGlobalSearchOpen(false);
         setIsVoicePanelOpen(false);
+        setVoiceInsight(null);
       }
     };
 
@@ -684,10 +644,8 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         setIsProfileMenuOpen(false);
         setIsGlobalSearchOpen(false);
         setIsVoicePanelOpen(false);
-        if (voiceTimeoutRef.current) {
-          window.clearTimeout(voiceTimeoutRef.current);
-          voiceTimeoutRef.current = null;
-        }
+        setVoiceInsight(null);
+        clearVoiceTimeout();
         recognitionRef.current?.abort();
       }
     };
@@ -701,26 +659,57 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
     };
   }, [voiceState]);
 
-  const handleSelectGlobalSearchResult = (result: GlobalSearchResult) => {
+  useEffect(() => {
+    return () => {
+      wakeListenerEnabledRef.current = false;
+      clearVoiceTimeout();
+      recognitionRef.current?.abort();
+    };
+  }, []);
+
+  const persistRecentSearch = (query: string, scopeId: SearchScopeId = selectedSearchScope) => {
+    setRecentSearches(recordRecentSearch(query, scopeId));
+  };
+
+  const handleSelectGlobalSearchResult = (
+    result: GlobalSearchResult,
+    recentQuery: string = globalSearchQuery,
+    recentScope: SearchScopeId = selectedSearchScope
+  ) => {
+    persistRecentSearch(recentQuery, recentScope);
     setGlobalSearchQuery('');
     setIsGlobalSearchOpen(false);
     setActiveSearchIndex(0);
     navigateToHash(result.href);
   };
 
-  const handleVoiceNavigate = (href: string) => {
+  const handleVoiceNavigate = (href: string, recentQuery?: string, scopeId: SearchScopeId = 'all') => {
+    if (recentQuery) {
+      persistRecentSearch(recentQuery, scopeId);
+    }
     setIsVoicePanelOpen(false);
     setVoiceSuggestions([]);
+    setVoiceInsight(null);
     setActiveVoiceSuggestionIndex(0);
     navigateToHash(href);
   };
 
   const handleVoiceResolution = (resolution: VoiceCommandResolution) => {
     setVoiceMessage(resolution.message);
+    setVoiceSuggestions([]);
+    setVoiceInsight(null);
 
     if (resolution.kind === 'navigate') {
       setVoiceState('success');
-      handleVoiceNavigate(resolution.href);
+      handleVoiceNavigate(resolution.href, resolution.intent.rawText);
+      return;
+    }
+
+    if (resolution.kind === 'insight') {
+      setVoiceState('success');
+      setVoiceInsight(resolution.insight);
+      setIsVoicePanelOpen(true);
+      persistRecentSearch(resolution.query, 'all');
       return;
     }
 
@@ -729,11 +718,11 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
       setVoiceSuggestions(resolution.suggestions);
       setActiveVoiceSuggestionIndex(0);
       setIsVoicePanelOpen(true);
+      persistRecentSearch(resolution.query, 'all');
       return;
     }
 
     setVoiceState('error');
-    setVoiceSuggestions([]);
     setIsVoicePanelOpen(true);
   };
 
@@ -746,14 +735,12 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
       setVoiceTranscript('');
       setVoiceMessage('Voice command is not supported in this browser. You can still use global search.');
       setVoiceSuggestions([]);
+      setVoiceInsight(null);
       setIsVoicePanelOpen(true);
       return;
     }
 
-    if (voiceTimeoutRef.current) {
-      window.clearTimeout(voiceTimeoutRef.current);
-      voiceTimeoutRef.current = null;
-    }
+    clearVoiceTimeout();
 
     recognitionRef.current?.abort();
     voiceModeRef.current = mode;
@@ -768,6 +755,8 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
       setIsGlobalSearchOpen(false);
       setVoiceState('listening');
       setVoiceTranscript(mode === 'command' ? 'Hi' : '');
+      setVoiceSuggestions([]);
+      setVoiceInsight(null);
 
       if (mode === 'wake') {
         setIsVoicePanelOpen(false);
@@ -795,6 +784,8 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         setVoiceState('error');
         setVoiceMessage('I could not hear a command. Please try again.');
         setIsVoicePanelOpen(true);
+        setVoiceSuggestions([]);
+        setVoiceInsight(null);
         return;
       }
 
@@ -857,6 +848,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           : 'Voice recognition could not complete. Please try again or type your search.'
       );
       setVoiceSuggestions([]);
+      setVoiceInsight(null);
       setIsVoicePanelOpen(true);
     };
 
@@ -942,10 +934,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
     if (isVoiceListening && !isWakeListening) {
       wakeListenerEnabledRef.current = false;
       recognitionRef.current?.stop();
-      if (voiceTimeoutRef.current) {
-        window.clearTimeout(voiceTimeoutRef.current);
-        voiceTimeoutRef.current = null;
-      }
+      clearVoiceTimeout();
       setVoiceState('idle');
       return;
     }
@@ -954,12 +943,10 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
       recognitionRef.current?.abort();
     }
 
-    if (voiceTimeoutRef.current) {
-      window.clearTimeout(voiceTimeoutRef.current);
-      voiceTimeoutRef.current = null;
-    }
+    clearVoiceTimeout();
 
     setVoiceSuggestions([]);
+    setVoiceInsight(null);
     setActiveVoiceSuggestionIndex(0);
     setVoiceTranscript('');
     wakeListenerEnabledRef.current = true;
@@ -973,7 +960,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   ) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
-      handleVoiceNavigate(result.href);
+      handleVoiceNavigate(result.href, voiceTranscript || result.title);
     }
 
     if (event.key === 'ArrowDown') {
@@ -1002,9 +989,30 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
       setActiveSearchIndex((current) => Math.max(current - 1, 0));
     }
 
-    if (event.key === 'Enter' && flatSearchResults[activeSearchIndex]) {
+    if (event.key === 'Enter' && flatSearchResults[resolvedActiveSearchIndex]) {
       event.preventDefault();
-      handleSelectGlobalSearchResult(flatSearchResults[activeSearchIndex]);
+      handleSelectGlobalSearchResult(flatSearchResults[resolvedActiveSearchIndex]);
+    }
+
+    if (event.key === 'Enter' && !flatSearchResults[resolvedActiveSearchIndex] && searchResolution.commandPreview) {
+      event.preventDefault();
+      persistRecentSearch(globalSearchQuery, selectedSearchScope);
+      setIsGlobalSearchOpen(false);
+      setGlobalSearchQuery('');
+      navigateToHash(searchResolution.commandPreview.href);
+    }
+
+    if (
+      event.key === 'Enter' &&
+      !flatSearchResults[resolvedActiveSearchIndex] &&
+      !searchResolution.commandPreview &&
+      searchResolution.insight
+    ) {
+      event.preventDefault();
+      persistRecentSearch(globalSearchQuery, selectedSearchScope);
+      setIsGlobalSearchOpen(false);
+      setGlobalSearchQuery('');
+      navigateToHash(searchResolution.insight.href);
     }
 
     if (event.key === 'Escape') {
@@ -1044,35 +1052,78 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
       </div>
 
       <div className="app-topbar__center">
-        <div ref={globalSearchRef} className="app-topbar__search-wrap">
-          <Search size={18} className="app-topbar__search-icon" />
-          <input
-            type="text"
-            value={globalSearchQuery}
-            placeholder="Hi, open sale order..."
-            className="app-topbar__search"
-            aria-label="Global navigation search"
-            role="combobox"
-            aria-expanded={shouldShowSearchPanel}
-            aria-controls="global-search-results"
-            aria-activedescendant={activeSearchResultId}
-            autoComplete="off"
-            onChange={(event) => {
-              setGlobalSearchQuery(event.target.value);
-              setActiveSearchIndex(0);
-              setIsGlobalSearchOpen(true);
-            }}
-            onFocus={() => {
-              if (globalSearchQuery.trim()) {
-                setIsGlobalSearchOpen(true);
-              }
-            }}
-            onKeyDown={handleGlobalSearchKeyDown}
-          />
+        <div
+          ref={globalSearchRef}
+          className={cn('app-topbar__search-wrap', isGlobalSearchOpen && 'app-topbar__search-wrap--active')}
+        >
+          <div className={cn('app-topbar__search-shell', isGlobalSearchOpen && 'app-topbar__search-shell--active')}>
+            <div className="app-topbar__search-scope">
+              <select
+                value={selectedSearchScope}
+                className="app-topbar__search-scope-select"
+                aria-label="Search scope"
+                onChange={(event) => {
+                  setSelectedSearchScope(event.target.value as SearchScopeId);
+                  setActiveSearchIndex(0);
+                  setIsGlobalSearchOpen(true);
+                }}
+              >
+                {searchScopeOptions.map((scope) => (
+                  <option key={scope.id} value={scope.id}>
+                    {scope.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="app-topbar__search-field">
+              <Search size={18} className="app-topbar__search-icon" />
+              <input
+                ref={globalSearchInputRef}
+                type="text"
+                value={globalSearchQuery}
+                placeholder="Search documents, modules, or ask for insights..."
+                className="app-topbar__search"
+                aria-label="Global navigation search"
+                role="combobox"
+                aria-expanded={shouldShowSearchPanel}
+                aria-controls="global-search-results"
+                aria-activedescendant={activeSearchResultId}
+                autoComplete="off"
+                onChange={(event) => {
+                  setGlobalSearchQuery(event.target.value);
+                  setActiveSearchIndex(0);
+                  setIsGlobalSearchOpen(true);
+                }}
+                onFocus={() => {
+                  setIsGlobalSearchOpen(true);
+                }}
+                onKeyDown={handleGlobalSearchKeyDown}
+              />
+              {globalSearchQuery.trim().length > 0 && (
+                <button
+                  type="button"
+                  className="app-topbar__search-clear"
+                  onClick={() => {
+                    setGlobalSearchQuery('');
+                    setActiveSearchIndex(0);
+                    setIsGlobalSearchOpen(true);
+                    window.setTimeout(() => globalSearchInputRef.current?.focus(), 0);
+                  }}
+                  aria-label="Clear search"
+                  title="Clear search"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          </div>
+
           <button
             type="button"
             className={cn(
               'app-topbar__voice-button',
+              'app-topbar__voice-button--outside',
               isVoiceListening && 'app-topbar__voice-button--listening',
               voiceState === 'error' && 'app-topbar__voice-button--error'
             )}
@@ -1085,73 +1136,46 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           </button>
 
           {shouldShowSearchPanel && (
-            <div className="app-topbar__search-panel" id="global-search-results" role="listbox">
-              <div className="app-topbar__search-panel-header">
-                <span>Global results</span>
-                <span>{flatSearchResults.length} match{flatSearchResults.length === 1 ? '' : 'es'}</span>
-              </div>
-
-              {globalSearchGroups.length > 0 ? (
-                <div className="app-topbar__search-groups">
-                  {globalSearchGroups.map((group) => (
-                    <section key={group.entity} className="app-topbar__search-group" aria-label={group.label}>
-                      <div className="app-topbar__search-group-title">{group.label}</div>
-                      {group.results.map((result) => {
-                        const resultIndex = flatSearchResults.findIndex(
-                          (item) => item.entity === result.entity && item.id === result.id
-                        );
-                        const isActive = resultIndex === activeSearchIndex;
-                        const resultId = `global-search-result-${result.entity}-${result.id}`;
-
-                        return (
-                          <button
-                            key={`${result.entity}-${result.id}`}
-                            id={resultId}
-                            type="button"
-                            role="option"
-                            aria-selected={isActive}
-                            className={cn(
-                              'app-topbar__search-result',
-                              isActive && 'app-topbar__search-result--active'
-                            )}
-                            onMouseEnter={() => setActiveSearchIndex(resultIndex)}
-                            onMouseDown={(event) => event.preventDefault()}
-                            onClick={() => handleSelectGlobalSearchResult(result)}
-                          >
-                            <span className="app-topbar__search-result-main">
-                              <span className="app-topbar__search-result-title">
-                                {highlightMatch(result.title, globalSearchQuery)}
-                              </span>
-                              <span className="app-topbar__search-result-subtitle">
-                                {highlightMatch(result.subtitle, globalSearchQuery)}
-                              </span>
-                            </span>
-                            <span className="app-topbar__search-result-meta">
-                              {result.status && <span className="brand-badge">{result.status}</span>}
-                              {result.date && <span>{formatDate(result.date)}</span>}
-                              {result.amount && <span>{result.amount}</span>}
-                            </span>
-                            <span className="app-topbar__search-result-description">
-                              {highlightMatch(result.description, globalSearchQuery)}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </section>
-                  ))}
-                </div>
-              ) : (
-                <div className="app-topbar__search-empty">
-                  <Search size={18} aria-hidden="true" />
-                  <div>
-                    <div className="app-topbar__search-empty-title">No matching records found</div>
-                    <div className="app-topbar__search-empty-copy">
-                      Try a document number, supplier, customer, status, amount, or product code.
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
+            <GlobalSearchPanel
+              query={globalSearchQuery}
+              resultGroups={searchResolution.groups}
+              flatResults={flatSearchResults}
+              activeSearchIndex={resolvedActiveSearchIndex}
+              recentSearches={recentSearches}
+              shortcuts={searchModuleShortcuts}
+              activeScopeId={selectedSearchScope}
+              insight={searchResolution.insight}
+              commandPreview={searchResolution.commandPreview}
+              onHoverResult={setActiveSearchIndex}
+              onSelectResult={handleSelectGlobalSearchResult}
+              onSelectRecentSearch={(entry) => {
+                setSelectedSearchScope(entry.scopeId);
+                setGlobalSearchQuery(entry.query);
+                setActiveSearchIndex(0);
+                setIsGlobalSearchOpen(true);
+                window.setTimeout(() => globalSearchInputRef.current?.focus(), 0);
+              }}
+              onSelectShortcut={(shortcut) => {
+                if (shortcut.scopeId) {
+                  setSelectedSearchScope(shortcut.scopeId);
+                }
+                setActiveSearchIndex(0);
+                setIsGlobalSearchOpen(true);
+                window.setTimeout(() => globalSearchInputRef.current?.focus(), 0);
+              }}
+              onSelectCommandPreview={(commandPreview) => {
+                persistRecentSearch(globalSearchQuery, selectedSearchScope);
+                setIsGlobalSearchOpen(false);
+                setGlobalSearchQuery('');
+                navigateToHash(commandPreview.href);
+              }}
+              onNavigateToInsight={(insight) => {
+                persistRecentSearch(globalSearchQuery, selectedSearchScope);
+                setIsGlobalSearchOpen(false);
+                setGlobalSearchQuery('');
+                navigateToHash(insight.href);
+              }}
+            />
           )}
 
           {isVoicePanelOpen && (
@@ -1188,12 +1212,10 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                   onClick={() => {
                     wakeListenerEnabledRef.current = false;
                     recognitionRef.current?.abort();
-                    if (voiceTimeoutRef.current) {
-                      window.clearTimeout(voiceTimeoutRef.current);
-                      voiceTimeoutRef.current = null;
-                    }
+                    clearVoiceTimeout();
                     setIsVoicePanelOpen(false);
                     setVoiceState('idle');
+                    setVoiceInsight(null);
                   }}
                   aria-label="Close voice command panel"
                 >
@@ -1224,6 +1246,21 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                 </div>
               )}
 
+              {voiceInsight && (
+                <button
+                  type="button"
+                  className="app-topbar__voice-insight"
+                  onClick={() => handleVoiceNavigate(voiceInsight.href, voiceTranscript || voiceInsight.title)}
+                >
+                  <span className="app-topbar__voice-insight-copy">
+                    <small>Insight</small>
+                    <strong>{voiceInsight.title}</strong>
+                    <span>{voiceInsight.description}</span>
+                  </span>
+                  <span className="app-topbar__voice-insight-value">{voiceInsight.value}</span>
+                </button>
+              )}
+
               {voiceSuggestions.length > 0 && (
                 <div className="app-topbar__voice-suggestions" role="listbox" aria-label="Voice command matches">
                   {voiceSuggestions.map((result, index) => (
@@ -1238,7 +1275,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                       )}
                       onMouseEnter={() => setActiveVoiceSuggestionIndex(index)}
                       onKeyDown={(event) => handleVoiceSuggestionKeyDown(event, result, index)}
-                      onClick={() => handleVoiceNavigate(result.href)}
+                      onClick={() => handleVoiceNavigate(result.href, voiceTranscript || result.title)}
                     >
                       <span>
                         <strong>{result.title}</strong>
@@ -1333,7 +1370,6 @@ const AppShell: React.FC<AppShellProps> = ({
   contentClassName,
   contentRef,
   onContentScroll,
-  onDashboardClick,
   onPurchaseOrderClick,
   onPurchaseReceiptClick,
   onPurchaseInvoiceClick,
@@ -1392,7 +1428,6 @@ const AppShell: React.FC<AppShellProps> = ({
         <Sidebar
           activeLeaf={activeLeaf}
           isCollapsed={isSidebarCollapsed}
-          onDashboardClick={onDashboardClick}
           onPurchaseOrderClick={onPurchaseOrderClick}
           onPurchaseReceiptClick={onPurchaseReceiptClick}
           onPurchaseInvoiceClick={onPurchaseInvoiceClick}

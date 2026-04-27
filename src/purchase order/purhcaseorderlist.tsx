@@ -15,9 +15,10 @@ import {
 import AppShell from '../components/AppShell';
 import CancelDocumentDialog from '../components/common/CancelDocumentDialog';
 import CatalogueInsightCards from '../components/common/CatalogueInsightCards';
+import CommonDataGrid from '../components/common/CommonDataGrid';
+import type { DataGridColumn } from '../components/common/dataGridTypes';
 import DocumentPreviewDrawer from '../components/common/DocumentPreviewDrawer';
 import SideDrawer from '../components/common/SideDrawer';
-import SortableTableHeader from '../components/common/SortableTableHeader';
 import StatusBadge from '../components/common/StatusBadge';
 import { Input, Select } from '../components/common/FormControls';
 import { emptyCatalogueFilters, getActiveFilterCount } from '../catalogueFilters';
@@ -27,7 +28,6 @@ import { cn } from '../utils/classNames';
 import { buildCountInsight, formatInsightAmount, formatInsightCount, getInsightPercent, sumNumericValues } from '../utils/catalogueInsights';
 import { formatDate, formatDateTime } from '../utils/dateFormat';
 import type { SortState } from '../utils/sortState';
-import { buildNumberColumnAggregation, formatTableAggregationNumber } from '../utils/tableColumnAggregations';
 import { extendedPurchaseOrderDocuments, type PurchaseOrderDocument } from './purchaseOrderData';
 
 interface PurhcaseOrderListProps {
@@ -524,38 +524,6 @@ const PurhcaseOrderList: React.FC<PurhcaseOrderListProps> = ({
 
   const activeFilterCount = useMemo(() => getActiveFilterCount(filters), [filters]);
   const hasActiveFilters = activeFilterCount > 0;
-  const taxableAmountAggregation = useMemo(
-    () =>
-      buildNumberColumnAggregation(sortedRows, {
-        selector: (item) => item.taxableAmount,
-        formatter: formatTableAggregationNumber,
-      }),
-    [sortedRows]
-  );
-  const totalDiscountAggregation = useMemo(
-    () =>
-      buildNumberColumnAggregation(sortedRows, {
-        selector: (item) => item.totalDiscount,
-        formatter: formatTableAggregationNumber,
-      }),
-    [sortedRows]
-  );
-  const totalTaxesAggregation = useMemo(
-    () =>
-      buildNumberColumnAggregation(sortedRows, {
-        selector: (item) => item.totalTaxes,
-        formatter: formatTableAggregationNumber,
-      }),
-    [sortedRows]
-  );
-  const totalAmountAggregation = useMemo(
-    () =>
-      buildNumberColumnAggregation(sortedRows, {
-        selector: (item) => item.totalAmount,
-        formatter: formatTableAggregationNumber,
-      }),
-    [sortedRows]
-  );
   const previewDocument = useMemo(
     () => documents.find((document) => document.id === previewDocumentId) ?? null,
     [documents, previewDocumentId]
@@ -655,6 +623,212 @@ const PurhcaseOrderList: React.FC<PurhcaseOrderListProps> = ({
     );
     setCancelDocumentId(null);
   };
+
+  const renderActionMenu = (item: PurchaseOrderDocument) => (
+    <div
+      ref={(element) => {
+        actionMenuRefs.current[item.id] = element;
+      }}
+      className="catalogue-action-menu"
+    >
+      <button
+        type="button"
+        onClick={() => setOpenActionMenuId((current) => (current === item.id ? null : item.id))}
+        className="catalogue-action-menu__trigger"
+        aria-label={`Open actions for ${item.number}`}
+        aria-expanded={openActionMenuId === item.id}
+      >
+        <MoreVertical size={15} />
+      </button>
+
+      {openActionMenuId === item.id && (
+        <div className="catalogue-action-menu__panel" role="menu" aria-label={`Actions for ${item.number}`}>
+          <button type="button" className="catalogue-action-menu__item" role="menuitem" onClick={() => handleViewDocument(item.id)}>
+            <Eye size={16} />
+            View
+          </button>
+          <button type="button" className="catalogue-action-menu__item" role="menuitem" onClick={() => handleEditDocument(item.id)}>
+            <PencilLine size={16} />
+            Edit
+          </button>
+          <button
+            type="button"
+            className="catalogue-action-menu__item catalogue-action-menu__item--danger"
+            role="menuitem"
+            disabled={item.status === 'Cancelled'}
+            onClick={() => handleOpenCancelDialog(item.id)}
+          >
+            <Ban size={16} />
+            Cancel
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
+  const gridColumns: DataGridColumn<PurchaseOrderDocument>[] = [
+      {
+        id: 'number',
+        label: 'PO No.',
+        type: 'text',
+        width: 146,
+        getValue: (item) => item.number,
+        renderCell: (item) => (
+          <button
+            type="button"
+            onClick={() => handleViewDocument(item.id)}
+            className="catalogue-table__document-link"
+          >
+            {item.number}
+          </button>
+        ),
+      },
+      {
+        id: 'poDate',
+        label: 'PO Date',
+        type: 'date',
+        width: 160,
+        getValue: (item) => item.orderDateTime,
+        renderCell: (item) => <div className="catalogue-table__datetime">{formatDate(item.orderDateTime)}</div>,
+      },
+      {
+        id: 'requisitionNumber',
+        label: 'PR No.',
+        type: 'text',
+        width: 136,
+        getValue: (item) => item.requisitionNumber,
+        renderCell: (item) => (
+          <div className="catalogue-table__truncate" title={item.requisitionNumber || 'Not linked'}>
+            {item.requisitionNumber || '-'}
+          </div>
+        ),
+      },
+      {
+        id: 'requisitionDate',
+        label: 'PR Date',
+        type: 'date',
+        width: 148,
+        getValue: (item) => item.requisitionDate,
+        renderCell: (item) => <div className="catalogue-table__datetime">{formatDate(item.requisitionDate)}</div>,
+      },
+      {
+        id: 'supplierName',
+        label: 'Supplier name',
+        type: 'text',
+        width: 188,
+        getValue: (item) => item.supplierName,
+        renderCell: (item) => (
+          <div className="catalogue-table__truncate" title={item.supplierName}>
+            {item.supplierName}
+          </div>
+        ),
+      },
+      {
+        id: 'department',
+        label: 'Department',
+        type: 'text',
+        width: 144,
+        getValue: (item) => item.department,
+        renderCell: (item) => item.department,
+      },
+      {
+        id: 'priority',
+        label: 'Priority',
+        type: 'status',
+        width: 118,
+        getValue: (item) => item.priority,
+        options: [
+          { value: 'Low', label: 'Low' },
+          { value: 'Medium', label: 'Medium' },
+          { value: 'High', label: 'High' },
+          { value: 'Critical', label: 'Critical' },
+        ],
+        renderCell: (item) => <StatusBadge kind="priority" value={item.priority} />,
+      },
+      {
+        id: 'status',
+        label: 'Status',
+        type: 'status',
+        width: 156,
+        getValue: (item) => item.status,
+        options: [
+          { value: 'Draft', label: 'Draft' },
+          { value: 'Pending Approval', label: 'Pending Approval' },
+          { value: 'Approved', label: 'Approved' },
+          { value: 'Rejected', label: 'Rejected' },
+          { value: 'Cancelled', label: 'Cancelled' },
+        ],
+        renderCell: (item) => <StatusBadge kind="requisition-status" value={item.status} />,
+      },
+      {
+        id: 'taxableAmount',
+        label: 'Taxable amount',
+        type: 'number',
+        width: 150,
+        getValue: (item) => item.taxableAmount,
+        renderCell: (item) => item.taxableAmount,
+      },
+      {
+        id: 'totalDiscount',
+        label: 'Total discount',
+        type: 'number',
+        width: 148,
+        getValue: (item) => item.totalDiscount,
+        renderCell: (item) => item.totalDiscount,
+      },
+      {
+        id: 'totalTaxes',
+        label: 'Total taxes',
+        type: 'number',
+        width: 136,
+        getValue: (item) => item.totalTaxes,
+        renderCell: (item) => item.totalTaxes,
+      },
+      {
+        id: 'totalAmount',
+        label: 'Total amount',
+        type: 'number',
+        width: 148,
+        getValue: (item) => item.totalAmount,
+        renderCell: (item) => item.totalAmount,
+      },
+      {
+        id: 'createdBy',
+        label: 'Created By',
+        type: 'text',
+        width: 140,
+        getValue: (item) => item.createdBy,
+        renderCell: (item) => item.createdBy,
+      },
+      {
+        id: 'createdOn',
+        label: 'Created On',
+        type: 'date',
+        width: 188,
+        getValue: (item) => item.createdOn,
+        renderCell: (item) => {
+          const createdOn = formatDateTime(item.createdOn);
+          return (
+            <div className="catalogue-table__datetime">
+              {createdOn.dateLabel}, {createdOn.timeLabel}
+            </div>
+          );
+        },
+      },
+      {
+        id: 'actions',
+        label: 'Actions',
+        type: 'actions',
+        width: 86,
+        sortable: false,
+        filterable: false,
+        groupable: false,
+        defaultPin: 'right',
+        hideable: false,
+        getValue: () => '',
+        renderCell: (item) => renderActionMenu(item),
+      },
+    ];
 
   return (
     <AppShell
@@ -783,120 +957,15 @@ const PurhcaseOrderList: React.FC<PurhcaseOrderListProps> = ({
 
           {loadState === 'ready' && sortedRows.length > 0 && (
             <div className="catalogue-table-scroll">
-              <table className="catalogue-table">
-                <thead>
-                  <tr>
-                    <SortableTableHeader label="PO No." sortKey="number" sortState={sortState} onSortChange={handleSortChange} />
-                    <SortableTableHeader label="PO Date" sortKey="poDate" sortState={sortState} onSortChange={handleSortChange} dataType="date" />
-                    <SortableTableHeader label="PR No." sortKey="requisitionNumber" sortState={sortState} onSortChange={handleSortChange} />
-                    <SortableTableHeader label="PR Date" sortKey="requisitionDate" sortState={sortState} onSortChange={handleSortChange} dataType="date" />
-                    <SortableTableHeader label="Supplier name" sortKey="supplierName" sortState={sortState} onSortChange={handleSortChange} />
-                    <SortableTableHeader label="Department" sortKey="department" sortState={sortState} onSortChange={handleSortChange} />
-                    <SortableTableHeader label="Priority" sortKey="priority" sortState={sortState} onSortChange={handleSortChange} dataType="status" />
-                    <SortableTableHeader label="Status" sortKey="status" sortState={sortState} onSortChange={handleSortChange} dataType="status" />
-                    <SortableTableHeader label="Taxable amount" sortKey="taxableAmount" sortState={sortState} onSortChange={handleSortChange} dataType="number" aggregation={taxableAmountAggregation} />
-                    <SortableTableHeader label="Total Discount" sortKey="totalDiscount" sortState={sortState} onSortChange={handleSortChange} dataType="number" aggregation={totalDiscountAggregation} />
-                    <SortableTableHeader label="Total taxes" sortKey="totalTaxes" sortState={sortState} onSortChange={handleSortChange} dataType="number" aggregation={totalTaxesAggregation} />
-                    <SortableTableHeader label="Total amount" sortKey="totalAmount" sortState={sortState} onSortChange={handleSortChange} dataType="number" aggregation={totalAmountAggregation} />
-                    <SortableTableHeader label="Created By" sortKey="createdBy" sortState={sortState} onSortChange={handleSortChange} />
-                    <SortableTableHeader label="Created On" sortKey="createdOn" sortState={sortState} onSortChange={handleSortChange} dataType="date" />
-                    <th className="catalogue-table__action-header">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedRows.map((item) => {
-                    const createdOn = formatDateTime(item.createdOn);
-
-                    return (
-                      <tr key={item.id}>
-                        <td>
-                          <button
-                            type="button"
-                            onClick={() => handleViewDocument(item.id)}
-                            className="catalogue-table__document-link"
-                          >
-                            {item.number}
-                          </button>
-                        </td>
-                        <td>
-                          <div className="catalogue-table__datetime">{formatDate(item.orderDateTime)}</div>
-                        </td>
-                        <td>
-                          <div className="catalogue-table__truncate" title={item.requisitionNumber || 'Not linked'}>
-                            {item.requisitionNumber || '-'}
-                          </div>
-                        </td>
-                        <td>
-                          <div className="catalogue-table__datetime">{formatDate(item.requisitionDate)}</div>
-                        </td>
-                        <td>
-                          <div className="catalogue-table__truncate" title={item.supplierName}>
-                            {item.supplierName}
-                          </div>
-                        </td>
-                        <td>{item.department}</td>
-                        <td>
-                          <StatusBadge kind="priority" value={item.priority} />
-                        </td>
-                        <td>
-                          <StatusBadge kind="requisition-status" value={item.status} />
-                        </td>
-                        <td>{item.taxableAmount}</td>
-                        <td>{item.totalDiscount}</td>
-                        <td>{item.totalTaxes}</td>
-                        <td>{item.totalAmount}</td>
-                        <td>{item.createdBy}</td>
-                        <td>
-                          <div className="catalogue-table__datetime">
-                            {createdOn.dateLabel}, {createdOn.timeLabel}
-                          </div>
-                        </td>
-                        <td className="catalogue-table__action-cell">
-                          <div
-                            ref={(element) => {
-                              actionMenuRefs.current[item.id] = element;
-                            }}
-                            className="catalogue-action-menu"
-                          >
-                            <button
-                              type="button"
-                              onClick={() => setOpenActionMenuId((current) => (current === item.id ? null : item.id))}
-                              className="catalogue-action-menu__trigger"
-                              aria-label={`Open actions for ${item.number}`}
-                              aria-expanded={openActionMenuId === item.id}
-                            >
-                              <MoreVertical size={15} />
-                            </button>
-
-                            {openActionMenuId === item.id && (
-                              <div className="catalogue-action-menu__panel" role="menu" aria-label={`Actions for ${item.number}`}>
-                                <button type="button" className="catalogue-action-menu__item" role="menuitem" onClick={() => handleViewDocument(item.id)}>
-                                  <Eye size={16} />
-                                  View
-                                </button>
-                                <button type="button" className="catalogue-action-menu__item" role="menuitem" onClick={() => handleEditDocument(item.id)}>
-                                  <PencilLine size={16} />
-                                  Edit
-                                </button>
-                                <button
-                                  type="button"
-                                  className="catalogue-action-menu__item catalogue-action-menu__item--danger"
-                                  role="menuitem"
-                                  disabled={item.status === 'Cancelled'}
-                                  onClick={() => handleOpenCancelDialog(item.id)}
-                                >
-                                  <Ban size={16} />
-                                  Cancel
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+              <CommonDataGrid
+                gridId="purchase-order-catalogue"
+                rows={sortedRows}
+                columns={gridColumns}
+                rowId={(item) => item.id}
+                sortState={sortState}
+                onSortChange={handleSortChange}
+                chartTitle="Purchase Order"
+              />
             </div>
           )}
         </section>

@@ -77,6 +77,10 @@ export interface GlobalSearchGroup {
   results: GlobalSearchResult[];
 }
 
+export interface GlobalSearchOptions {
+  entities?: GlobalSearchEntity[];
+}
+
 const MAX_RESULTS = 18;
 
 function valueOf(value: unknown): string {
@@ -471,14 +475,33 @@ const globalSearchIndex: GlobalSearchRecord[] = [
   ...extendedDeliveryDocuments.map(deliveryRecord),
 ];
 
-export function searchGlobalRecords(rawQuery: string, maxResults = MAX_RESULTS): GlobalSearchGroup[] {
+export const globalSearchEntityLabels: Record<GlobalSearchEntity, string> = {
+  'purchase-requisition': 'Purchase Requisition',
+  'purchase-order': 'Purchase Order',
+  'purchase-receipt': 'Purchase Receipt',
+  'purchase-invoice': 'Purchase Invoice',
+  'sale-order': 'Sale Order',
+  'sale-allocation-requisition': 'Sale Allocation Requisition',
+  'sale-allocation': 'Sale Allocation',
+  'sale-invoice': 'Sale Invoice',
+  delivery: 'Delivery',
+};
+
+export function searchGlobalRecords(
+  rawQuery: string,
+  maxResults = MAX_RESULTS,
+  options?: GlobalSearchOptions
+): GlobalSearchGroup[] {
   const query = rawQuery.trim();
 
   if (!query) {
     return [];
   }
 
+  const allowedEntities = options?.entities ? new Set(options.entities) : null;
+
   const rankedResults = globalSearchIndex
+    .filter((record) => !allowedEntities || allowedEntities.has(record.entity))
     .map((record) => rankRecord(record, query))
     .filter((result): result is GlobalSearchResult => Boolean(result))
     .sort((a, b) => b.score - a.score)

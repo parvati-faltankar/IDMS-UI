@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import {
   ChevronDown,
@@ -27,7 +27,9 @@ interface SortableTableHeaderProps<TKey extends string> {
   sortKey: TKey;
   sortState: SortState<TKey>;
   onSortChange: (key: TKey, direction: SortDirection | null) => void;
+  sortable?: boolean;
   className?: string;
+  style?: CSSProperties;
   dataType?: TableColumnDataType;
   aggregation?: TableColumnAggregation;
   menuLabel?: string;
@@ -40,6 +42,7 @@ interface SortableTableHeaderProps<TKey extends string> {
   canHide?: boolean;
   onHide?: (key: TKey) => void;
   onReset?: (key: TKey) => void;
+  resizeHandle?: ReactNode;
 }
 
 const SortableTableHeader = <TKey extends string,>({
@@ -47,7 +50,9 @@ const SortableTableHeader = <TKey extends string,>({
   sortKey,
   sortState,
   onSortChange,
+  sortable = true,
   className,
+  style,
   dataType = 'text',
   aggregation,
   menuLabel,
@@ -60,13 +65,18 @@ const SortableTableHeader = <TKey extends string,>({
   canHide = false,
   onHide,
   onReset,
+  resizeHandle,
 }: SortableTableHeaderProps<TKey>) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
-  const menuRef = useRef<HTMLDivElement | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number; maxHeight: number }>({
+    top: 0,
+    left: 0,
+    maxHeight: 320,
+  });
+  const menuContentRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const isActive = sortState?.key === sortKey;
-  const ariaSort = !isActive ? 'none' : sortState.direction === 'asc' ? 'ascending' : 'descending';
+  const isActive = sortable && sortState?.key === sortKey;
+  const ariaSort = sortable ? (!isActive ? 'none' : sortState.direction === 'asc' ? 'ascending' : 'descending') : undefined;
 
   useEffect(() => {
     if (!isMenuOpen) {
@@ -79,31 +89,31 @@ const SortableTableHeader = <TKey extends string,>({
         return;
       }
 
-      const menuWidth = 248;
-      const estimatedMenuHeight = 340;
       const viewportPadding = 12;
+      const menuWidth = menuContentRef.current?.offsetWidth ?? 248;
+      const nextTop = triggerBounds.bottom + 8;
+      const availableHeight = Math.max(160, window.innerHeight - nextTop - viewportPadding);
+      const preferredLeft = triggerBounds.right - menuWidth;
       const nextLeft = Math.min(
         window.innerWidth - menuWidth - viewportPadding,
-        Math.max(viewportPadding, triggerBounds.right - menuWidth)
+        Math.max(viewportPadding, preferredLeft)
       );
-      const openUpwards = triggerBounds.bottom + estimatedMenuHeight > window.innerHeight - viewportPadding;
-      const nextTop = openUpwards
-        ? Math.max(viewportPadding, triggerBounds.top - estimatedMenuHeight - 8)
-        : triggerBounds.bottom + 8;
 
       setMenuPosition({
         top: nextTop,
         left: nextLeft,
+        maxHeight: availableHeight,
       });
     };
 
     updatePosition();
+    const rafId = window.requestAnimationFrame(updatePosition);
 
     const handlePointerDown = (event: MouseEvent) => {
       const target = event.target as Node;
       if (
-        menuRef.current &&
-        !menuRef.current.contains(target) &&
+        menuContentRef.current &&
+        !menuContentRef.current.contains(target) &&
         triggerRef.current &&
         !triggerRef.current.contains(target)
       ) {
@@ -123,6 +133,7 @@ const SortableTableHeader = <TKey extends string,>({
     window.addEventListener('scroll', updatePosition, true);
 
     return () => {
+      window.cancelAnimationFrame(rafId);
       window.removeEventListener('mousedown', handlePointerDown);
       window.removeEventListener('keydown', handleEscape);
       window.removeEventListener('resize', updatePosition);
@@ -159,6 +170,10 @@ const SortableTableHeader = <TKey extends string,>({
   }, [dataType]);
 
   const handleSortAction = (direction: SortDirection | null) => {
+    if (!sortable) {
+      return;
+    }
+
     onSortChange(sortKey, direction);
     setIsMenuOpen(false);
   };
@@ -200,13 +215,13 @@ const SortableTableHeader = <TKey extends string,>({
   };
 
   return (
-    <th aria-sort={ariaSort} className={className}>
+    <th aria-sort={ariaSort} className={className} style={style}>
       <div className="catalogue-table__header-shell">
         <span className={cn('catalogue-table__header-label', isActive && 'catalogue-table__header-label--active')}>
           {label}
         </span>
 
-        <div ref={menuRef} className="catalogue-column-menu">
+        <div className="catalogue-column-menu">
           <button
             ref={triggerRef}
             type="button"
@@ -226,7 +241,7 @@ const SortableTableHeader = <TKey extends string,>({
           {isMenuOpen &&
             createPortal(
               <div
-                ref={menuRef}
+                ref={menuContentRef}
                 className="catalogue-column-menu__content"
                 role="menu"
                 aria-label={`${label} column actions`}
@@ -234,46 +249,50 @@ const SortableTableHeader = <TKey extends string,>({
                   position: 'fixed',
                   top: `${menuPosition.top}px`,
                   left: `${menuPosition.left}px`,
+                  maxHeight: `${menuPosition.maxHeight}px`,
+                  overflowY: 'auto',
                 }}
               >
-                <div className="catalogue-column-menu__section">
-                  <div className="catalogue-column-menu__section-title">Sort</div>
-                  <button
-                    type="button"
-                    className={cn(
-                      'catalogue-column-menu__item',
-                      isActive && sortState?.direction === 'asc' && 'catalogue-column-menu__item--active'
-                    )}
-                    role="menuitem"
-                    onClick={() => handleSortAction('asc')}
-                  >
-                    <span className="catalogue-column-menu__item-label">{sortLabels.ascending}</span>
-                    <ChevronUp size={14} />
-                  </button>
-                  <button
-                    type="button"
-                    className={cn(
-                      'catalogue-column-menu__item',
-                      isActive && sortState?.direction === 'desc' && 'catalogue-column-menu__item--active'
-                    )}
-                    role="menuitem"
-                    onClick={() => handleSortAction('desc')}
-                  >
-                    <span className="catalogue-column-menu__item-label">{sortLabels.descending}</span>
-                    <ChevronDown size={14} />
-                  </button>
-                  {isActive && (
+                {sortable && (
+                  <div className="catalogue-column-menu__section">
+                    <div className="catalogue-column-menu__section-title">Sort</div>
                     <button
                       type="button"
-                      className="catalogue-column-menu__item"
+                      className={cn(
+                        'catalogue-column-menu__item',
+                        isActive && sortState?.direction === 'asc' && 'catalogue-column-menu__item--active'
+                      )}
                       role="menuitem"
-                      onClick={() => handleSortAction(null)}
+                      onClick={() => handleSortAction('asc')}
                     >
-                      <span className="catalogue-column-menu__item-label">Clear sort</span>
-                      <RotateCcw size={14} />
+                      <span className="catalogue-column-menu__item-label">{sortLabels.ascending}</span>
+                      <ChevronUp size={14} />
                     </button>
-                  )}
-                </div>
+                    <button
+                      type="button"
+                      className={cn(
+                        'catalogue-column-menu__item',
+                        isActive && sortState?.direction === 'desc' && 'catalogue-column-menu__item--active'
+                      )}
+                      role="menuitem"
+                      onClick={() => handleSortAction('desc')}
+                    >
+                      <span className="catalogue-column-menu__item-label">{sortLabels.descending}</span>
+                      <ChevronDown size={14} />
+                    </button>
+                    {isActive && (
+                      <button
+                        type="button"
+                        className="catalogue-column-menu__item"
+                        role="menuitem"
+                        onClick={() => handleSortAction(null)}
+                      >
+                        <span className="catalogue-column-menu__item-label">Clear sort</span>
+                        <RotateCcw size={14} />
+                      </button>
+                    )}
+                  </div>
+                )}
 
                 {availableAggregations.length > 0 && (
                   <div className="catalogue-column-menu__section">
@@ -377,6 +396,7 @@ const SortableTableHeader = <TKey extends string,>({
               document.body
             )}
         </div>
+        {resizeHandle}
       </div>
     </th>
   );

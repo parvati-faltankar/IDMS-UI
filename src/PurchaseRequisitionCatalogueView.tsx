@@ -2,11 +2,14 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Ban, ChevronDown, ChevronUp, Eye, FileText, Filter, LayoutGrid, List, MoreVertical, PencilLine, Plus, Search } from 'lucide-react';
 import AppShell from './components/AppShell';
 import CatalogueInsightCards from './components/common/CatalogueInsightCards';
+import CatalogueViewConfigurator from './components/common/CatalogueViewConfigurator';
+import CatalogueViewSelector from './components/common/CatalogueViewSelector';
+import CommonDataGrid from './components/common/CommonDataGrid';
+import type { DataGridColumn } from './components/common/dataGridTypes';
 import GuidedTour, { type GuidedTourStep } from './components/common/GuidedTour';
 import SideDrawer from './components/common/SideDrawer';
 import CancelDocumentDialog from './components/common/CancelDocumentDialog';
 import PurchaseRequisitionPreviewDrawer from './components/common/PurchaseRequisitionPreviewDrawer';
-import SortableTableHeader from './components/common/SortableTableHeader';
 import StatusBadge from './components/common/StatusBadge';
 import TourInvitePopup from './components/common/TourInvitePopup';
 import { Input, Select } from './components/common/FormControls';
@@ -20,10 +23,30 @@ import type {
   RequisitionPriority,
   RequisitionStatus,
 } from './purchaseRequisitionCatalogueData';
+import {
+  filterPurchaseRequisitionDocumentsByView,
+  getPurchaseRequisitionSystemViews,
+  PURCHASE_REQUISITION_ALL_VIEW_ID,
+  PURCHASE_REQUISITION_CATALOGUE_VIEW_ENTITY,
+} from './catalogueViews/purchaseRequisitionViews';
 import { cn } from './utils/classNames';
 import { buildCountInsight, formatInsightCount, getInsightPercent } from './utils/catalogueInsights';
 import { formatDate, formatDateTime } from './utils/dateFormat';
 import type { SortState } from './utils/sortState';
+import type { CatalogueViewDefinition, EditableCatalogueViewDefinition } from './utils/catalogueViews';
+import {
+  createCustomCatalogueView,
+  loadCatalogueViewState,
+  loadCustomCatalogueViews,
+  loadRecentlyViewedEntries,
+  recordRecentlyViewedDocument,
+  resolveCatalogueViewId,
+  saveCatalogueViewState,
+  saveCustomCatalogueViews,
+  setLastSelectedCatalogueViewId,
+  setPinnedCatalogueViewId,
+  updateCustomCatalogueView,
+} from './utils/catalogueViews';
 
 interface PurchaseRequisitionCatalogueViewProps {
   filters: CatalogueFilters;
@@ -46,6 +69,7 @@ type SortKey =
   | 'status';
 
 let isPurchaseRequisitionTourDismissedForSession = false;
+const currentUserName = 'Alex Kumar';
 
 const purchaseRequisitionCatalogueTourSteps: GuidedTourStep[] = [
   {
@@ -72,6 +96,32 @@ const purchaseRequisitionCatalogueTourSteps: GuidedTourStep[] = [
     title: 'Create a new requisition',
     body: 'Click New when you are ready to raise an internal request for items before procurement.',
   },
+];
+
+const purchaseRequisitionStatusOptions = [
+  { value: 'Draft', label: 'Draft' },
+  { value: 'Pending Approval', label: 'Pending Approval' },
+  { value: 'Approved', label: 'Approved' },
+  { value: 'Rejected', label: 'Rejected' },
+  { value: 'Cancelled', label: 'Cancelled' },
+];
+
+const purchaseRequisitionPriorityOptions = [
+  { value: 'Low', label: 'Low' },
+  { value: 'Medium', label: 'Medium' },
+  { value: 'High', label: 'High' },
+  { value: 'Critical', label: 'Critical' },
+];
+
+const purchaseRequisitionSortOptions = [
+  { value: 'number', label: 'Document No.' },
+  { value: 'documentDateTime', label: 'Document date & time' },
+  { value: 'supplierName', label: 'Supplier name' },
+  { value: 'requesterName', label: 'Requester name' },
+  { value: 'priority', label: 'Priority' },
+  { value: 'requirementDate', label: 'Requirement date' },
+  { value: 'validTillDate', label: 'Valid till date' },
+  { value: 'status', label: 'Status' },
 ];
 
 const FilterDrawer: React.FC<{
@@ -338,7 +388,90 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
   const [tourStepIndex, setTourStepIndex] = useState(0);
   const [sortState, setSortState] = useState<SortState<SortKey>>(null);
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [customViews, setCustomViews] = useState<CatalogueViewDefinition[]>(() =>
+    loadCustomCatalogueViews(PURCHASE_REQUISITION_CATALOGUE_VIEW_ENTITY)
+  );
+  const [recentlyViewedEntries, setRecentlyViewedEntries] = useState(() =>
+    loadRecentlyViewedEntries(PURCHASE_REQUISITION_CATALOGUE_VIEW_ENTITY)
+  );
+  const [viewState, setViewState] = useState(() =>
+    loadCatalogueViewState(PURCHASE_REQUISITION_CATALOGUE_VIEW_ENTITY)
+  );
+  const [activeViewId, setActiveViewId] = useState(() =>
+    resolveCatalogueViewId(
+      [
+        ...getPurchaseRequisitionSystemViews(currentUserName),
+        ...loadCustomCatalogueViews(PURCHASE_REQUISITION_CATALOGUE_VIEW_ENTITY),
+      ],
+      loadCatalogueViewState(PURCHASE_REQUISITION_CATALOGUE_VIEW_ENTITY),
+      PURCHASE_REQUISITION_ALL_VIEW_ID
+    )
+  );
+  const [isViewConfiguratorOpen, setIsViewConfiguratorOpen] = useState(false);
   const actionMenuRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  const systemViews = useMemo(
+    () => getPurchaseRequisitionSystemViews(currentUserName),
+    []
+  );
+  const availableViews = useMemo(
+    () => [...systemViews, ...customViews],
+    [customViews, systemViews]
+  );
+  const effectiveViewState = useMemo(() => {
+    const availableViewIds = new Set(availableViews.map((view) => view.id));
+
+    return {
+      pinnedViewId:
+        viewState.pinnedViewId && availableViewIds.has(viewState.pinnedViewId)
+          ? viewState.pinnedViewId
+          : null,
+      lastSelectedViewId:
+        viewState.lastSelectedViewId && availableViewIds.has(viewState.lastSelectedViewId)
+          ? viewState.lastSelectedViewId
+          : null,
+    };
+  }, [availableViews, viewState]);
+
+  useEffect(() => {
+    if (
+      effectiveViewState.pinnedViewId === viewState.pinnedViewId &&
+      effectiveViewState.lastSelectedViewId === viewState.lastSelectedViewId
+    ) {
+      return;
+    }
+
+    saveCatalogueViewState(PURCHASE_REQUISITION_CATALOGUE_VIEW_ENTITY, effectiveViewState);
+  }, [effectiveViewState, viewState]);
+
+  const effectiveActiveViewId = useMemo(() => {
+    if (availableViews.some((view) => view.id === activeViewId)) {
+      return activeViewId;
+    }
+
+    return resolveCatalogueViewId(availableViews, effectiveViewState, PURCHASE_REQUISITION_ALL_VIEW_ID);
+  }, [activeViewId, availableViews, effectiveViewState]);
+
+  const activeView = useMemo(
+    () =>
+      availableViews.find((view) => view.id === effectiveActiveViewId) ??
+      availableViews.find((view) => view.id === PURCHASE_REQUISITION_ALL_VIEW_ID) ??
+      availableViews[0],
+    [availableViews, effectiveActiveViewId]
+  );
+
+  const viewContext = useMemo(
+    () => ({
+      currentUserName,
+      recentlyViewedEntries,
+    }),
+    [recentlyViewedEntries]
+  );
+
+  const viewFilteredRows = useMemo(
+    () => filterPurchaseRequisitionDocumentsByView(documents, activeView, viewContext),
+    [activeView, documents, viewContext]
+  );
 
   useEffect(() => {
     if (loadState !== 'loading') {
@@ -380,12 +513,28 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
   }, [openActionMenuId]);
 
   const supplierOptions = useMemo(
+    () => Array.from(new Set(viewFilteredRows.map((item) => item.supplierName))).sort(),
+    [viewFilteredRows]
+  );
+  const allSupplierOptions = useMemo(
     () => Array.from(new Set(documents.map((item) => item.supplierName))).sort(),
     [documents]
   );
 
   const branchOptions = useMemo(
+    () => Array.from(new Set(viewFilteredRows.map((item) => item.branch))).sort(),
+    [viewFilteredRows]
+  );
+  const allBranchOptions = useMemo(
     () => Array.from(new Set(documents.map((item) => item.branch))).sort(),
+    [documents]
+  );
+
+  const requesterOptions = useMemo(
+    () =>
+      Array.from(new Set(documents.map((item) => item.requesterName)))
+        .sort()
+        .map((requester) => ({ value: requester, label: requester })),
     [documents]
   );
 
@@ -394,7 +543,7 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
     const endDate = filters.endDate;
     const normalizedSearch = tableSearch.trim().toLowerCase();
 
-    return documents.filter((item) => {
+    return viewFilteredRows.filter((item) => {
       const matchesSupplier = !filters.supplier || item.supplierName === filters.supplier;
       const matchesPriority = !filters.priority || item.priority === filters.priority;
       const matchesBranch = !filters.branch || item.branch === filters.branch;
@@ -412,7 +561,7 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
 
       return matchesSupplier && matchesPriority && matchesBranch && matchesStartDate && matchesEndDate && matchesSearch;
     });
-  }, [documents, filters, tableSearch]);
+  }, [filters, tableSearch, viewFilteredRows]);
 
   const sortedRows = useMemo(() => {
     const insightFilteredRows = baseFilteredRows.filter((item) => {
@@ -435,7 +584,16 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
       return true;
     });
 
-    if (!sortState) {
+    const effectiveSortState =
+      sortState ??
+      (activeView.sort
+        ? {
+            key: activeView.sort.key as SortKey,
+            direction: activeView.sort.direction,
+          }
+        : null);
+
+    if (!effectiveSortState) {
       return insightFilteredRows;
     }
 
@@ -454,13 +612,13 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
       Cancelled: 5,
     };
 
-    const directionFactor = sortState.direction === 'asc' ? 1 : -1;
+    const directionFactor = effectiveSortState.direction === 'asc' ? 1 : -1;
     const rows = [...insightFilteredRows];
 
     rows.sort((left, right) => {
       let comparison = 0;
 
-      switch (sortState.key) {
+      switch (effectiveSortState.key) {
         case 'number':
           comparison = left.number.localeCompare(right.number, undefined, { numeric: true });
           break;
@@ -495,7 +653,7 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
     });
 
     return rows;
-  }, [activeInsightKey, baseFilteredRows, sortState]);
+  }, [activeInsightKey, activeView.sort, baseFilteredRows, sortState]);
 
   const insightItems = useMemo(() => {
     const total = baseFilteredRows.length;
@@ -547,6 +705,27 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
 
   const activeFilterCount = useMemo(() => getActiveFilterCount(filters), [filters]);
   const hasActiveFilters = activeFilterCount > 0;
+  const viewCounts = useMemo(
+    () =>
+      Object.fromEntries(
+        availableViews.map((view) => [
+          view.id,
+          filterPurchaseRequisitionDocumentsByView(documents, view, viewContext).length,
+        ])
+      ),
+    [availableViews, documents, viewContext]
+  );
+  const catalogueViewItems = useMemo(
+    () =>
+      availableViews.map((view) => ({
+        id: view.id,
+        name: view.name,
+        kind: view.kind,
+        count: viewCounts[view.id] ?? 0,
+        isPinned: effectiveViewState.pinnedViewId === view.id,
+      })),
+    [availableViews, effectiveViewState.pinnedViewId, viewCounts]
+  );
   const previewDocument = useMemo(
     () => documents.find((document) => document.id === previewDocumentId) ?? null,
     [documents, previewDocumentId]
@@ -595,12 +774,100 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
     setSortState(direction ? { key, direction } : null);
   };
 
+  const handleSelectCatalogueView = (viewId: string) => {
+    const nextView = availableViews.find((view) => view.id === viewId);
+    if (!nextView) {
+      return;
+    }
+
+    setActiveViewId(viewId);
+    setViewState(setLastSelectedCatalogueViewId(PURCHASE_REQUISITION_CATALOGUE_VIEW_ENTITY, viewId));
+    setActiveInsightKey(null);
+    setSortState(
+      nextView.sort
+        ? {
+            key: nextView.sort.key as SortKey,
+            direction: nextView.sort.direction,
+          }
+        : null
+    );
+  };
+
+  const handleTogglePinnedView = (viewId: string) => {
+    const nextPinnedViewId = effectiveViewState.pinnedViewId === viewId ? null : viewId;
+    setViewState(setPinnedCatalogueViewId(PURCHASE_REQUISITION_CATALOGUE_VIEW_ENTITY, nextPinnedViewId));
+  };
+
+  const handleSaveView = (
+    draft: EditableCatalogueViewDefinition,
+    options: { viewId?: string; pinAsDefault: boolean }
+  ) => {
+    const nextCustomViews = options.viewId
+      ? customViews.map((view) =>
+          view.id === options.viewId ? updateCustomCatalogueView(view, draft) : view
+        )
+      : [...customViews, createCustomCatalogueView(PURCHASE_REQUISITION_CATALOGUE_VIEW_ENTITY, draft)];
+    const savedViewId = options.viewId ?? nextCustomViews[nextCustomViews.length - 1]?.id ?? '';
+
+    setCustomViews(nextCustomViews);
+    saveCustomCatalogueViews(PURCHASE_REQUISITION_CATALOGUE_VIEW_ENTITY, nextCustomViews);
+
+    if (savedViewId) {
+      const nextState = options.pinAsDefault
+        ? setPinnedCatalogueViewId(PURCHASE_REQUISITION_CATALOGUE_VIEW_ENTITY, savedViewId)
+        : viewState.pinnedViewId === savedViewId
+          ? setPinnedCatalogueViewId(PURCHASE_REQUISITION_CATALOGUE_VIEW_ENTITY, null)
+          : viewState;
+
+      if (nextState !== viewState) {
+        setViewState(nextState);
+      }
+
+      setActiveViewId(savedViewId);
+      setViewState(setLastSelectedCatalogueViewId(PURCHASE_REQUISITION_CATALOGUE_VIEW_ENTITY, savedViewId));
+
+      if (draft.sort) {
+        setSortState({
+          key: draft.sort.key as SortKey,
+          direction: draft.sort.direction,
+        });
+      }
+    }
+
+    return savedViewId;
+  };
+
+  const handleDeleteView = (viewId: string) => {
+    setCustomViews((currentViews) => {
+      const nextViews = currentViews.filter((view) => view.id !== viewId);
+      saveCustomCatalogueViews(PURCHASE_REQUISITION_CATALOGUE_VIEW_ENTITY, nextViews);
+      return nextViews;
+    });
+
+    const nextState = {
+      pinnedViewId: viewState.pinnedViewId === viewId ? null : viewState.pinnedViewId,
+      lastSelectedViewId: viewState.lastSelectedViewId === viewId ? null : viewState.lastSelectedViewId,
+    };
+    saveCatalogueViewState(PURCHASE_REQUISITION_CATALOGUE_VIEW_ENTITY, nextState);
+    setViewState(nextState);
+
+    if (activeViewId === viewId) {
+      setActiveViewId(PURCHASE_REQUISITION_ALL_VIEW_ID);
+    }
+  };
+
+  const registerRecentlyViewedDocument = (documentId: string) => {
+    setRecentlyViewedEntries(recordRecentlyViewedDocument(PURCHASE_REQUISITION_CATALOGUE_VIEW_ENTITY, documentId));
+  };
+
   const handleViewDocument = (documentId: string) => {
+    registerRecentlyViewedDocument(documentId);
     setPreviewDocumentId(documentId);
     setOpenActionMenuId(null);
   };
 
   const handleEditDocument = (documentId: string) => {
+    registerRecentlyViewedDocument(documentId);
     setOpenActionMenuId(null);
     onEdit(documentId);
   };
@@ -632,6 +899,160 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
     );
     setCancelDocumentId(null);
   };
+
+  const renderActionMenu = (item: PurchaseRequisitionDocument) => (
+    <div
+      ref={(element) => {
+        actionMenuRefs.current[item.id] = element;
+      }}
+      className="catalogue-action-menu"
+    >
+      <button
+        type="button"
+        onClick={() => setOpenActionMenuId((current) => (current === item.id ? null : item.id))}
+        className="catalogue-action-menu__trigger"
+        aria-label={`Open actions for ${item.number}`}
+        aria-expanded={openActionMenuId === item.id}
+      >
+        <MoreVertical size={15} />
+      </button>
+
+      {openActionMenuId === item.id && (
+        <div className="catalogue-action-menu__panel" role="menu" aria-label={`Actions for ${item.number}`}>
+          <button type="button" className="catalogue-action-menu__item" role="menuitem" onClick={() => handleViewDocument(item.id)}>
+            <Eye size={16} />
+            View
+          </button>
+          <button type="button" className="catalogue-action-menu__item" role="menuitem" onClick={() => handleEditDocument(item.id)}>
+            <PencilLine size={16} />
+            Edit
+          </button>
+          <button
+            type="button"
+            className="catalogue-action-menu__item catalogue-action-menu__item--danger"
+            role="menuitem"
+            disabled={item.status === 'Cancelled'}
+            onClick={() => handleOpenCancelDialog(item.id)}
+          >
+            <Ban size={16} />
+            Cancel
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
+  const gridColumns: DataGridColumn<PurchaseRequisitionDocument>[] = [
+      {
+        id: 'number',
+        label: 'Document No.',
+        type: 'text',
+        width: 164,
+        getValue: (item) => item.number,
+        renderCell: (item) => (
+          <button
+            type="button"
+            onClick={() => handleViewDocument(item.id)}
+            className="catalogue-table__document-link"
+          >
+            {item.number}
+          </button>
+        ),
+      },
+      {
+        id: 'documentDateTime',
+        label: 'Document date & time',
+        type: 'date',
+        width: 192,
+        getValue: (item) => item.documentDateTime,
+        renderCell: (item) => {
+          const documentDateTime = formatDateTime(item.documentDateTime);
+          return (
+            <div className="catalogue-table__datetime">
+              {documentDateTime.dateLabel}, {documentDateTime.timeLabel}
+            </div>
+          );
+        },
+      },
+      {
+        id: 'supplierName',
+        label: 'Supplier name',
+        type: 'text',
+        width: 188,
+        getValue: (item) => item.supplierName,
+        renderCell: (item) => (
+          <div className="catalogue-table__truncate" title={item.supplierName}>
+            {item.supplierName}
+          </div>
+        ),
+      },
+      {
+        id: 'requesterName',
+        label: 'Requester name',
+        type: 'text',
+        width: 164,
+        getValue: (item) => item.requesterName,
+        renderCell: (item) => <div className="catalogue-table__primary">{item.requesterName}</div>,
+      },
+      {
+        id: 'priority',
+        label: 'Priority',
+        type: 'status',
+        width: 118,
+        getValue: (item) => item.priority,
+        options: [
+          { value: 'Low', label: 'Low' },
+          { value: 'Medium', label: 'Medium' },
+          { value: 'High', label: 'High' },
+          { value: 'Critical', label: 'Critical' },
+        ],
+        renderCell: (item) => <StatusBadge kind="priority" value={item.priority} />,
+      },
+      {
+        id: 'requirementDate',
+        label: 'Requirement date',
+        type: 'date',
+        width: 156,
+        getValue: (item) => item.requirementDate,
+        renderCell: (item) => formatDate(item.requirementDate),
+      },
+      {
+        id: 'validTillDate',
+        label: 'Valid till date',
+        type: 'date',
+        width: 148,
+        getValue: (item) => item.validTillDate,
+        renderCell: (item) => formatDate(item.validTillDate),
+      },
+      {
+        id: 'status',
+        label: 'Status',
+        type: 'status',
+        width: 154,
+        getValue: (item) => item.status,
+        options: [
+          { value: 'Draft', label: 'Draft' },
+          { value: 'Pending Approval', label: 'Pending Approval' },
+          { value: 'Approved', label: 'Approved' },
+          { value: 'Rejected', label: 'Rejected' },
+          { value: 'Cancelled', label: 'Cancelled' },
+        ],
+        renderCell: (item) => <StatusBadge kind="requisition-status" value={item.status} />,
+      },
+      {
+        id: 'actions',
+        label: 'Action',
+        type: 'actions',
+        width: 86,
+        sortable: false,
+        filterable: false,
+        groupable: false,
+        defaultPin: 'right',
+        hideable: false,
+        getValue: () => '',
+        renderCell: (item) => renderActionMenu(item),
+      },
+    ];
 
   const handleToggleCard = (documentId: string) => {
     setExpandedCardIds((current) => ({
@@ -677,12 +1098,15 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
         <div className="catalogue-toolbar__inner catalogue-toolbar__inner--stacked">
           <div className="catalogue-toolbar__top">
             <div className="catalogue-toolbar__heading">
-              <div className="catalogue-toolbar__title-row">
-                <button type="button" className="catalogue-toolbar__title-button" aria-label="Purchase requisition views" data-tour="pr-catalogue-title">
-                  <h2 className="brand-page-title">My Purchase Requisition</h2>
-                  <ChevronDown size={16} />
-                </button>
-                <span className="catalogue-toolbar__count">{sortedRows.length}</span>
+              <div data-tour="pr-catalogue-title">
+                <CatalogueViewSelector
+                  items={catalogueViewItems}
+                  activeViewId={activeView.id}
+                  activeCount={sortedRows.length}
+                  onSelect={handleSelectCatalogueView}
+                  onTogglePin={handleTogglePinnedView}
+                  onOpenConfigurator={() => setIsViewConfiguratorOpen(true)}
+                />
               </div>
             </div>
 
@@ -801,102 +1225,15 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
 
             {loadState === 'ready' && sortedRows.length > 0 && catalogueViewMode === 'list' && (
               <div className="catalogue-table-scroll" data-tour="pr-catalogue-table">
-                <table className="catalogue-table">
-                  <thead>
-                    <tr>
-                      <SortableTableHeader label="Document No." sortKey="number" sortState={sortState} onSortChange={handleSortChange} />
-                      <SortableTableHeader label="Document date & time" sortKey="documentDateTime" sortState={sortState} onSortChange={handleSortChange} dataType="date" />
-                      <SortableTableHeader label="Supplier name" sortKey="supplierName" sortState={sortState} onSortChange={handleSortChange} />
-                      <SortableTableHeader label="Requester name" sortKey="requesterName" sortState={sortState} onSortChange={handleSortChange} />
-                      <SortableTableHeader label="Priority" sortKey="priority" sortState={sortState} onSortChange={handleSortChange} dataType="status" />
-                      <SortableTableHeader label="Requirement date" sortKey="requirementDate" sortState={sortState} onSortChange={handleSortChange} dataType="date" />
-                      <SortableTableHeader label="Valid till date" sortKey="validTillDate" sortState={sortState} onSortChange={handleSortChange} dataType="date" />
-                      <SortableTableHeader label="Status" sortKey="status" sortState={sortState} onSortChange={handleSortChange} dataType="status" />
-                      <th className="catalogue-table__action-header">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortedRows.map((item) => {
-                      const documentDateTime = formatDateTime(item.documentDateTime);
-
-                      return (
-                        <tr key={item.id}>
-                          <td>
-                            <button
-                              type="button"
-                              onClick={() => handleViewDocument(item.id)}
-                              className="catalogue-table__document-link"
-                            >
-                              {item.number}
-                            </button>
-                          </td>
-                          <td>
-                            <div className="catalogue-table__datetime">
-                              {documentDateTime.dateLabel}, {documentDateTime.timeLabel}
-                            </div>
-                          </td>
-                          <td>
-                            <div className="catalogue-table__truncate" title={item.supplierName}>
-                              {item.supplierName}
-                            </div>
-                          </td>
-                          <td>
-                            <div className="catalogue-table__primary">{item.requesterName}</div>
-                          </td>
-                          <td>
-                            <StatusBadge kind="priority" value={item.priority} />
-                          </td>
-                          <td>{formatDate(item.requirementDate)}</td>
-                          <td>{formatDate(item.validTillDate)}</td>
-                          <td>
-                            <StatusBadge kind="requisition-status" value={item.status} />
-                          </td>
-                          <td className="catalogue-table__action-cell">
-                            <div
-                              ref={(element) => {
-                                actionMenuRefs.current[item.id] = element;
-                              }}
-                              className="catalogue-action-menu"
-                            >
-                              <button
-                                type="button"
-                                onClick={() => setOpenActionMenuId((current) => (current === item.id ? null : item.id))}
-                                className="catalogue-action-menu__trigger"
-                                aria-label={`Open actions for ${item.number}`}
-                                aria-expanded={openActionMenuId === item.id}
-                              >
-                                <MoreVertical size={15} />
-                              </button>
-
-                              {openActionMenuId === item.id && (
-                                <div className="catalogue-action-menu__panel" role="menu" aria-label={`Actions for ${item.number}`}>
-                                  <button type="button" className="catalogue-action-menu__item" role="menuitem" onClick={() => handleViewDocument(item.id)}>
-                                    <Eye size={16} />
-                                    View
-                                  </button>
-                                  <button type="button" className="catalogue-action-menu__item" role="menuitem" onClick={() => handleEditDocument(item.id)}>
-                                    <PencilLine size={16} />
-                                    Edit
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="catalogue-action-menu__item catalogue-action-menu__item--danger"
-                                    role="menuitem"
-                                    disabled={item.status === 'Cancelled'}
-                                    onClick={() => handleOpenCancelDialog(item.id)}
-                                  >
-                                    <Ban size={16} />
-                                    Cancel
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                <CommonDataGrid
+                  gridId="purchase-requisition-catalogue"
+                  rows={sortedRows}
+                  columns={gridColumns}
+                  rowId={(item) => item.id}
+                  sortState={sortState}
+                  onSortChange={handleSortChange}
+                  chartTitle="Purchase Requisition"
+                />
               </div>
             )}
 
@@ -934,6 +1271,29 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
         onApply={handleApplyFilters}
         onReset={handleResetFilters}
         onFilterChange={handleFilterChange}
+      />
+
+      <CatalogueViewConfigurator
+        key={`${isViewConfiguratorOpen}-${activeView.id}-${effectiveViewState.pinnedViewId ?? 'none'}-${availableViews.length}`}
+        isOpen={isViewConfiguratorOpen}
+        title="Purchase Requisition Views"
+        views={availableViews}
+        activeViewId={activeView.id}
+        pinnedViewId={effectiveViewState.pinnedViewId}
+        viewCounts={viewCounts}
+        currentUserName={currentUserName}
+        requesterOptions={requesterOptions}
+        supplierOptions={allSupplierOptions.map((supplier) => ({ value: supplier, label: supplier }))}
+        branchOptions={allBranchOptions.map((branch) => ({ value: branch, label: branch }))}
+        statusOptions={purchaseRequisitionStatusOptions}
+        priorityOptions={purchaseRequisitionPriorityOptions}
+        sortOptions={purchaseRequisitionSortOptions}
+        onClose={() => setIsViewConfiguratorOpen(false)}
+        onSave={handleSaveView}
+        onDelete={handleDeleteView}
+        onPin={(viewId) =>
+          setViewState(setPinnedCatalogueViewId(PURCHASE_REQUISITION_CATALOGUE_VIEW_ENTITY, viewId))
+        }
       />
 
       <PurchaseRequisitionPreviewDrawer

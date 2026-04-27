@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { emptyCatalogueFilters } from './catalogueFilters';
-import Dashboard from './Dashboard';
 import CreatePurchaseRequisition from './CreatePurchaseRequisition';
 import ExcellonBrandGuidelinesPreview from './ExcellonBrandGuidelinesPreview';
 import FormLayoutEditor from './FormLayoutEditor';
@@ -33,7 +32,6 @@ import DeliveryList from './delivery/deliverylist';
 import { getDeliveryById } from './delivery/deliveryData';
 
 type AppRoute =
-  | 'dashboard'
   | 'purchase-requisition-list'
   | 'purchase-requisition-create'
   | 'purchase-order-list'
@@ -57,7 +55,6 @@ type AppRoute =
   | 'brand-guidelines';
 
 const routeHashes: Record<AppRoute, string> = {
-  dashboard: '#/dashboard',
   'purchase-requisition-list': '#/purchase-requisition',
   'purchase-requisition-create': '#/purchase-requisition/new',
   'purchase-order-list': '#/purchase-order',
@@ -89,8 +86,6 @@ function getRouteFromHash(hash: string): AppRoute {
   }
 
   switch (hashPath) {
-    case '#/dashboard':
-      return 'dashboard';
     case '#/purchase-requisition/new':
     case '#/create-purchase-requisition':
       return 'purchase-requisition-create';
@@ -153,7 +148,7 @@ function getRouteFromHash(hash: string): AppRoute {
     case '#/purchase-requisition':
       return 'purchase-requisition-list';
     default:
-      return 'dashboard';
+      return 'purchase-requisition-list';
   }
 }
 
@@ -174,7 +169,11 @@ function App() {
 
   useEffect(() => {
     if (!window.location.hash) {
-      window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}${routeHashes.dashboard}`);
+      window.history.replaceState(
+        null,
+        '',
+        `${window.location.pathname}${window.location.search}${routeHashes['purchase-requisition-list']}`
+      );
     }
 
     const handleHashChange = () => {
@@ -221,7 +220,6 @@ function App() {
           }
           navigateTo('form-layout-editor', { formId });
         }}
-        onNavigateToDashboard={() => navigateTo('dashboard')}
         onNavigateToPurchaseRequisitionList={() => navigateTo('purchase-requisition-list')}
       />
     );
@@ -233,23 +231,6 @@ function App() {
         key={routeQuery.get('formId') ?? 'form-layout-editor'}
         formId={routeQuery.get('formId')}
         onBack={() => navigateTo('form-layout-settings')}
-      />
-    );
-  }
-
-  if (route === 'dashboard') {
-    return (
-      <Dashboard
-        onNavigateToDashboard={() => navigateTo('dashboard')}
-        onNavigateToPurchaseRequisitionList={() => navigateTo('purchase-requisition-list')}
-        onNavigateToPurchaseOrderList={() => navigateTo('purchase-order-list')}
-        onNavigateToPurchaseReceiptList={() => navigateTo('purchase-receipt-list')}
-        onNavigateToPurchaseInvoiceList={() => navigateTo('purchase-invoice-list')}
-        onNavigateToSaleOrderList={() => navigateTo('sale-order-list')}
-        onNavigateToSaleAllocationRequisitionList={() => navigateTo('sale-allocation-requisition-list')}
-        onNavigateToSaleAllocationList={() => navigateTo('sale-allocation-list')}
-        onNavigateToSaleInvoiceList={() => navigateTo('sale-invoice-list')}
-        onNavigateToDeliveryList={() => navigateTo('delivery-list')}
       />
     );
   }

@@ -3,9 +3,9 @@ import { extendedPurchaseOrderDocuments } from '../purchase order/purchaseOrderD
 import { extendedSaleOrderDocuments } from '../sale order/saleOrderData';
 import { extendedSaleAllocationDocuments } from '../sale allocation/saleAllocationData';
 import { searchGlobalRecords, type GlobalSearchEntity, type GlobalSearchResult } from './globalSearch';
+import { resolveSearchInsight, type SearchInsightMatch } from './searchInsights';
 
 type VoiceAction = 'open' | 'search' | 'create' | 'navigate';
-type DashboardModuleTab = 'overview' | 'sales' | 'procurement' | 'inventory' | 'services' | 'crm';
 
 interface EntityVoiceConfig {
   entity?: GlobalSearchEntity;
@@ -18,7 +18,6 @@ interface EntityVoiceConfig {
 interface ModuleVoiceConfig {
   label: string;
   route: string;
-  tab?: DashboardModuleTab;
   synonyms: string[];
 }
 
@@ -49,6 +48,13 @@ export type VoiceCommandResolution =
       message: string;
       intent: VoiceCommandIntent;
       result?: GlobalSearchResult;
+    }
+  | {
+      kind: 'insight';
+      message: string;
+      query: string;
+      intent: VoiceCommandIntent;
+      insight: SearchInsightMatch;
     }
   | {
       kind: 'suggestions';
@@ -132,44 +138,18 @@ const entityConfigs: EntityVoiceConfig[] = [
 
 const moduleConfigs: ModuleVoiceConfig[] = [
   {
-    label: 'Dashboard',
-    route: '#/dashboard',
-    tab: 'overview',
-    synonyms: ['dashboard', 'home', 'homepage', 'overview', 'workspace'],
+    label: 'Procurement',
+    route: '#/purchase-requisition',
+    synonyms: ['dashboard', 'home', 'homepage', 'overview', 'workspace', 'procurement', 'purchase module', 'purchase', 'purchasing'],
   },
   {
     label: 'Sales',
-    route: '#/dashboard?tab=sales',
-    tab: 'sales',
+    route: '#/sale-order',
     synonyms: ['sales', 'sale module', 'sales module'],
   },
   {
-    label: 'Procurement',
-    route: '#/dashboard?tab=procurement',
-    tab: 'procurement',
-    synonyms: ['procurement', 'purchase module', 'purchase', 'purchasing'],
-  },
-  {
-    label: 'Inventory',
-    route: '#/dashboard?tab=inventory',
-    tab: 'inventory',
-    synonyms: ['inventory', 'stock', 'warehouse', 'stock transfer', 'stock adjustment'],
-  },
-  {
-    label: 'Services',
-    route: '#/dashboard?tab=services',
-    tab: 'services',
-    synonyms: ['services', 'service', 'service module', 'job card', 'appointment'],
-  },
-  {
-    label: 'CRM',
-    route: '#/dashboard?tab=crm',
-    tab: 'crm',
-    synonyms: ['crm', 'leads', 'lead', 'customers', 'customer module'],
-  },
-  {
     label: 'Form Layout',
-    route: '#/form-layout-settings',
+    route: '#/profile/form-layout',
     synonyms: ['form layout', 'form layout screen', 'layout settings', 'layout screen', 'form configuration'],
   },
 ];
@@ -476,6 +456,17 @@ function resolveCreateIntent(intent: VoiceCommandIntent): VoiceCommandResolution
 
 export function resolveVoiceCommand(rawText: string): VoiceCommandResolution {
   const intent = parseVoiceCommand(rawText);
+  const insight = resolveSearchInsight(rawText);
+
+  if (insight) {
+    return {
+      kind: 'insight',
+      query: rawText,
+      intent,
+      insight,
+      message: `${insight.title}: ${insight.value}. ${insight.description}`,
+    };
+  }
 
   const linkedCreateResolution = resolveLinkedCreateIntent(intent);
   if (linkedCreateResolution) {
@@ -546,11 +537,13 @@ export function resolveVoiceCommand(rawText: string): VoiceCommandResolution {
 }
 
 export const supportedVoiceCommandExamples = [
-  'Go to dashboard',
+  'Go to procurement',
   'Open sale order',
   'Hi, open sale order SO-2026-00011',
   'Go to sale invoice screen',
   'Open form layout screen',
+  "Today's total sale",
+  "Today's total purchase",
   'Create sale order for Galaxy Motors',
   'Create purchase order for Techsupply Corp',
   'Create sale invoice from sale order SO-2026-00011',

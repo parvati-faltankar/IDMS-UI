@@ -8,7 +8,6 @@ import { getFormLayoutStatus, type FormLayoutStatus } from './utils/formLayoutCo
 
 interface FormLayoutSettingsProps {
   onEditFormLayout: (formId: string) => void;
-  onNavigateToDashboard?: () => void;
   onNavigateToPurchaseRequisitionList?: () => void;
 }
 
@@ -35,7 +34,6 @@ function getStatusTone(status: FormLayoutStatus['status']) {
 
 const FormLayoutSettings: React.FC<FormLayoutSettingsProps> = ({
   onEditFormLayout,
-  onNavigateToDashboard,
   onNavigateToPurchaseRequisitionList,
 }) => {
   const rows = useMemo(
@@ -52,7 +50,6 @@ const FormLayoutSettings: React.FC<FormLayoutSettingsProps> = ({
   return (
     <AppShell
       activeLeaf={null}
-      onDashboardClick={onNavigateToDashboard}
       onPurchaseRequisitionClick={onNavigateToPurchaseRequisitionList}
       contentClassName="form-layout-settings-shell"
     >
