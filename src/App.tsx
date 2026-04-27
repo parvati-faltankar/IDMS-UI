@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { emptyCatalogueFilters } from './catalogueFilters';
+import BusinessSettings from './BusinessSettings';
 import CreatePurchaseRequisition from './CreatePurchaseRequisition';
 import ExcellonBrandGuidelinesPreview from './ExcellonBrandGuidelinesPreview';
 import FormLayoutEditor from './FormLayoutEditor';
@@ -50,6 +51,7 @@ type AppRoute =
   | 'sale-invoice-create'
   | 'delivery-list'
   | 'delivery-create'
+  | 'business-settings'
   | 'form-layout-settings'
   | 'form-layout-editor'
   | 'brand-guidelines';
@@ -73,6 +75,7 @@ const routeHashes: Record<AppRoute, string> = {
   'sale-invoice-create': '#/sale-invoice/new',
   'delivery-list': '#/delivery',
   'delivery-create': '#/delivery/new',
+  'business-settings': '#/profile/business-settings',
   'form-layout-settings': '#/profile/form-layout',
   'form-layout-editor': '#/profile/form-layout/edit',
   'brand-guidelines': '#/brand-guidelines',
@@ -115,6 +118,8 @@ function getRouteFromHash(hash: string): AppRoute {
       return 'delivery-create';
     case '#/profile/form-layout':
       return 'form-layout-settings';
+    case '#/profile/business-settings':
+      return 'business-settings';
     case '#/profile/form-layout/edit':
     case '#/profile/form-layout-editor':
       return 'form-layout-editor';
@@ -223,6 +228,10 @@ function App() {
         onNavigateToPurchaseRequisitionList={() => navigateTo('purchase-requisition-list')}
       />
     );
+  }
+
+  if (route === 'business-settings') {
+    return <BusinessSettings onBack={() => navigateTo('purchase-requisition-list')} />;
   }
 
   if (route === 'form-layout-editor') {

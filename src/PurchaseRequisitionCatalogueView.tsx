@@ -34,6 +34,7 @@ import { buildCountInsight, formatInsightCount, getInsightPercent } from './util
 import { formatDate, formatDateTime } from './utils/dateFormat';
 import type { SortState } from './utils/sortState';
 import type { CatalogueViewDefinition, EditableCatalogueViewDefinition } from './utils/catalogueViews';
+import { useBusinessSettings } from './utils/businessSettings';
 import {
   createCustomCatalogueView,
   loadCatalogueViewState,
@@ -261,6 +262,8 @@ const RequisitionCard: React.FC<{
   onView: () => void;
   onEdit: () => void;
   onCancel: () => void;
+  canEdit: boolean;
+  canCancel: boolean;
 }> = ({
   item,
   isExpanded,
@@ -271,6 +274,8 @@ const RequisitionCard: React.FC<{
   onView,
   onEdit,
   onCancel,
+  canEdit,
+  canCancel,
 }) => {
   const isCancelled = item.status === 'Cancelled';
   const documentDate = formatDate(item.documentDateTime.slice(0, 10));
@@ -306,7 +311,7 @@ const RequisitionCard: React.FC<{
                   <Eye size={16} />
                   View
                 </button>
-                <button type="button" className="catalogue-action-menu__item" role="menuitem" onClick={onEdit}>
+                <button type="button" className="catalogue-action-menu__item" role="menuitem" disabled={!canEdit} onClick={onEdit}>
                   <PencilLine size={16} />
                   Edit
                 </button>
@@ -314,7 +319,7 @@ const RequisitionCard: React.FC<{
                   type="button"
                   className="catalogue-action-menu__item catalogue-action-menu__item--danger"
                   role="menuitem"
-                  disabled={isCancelled}
+                  disabled={isCancelled || !canCancel}
                   onClick={onCancel}
                 >
                   <Ban size={16} />
@@ -408,6 +413,8 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
     )
   );
   const [isViewConfiguratorOpen, setIsViewConfiguratorOpen] = useState(false);
+  const businessSettings = useBusinessSettings();
+  const actionSettings = businessSettings.actions.purchaseRequisition;
   const actionMenuRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const systemViews = useMemo(
@@ -867,12 +874,20 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
   };
 
   const handleEditDocument = (documentId: string) => {
+    if (!actionSettings.allowEdit) {
+      return;
+    }
+
     registerRecentlyViewedDocument(documentId);
     setOpenActionMenuId(null);
     onEdit(documentId);
   };
 
   const handleOpenCancelDialog = (documentId: string) => {
+    if (!actionSettings.allowCancel) {
+      return;
+    }
+
     const document = documents.find((item) => item.id === documentId);
     if (!document) {
       return;
@@ -923,7 +938,13 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
             <Eye size={16} />
             View
           </button>
-          <button type="button" className="catalogue-action-menu__item" role="menuitem" onClick={() => handleEditDocument(item.id)}>
+          <button
+            type="button"
+            className="catalogue-action-menu__item"
+            role="menuitem"
+            disabled={!actionSettings.allowEdit}
+            onClick={() => handleEditDocument(item.id)}
+          >
             <PencilLine size={16} />
             Edit
           </button>
@@ -931,7 +952,7 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
             type="button"
             className="catalogue-action-menu__item catalogue-action-menu__item--danger"
             role="menuitem"
-            disabled={item.status === 'Cancelled'}
+            disabled={item.status === 'Cancelled' || !actionSettings.allowCancel}
             onClick={() => handleOpenCancelDialog(item.id)}
           >
             <Ban size={16} />
@@ -1253,6 +1274,8 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
                     onView={() => handleViewDocument(item.id)}
                     onEdit={() => handleEditDocument(item.id)}
                     onCancel={() => handleOpenCancelDialog(item.id)}
+                    canEdit={actionSettings.allowEdit}
+                    canCancel={actionSettings.allowCancel}
                   />
                 ))}
               </div>
@@ -1305,8 +1328,8 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
           setPreviewDocumentId(null);
           handleOpenCancelDialog(document.id);
         }}
-        canEdit={previewDocument?.status !== 'Cancelled'}
-        canCancel={previewDocument?.status !== 'Cancelled'}
+        canEdit={previewDocument?.status !== 'Cancelled' && actionSettings.allowEdit}
+        canCancel={previewDocument?.status !== 'Cancelled' && actionSettings.allowCancel}
       />
 
       <CancelDocumentDialog

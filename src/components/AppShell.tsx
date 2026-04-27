@@ -82,6 +82,7 @@ interface AppShellProps extends SidebarProps {
   contentClassName?: string;
   onContentScroll?: (event: React.UIEvent<HTMLDivElement>) => void;
   onFormLayoutClick?: () => void;
+  onBusinessSettingsClick?: () => void;
 }
 
 interface Level3Item {
@@ -116,6 +117,7 @@ interface TopHeaderProps {
   isMobileNavOpen: boolean;
   onToggleNavigation: () => void;
   onFormLayoutClick?: () => void;
+  onBusinessSettingsClick?: () => void;
 }
 
 type VoiceState = 'idle' | 'listening' | 'processing' | 'success' | 'error' | 'unsupported';
@@ -549,6 +551,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   isMobileNavOpen,
   onToggleNavigation,
   onFormLayoutClick,
+  onBusinessSettingsClick,
 }) => {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
@@ -1341,6 +1344,22 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                 role="menuitem"
                 onClick={() => {
                   setIsProfileMenuOpen(false);
+                  if (onBusinessSettingsClick) {
+                    onBusinessSettingsClick();
+                    return;
+                  }
+                  navigateToHash('#/profile/business-settings');
+                }}
+              >
+                <Settings size={16} />
+                Business Settings
+              </button>
+              <button
+                type="button"
+                className="app-topbar__dropdown-item"
+                role="menuitem"
+                onClick={() => {
+                  setIsProfileMenuOpen(false);
                   if (onFormLayoutClick) {
                     onFormLayoutClick();
                     return;
@@ -1380,6 +1399,7 @@ const AppShell: React.FC<AppShellProps> = ({
   onSaleInvoiceClick,
   onDeliveryClick,
   onFormLayoutClick,
+  onBusinessSettingsClick,
 }) => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
@@ -1423,6 +1443,7 @@ const AppShell: React.FC<AppShellProps> = ({
         isMobileNavOpen={isMobileNavOpen}
         onToggleNavigation={handleToggleNavigation}
         onFormLayoutClick={onFormLayoutClick}
+        onBusinessSettingsClick={onBusinessSettingsClick}
       />
       <div className="app-shell__body">
         <Sidebar

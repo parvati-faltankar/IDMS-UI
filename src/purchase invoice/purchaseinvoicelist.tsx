@@ -27,6 +27,7 @@ import { buildCountInsight, formatInsightAmount, formatInsightCount, getInsightP
 import { formatDate, formatDateTime } from '../utils/dateFormat';
 import type { SortState } from '../utils/sortState';
 import { buildNumberColumnAggregation, formatTableAggregationNumber } from '../utils/tableColumnAggregations';
+import { useBusinessSettings } from '../utils/businessSettings';
 import { extendedPurchaseOrderDocuments as extendedPurchaseInvoiceDocuments, type PurchaseOrderDocument as PurchaseInvoiceDocument } from './purchaseInvoiceData';
 
 interface PurchaseInvoiceListProps {
@@ -251,7 +252,9 @@ const PurchaseInvoicePreviewDrawer: React.FC<{
   onClose: () => void;
   onEdit: (document: PurchaseInvoiceDocument) => void;
   onCancel: (document: PurchaseInvoiceDocument) => void;
-}> = ({ document, isOpen, onClose, onEdit, onCancel }) => (
+  canEdit: boolean;
+  canCancel: boolean;
+}> = ({ document, isOpen, onClose, onEdit, onCancel, canEdit, canCancel }) => (
   <DocumentPreviewDrawer
     document={document}
     isOpen={isOpen}
@@ -260,8 +263,8 @@ const PurchaseInvoicePreviewDrawer: React.FC<{
     onClose={onClose}
     onEdit={onEdit}
     onCancel={onCancel}
-    canEdit={document?.status !== 'Cancelled'}
-    canCancel={document?.status !== 'Cancelled'}
+    canEdit={document?.status !== 'Cancelled' && canEdit}
+    canCancel={document?.status !== 'Cancelled' && canCancel}
   />
 );
 
@@ -286,6 +289,8 @@ const PurchaseInvoiceList: React.FC<PurchaseInvoiceListProps> = ({
   const [activeInsightKey, setActiveInsightKey] = useState<string | null>(null);
   const [sortState, setSortState] = useState<SortState<SortKey>>(null);
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const businessSettings = useBusinessSettings();
+  const actionSettings = businessSettings.actions.purchaseInvoice;
   const actionMenuRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
@@ -622,11 +627,19 @@ const PurchaseInvoiceList: React.FC<PurchaseInvoiceListProps> = ({
   };
 
   const handleEditDocument = (documentId: string) => {
+    if (!actionSettings.allowEdit) {
+      return;
+    }
+
     setOpenActionMenuId(null);
     onEdit(documentId);
   };
 
   const handleCancelDocument = (documentId: string) => {
+    if (!actionSettings.allowCancel) {
+      return;
+    }
+
     const document = documents.find((item) => item.id === documentId);
     if (!document) {
       return;
@@ -870,7 +883,13 @@ const PurchaseInvoiceList: React.FC<PurchaseInvoiceListProps> = ({
                                   <Eye size={16} />
                                   View
                                 </button>
-                                <button type="button" className="catalogue-action-menu__item" role="menuitem" onClick={() => handleEditDocument(item.id)}>
+                                <button
+                                  type="button"
+                                  className="catalogue-action-menu__item"
+                                  role="menuitem"
+                                  disabled={!actionSettings.allowEdit}
+                                  onClick={() => handleEditDocument(item.id)}
+                                >
                                   <PencilLine size={16} />
                                   Edit
                                 </button>
@@ -878,7 +897,7 @@ const PurchaseInvoiceList: React.FC<PurchaseInvoiceListProps> = ({
                                   type="button"
                                   className="catalogue-action-menu__item catalogue-action-menu__item--danger"
                                   role="menuitem"
-                                  disabled={item.status === 'Cancelled'}
+                                  disabled={item.status === 'Cancelled' || !actionSettings.allowCancel}
                                   onClick={() => handleCancelDocument(item.id)}
                                 >
                                   <Ban size={16} />
@@ -920,6 +939,8 @@ const PurchaseInvoiceList: React.FC<PurchaseInvoiceListProps> = ({
           setPreviewDocumentId(null);
           handleCancelDocument(document.id);
         }}
+        canEdit={actionSettings.allowEdit}
+        canCancel={actionSettings.allowCancel}
       />
     </AppShell>
   );

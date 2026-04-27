@@ -30,7 +30,6 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
       open={isOpen}
       onClose={onClose}
       titleId={title ? titleId : undefined}
-      paperClassName="confirmation-dialog__panel"
       width={420}
       actions={
         <Box className="confirmation-dialog__actions" sx={{ display: 'flex', gap: 1.25, width: '100%', justifyContent: 'flex-end' }}>

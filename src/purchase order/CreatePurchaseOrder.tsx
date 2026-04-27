@@ -9,6 +9,7 @@ import PurchaseRequisitionPreviewDrawer from '../components/common/PurchaseRequi
 import SuccessSummaryDialog from '../components/common/SuccessSummaryDialog';
 import { formatDate } from '../utils/dateFormat';
 import { cn } from '../utils/classNames';
+import { useBusinessSettings } from '../utils/businessSettings';
 import type { PurchaseOrderDocument } from './purchaseOrderData';
 import {
   extendedPurchaseRequisitionDocuments,
@@ -505,9 +506,13 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({
   const [isAmountDrawerOpen, setIsAmountDrawerOpen] = useState(false);
   const [previewRequisitionId, setPreviewRequisitionId] = useState<string | null>(null);
   const [collapsedGroupIds, setCollapsedGroupIds] = useState<Record<string, boolean>>({});
+  const [workflowError, setWorkflowError] = useState('');
   const focusLineIdRef = useRef<string | null>(null);
   const fieldRefs = useRef<Record<string, HTMLInputElement | HTMLSelectElement | null>>({});
   const voicePrefillAppliedRef = useRef<string | null>(null);
+  const businessSettings = useBusinessSettings();
+  const purchaseOrderSettings = businessSettings.procurement.purchaseOrder;
+  const canConvertRequisitionToOrder = businessSettings.procurement.conversions.purchaseRequisitionToPurchaseOrder;
   const [lines, setLines] = useState<PurchaseOrderLineForm[]>(
     editingDocument?.lines.map((line, index) => {
       const productOption = getProductLookupOption(line.itemCode);
@@ -542,6 +547,10 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({
   );
 
   const matchingRequisitions = useMemo(() => {
+    if (!canConvertRequisitionToOrder || (!purchaseOrderSettings.allowMultiplePurchaseRequisitions && selectedRequisitionIds.length > 0)) {
+      return [];
+    }
+
     const normalizedSearch = requisitionSearch.trim().toLowerCase();
     const eligibleRequisitions = extendedPurchaseRequisitionDocuments.filter((document) => {
       const conversionStatus = getRequisitionConversionStatus(document);
@@ -563,7 +572,12 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({
         document.requesterName.toLowerCase().includes(normalizedSearch)
       )
       .slice(0, 8);
-  }, [requisitionSearch, selectedRequisitionIds]);
+  }, [
+    canConvertRequisitionToOrder,
+    purchaseOrderSettings.allowMultiplePurchaseRequisitions,
+    requisitionSearch,
+    selectedRequisitionIds,
+  ]);
 
   const selectedRequisitions = useMemo(
     () =>
@@ -641,7 +655,9 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({
   ];
   const isPurchaseOrderLineComplete = (line: PurchaseOrderLineForm) =>
     hasRequiredGridValues(line, ['productCode', 'uom', 'purchaseRate', 'orderQty']);
-  const canAddProductLine = lines.length === 0 || isPurchaseOrderLineComplete(lines[lines.length - 1]);
+  const canAddProductLine =
+    (purchaseOrderSettings.allowManualLines || selectedRequisitionIds.length > 0) &&
+    (lines.length === 0 || isPurchaseOrderLineComplete(lines[lines.length - 1]));
 
   useEffect(() => {
     if (!focusLineIdRef.current) {
@@ -751,6 +767,27 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({
   };
 
   const handleSave = () => {
+    if (purchaseOrderSettings.purchaseRequisitionMandatory && selectedRequisitionIds.length === 0) {
+      setWorkflowError('Select a purchase requisition before saving this purchase order.');
+      return;
+    }
+
+    if (!canConvertRequisitionToOrder && selectedRequisitionIds.length > 0) {
+      setWorkflowError('Purchase Requisition to Purchase Order conversion is disabled in Business Settings.');
+      return;
+    }
+
+    if (!purchaseOrderSettings.allowManualLines && lines.some((line) => !line.sourceRequisitionId)) {
+      setWorkflowError('Manual purchase order lines are disabled in Business Settings. Remove manual lines or select a requisition.');
+      return;
+    }
+
+    if (!businessSettings.actions.purchaseOrder.allowSubmit) {
+      setWorkflowError('Submitting purchase orders is disabled in Business Settings.');
+      return;
+    }
+
+    setWorkflowError('');
     setIsSaveSuccessDialogOpen(true);
   };
 
@@ -832,7 +869,17 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({
   };
 
   const handleSelectRequisition = (requisition: PurchaseRequisitionDocument) => {
+    if (!canConvertRequisitionToOrder) {
+      setWorkflowError('Purchase Requisition to Purchase Order conversion is disabled in Business Settings.');
+      return;
+    }
+
     if (selectedRequisitionIds.includes(requisition.id)) {
+      return;
+    }
+
+    if (!purchaseOrderSettings.allowMultiplePurchaseRequisitions && selectedRequisitionIds.length > 0) {
+      setWorkflowError('Multiple purchase requisitions are disabled in Business Settings.');
       return;
     }
 
@@ -840,6 +887,7 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({
     setSelectedRequisitionIds(nextSelectedRequisitions.map((document) => document.id));
     setRequisitionSearch('');
     setIsRequisitionResultsOpen(true);
+    setWorkflowError('');
 
     setFormData((current) => syncFormDataFromRequisitions(nextSelectedRequisitions, current));
 
@@ -864,6 +912,7 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({
       const remainingLines = currentLines.filter((line) => line.sourceRequisitionId !== requisitionId);
       return remainingLines.length > 0 ? remainingLines : [createEmptyLine(0)];
     });
+    setWorkflowError('');
   };
   const handleSelectRequisitionRef = useRef(handleSelectRequisition);
 
@@ -1049,8 +1098,18 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({
                       }, 120);
                     }}
                     className="search-input po-create__requisition-search-input"
-                    placeholder={selectedRequisitions.length > 0 ? '' : 'Search purchase requisition'}
+                    placeholder={
+                      !canConvertRequisitionToOrder
+                        ? 'PR to PO conversion disabled'
+                        : selectedRequisitions.length > 0
+                          ? ''
+                          : 'Search purchase requisition'
+                    }
                     aria-label="Search purchase requisitions"
+                    disabled={
+                      !canConvertRequisitionToOrder ||
+                      (!purchaseOrderSettings.allowMultiplePurchaseRequisitions && selectedRequisitions.length > 0)
+                    }
                   />
                 </div>
               </div>
@@ -1114,6 +1173,8 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({
                 </div>
               )}
             </div>
+
+            {workflowError && <p className="field-error po-create__selection-message">{workflowError}</p>}
 
             <button type="button" onClick={handleDiscardRequest} className="btn btn--outline">
               Discard
@@ -1199,6 +1260,13 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({
                   type="button"
                   onClick={handleAddLine}
                   disabled={!canAddProductLine}
+                  title={
+                    canAddProductLine
+                      ? 'Add line'
+                      : purchaseOrderSettings.allowManualLines
+                        ? 'Complete the current line before adding another line'
+                        : 'Manual PO lines are disabled in Business Settings'
+                  }
                   className="btn btn--outline btn--icon-left create-pr-grid__add-button"
                 >
                   <Plus size={14} />

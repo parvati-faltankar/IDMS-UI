@@ -6,6 +6,7 @@ import { FormField, Input, Select } from '../components/common/FormControls';
 import { handleGridLastCellTab, hasRequiredGridValues } from '../components/common/gridKeyboard';
 import { formatDate } from '../utils/dateFormat';
 import { cn } from '../utils/classNames';
+import { useBusinessSettings } from '../utils/businessSettings';
 import type { PurchaseOrderDocument } from './purchaseInvoiceData';
 import {
   extendedPurchaseRequisitionDocuments,
@@ -430,8 +431,14 @@ const CreatePurchaseInvoice: React.FC<CreatePurchaseInvoiceProps> = ({
   const [selectedRequisitionId, setSelectedRequisitionId] = useState<string | null>(null);
   const [isRequisitionResultsOpen, setIsRequisitionResultsOpen] = useState(false);
   const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
+  const [workflowError, setWorkflowError] = useState('');
   const focusLineIdRef = useRef<string | null>(null);
   const fieldRefs = useRef<Record<string, HTMLInputElement | HTMLSelectElement | null>>({});
+  const businessSettings = useBusinessSettings();
+  const invoiceSettings = businessSettings.procurement.purchaseInvoice;
+  const canUseRequisitionAsInvoiceSource =
+    invoiceSettings.allowPurchaseRequisitionSource &&
+    businessSettings.procurement.conversions.purchaseRequisitionToPurchaseInvoice;
   const [lines, setLines] = useState<PurchaseOrderLineForm[]>(
     editingDocument?.lines.map((line, index) => {
       const productOption = getProductLookupOption(line.itemCode);
@@ -460,6 +467,10 @@ const CreatePurchaseInvoice: React.FC<CreatePurchaseInvoiceProps> = ({
   );
 
   const matchingRequisitions = useMemo(() => {
+    if (!canUseRequisitionAsInvoiceSource) {
+      return [];
+    }
+
     const normalizedSearch = requisitionSearch.trim().toLowerCase();
 
     if (!normalizedSearch) {
@@ -474,7 +485,7 @@ const CreatePurchaseInvoice: React.FC<CreatePurchaseInvoiceProps> = ({
         document.requesterName.toLowerCase().includes(normalizedSearch)
       )
       .slice(0, 8);
-  }, [requisitionSearch]);
+  }, [canUseRequisitionAsInvoiceSource, requisitionSearch]);
 
   const selectedRequisition = useMemo(
     () => extendedPurchaseRequisitionDocuments.find((document) => document.id === selectedRequisitionId) ?? null,
@@ -502,7 +513,9 @@ const CreatePurchaseInvoice: React.FC<CreatePurchaseInvoiceProps> = ({
   ];
   const isPurchaseInvoiceLineComplete = (line: PurchaseOrderLineForm) =>
     hasRequiredGridValues(line, ['productCode', 'uom', 'purchaseRate', 'orderQty']);
-  const canAddProductLine = lines.length === 0 || isPurchaseInvoiceLineComplete(lines[lines.length - 1]);
+  const canAddProductLine =
+    (invoiceSettings.allowManualLines || Boolean(selectedRequisitionId)) &&
+    (lines.length === 0 || isPurchaseInvoiceLineComplete(lines[lines.length - 1]));
 
   useEffect(() => {
     if (!focusLineIdRef.current) {
@@ -609,6 +622,37 @@ const CreatePurchaseInvoice: React.FC<CreatePurchaseInvoiceProps> = ({
   };
 
   const handleSave = () => {
+    if (invoiceSettings.sourceDocumentRequired && !selectedRequisitionId) {
+      setWorkflowError('Select a source document before saving this purchase invoice.');
+      return;
+    }
+
+    if (!canUseRequisitionAsInvoiceSource && selectedRequisitionId) {
+      setWorkflowError('The selected invoice source conversion is disabled in Business Settings.');
+      return;
+    }
+
+    if (!invoiceSettings.allowManualLines && !selectedRequisitionId) {
+      setWorkflowError('Manual invoice lines are disabled in Business Settings. Select a source document first.');
+      return;
+    }
+
+    if (invoiceSettings.requireSupplierInvoiceNumber && !formData.supplierInvoiceNumber.trim()) {
+      setWorkflowError('Supplier invoice number is required by Business Settings.');
+      return;
+    }
+
+    if (invoiceSettings.requireSupplierInvoiceDate && !formData.supplierInvoiceDate) {
+      setWorkflowError('Supplier invoice date is required by Business Settings.');
+      return;
+    }
+
+    if (!businessSettings.actions.purchaseInvoice.allowSubmit) {
+      setWorkflowError('Submitting purchase invoices is disabled in Business Settings.');
+      return;
+    }
+
+    setWorkflowError('');
     onNavigateToPurchaseInvoiceList();
   };
 
@@ -626,9 +670,15 @@ const CreatePurchaseInvoice: React.FC<CreatePurchaseInvoiceProps> = ({
   };
 
   const handleSelectRequisition = (requisition: PurchaseRequisitionDocument) => {
+    if (!canUseRequisitionAsInvoiceSource) {
+      setWorkflowError('Purchase Requisition to Purchase Invoice conversion is disabled in Business Settings.');
+      return;
+    }
+
     setSelectedRequisitionId(requisition.id);
     setRequisitionSearch(requisition.number);
     setIsRequisitionResultsOpen(false);
+    setWorkflowError('');
 
     setFormData((current) => ({
       ...current,
@@ -751,8 +801,9 @@ const CreatePurchaseInvoice: React.FC<CreatePurchaseInvoiceProps> = ({
                     }, 120);
                   }}
                   className="search-input po-create__requisition-search-input"
-                  placeholder="Search source document"
+                  placeholder={canUseRequisitionAsInvoiceSource ? 'Search source document' : 'Source conversion disabled'}
                   aria-label="Search source documents"
+                  disabled={!canUseRequisitionAsInvoiceSource}
                 />
               </div>
 
@@ -775,6 +826,8 @@ const CreatePurchaseInvoice: React.FC<CreatePurchaseInvoiceProps> = ({
                 </div>
               )}
             </div>
+
+            {workflowError && <p className="field-error po-create__selection-message">{workflowError}</p>}
 
             <button type="button" onClick={handleDiscardRequest} className="btn btn--outline">
               Discard
@@ -853,18 +906,28 @@ const CreatePurchaseInvoice: React.FC<CreatePurchaseInvoiceProps> = ({
                   <FormField label="Payment Term" required>
                     <Select value={formData.paymentTerms} onChange={(event) => handleFieldChange('paymentTerms', event.target.value)} options={paymentTermsOptions} />
                   </FormField>
-                  <FormField label="Supplier Invoice Number">
+                  <FormField label="Supplier Invoice Number" required={invoiceSettings.requireSupplierInvoiceNumber}>
                     <Input
                       value={formData.supplierInvoiceNumber}
                       onChange={(event) => handleFieldChange('supplierInvoiceNumber', event.target.value)}
                       placeholder="Enter supplier invoice number"
+                      error={
+                        invoiceSettings.requireSupplierInvoiceNumber && workflowError.includes('Supplier invoice number')
+                          ? workflowError
+                          : undefined
+                      }
                     />
                   </FormField>
-                  <FormField label="Supplier Invoice Date">
+                  <FormField label="Supplier Invoice Date" required={invoiceSettings.requireSupplierInvoiceDate}>
                     <Input
                       type="date"
                       value={formData.supplierInvoiceDate}
                       onChange={(event) => handleFieldChange('supplierInvoiceDate', event.target.value)}
+                      error={
+                        invoiceSettings.requireSupplierInvoiceDate && workflowError.includes('Supplier invoice date')
+                          ? workflowError
+                          : undefined
+                      }
                     />
                   </FormField>
                 </div>
@@ -887,6 +950,13 @@ const CreatePurchaseInvoice: React.FC<CreatePurchaseInvoiceProps> = ({
                   type="button"
                   onClick={handleAddLine}
                   disabled={!canAddProductLine}
+                  title={
+                    canAddProductLine
+                      ? 'Add line'
+                      : invoiceSettings.allowManualLines
+                        ? 'Complete the current line before adding another line'
+                        : 'Manual invoice lines are disabled in Business Settings'
+                  }
                   className="btn btn--outline btn--icon-left create-pr-grid__add-button"
                 >
                   <Plus size={14} />

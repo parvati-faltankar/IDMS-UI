@@ -28,6 +28,7 @@ import { cn } from '../utils/classNames';
 import { buildCountInsight, formatInsightAmount, formatInsightCount, getInsightPercent, sumNumericValues } from '../utils/catalogueInsights';
 import { formatDate, formatDateTime } from '../utils/dateFormat';
 import type { SortState } from '../utils/sortState';
+import { useBusinessSettings } from '../utils/businessSettings';
 import { extendedPurchaseOrderDocuments, type PurchaseOrderDocument } from './purchaseOrderData';
 
 interface PurhcaseOrderListProps {
@@ -250,7 +251,9 @@ const PurchaseOrderPreviewDrawer: React.FC<{
   onClose: () => void;
   onEdit: (document: PurchaseOrderDocument) => void;
   onCancel: (document: PurchaseOrderDocument) => void;
-}> = ({ document, isOpen, onClose, onEdit, onCancel }) => (
+  canEdit: boolean;
+  canCancel: boolean;
+}> = ({ document, isOpen, onClose, onEdit, onCancel, canEdit, canCancel }) => (
   <DocumentPreviewDrawer
     document={document}
     isOpen={isOpen}
@@ -259,8 +262,8 @@ const PurchaseOrderPreviewDrawer: React.FC<{
     onClose={onClose}
     onEdit={onEdit}
     onCancel={onCancel}
-    canEdit={document?.status !== 'Cancelled'}
-    canCancel={document?.status !== 'Cancelled'}
+    canEdit={document?.status !== 'Cancelled' && canEdit}
+    canCancel={document?.status !== 'Cancelled' && canCancel}
   />
 );
 
@@ -284,6 +287,8 @@ const PurhcaseOrderList: React.FC<PurhcaseOrderListProps> = ({
   const [activeInsightKey, setActiveInsightKey] = useState<string | null>(null);
   const [sortState, setSortState] = useState<SortState<SortKey>>(null);
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const businessSettings = useBusinessSettings();
+  const actionSettings = businessSettings.actions.purchaseOrder;
   const actionMenuRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
@@ -592,11 +597,19 @@ const PurhcaseOrderList: React.FC<PurhcaseOrderListProps> = ({
   };
 
   const handleEditDocument = (documentId: string) => {
+    if (!actionSettings.allowEdit) {
+      return;
+    }
+
     setOpenActionMenuId(null);
     onEdit(documentId);
   };
 
   const handleOpenCancelDialog = (documentId: string) => {
+    if (!actionSettings.allowCancel) {
+      return;
+    }
+
     const document = documents.find((item) => item.id === documentId);
     if (!document) {
       return;
@@ -647,7 +660,13 @@ const PurhcaseOrderList: React.FC<PurhcaseOrderListProps> = ({
             <Eye size={16} />
             View
           </button>
-          <button type="button" className="catalogue-action-menu__item" role="menuitem" onClick={() => handleEditDocument(item.id)}>
+          <button
+            type="button"
+            className="catalogue-action-menu__item"
+            role="menuitem"
+            disabled={!actionSettings.allowEdit}
+            onClick={() => handleEditDocument(item.id)}
+          >
             <PencilLine size={16} />
             Edit
           </button>
@@ -655,7 +674,7 @@ const PurhcaseOrderList: React.FC<PurhcaseOrderListProps> = ({
             type="button"
             className="catalogue-action-menu__item catalogue-action-menu__item--danger"
             role="menuitem"
-            disabled={item.status === 'Cancelled'}
+            disabled={item.status === 'Cancelled' || !actionSettings.allowCancel}
             onClick={() => handleOpenCancelDialog(item.id)}
           >
             <Ban size={16} />
@@ -993,6 +1012,8 @@ const PurhcaseOrderList: React.FC<PurhcaseOrderListProps> = ({
           setPreviewDocumentId(null);
           handleOpenCancelDialog(document.id);
         }}
+        canEdit={actionSettings.allowEdit}
+        canCancel={actionSettings.allowCancel}
       />
 
       <CancelDocumentDialog

@@ -8,6 +8,7 @@ import { FormField, Input, Select } from '../components/common/FormControls';
 import { handleGridLastCellTab, hasRequiredGridValues } from '../components/common/gridKeyboard';
 import { formatDate } from '../utils/dateFormat';
 import { cn } from '../utils/classNames';
+import { useBusinessSettings } from '../utils/businessSettings';
 import type { PurchaseOrderDocument as PurchaseReceiptDocument } from './purchaseReceiptData';
 import {
   extendedPurchaseOrderDocuments,
@@ -562,10 +563,16 @@ const CreatePurchaseReceipt: React.FC<CreatePurchaseReceiptProps> = ({
   const [collapsedGroupIds, setCollapsedGroupIds] = useState<Record<string, boolean>>({});
   const [isAmountDrawerOpen, setIsAmountDrawerOpen] = useState(false);
   const [selectionError, setSelectionError] = useState('');
+  const businessSettings = useBusinessSettings();
+  const canConvertOrderToReceipt = businessSettings.procurement.conversions.purchaseOrderToPurchaseReceipt;
   const focusLineIdRef = useRef<string | null>(null);
   const fieldRefs = useRef<Record<string, HTMLInputElement | HTMLSelectElement | null>>({});
 
   const matchingOrders = useMemo(() => {
+    if (!canConvertOrderToReceipt) {
+      return [];
+    }
+
     const normalizedSearch = purchaseOrderSearch.trim().toLowerCase();
     const availableOrders = extendedPurchaseOrderDocuments.filter((document) => {
       const conversionStatus = getOrderConversionStatus(document);
@@ -587,7 +594,7 @@ const CreatePurchaseReceipt: React.FC<CreatePurchaseReceiptProps> = ({
         document.buyerName.toLowerCase().includes(normalizedSearch)
       )
       .slice(0, 8);
-  }, [purchaseOrderSearch, selectedOrderIds]);
+  }, [canConvertOrderToReceipt, purchaseOrderSearch, selectedOrderIds]);
 
   const selectedOrders = useMemo(
     () =>
@@ -857,6 +864,16 @@ const CreatePurchaseReceipt: React.FC<CreatePurchaseReceiptProps> = ({
   };
 
   const handleSave = () => {
+    if (!canConvertOrderToReceipt && selectedOrderIds.length > 0) {
+      setSelectionError('Purchase Order to Purchase Receipt conversion is disabled in Business Settings.');
+      return;
+    }
+
+    if (!businessSettings.actions.purchaseReceipt.allowSubmit) {
+      setSelectionError('Submitting purchase receipts is disabled in Business Settings.');
+      return;
+    }
+
     setIsSaveSuccessDialogOpen(true);
   };
 
@@ -937,6 +954,11 @@ const CreatePurchaseReceipt: React.FC<CreatePurchaseReceiptProps> = ({
   };
 
   const handleSelectOrder = (order: SourcePurchaseOrderDocument) => {
+    if (!canConvertOrderToReceipt) {
+      setSelectionError('Purchase Order to Purchase Receipt conversion is disabled in Business Settings.');
+      return;
+    }
+
     if (selectedOrderIds.includes(order.id)) {
       return;
     }
@@ -1112,8 +1134,15 @@ const CreatePurchaseReceipt: React.FC<CreatePurchaseReceiptProps> = ({
                       }, 120);
                     }}
                     className="search-input po-create__requisition-search-input"
-                    placeholder={selectedOrders.length > 0 ? '' : 'Search purchase order'}
+                    placeholder={
+                      !canConvertOrderToReceipt
+                        ? 'PO to receipt conversion disabled'
+                        : selectedOrders.length > 0
+                          ? ''
+                          : 'Search purchase order'
+                    }
                     aria-label="Search purchase orders"
+                    disabled={!canConvertOrderToReceipt}
                   />
                 </div>
               </div>
