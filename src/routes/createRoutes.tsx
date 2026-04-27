@@ -1,13 +1,13 @@
 import { Route } from 'react-router-dom';
-import { getPurchaseRequisitionById } from '../purchase requisition/purchaseRequisitionCatalogueData';
-import { getPurchaseOrderById } from '../purchase order/purchaseOrderData';
-import { getPurchaseOrderById as getPurchaseReceiptById } from '../purhcase receipt/purchaseReceiptData';
-import { getPurchaseOrderById as getPurchaseInvoiceById } from '../purchase invoice/purchaseInvoiceData';
-import { getSaleOrderById } from '../sale order/saleOrderData';
-import { getSaleAllocationRequisitionById } from '../sale allocation requisition/saleAllocationRequisitionData';
-import { getSaleAllocationById } from '../sale allocation/saleAllocationData';
-import { getSaleInvoiceById } from '../sale invoice/saleInvoiceData';
-import { getDeliveryById } from '../delivery/deliveryData';
+import { getPurchaseRequisitionById } from '../pages/purchase-requisition/purchaseRequisitionCatalogueData';
+import { getPurchaseOrderById } from '../pages/purchase-order/purchaseOrderData';
+import { getPurchaseOrderById as getPurchaseReceiptById } from '../pages/purchase-receipt/purchaseReceiptData';
+import { getPurchaseOrderById as getPurchaseInvoiceById } from '../pages/purchase-invoice/purchaseInvoiceData';
+import { getSaleOrderById } from '../pages/sale-order/saleOrderData';
+import { getSaleAllocationRequisitionById } from '../pages/sale-allocation-requisition/saleAllocationRequisitionData';
+import { getSaleAllocationById } from '../pages/sale-allocation/saleAllocationData';
+import { getSaleInvoiceById } from '../pages/sale-invoice/saleInvoiceData';
+import { getDeliveryById } from '../pages/delivery/deliveryData';
 import { paths } from './routeConfig';
 import {
   CreateDelivery,

@@ -1,6 +1,6 @@
 import type React from 'react';
 import DocumentPreviewDrawer from './DocumentPreviewDrawer';
-import type { PurchaseRequisitionDocument } from '../../purchaseRequisitionCatalogueData';
+import type { PurchaseRequisitionDocument } from '../../pages/purchase-requisition/purchaseRequisitionCatalogueData';
 
 interface PurchaseRequisitionPreviewDrawerProps {
   document: PurchaseRequisitionDocument | null;

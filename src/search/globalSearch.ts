@@ -1,39 +1,39 @@
 import {
   extendedPurchaseRequisitionDocuments,
   type PurchaseRequisitionDocument,
-} from '../purchase requisition/purchaseRequisitionCatalogueData';
+} from '../pages/purchase-requisition/purchaseRequisitionCatalogueData';
 import {
   extendedPurchaseOrderDocuments,
   type PurchaseOrderDocument,
-} from '../purchase order/purchaseOrderData';
+} from '../pages/purchase-order/purchaseOrderData';
 import {
   extendedPurchaseOrderDocuments as extendedPurchaseReceiptDocuments,
   type PurchaseOrderDocument as PurchaseReceiptDocument,
-} from '../purhcase receipt/purchaseReceiptData';
+} from '../pages/purchase-receipt/purchaseReceiptData';
 import {
   extendedPurchaseOrderDocuments as extendedPurchaseInvoiceDocuments,
   type PurchaseOrderDocument as PurchaseInvoiceDocument,
-} from '../purchase invoice/purchaseInvoiceData';
+} from '../pages/purchase-invoice/purchaseInvoiceData';
 import {
   extendedSaleOrderDocuments,
   type SaleOrderDocument,
-} from '../sale order/saleOrderData';
+} from '../pages/sale-order/saleOrderData';
 import {
   extendedSaleAllocationRequisitionDocuments,
   type SaleAllocationRequisitionDocument,
-} from '../sale allocation requisition/saleAllocationRequisitionData';
+} from '../pages/sale-allocation-requisition/saleAllocationRequisitionData';
 import {
   extendedSaleAllocationDocuments,
   type SaleAllocationDocument,
-} from '../sale allocation/saleAllocationData';
+} from '../pages/sale-allocation/saleAllocationData';
 import {
   extendedSaleInvoiceDocuments,
   type SaleInvoiceDocument,
-} from '../sale invoice/saleInvoiceData';
+} from '../pages/sale-invoice/saleInvoiceData';
 import {
   extendedDeliveryDocuments,
   type DeliveryDocument,
-} from '../delivery/deliveryData';
+} from '../pages/delivery/deliveryData';
 import { formatDate } from '../utils/dateFormat';
 
 export type GlobalSearchEntity =

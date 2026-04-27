@@ -5,7 +5,7 @@ import {
   PurchaseInvoiceList,
   PurchaseReceiptList,
   PurchaseRequisitionCatalogueView,
-  PurhcaseOrderList,
+  PurchaseOrderList,
   SaleAllocationList,
   SaleAllocationRequisitionList,
   SaleInvoiceList,
@@ -29,7 +29,7 @@ export function renderListRoutes({
       <Route
         path={paths.purchaseOrderList}
         element={
-          <PurhcaseOrderList
+          <PurchaseOrderList
             filters={purchaseOrderCatalogueFilters}
             onFiltersChange={setPurchaseOrderCatalogueFilters}
             onNew={() => navigateTo(paths.purchaseOrderCreate)}

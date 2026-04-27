@@ -1,7 +1,7 @@
-import { extendedPurchaseRequisitionDocuments } from '../purchase requisition/purchaseRequisitionCatalogueData';
-import { extendedPurchaseOrderDocuments } from '../purchase order/purchaseOrderData';
-import { extendedSaleOrderDocuments } from '../sale order/saleOrderData';
-import { extendedSaleAllocationDocuments } from '../sale allocation/saleAllocationData';
+import { extendedPurchaseRequisitionDocuments } from '../pages/purchase-requisition/purchaseRequisitionCatalogueData';
+import { extendedPurchaseOrderDocuments } from '../pages/purchase-order/purchaseOrderData';
+import { extendedSaleOrderDocuments } from '../pages/sale-order/saleOrderData';
+import { extendedSaleAllocationDocuments } from '../pages/sale-allocation/saleAllocationData';
 import { searchGlobalRecords, type GlobalSearchEntity, type GlobalSearchResult } from './globalSearch';
 import { resolveSearchInsight, type SearchInsightMatch } from './searchInsights';
 

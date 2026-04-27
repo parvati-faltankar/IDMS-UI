@@ -41,7 +41,7 @@ export const legacyRedirects: LegacyRedirect[] = [
   { path: '/create-sale-allocation', to: paths.saleAllocationCreate },
   { path: '/create-sale-invoice', to: paths.saleInvoiceCreate },
   { path: '/create-delivery', to: paths.deliveryCreate },
-  { path: '/purhcaseorderlist', to: paths.purchaseOrderList },
+  { path: '/purchaseorderlist', to: paths.purchaseOrderList },
   { path: '/purchase-receipt', to: paths.purchaseReceiptList },
   { path: '/purchase-invoice', to: paths.purchaseInvoiceList },
   { path: '/saleorderlist', to: paths.saleOrderList },

@@ -1,5 +1,5 @@
-import { extendedSaleInvoiceDocuments } from '../sale invoice/saleInvoiceData';
-import { extendedPurchaseOrderDocuments as extendedPurchaseInvoiceDocuments } from '../purchase invoice/purchaseInvoiceData';
+import { extendedSaleInvoiceDocuments } from '../pages/sale-invoice/saleInvoiceData';
+import { extendedPurchaseOrderDocuments as extendedPurchaseInvoiceDocuments } from '../pages/purchase-invoice/purchaseInvoiceData';
 
 export interface SearchInsightMatch {
   id: string;
