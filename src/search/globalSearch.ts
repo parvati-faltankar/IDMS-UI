@@ -1,7 +1,7 @@
 import {
   extendedPurchaseRequisitionDocuments,
   type PurchaseRequisitionDocument,
-} from '../purchaseRequisitionCatalogueData';
+} from '../purchase requisition/purchaseRequisitionCatalogueData';
 import {
   extendedPurchaseOrderDocuments,
   type PurchaseOrderDocument,

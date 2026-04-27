@@ -1,20 +1,20 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Ban, ChevronDown, ChevronUp, Eye, FileText, Filter, LayoutGrid, List, MoreVertical, PencilLine, Plus, Search } from 'lucide-react';
-import AppShell from './components/AppShell';
-import CatalogueInsightCards from './components/common/CatalogueInsightCards';
-import CatalogueViewConfigurator from './components/common/CatalogueViewConfigurator';
-import CatalogueViewSelector from './components/common/CatalogueViewSelector';
-import CommonDataGrid from './components/common/CommonDataGrid';
-import type { DataGridColumn } from './components/common/dataGridTypes';
-import GuidedTour, { type GuidedTourStep } from './components/common/GuidedTour';
-import SideDrawer from './components/common/SideDrawer';
-import CancelDocumentDialog from './components/common/CancelDocumentDialog';
-import PurchaseRequisitionPreviewDrawer from './components/common/PurchaseRequisitionPreviewDrawer';
-import StatusBadge from './components/common/StatusBadge';
-import TourInvitePopup from './components/common/TourInvitePopup';
-import { Input, Select } from './components/common/FormControls';
-import { emptyCatalogueFilters, getActiveFilterCount, validateDateRange } from './catalogueFilters';
-import type { CatalogueFilters } from './catalogueFilters';
+import AppShell from '../components/AppShell';
+import CatalogueInsightCards from '../components/common/CatalogueInsightCards';
+import CatalogueViewConfigurator from '../components/common/CatalogueViewConfigurator';
+import CatalogueViewSelector from '../components/common/CatalogueViewSelector';
+import CommonDataGrid from '../components/common/CommonDataGrid';
+import type { DataGridColumn } from '../components/common/dataGridTypes';
+import GuidedTour, { type GuidedTourStep } from '../components/common/GuidedTour';
+import SideDrawer from '../components/common/SideDrawer';
+import CancelDocumentDialog from '../components/common/CancelDocumentDialog';
+import PurchaseRequisitionPreviewDrawer from '../components/common/PurchaseRequisitionPreviewDrawer';
+import StatusBadge from '../components/common/StatusBadge';
+import TourInvitePopup from '../components/common/TourInvitePopup';
+import { Input, Select } from '../components/common/FormControls';
+import { emptyCatalogueFilters, getActiveFilterCount, validateDateRange } from '../catalogueFilters';
+import type { CatalogueFilters } from '../catalogueFilters';
 import {
   extendedPurchaseRequisitionDocuments,
 } from './purchaseRequisitionCatalogueData';
@@ -28,13 +28,13 @@ import {
   getPurchaseRequisitionSystemViews,
   PURCHASE_REQUISITION_ALL_VIEW_ID,
   PURCHASE_REQUISITION_CATALOGUE_VIEW_ENTITY,
-} from './catalogueViews/purchaseRequisitionViews';
-import { cn } from './utils/classNames';
-import { buildCountInsight, formatInsightCount, getInsightPercent } from './utils/catalogueInsights';
-import { formatDate, formatDateTime } from './utils/dateFormat';
-import type { SortState } from './utils/sortState';
-import type { CatalogueViewDefinition, EditableCatalogueViewDefinition } from './utils/catalogueViews';
-import { useBusinessSettings } from './utils/businessSettings';
+} from './purchaseRequisitionViews';
+import { cn } from '../utils/classNames';
+import { buildCountInsight, formatInsightCount, getInsightPercent } from '../utils/catalogueInsights';
+import { formatDate, formatDateTime } from '../utils/dateFormat';
+import type { SortState } from '../utils/sortState';
+import type { CatalogueViewDefinition, EditableCatalogueViewDefinition } from '../utils/catalogueViews';
+import { useBusinessSettings } from '../utils/businessSettings';
 import {
   createCustomCatalogueView,
   loadCatalogueViewState,
@@ -47,7 +47,7 @@ import {
   setLastSelectedCatalogueViewId,
   setPinnedCatalogueViewId,
   updateCustomCatalogueView,
-} from './utils/catalogueViews';
+} from '../utils/catalogueViews';
 
 interface PurchaseRequisitionCatalogueViewProps {
   filters: CatalogueFilters;

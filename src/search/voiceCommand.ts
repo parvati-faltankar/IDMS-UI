@@ -1,4 +1,4 @@
-import { extendedPurchaseRequisitionDocuments } from '../purchaseRequisitionCatalogueData';
+import { extendedPurchaseRequisitionDocuments } from '../purchase requisition/purchaseRequisitionCatalogueData';
 import { extendedPurchaseOrderDocuments } from '../purchase order/purchaseOrderData';
 import { extendedSaleOrderDocuments } from '../sale order/saleOrderData';
 import { extendedSaleAllocationDocuments } from '../sale allocation/saleAllocationData';

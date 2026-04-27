@@ -1,5 +1,5 @@
 import { Route } from 'react-router-dom';
-import { getPurchaseRequisitionById } from '../purchaseRequisitionCatalogueData';
+import { getPurchaseRequisitionById } from '../purchase requisition/purchaseRequisitionCatalogueData';
 import { getPurchaseOrderById } from '../purchase order/purchaseOrderData';
 import { getPurchaseOrderById as getPurchaseReceiptById } from '../purhcase receipt/purchaseReceiptData';
 import { getPurchaseOrderById as getPurchaseInvoiceById } from '../purchase invoice/purchaseInvoiceData';

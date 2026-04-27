@@ -1,4 +1,4 @@
-import type { PurchaseRequisitionDocument } from '../purchaseRequisitionCatalogueData';
+import type { PurchaseRequisitionDocument } from './purchaseRequisitionCatalogueData';
 import type { CatalogueViewDefinition } from '../utils/catalogueViews';
 import type { RecentlyViewedEntry } from '../utils/catalogueViews';
 
