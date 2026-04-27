@@ -1,15 +1,15 @@
 import React, { useMemo, useState } from 'react';
 import { ArrowLeft, CheckCircle2, RotateCcw, Save, Settings2, ShieldCheck, Workflow } from 'lucide-react';
-import AppShell from './components/AppShell';
-import ConfirmationDialog from './components/common/ConfirmationDialog';
-import { cn } from './utils/classNames';
+import AppShell from '../../components/common/AppShell';
+import ConfirmationDialog from '../../components/common/ConfirmationDialog';
+import { cn } from '../../utils/classNames';
 import {
   defaultBusinessSettings,
   loadBusinessSettings,
   saveBusinessSettings,
   type BusinessSettings as BusinessSettingsModel,
   type DocumentTypeKey,
-} from './utils/businessSettings';
+} from '../../utils/businessSettings';
 
 interface BusinessSettingsProps {
   onBack: () => void;

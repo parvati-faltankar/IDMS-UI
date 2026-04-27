@@ -16,7 +16,7 @@ import {
   UserRound,
   X,
 } from 'lucide-react';
-import AppShell from '../../components/AppShell';
+import AppShell from '../../components/common/AppShell';
 import AmountBreakdownDrawer from '../../components/common/AmountBreakdownDrawer';
 import ConfirmationDialog from '../../components/common/ConfirmationDialog';
 import SuccessSummaryDialog from '../../components/common/SuccessSummaryDialog';

@@ -1,10 +1,10 @@
 import React, { useMemo } from 'react';
 import { ArrowRight, Settings2 } from 'lucide-react';
-import AppShell from './components/AppShell';
-import { formLayoutRegistry } from './formLayoutRegistry';
-import { cn } from './utils/classNames';
-import { formatDateTime } from './utils/dateFormat';
-import { getFormLayoutStatus, type FormLayoutStatus } from './utils/formLayoutConfig';
+import AppShell from '../../components/common/AppShell';
+import { formLayoutRegistry } from '../../utils/formLayoutRegistry';
+import { cn } from '../../utils/classNames';
+import { formatDateTime } from '../../utils/dateFormat';
+import { getFormLayoutStatus, type FormLayoutStatus } from '../../utils/formLayoutConfig';
 
 interface FormLayoutSettingsProps {
   onEditFormLayout: (formId: string) => void;

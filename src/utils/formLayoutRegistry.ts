@@ -1,4 +1,4 @@
-import type { FormLayoutConfig, FormLayoutGridColumn } from './utils/formLayoutConfig';
+import type { FormLayoutConfig, FormLayoutGridColumn } from './formLayoutConfig';
 
 function column(key: string, label: string, options: { locked?: boolean; visible?: boolean } = {}): FormLayoutGridColumn {
   return {

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, Eye, Plus, Trash2, Upload, FileText, ArrowLeft, MoreVertical, PencilLine, ChevronDown, GripVertical, RotateCcw, Save } from 'lucide-react';
-import AppShell from '../../components/AppShell';
+import AppShell from '../../components/common/AppShell';
 import CompactFormDialog from '../../components/common/CompactFormDialog';
 import ConfirmationDialog from '../../components/common/ConfirmationDialog';
 import FormLayoutPreviewOverlay from '../../components/common/FormLayoutPreviewOverlay';
@@ -10,7 +10,7 @@ import SuccessSummaryDialog from '../../components/common/SuccessSummaryDialog';
 import { FormField, Input, Select, Textarea } from '../../components/common/FormControls';
 import { handleGridLastCellTab } from '../../components/common/gridKeyboard';
 import StatusBadge from '../../components/common/StatusBadge';
-import { PURCHASE_REQUISITION_LAYOUT, purchaseRequisitionFieldLabels } from '../../formLayoutRegistry';
+import { PURCHASE_REQUISITION_LAYOUT, purchaseRequisitionFieldLabels } from '../../utils/formLayoutRegistry';
 import type { PurchaseRequisitionDocument } from './purchaseRequisitionCatalogueData';
 import { cn } from '../../utils/classNames';
 import { formatDate, formatDateTime } from '../../utils/dateFormat'

@@ -11,7 +11,7 @@ import {
   Plus,
   Search,
 } from 'lucide-react';
-import AppShell from '../../components/AppShell';
+import AppShell from '../../components/common/AppShell';
 import CancelDocumentDialog from '../../components/common/CancelDocumentDialog';
 import CatalogueInsightCards from '../../components/common/CatalogueInsightCards';
 import CatalogueFilterDrawer from '../../components/common/CatalogueFilterDrawer';
@@ -29,7 +29,7 @@ import {
   getActiveFilterCount,
   validateDateRange,
   type CatalogueFilters,
-} from '../../catalogueFilters';
+} from '../../utils/catalogueFilters';
 import {
   extendedSaleAllocationDocuments,
   type SaleAllocationDocument,

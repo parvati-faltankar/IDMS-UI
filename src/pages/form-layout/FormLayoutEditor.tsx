@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, CheckCircle2, Eye, GripVertical, Plus, RotateCcw, Save } from 'lucide-react';
-import AppShell from './components/AppShell';
-import CompactFormDialog from './components/common/CompactFormDialog';
-import FormLayoutPreviewOverlay from './components/common/FormLayoutPreviewOverlay';
-import GridColumnConfigurator from './components/common/GridColumnConfigurator';
-import { formLayoutRegistry, type FormLayoutRegistryItem } from './formLayoutRegistry';
-import { cn } from './utils/classNames';
+import AppShell from '../../components/common/AppShell';
+import CompactFormDialog from '../../components/common/CompactFormDialog';
+import FormLayoutPreviewOverlay from '../../components/common/FormLayoutPreviewOverlay';
+import GridColumnConfigurator from '../../components/common/GridColumnConfigurator';
+import { formLayoutRegistry, type FormLayoutRegistryItem } from '../../utils/formLayoutRegistry';
+import { cn } from '../../utils/classNames';
 import {
   loadDraftFormLayoutConfig,
   mergeSections,
@@ -19,7 +19,7 @@ import {
   saveDraftFormLayoutConfig,
   type FormLayoutConfig,
   updateSectionFieldsPerRow,
-} from './utils/formLayoutConfig';
+} from '../../utils/formLayoutConfig';
 
 type LayoutDragPayload = {
   type: 'field' | 'section' | 'tab';

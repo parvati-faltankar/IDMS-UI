@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { ArrowLeft, MoreVertical, PencilLine, Plus, Search, Trash2 } from 'lucide-react';
-import AppShell from '../../components/AppShell';
+import AppShell from '../../components/common/AppShell';
 import ConfirmationDialog from '../../components/common/ConfirmationDialog';
 import { FormField, Input, Select, Textarea } from '../../components/common/FormControls';
 import { handleGridLastCellTab, hasRequiredGridValues } from '../../components/common/gridKeyboard';

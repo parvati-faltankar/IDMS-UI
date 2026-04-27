@@ -12,7 +12,7 @@ import {
   Plus,
   Search,
 } from 'lucide-react';
-import AppShell from '../../components/AppShell';
+import AppShell from '../../components/common/AppShell';
 import CancelDocumentDialog from '../../components/common/CancelDocumentDialog';
 import CatalogueInsightCards from '../../components/common/CatalogueInsightCards';
 import DocumentPreviewDrawer from '../../components/common/DocumentPreviewDrawer';
@@ -20,8 +20,8 @@ import SideDrawer from '../../components/common/SideDrawer';
 import SortableTableHeader from '../../components/common/SortableTableHeader';
 import StatusBadge from '../../components/common/StatusBadge';
 import { Input, Select } from '../../components/common/FormControls';
-import { emptyCatalogueFilters, getActiveFilterCount } from '../../catalogueFilters';
-import type { CatalogueFilters } from '../../catalogueFilters';
+import { emptyCatalogueFilters, getActiveFilterCount } from '../../utils/catalogueFilters';
+import type { CatalogueFilters } from '../../utils/catalogueFilters';
 import type { RequisitionPriority, RequisitionStatus } from '../purchase-requisition/purchaseRequisitionCatalogueData';
 import { cn } from '../../utils/classNames';
 import { buildCountInsight, formatInsightAmount, formatInsightCount, getInsightPercent, sumNumericValues } from '../../utils/catalogueInsights';

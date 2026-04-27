@@ -12,7 +12,7 @@ import {
   Plus,
   Search,
 } from 'lucide-react';
-import AppShell from '../../components/AppShell';
+import AppShell from '../../components/common/AppShell';
 import CancelDocumentDialog from '../../components/common/CancelDocumentDialog';
 import CatalogueInsightCards from '../../components/common/CatalogueInsightCards';
 import CommonDataGrid from '../../components/common/CommonDataGrid';

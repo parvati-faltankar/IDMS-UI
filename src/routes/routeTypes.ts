@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from 'react';
-import { emptyCatalogueFilters } from '../catalogueFilters';
+import { emptyCatalogueFilters } from '../utils/catalogueFilters';
 
 export type NavigateTo = (nextPath: string, query?: Record<string, string>) => void;
 export type CatalogueFilters = typeof emptyCatalogueFilters;

@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import type { CatalogueFilters } from '../../catalogueFilters';
+import type { CatalogueFilters } from '../../utils/catalogueFilters';
 import SideDrawer from './SideDrawer';
 import { Input, Select } from './FormControls';
 

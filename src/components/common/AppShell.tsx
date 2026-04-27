@@ -25,19 +25,19 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react';
-import { cn } from '../utils/classNames';
-import excellonLogo from '../assets/Excellonsoft-Logo.png';
-import bajajLogo from '../assets/Bajaj-Logo-Dark.png';
-import tataMotorsLogo from '../assets/Tata-Motors-Logo.svg';
-import olaLogo from '../assets/Ola-Logo.svg';
-import ekaLogo from '../assets/Eka-Logo-White.png';
-import heroLogo from '../assets/Hero-Logo.svg';
-import royalEnfieldLogo from '../assets/Royal-Enfield-Logo-White.png';
-import ThemeSwitcher from './common/ThemeSwitcher';
-import GlobalSearchPanel from './common/GlobalSearchPanel';
-import { useTheme } from '../theme/useTheme';
-import type { GlobalSearchResult } from '../search/globalSearch';
-import { resolveVoiceCommand, type VoiceCommandResolution } from '../search/voiceCommand';
+import { cn } from '../../utils/classNames';
+import excellonLogo from '../../assets/Excellonsoft-Logo.png';
+import bajajLogo from '../../assets/Bajaj-Logo-Dark.png';
+import tataMotorsLogo from '../../assets/Tata-Motors-Logo.svg';
+import olaLogo from '../../assets/Ola-Logo.svg';
+import ekaLogo from '../../assets/Eka-Logo-White.png';
+import heroLogo from '../../assets/Hero-Logo.svg';
+import royalEnfieldLogo from '../../assets/Royal-Enfield-Logo-White.png';
+import ThemeSwitcher from './ThemeSwitcher';
+import GlobalSearchPanel from './GlobalSearchPanel';
+import { useTheme } from '../../theme/useTheme';
+import type { GlobalSearchResult } from '../../search/globalSearch';
+import { resolveVoiceCommand, type VoiceCommandResolution } from '../../search/voiceCommand';
 import {
   loadRecentSearches,
   recordRecentSearch,
@@ -46,9 +46,9 @@ import {
   searchScopeOptions,
   type SearchRecentEntry,
   type SearchScopeId,
-} from '../search/searchExperience';
-import type { SearchInsightMatch } from '../search/searchInsights';
-import { formatDate } from '../utils/dateFormat';
+} from '../../search/searchExperience';
+import type { SearchInsightMatch } from '../../search/searchInsights';
+import { formatDate } from '../../utils/dateFormat';
 
 type ActiveLeaf =
   | 'purchase-requisition'

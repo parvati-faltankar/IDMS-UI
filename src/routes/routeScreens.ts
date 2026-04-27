@@ -1,6 +1,6 @@
 import { lazy } from 'react';
 
-export const BusinessSettings = lazy(() => import('../BusinessSettings'));
+export const BusinessSettings = lazy(() => import('../pages/profile/BusinessSettings'));
 export const CreateDelivery = lazy(() => import('../pages/delivery/CreateDelivery'));
 export const CreatePurchaseInvoice = lazy(() => import('../pages/purchase-invoice/CreatePurchaseInvoice'));
 export const CreatePurchaseOrder = lazy(() => import('../pages/purchase-order/CreatePurchaseOrder'));
@@ -11,9 +11,9 @@ export const CreateSaleAllocationRequisition = lazy(() => import('../pages/sale-
 export const CreateSaleInvoice = lazy(() => import('../pages/sale-invoice/CreateSaleInvoice'));
 export const CreateSaleOrder = lazy(() => import('../pages/sale-order/CreateSaleOrder'));
 export const DeliveryList = lazy(() => import('../pages/delivery/deliverylist'));
-export const ExcellonBrandGuidelinesPreview = lazy(() => import('../ExcellonBrandGuidelinesPreview'));
-export const FormLayoutEditor = lazy(() => import('../FormLayoutEditor'));
-export const FormLayoutSettings = lazy(() => import('../FormLayoutSettings'));
+export const ExcellonBrandGuidelinesPreview = lazy(() => import('../pages/profile/ExcellonBrandGuidelinesPreview'));
+export const FormLayoutEditor = lazy(() => import('../pages/form-layout/FormLayoutEditor'));
+export const FormLayoutSettings = lazy(() => import('../pages/form-layout/FormLayoutSettings'));
 export const PurchaseInvoiceList = lazy(() => import('../pages/purchase-invoice/purchaseinvoicelist'));
 export const PurchaseReceiptList = lazy(() => import('../pages/purchase-receipt/purchasereceiptlist'));
 export const PurchaseRequisitionCatalogueView = lazy(() => import('../pages/purchase-requisition/PurchaseRequisitionCatalogueView'));

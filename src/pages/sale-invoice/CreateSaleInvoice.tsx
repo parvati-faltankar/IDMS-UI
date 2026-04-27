@@ -16,7 +16,7 @@ import {
   UserRound,
   X,
 } from 'lucide-react';
-import AppShell from '../../components/AppShell';
+import AppShell from '../../components/common/AppShell';
 import AmountBreakdownDrawer from '../../components/common/AmountBreakdownDrawer';
 import ConfirmationDialog from '../../components/common/ConfirmationDialog';
 import { FormField, Input, Select, Textarea } from '../../components/common/FormControls';

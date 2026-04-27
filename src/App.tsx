@@ -1,6 +1,6 @@
 import { Suspense, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { emptyCatalogueFilters } from './catalogueFilters';
+import { emptyCatalogueFilters } from './utils/catalogueFilters';
 import { AppRoutes } from './routes/AppRoutes';
 
 function App() {

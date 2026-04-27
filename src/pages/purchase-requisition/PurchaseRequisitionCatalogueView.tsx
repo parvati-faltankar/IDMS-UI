@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Ban, ChevronDown, ChevronUp, Eye, FileText, Filter, LayoutGrid, List, MoreVertical, PencilLine, Plus, Search } from 'lucide-react';
-import AppShell from '../../components/AppShell';
+import AppShell from '../../components/common/AppShell';
 import CatalogueInsightCards from '../../components/common/CatalogueInsightCards';
 import CatalogueViewConfigurator from '../../components/common/CatalogueViewConfigurator';
 import CatalogueViewSelector from '../../components/common/CatalogueViewSelector';
@@ -13,8 +13,8 @@ import PurchaseRequisitionPreviewDrawer from '../../components/common/PurchaseRe
 import StatusBadge from '../../components/common/StatusBadge';
 import TourInvitePopup from '../../components/common/TourInvitePopup';
 import { Input, Select } from '../../components/common/FormControls';
-import { emptyCatalogueFilters, getActiveFilterCount, validateDateRange } from '../../catalogueFilters';
-import type { CatalogueFilters } from '../../catalogueFilters';
+import { emptyCatalogueFilters, getActiveFilterCount, validateDateRange } from '../../utils/catalogueFilters';
+import type { CatalogueFilters } from '../../utils/catalogueFilters';
 import {
   extendedPurchaseRequisitionDocuments,
 } from './purchaseRequisitionCatalogueData';

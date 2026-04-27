@@ -1,6 +1,6 @@
 import React from 'react';
-import AppShell from './components/AppShell';
-import { FormField, Input, Select, Textarea } from './components/common/FormControls';
+import AppShell from '../../components/common/AppShell';
+import { FormField, Input, Select, Textarea } from '../../components/common/FormControls';
 
 const palette = [
   { label: 'Brand/50', value: 'var(--brand-50)' },

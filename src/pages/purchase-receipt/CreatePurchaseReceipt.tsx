@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ChevronDown, ChevronRight, ChevronUp, MoreVertical, Paperclip, PencilLine, Plus, Search, Trash2, X } from 'lucide-react';
-import AppShell from '../../components/AppShell';
+import AppShell from '../../components/common/AppShell';
 import AmountBreakdownDrawer from '../../components/common/AmountBreakdownDrawer';
 import ConfirmationDialog from '../../components/common/ConfirmationDialog';
 import SuccessSummaryDialog from '../../components/common/SuccessSummaryDialog';
