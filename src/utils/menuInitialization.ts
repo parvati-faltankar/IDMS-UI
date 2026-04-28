@@ -8,6 +8,7 @@ import type { Level1Item } from '../components/common/appShellShared';
 import { menuStructure } from '../components/common/appShellShared';
 import { createEmptyMenuConfig } from '../utils/menuBuilderUtils';
 import { MENU_BUILDER_STORAGE_KEYS } from '../utils/menuBuilderTypes';
+import { getDefaultRouteForKey, migrateMenuConfiguration, resolveIconName } from './menuBuilderNavigation';
 
 /**
  * Convert Level1Item structure to MenuConfiguration
@@ -22,8 +23,9 @@ export function convertLevel1ToMenuConfig(level1Items: Level1Item[]): MenuConfig
     label: level1.label,
     level: 1 as const,
     order: sectionIdx,
-    icon: level1.icon || null,
+    iconName: resolveIconName(level1.icon),
     isExpanded: true,
+    isVisible: true,
     level2Groups: level1.level2.map((level2, level2Idx) => ({
       id: `level2-${sectionIdx}-${level2Idx}`,
       label: level2.label,
@@ -32,14 +34,17 @@ export function convertLevel1ToMenuConfig(level1Items: Level1Item[]): MenuConfig
       order: level2Idx,
       hideLabel: level2.hideLabel || false,
       isExpanded: true,
+      isVisible: true,
       items: (level2.level3 || []).map((level3, itemIdx) => ({
         id: `item-${sectionIdx}-${level2Idx}-${itemIdx}`,
         label: level3.label,
         key: level3.key,
         parentLevelId: `level2-${sectionIdx}-${level2Idx}`,
         order: itemIdx,
-        icon: level3.icon || null,
+        iconName: resolveIconName(level3.icon),
+        route: getDefaultRouteForKey(level3.key),
         openInNewTab: false,
+        isVisible: true,
       })),
     })),
   }));
@@ -53,11 +58,37 @@ export function convertLevel1ToMenuConfig(level1Items: Level1Item[]): MenuConfig
 export function initializeMenuBuilder() {
   try {
     const publishedJson = localStorage.getItem(MENU_BUILDER_STORAGE_KEYS.PUBLISHED_CONFIG);
+    const draftJson = localStorage.getItem(MENU_BUILDER_STORAGE_KEYS.DRAFT_CONFIG);
     
     // If no published config exists, create one from default menu structure
     if (!publishedJson) {
       const defaultConfig = convertLevel1ToMenuConfig(menuStructure);
       localStorage.setItem(MENU_BUILDER_STORAGE_KEYS.PUBLISHED_CONFIG, JSON.stringify(defaultConfig));
+      localStorage.setItem(
+        MENU_BUILDER_STORAGE_KEYS.DRAFT_CONFIG,
+        JSON.stringify({ ...defaultConfig, id: `draft-${Date.now()}`, status: 'draft' as const })
+      );
+      return;
+    }
+
+    const migratedPublished = migrateMenuConfiguration(JSON.parse(publishedJson));
+    if (migratedPublished) {
+      localStorage.setItem(MENU_BUILDER_STORAGE_KEYS.PUBLISHED_CONFIG, JSON.stringify(migratedPublished));
+    }
+
+    if (draftJson) {
+      const migratedDraft = migrateMenuConfiguration(JSON.parse(draftJson));
+      if (migratedDraft) {
+        localStorage.setItem(
+          MENU_BUILDER_STORAGE_KEYS.DRAFT_CONFIG,
+          JSON.stringify({ ...migratedDraft, status: 'draft' as const })
+        );
+      }
+    } else if (migratedPublished) {
+      localStorage.setItem(
+        MENU_BUILDER_STORAGE_KEYS.DRAFT_CONFIG,
+        JSON.stringify({ ...migratedPublished, id: `draft-${Date.now()}`, status: 'draft' as const })
+      );
     }
   } catch (error) {
     console.error('Failed to initialize menu builder:', error);

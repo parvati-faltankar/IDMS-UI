@@ -5,8 +5,14 @@
 
 import React, { useState } from 'react';
 import { ChevronDown, GripVertical, Plus, Edit2, Trash2 } from 'lucide-react';
-import type { MenuSectionData, DragDropPayload } from '../../../utils/menuBuilderTypes';
+import type { MenuSectionData, DragDropPayload, MenuLevelData, MenuItemData } from '../../../utils/menuBuilderTypes';
 import { cn } from '../../../utils/classNames';
+
+type DropTarget = {
+  type: 'section' | 'level2' | 'item';
+  targetId: string;
+  position: number;
+};
 
 interface MenuTreeProps {
   sections: MenuSectionData[];
@@ -26,9 +32,7 @@ interface MenuTreeProps {
   onRemoveSection: (sectionId: string) => void;
   onRemoveLevel2: (level2Id: string) => void;
   onRemoveItem: (itemId: string) => void;
-  onDragStart: (payload: DragDropPayload) => void;
-  onDragOver: (e: React.DragEvent) => void;
-  onDropItem: (level2Id: string, payload: DragDropPayload, position: number) => void;
+  onMoveNode: (payload: DragDropPayload, target: DropTarget) => void;
 }
 
 const MenuTree: React.FC<MenuTreeProps> = ({
@@ -49,28 +53,92 @@ const MenuTree: React.FC<MenuTreeProps> = ({
   onRemoveSection,
   onRemoveLevel2,
   onRemoveItem,
-  onDragStart,
-  onDragOver,
-  onDropItem,
+  onMoveNode,
 }) => {
-  const [dragOverLevel2Id, setDragOverLevel2Id] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
-  const handleDragOverLevel2 = (e: React.DragEvent, level2Id: string) => {
-    e.preventDefault();
-    onDragOver(e);
-    setDragOverLevel2Id(level2Id);
+  const startDrag = (event: React.DragEvent, payload: DragDropPayload) => {
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('application/json', JSON.stringify(payload));
   };
 
-  const handleDropLevel2 = (e: React.DragEvent, level2Id: string) => {
-    e.preventDefault();
-    setDragOverLevel2Id(null);
+  const handleDragOver = (event: React.DragEvent, targetId: string) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setDragOverId(targetId);
+  };
+
+  const handleDrop = (event: React.DragEvent, target: DropTarget) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setDragOverId(null);
+
     try {
-      const payload = JSON.parse(e.dataTransfer.getData('application/json')) as DragDropPayload;
-      onDropItem(level2Id, payload, 0);
+      const payload = JSON.parse(event.dataTransfer.getData('application/json')) as DragDropPayload;
+      onMoveNode(payload, target);
     } catch {
-      // Invalid drag data
+      // Ignore malformed drag payloads.
     }
   };
+
+  const canRemoveSection = (section: MenuSectionData) => section.level2Groups.length === 0;
+  const canRemoveLevel2 = (level2: MenuLevelData) => level2.items.length === 0;
+
+  const renderItem = (item: MenuItemData, level2: MenuLevelData, itemIndex: number) => (
+    <div
+      key={item.id}
+      draggable
+      onDragStart={(event) =>
+        startDrag(event, {
+          type: 'item',
+          itemId: item.id,
+          sourceParentId: level2.id,
+          sourceOrder: itemIndex,
+        })
+      }
+      onDragOver={(event) => handleDragOver(event, item.id)}
+      onDrop={(event) => handleDrop(event, { type: 'item', targetId: item.id, position: itemIndex })}
+      className={cn(
+        'flex items-center gap-2 rounded border border-transparent p-2 transition-colors',
+        'cursor-move hover:bg-white',
+        selectedItemId === item.id && 'bg-blue-100 border-blue-200',
+        dragOverId === item.id && 'border-blue-300 bg-blue-50',
+        item.isVisible === false && 'opacity-50'
+      )}
+      onClick={() => onSelectItem(item.id)}
+    >
+      <GripVertical size={14} className="text-gray-400 flex-shrink-0" />
+      <div className="flex-1 min-w-0">
+        <div className="text-xs font-medium text-gray-700 truncate">{item.label}</div>
+        <div className="text-[11px] text-gray-500 truncate">
+          {item.key}
+          {item.route ? ` • ${item.route}` : item.externalUrl ? ` • ${item.externalUrl}` : ''}
+        </div>
+      </div>
+      <div className="flex gap-1">
+        <button
+          onClick={(event) => {
+            event.stopPropagation();
+            onEditItem(item.id);
+          }}
+          className="p-1 hover:bg-gray-200 rounded transition-colors"
+          title="Edit item"
+        >
+          <Edit2 size={12} />
+        </button>
+        <button
+          onClick={(event) => {
+            event.stopPropagation();
+            onRemoveItem(item.id);
+          }}
+          className="p-1 hover:bg-red-100 rounded text-red-600 transition-colors"
+          title="Remove item"
+        >
+          <Trash2 size={12} />
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="space-y-2">
@@ -80,15 +148,30 @@ const MenuTree: React.FC<MenuTreeProps> = ({
         </div>
       ) : (
         sections.map((section) => (
-          <div key={section.id} className="border rounded bg-white">
+          <div
+            key={section.id}
+            className={cn('border rounded bg-white', dragOverId === section.id && 'border-blue-300 ring-1 ring-blue-200')}
+            onDragOver={(event) => handleDragOver(event, section.id)}
+            onDrop={(event) => handleDrop(event, { type: 'section', targetId: section.id, position: section.order })}
+          >
             {/* Section Header */}
             <div
               className={cn(
                 'flex items-center gap-2 p-3 cursor-pointer hover:bg-gray-50 border-b',
-                selectedSectionId === section.id && 'bg-blue-50'
+                selectedSectionId === section.id && 'bg-blue-50',
+                section.isVisible === false && 'opacity-60'
               )}
               onClick={() => onSelectSection(section.id)}
+              draggable
+              onDragStart={(event) =>
+                startDrag(event, {
+                  type: 'section',
+                  itemId: section.id,
+                  sourceOrder: section.order,
+                })
+              }
             >
+              <GripVertical size={16} className="text-gray-400 flex-shrink-0" />
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -128,8 +211,9 @@ const MenuTree: React.FC<MenuTreeProps> = ({
                     e.stopPropagation();
                     onRemoveSection(section.id);
                   }}
-                  className="p-1 hover:bg-red-100 rounded text-red-600 transition-colors"
+                  className="p-1 hover:bg-red-100 rounded text-red-600 transition-colors disabled:opacity-40"
                   title="Remove section"
+                  disabled={!canRemoveSection(section)}
                 >
                   <Trash2 size={16} />
                 </button>
@@ -142,16 +226,32 @@ const MenuTree: React.FC<MenuTreeProps> = ({
                 {section.level2Groups.length === 0 ? (
                   <p className="text-xs text-gray-500 italic">No groups. Click + to add one.</p>
                 ) : (
-                  section.level2Groups.map((level2: any) => (
-                    <div key={level2.id} className="border rounded bg-white">
+                  section.level2Groups.map((level2) => (
+                    <div
+                      key={level2.id}
+                      className={cn('border rounded bg-white', dragOverId === level2.id && 'border-blue-300 ring-1 ring-blue-200')}
+                      onDragOver={(event) => handleDragOver(event, level2.id)}
+                      onDrop={(event) => handleDrop(event, { type: 'level2', targetId: level2.id, position: level2.order })}
+                    >
                       {/* Level2 Header */}
                       <div
                         className={cn(
                           'flex items-center gap-2 p-2 cursor-pointer hover:bg-gray-50 border-b',
-                          selectedLevel2Id === level2.id && 'bg-blue-50'
+                          selectedLevel2Id === level2.id && 'bg-blue-50',
+                          level2.isVisible === false && 'opacity-60'
                         )}
                         onClick={() => onSelectLevel2(level2.id)}
+                        draggable
+                        onDragStart={(event) =>
+                          startDrag(event, {
+                            type: 'level2',
+                            itemId: level2.id,
+                            sourceParentId: section.id,
+                            sourceOrder: level2.order,
+                          })
+                        }
                       >
+                        <GripVertical size={14} className="text-gray-400 flex-shrink-0" />
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -196,8 +296,9 @@ const MenuTree: React.FC<MenuTreeProps> = ({
                               e.stopPropagation();
                               onRemoveLevel2(level2.id);
                             }}
-                            className="p-1 hover:bg-red-100 rounded text-red-600 transition-colors"
+                            className="p-1 hover:bg-red-100 rounded text-red-600 transition-colors disabled:opacity-40"
                             title="Remove group"
+                            disabled={!canRemoveLevel2(level2)}
                           >
                             <Trash2 size={14} />
                           </button>
@@ -207,71 +308,17 @@ const MenuTree: React.FC<MenuTreeProps> = ({
                       {/* Items (Level3) */}
                       {level2.isExpanded && (
                         <div
-                          className="space-y-1 p-2 bg-gray-100 min-h-12"
-                          onDragOver={(e) => handleDragOverLevel2(e, level2.id)}
-                          onDrop={(e) => handleDropLevel2(e, level2.id)}
+                          className={cn(
+                            'space-y-1 p-2 bg-gray-100 min-h-12',
+                            dragOverId === `${level2.id}-items` && 'ring-1 ring-blue-300 bg-blue-50'
+                          )}
+                          onDragOver={(event) => handleDragOver(event, `${level2.id}-items`)}
+                          onDrop={(event) => handleDrop(event, { type: 'level2', targetId: level2.id, position: level2.items.length })}
                         >
                           {level2.items.length === 0 ? (
                             <p className="text-xs text-gray-500 italic p-2">No items. Click + to add one.</p>
                           ) : (
-                            level2.items.map((item, index) => (
-                              <div
-                                key={item.id}
-                                draggable
-                                onDragStart={(e) => {
-                                  e.dataTransfer.effectAllowed = 'move';
-                                  e.dataTransfer.setData(
-                                    'application/json',
-                                    JSON.stringify({
-                                      type: 'item',
-                                      itemId: item.id,
-                                      sourceParentId: level2.id,
-                                      sourceOrder: index,
-                                    } as DragDropPayload)
-                                  );
-                                  onDragStart({
-                                    type: 'item',
-                                    itemId: item.id,
-                                    sourceParentId: level2.id,
-                                    sourceOrder: index,
-                                  });
-                                }}
-                                className={cn(
-                                  'flex items-center gap-2 p-2 rounded cursor-move hover:bg-white transition-colors',
-                                  selectedItemId === item.id && 'bg-blue-100',
-                                  dragOverLevel2Id === level2.id && 'bg-blue-200'
-                                )}
-                                onClick={() => onSelectItem(item.id)}
-                              >
-                                <GripVertical size={14} className="text-gray-400 flex-shrink-0" />
-                                <span className="text-xs flex-1">
-                                  {item.label}
-                                  {item.key && <span className="text-gray-500"> ({item.key})</span>}
-                                </span>
-                                <div className="flex gap-1">
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      onEditItem(item.id);
-                                    }}
-                                    className="p-1 hover:bg-gray-200 rounded transition-colors"
-                                    title="Edit item"
-                                  >
-                                    <Edit2 size={12} />
-                                  </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      onRemoveItem(item.id);
-                                    }}
-                                    className="p-1 hover:bg-red-100 rounded text-red-600 transition-colors"
-                                    title="Remove item"
-                                  >
-                                    <Trash2 size={12} />
-                                  </button>
-                                </div>
-                              </div>
-                            ))
+                            level2.items.map((item, itemIndex) => renderItem(item, level2, itemIndex))
                           )}
                         </div>
                       )}

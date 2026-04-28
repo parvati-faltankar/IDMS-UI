@@ -5,8 +5,7 @@
 
 import React from 'react';
 import { AlertCircle, CheckCircle2, AlertTriangle } from 'lucide-react';
-import type { MenuValidationResult } from '../../utils/menuBuilderTypes';
-import { cn } from '../../utils/classNames';
+import type { MenuValidationResult } from '../../../utils/menuBuilderTypes';
 
 interface MenuValidationSummaryProps {
   validation: MenuValidationResult | null;
@@ -27,6 +26,13 @@ const MenuValidationSummary: React.FC<MenuValidationSummaryProps> = ({ validatio
 
   return (
     <div className="p-3 bg-red-50 border border-red-200 rounded text-sm space-y-2">
+      {onDismiss && (
+        <div className="flex justify-end">
+          <button type="button" onClick={onDismiss} className="text-xs font-medium text-red-700 hover:text-red-900">
+            Clear
+          </button>
+        </div>
+      )}
       {validation.errors.length > 0 && (
         <div className="flex gap-2 items-start">
           <AlertCircle size={16} className="text-red-600 flex-shrink-0 mt-0.5" />

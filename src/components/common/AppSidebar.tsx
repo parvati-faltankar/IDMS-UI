@@ -55,6 +55,30 @@ const AppSidebar: React.FC<SidebarComponentProps> = ({
   };
 
   const handleLeafClick = (item: Level3Item) => {
+    if (item.onClick) {
+      item.onClick();
+      if (isMobileOpen) {
+        onCloseMobile();
+      }
+      return;
+    }
+
+    if (item.externalUrl) {
+      window.open(item.externalUrl, item.openInNewTab ? '_blank' : '_self', item.openInNewTab ? 'noopener,noreferrer' : undefined);
+      if (isMobileOpen) {
+        onCloseMobile();
+      }
+      return;
+    }
+
+    if (item.route) {
+      navigateToHash(`#${item.route}`);
+      if (isMobileOpen) {
+        onCloseMobile();
+      }
+      return;
+    }
+
     if (item.key === 'purchase-requisition') {
       if (onPurchaseRequisitionClick) {
         onPurchaseRequisitionClick();

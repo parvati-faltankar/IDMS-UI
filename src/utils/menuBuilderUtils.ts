@@ -14,6 +14,25 @@ import type {
   DragDropPayload,
 } from './menuBuilderTypes';
 import { MENU_BUILDER_CONSTANTS } from './menuBuilderTypes';
+import {
+  getDefaultItemIconName,
+  getDefaultRouteForKey,
+  getDefaultSectionIconName,
+  isCanonicalMenuItemKey,
+} from './menuBuilderNavigation';
+
+function normalizeOrder<T extends { order: number }>(items: T[]): T[] {
+  return [...items]
+    .sort((left, right) => left.order - right.order)
+    .map((item, index) => ({ ...item, order: index }));
+}
+
+function insertAt<T>(items: T[], item: T, index: number): T[] {
+  const next = [...items];
+  const clampedIndex = Math.max(0, Math.min(index, next.length));
+  next.splice(clampedIndex, 0, item);
+  return next;
+}
 
 /**
  * Create a new empty menu configuration
@@ -39,7 +58,9 @@ export function createMenuSection(label: string, order: number): MenuSectionData
     label,
     level: 1,
     order,
+    iconName: getDefaultSectionIconName(label),
     isExpanded: true,
+    isVisible: true,
     level2Groups: [],
   };
 }
@@ -56,6 +77,7 @@ export function createMenuLevel2(label: string, parentSectionId: string, order: 
     order,
     hideLabel: false,
     isExpanded: true,
+    isVisible: true,
     items: [],
   };
 }
@@ -64,13 +86,17 @@ export function createMenuLevel2(label: string, parentSectionId: string, order: 
  * Create a new menu item
  */
 export function createMenuItem(label: string, parentLevel2Id: string, order: number): MenuItemData {
+  const key = label.toLowerCase().replace(/\s+/g, '-');
   return {
     id: `item-${Date.now()}-${Math.random()}`,
     label,
-    key: label.toLowerCase().replace(/\s+/g, '-'),
+    key,
     parentLevelId: parentLevel2Id,
     order,
+    iconName: getDefaultItemIconName(key),
+    route: getDefaultRouteForKey(key),
     openInNewTab: false,
+    isVisible: true,
   };
 }
 
@@ -140,7 +166,7 @@ export function addSection(config: MenuConfiguration, section: MenuSectionData):
 export function updateSection(config: MenuConfiguration, sectionId: string, updates: Partial<MenuSectionData>): MenuConfiguration {
   return {
     ...config,
-    sections: config.sections.map((s) => (s.id === sectionId ? { ...s, ...updates } : s)),
+    sections: normalizeOrder(config.sections.map((s) => (s.id === sectionId ? { ...s, ...updates } : s))),
     updatedAt: Date.now(),
   };
 }
@@ -151,7 +177,22 @@ export function updateSection(config: MenuConfiguration, sectionId: string, upda
 export function removeSection(config: MenuConfiguration, sectionId: string): MenuConfiguration {
   return {
     ...config,
-    sections: config.sections.filter((s) => s.id !== sectionId),
+    sections: normalizeOrder(config.sections.filter((s) => s.id !== sectionId)),
+    updatedAt: Date.now(),
+  };
+}
+
+export function reorderSections(config: MenuConfiguration, newOrder: string[]): MenuConfiguration {
+  const sectionMap = new Map(config.sections.map((section) => [section.id, section]));
+  const orderedSections = newOrder.map((id) => sectionMap.get(id)).filter(Boolean) as MenuSectionData[];
+  const remainingSections = config.sections.filter((section) => !newOrder.includes(section.id));
+
+  return {
+    ...config,
+    sections: [...orderedSections, ...remainingSections].map((section, index) => ({
+      ...section,
+      order: index,
+    })),
     updatedAt: Date.now(),
   };
 }
@@ -166,7 +207,7 @@ export function addLevel2(config: MenuConfiguration, sectionId: string, level2: 
       s.id === sectionId
         ? {
             ...s,
-            level2Groups: [...s.level2Groups, level2].sort((a, b) => a.order - b.order),
+            level2Groups: normalizeOrder([...s.level2Groups, level2]),
           }
         : s
     ),
@@ -182,7 +223,7 @@ export function updateLevel2(config: MenuConfiguration, level2Id: string, update
     ...config,
     sections: config.sections.map((s) => ({
       ...s,
-      level2Groups: s.level2Groups.map((l2) => (l2.id === level2Id ? { ...l2, ...updates } : l2)),
+      level2Groups: normalizeOrder(s.level2Groups.map((l2) => (l2.id === level2Id ? { ...l2, ...updates } : l2))),
     })),
     updatedAt: Date.now(),
   };
@@ -196,8 +237,75 @@ export function removeLevel2(config: MenuConfiguration, level2Id: string): MenuC
     ...config,
     sections: config.sections.map((s) => ({
       ...s,
-      level2Groups: s.level2Groups.filter((l2) => l2.id !== level2Id),
+      level2Groups: normalizeOrder(s.level2Groups.filter((l2) => l2.id !== level2Id)),
     })),
+    updatedAt: Date.now(),
+  };
+}
+
+export function reorderLevel2Groups(config: MenuConfiguration, sectionId: string, newOrder: string[]): MenuConfiguration {
+  return {
+    ...config,
+    sections: config.sections.map((section) => {
+      if (section.id !== sectionId) {
+        return section;
+      }
+
+      const groupMap = new Map(section.level2Groups.map((group) => [group.id, group]));
+      const orderedGroups = newOrder.map((id) => groupMap.get(id)).filter(Boolean) as MenuLevelData[];
+      const remainingGroups = section.level2Groups.filter((group) => !newOrder.includes(group.id));
+
+      return {
+        ...section,
+        level2Groups: [...orderedGroups, ...remainingGroups].map((group, index) => ({
+          ...group,
+          order: index,
+        })),
+      };
+    }),
+    updatedAt: Date.now(),
+  };
+}
+
+export function moveLevel2Group(
+  config: MenuConfiguration,
+  level2Id: string,
+  toSectionId: string,
+  newOrder: number
+): MenuConfiguration {
+  const movingGroup = findLevel2(config, level2Id);
+  if (!movingGroup) {
+    return config;
+  }
+
+  const sourceSection = findParentSection(config, level2Id);
+  const nextSections = config.sections.map((section) => {
+    if (section.id === sourceSection?.id) {
+      return {
+        ...section,
+        level2Groups: normalizeOrder(section.level2Groups.filter((group) => group.id !== level2Id)),
+      };
+    }
+
+    if (section.id === toSectionId) {
+      return {
+        ...section,
+        level2Groups: normalizeOrder(
+          insertAt(
+            section.level2Groups,
+            { ...movingGroup, parentLevelId: toSectionId },
+            newOrder
+          )
+        ),
+      };
+    }
+
+    return section;
+  });
+
+  return {
+    ...config,
+    sections: nextSections,
     updatedAt: Date.now(),
   };
 }
@@ -214,7 +322,7 @@ export function addMenuItem(config: MenuConfiguration, level2Id: string, item: M
         l2.id === level2Id
           ? {
               ...l2,
-              items: [...l2.items, item].sort((a, b) => a.order - b.order),
+              items: normalizeOrder([...l2.items, item]),
             }
           : l2
       ),
@@ -233,7 +341,7 @@ export function updateMenuItem(config: MenuConfiguration, itemId: string, update
       ...s,
       level2Groups: s.level2Groups.map((l2) => ({
         ...l2,
-        items: l2.items.map((item) => (item.id === itemId ? { ...item, ...updates } : item)),
+        items: normalizeOrder(l2.items.map((item) => (item.id === itemId ? { ...item, ...updates } : item))),
       })),
     })),
     updatedAt: Date.now(),
@@ -250,7 +358,7 @@ export function removeMenuItem(config: MenuConfiguration, itemId: string): MenuC
       ...s,
       level2Groups: s.level2Groups.map((l2) => ({
         ...l2,
-        items: l2.items.filter((item) => item.id !== itemId),
+        items: normalizeOrder(l2.items.filter((item) => item.id !== itemId)),
       })),
     })),
     updatedAt: Date.now(),
@@ -270,29 +378,31 @@ export function moveMenuItem(
   const item = findMenuItem(config, itemId);
   if (!item) return config;
 
-  // Remove from source
-  let updated = removeMenuItem(config, itemId);
-
-  // Update item's parent and order
-  const updatedItem = { ...item, parentLevelId: toLevel2Id, order: newOrder };
-
-  // Re-order items in target level2
-  updated = {
-    ...updated,
-    sections: updated.sections.map((s) => ({
-      ...s,
-      level2Groups: s.level2Groups.map((l2) => {
-        if (l2.id === toLevel2Id) {
-          const items = [...l2.items, updatedItem].sort((a, b) => a.order - b.order);
-          return { ...l2, items };
+  return {
+    ...config,
+    sections: config.sections.map((section) => ({
+      ...section,
+      level2Groups: section.level2Groups.map((level2) => {
+        if (level2.id === fromLevel2Id && fromLevel2Id !== toLevel2Id) {
+          return {
+            ...level2,
+            items: normalizeOrder(level2.items.filter((currentItem) => currentItem.id !== itemId)),
+          };
         }
-        return l2;
+
+        if (level2.id === toLevel2Id) {
+          const itemsWithoutMovedItem = level2.items.filter((currentItem) => currentItem.id !== itemId);
+          return {
+            ...level2,
+            items: normalizeOrder(insertAt(itemsWithoutMovedItem, { ...item, parentLevelId: toLevel2Id }, newOrder)),
+          };
+        }
+
+        return level2;
       }),
     })),
     updatedAt: Date.now(),
   };
-
-  return updated;
 }
 
 /**
@@ -327,6 +437,7 @@ export function reorderMenuItems(config: MenuConfiguration, level2Id: string, ne
 export function validateMenuConfig(config: MenuConfiguration): MenuValidationResult {
   const errors: MenuValidationError[] = [];
   const warnings: MenuValidationWarning[] = [];
+  const itemKeys = new Set<string>();
 
   // Check sections
   if (config.sections.length === 0) {
@@ -348,6 +459,8 @@ export function validateMenuConfig(config: MenuConfiguration): MenuValidationRes
   // Check section names
   const sectionNames = new Set<string>();
   config.sections.forEach((section) => {
+    const normalizedSectionName = section.label.trim().toLowerCase();
+
     if (!section.label || section.label.trim() === '') {
       errors.push({
         type: 'section',
@@ -356,14 +469,14 @@ export function validateMenuConfig(config: MenuConfiguration): MenuValidationRes
         severity: 'error',
       });
     }
-    if (sectionNames.has(section.label)) {
+    if (sectionNames.has(normalizedSectionName)) {
       warnings.push({
         type: 'section',
         itemId: section.id,
         message: 'Duplicate section name',
       });
     }
-    sectionNames.add(section.label);
+    sectionNames.add(normalizedSectionName);
   });
 
   // Check level2 groups
@@ -376,13 +489,34 @@ export function validateMenuConfig(config: MenuConfiguration): MenuValidationRes
       });
     }
 
+    const level2Names = new Set<string>();
     section.level2Groups.forEach((level2) => {
+      const normalizedLevel2Name = level2.label.trim().toLowerCase();
+
       if (!level2.label || level2.label.trim() === '') {
         errors.push({
           type: 'level2',
           itemId: level2.id,
           message: 'Level2 group name is required',
           severity: 'error',
+        });
+      }
+
+      if (level2Names.has(normalizedLevel2Name)) {
+        warnings.push({
+          type: 'level2',
+          itemId: level2.id,
+          message: `Duplicate group name in section "${section.label}"`,
+        });
+      }
+
+      level2Names.add(normalizedLevel2Name);
+
+      if (level2.hideLabel && level2.items.length === 0) {
+        warnings.push({
+          type: 'level2',
+          itemId: level2.id,
+          message: `Flattened group "${level2.label}" has no visible menu items`,
         });
       }
     });
@@ -415,6 +549,39 @@ export function validateMenuConfig(config: MenuConfiguration): MenuValidationRes
             message: 'Item key is required',
             severity: 'error',
           });
+        }
+
+        const normalizedKey = item.key.trim().toLowerCase();
+        if (itemKeys.has(normalizedKey)) {
+          errors.push({
+            type: 'item',
+            itemId: item.id,
+            message: `Duplicate item key "${item.key}"`,
+            severity: 'error',
+          });
+        }
+        itemKeys.add(normalizedKey);
+
+        if (!item.externalUrl && !item.route && !getDefaultRouteForKey(item.key) && !isCanonicalMenuItemKey(item.key)) {
+          errors.push({
+            type: 'item',
+            itemId: item.id,
+            message: `Menu item "${item.label}" needs a route or external URL`,
+            severity: 'error',
+          });
+        }
+
+        if (item.externalUrl) {
+          try {
+            new URL(item.externalUrl);
+          } catch {
+            errors.push({
+              type: 'item',
+              itemId: item.id,
+              message: `Menu item "${item.label}" has an invalid external URL`,
+              severity: 'error',
+            });
+          }
         }
       });
     });

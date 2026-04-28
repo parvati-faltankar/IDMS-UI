@@ -3,8 +3,6 @@
  * Defines the structure for navigation menu configuration
  */
 
-import type { LucideIcon } from 'lucide-react';
-
 /**
  * Represents a single menu item (Level 3)
  * Maps to actual pages/routes
@@ -15,11 +13,12 @@ export interface MenuItemData {
   key: string; // Used for routing and identification
   parentLevelId: string; // Reference to parent Level2
   order: number;
-  icon?: LucideIcon | null;
+  iconName?: string | null;
   route?: string; // Optional route path
   externalUrl?: string; // Optional external URL
   openInNewTab?: boolean;
   description?: string;
+  isVisible?: boolean;
   metadata?: Record<string, unknown>;
 }
 
@@ -36,6 +35,7 @@ export interface MenuLevelData {
   hideLabel?: boolean;
   description?: string;
   isExpanded?: boolean;
+  isVisible?: boolean;
   items: MenuItemData[]; // Level 3 items
   metadata?: Record<string, unknown>;
 }
@@ -49,9 +49,10 @@ export interface MenuSectionData {
   label: string;
   level: 1;
   order: number;
-  icon?: LucideIcon | null;
+  iconName?: string | null;
   description?: string;
   isExpanded?: boolean;
+  isVisible?: boolean;
   level2Groups: MenuLevelData[]; // Level 2 groups
   metadata?: Record<string, unknown>;
 }
@@ -135,5 +136,5 @@ export const MENU_BUILDER_CONSTANTS = {
   MAX_SECTIONS: 20,
   MAX_LEVEL2_PER_SECTION: 10,
   MAX_ITEMS_PER_LEVEL2: 50,
-  VERSION: 1,
+  VERSION: 3,
 } as const;

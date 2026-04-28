@@ -15,7 +15,7 @@ interface MenuStatusBadgeProps {
 const MenuStatusBadge: React.FC<MenuStatusBadgeProps> = ({ status, isDirty, className }) => {
   const baseClasses = 'inline-flex items-center px-2 py-1 rounded text-xs font-medium gap-1';
 
-  if (status === 'draft') {
+  if (status === 'draft' || isDirty) {
     return (
       <span
         className={cn(
@@ -25,7 +25,7 @@ const MenuStatusBadge: React.FC<MenuStatusBadgeProps> = ({ status, isDirty, clas
         )}
       >
         <span className="w-2 h-2 bg-yellow-600 rounded-full" />
-        Draft{isDirty && ' (unsaved)'}
+        {isDirty ? 'Draft changes' : 'Draft'}
       </span>
     );
   }

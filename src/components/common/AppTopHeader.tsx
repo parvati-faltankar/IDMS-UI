@@ -880,6 +880,18 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
                 role="menuitem"
                 onClick={() => {
                   setIsProfileMenuOpen(false);
+                  navigateToHash('#/profile/menu-builder');
+                }}
+              >
+                <Grip size={16} />
+                Menu Builder
+              </button>
+              <button
+                type="button"
+                className="app-topbar__dropdown-item"
+                role="menuitem"
+                onClick={() => {
+                  setIsProfileMenuOpen(false);
                   if (onFormLayoutClick) {
                     onFormLayoutClick();
                     return;

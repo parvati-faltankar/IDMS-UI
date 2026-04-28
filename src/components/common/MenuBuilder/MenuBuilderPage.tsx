@@ -4,16 +4,20 @@
  */
 
 import React, { useState } from 'react';
-import { ChevronLeft, Plus, RotateCcw, Save, Send } from 'lucide-react';
+import { ArrowLeft, MoveRight, Plus, RotateCcw, Save, Send, Sparkles } from 'lucide-react';
+import AppShell from '../AppShell';
 import { useMenuBuilder } from '../../../theme/MenuBuilderContext';
 import MenuTree from './MenuTree';
 import MenuPreview from './MenuPreview';
 import MenuFormDialog from './MenuFormDialog';
+import type { MenuFormData } from './types';
 import MenuConfirmationDialog from './MenuConfirmationDialog';
 import MenuStatusBadge from './MenuStatusBadge';
 import MenuValidationSummary from './MenuValidationSummary';
 import { cn } from '../../../utils/classNames';
-import type { DragDropPayload } from '../../../utils/menuBuilderTypes';
+import type { DragDropPayload, MenuItemData, MenuLevelData, MenuSectionData } from '../../../utils/menuBuilderTypes';
+import { findLevel2, findMenuItem, findParentSection, validateMenuConfig } from '../../../utils/menuBuilderUtils';
+import { getDefaultRouteForKey } from '../../../utils/menuBuilderNavigation';
 
 interface MenuBuilderPageProps {
   onBack?: () => void;
@@ -23,7 +27,9 @@ type FormDialogState = {
   isOpen: boolean;
   type: 'section' | 'level2' | 'item';
   title: string;
+  mode: 'create' | 'edit';
   editingId?: string;
+  initialData?: Partial<MenuFormData> | null;
 } | null;
 
 const MenuBuilderPage: React.FC<MenuBuilderPageProps> = ({ onBack }) => {
@@ -32,16 +38,21 @@ const MenuBuilderPage: React.FC<MenuBuilderPageProps> = ({ onBack }) => {
     addSection,
     updateSection,
     removeSection,
+    reorderSections,
     addLevel2,
     updateLevel2,
     removeLevel2,
+    reorderLevel2Groups,
+    moveLevel2Group,
     addMenuItem,
     updateMenuItem,
     removeMenuItem,
+    moveMenuItem,
     selectSection,
     selectLevel2,
     selectItem,
     validateConfig,
+    saveDraft,
     resetToDraft,
     publishConfig,
   } = useMenuBuilder();
@@ -52,6 +63,10 @@ const MenuBuilderPage: React.FC<MenuBuilderPageProps> = ({ onBack }) => {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const draftConfig = state.draftConfig;
+
+  const selectedSection = draftConfig?.sections.find((section) => section.id === state.selectedSectionId) ?? null;
+  const selectedLevel2 = draftConfig && state.selectedLevel2Id ? findLevel2(draftConfig, state.selectedLevel2Id) : null;
+  const selectedItem = draftConfig && state.selectedItemId ? findMenuItem(draftConfig, state.selectedItemId) : null;
 
   // Show success message
   const showSuccess = (message: string) => {
@@ -65,6 +80,7 @@ const MenuBuilderPage: React.FC<MenuBuilderPageProps> = ({ onBack }) => {
       isOpen: true,
       type: 'section',
       title: 'Add Section',
+      mode: 'create',
     });
   };
 
@@ -73,7 +89,9 @@ const MenuBuilderPage: React.FC<MenuBuilderPageProps> = ({ onBack }) => {
       isOpen: true,
       type: 'level2',
       title: 'Add Group',
+      mode: 'create',
       editingId: sectionId,
+      initialData: { parentSectionId: sectionId, isVisible: true },
     });
   };
 
@@ -82,78 +100,144 @@ const MenuBuilderPage: React.FC<MenuBuilderPageProps> = ({ onBack }) => {
       isOpen: true,
       type: 'item',
       title: 'Add Menu Item',
+      mode: 'create',
       editingId: level2Id,
+      initialData: { parentLevel2Id: level2Id, isVisible: true },
     });
   };
 
   const handleEditSection = (sectionId: string) => {
-    const section = draftConfig?.sections.find((s: any) => s.id === sectionId);
+    const section = draftConfig?.sections.find((s) => s.id === sectionId);
     if (!section) return;
     setFormDialog({
       isOpen: true,
       type: 'section',
       title: 'Edit Section',
+      mode: 'edit',
       editingId: sectionId,
+      initialData: section,
     });
   };
 
   const handleEditLevel2 = (level2Id: string) => {
-    // Find level2 and show edit dialog
+    if (!draftConfig) return;
+    const level2 = findLevel2(draftConfig, level2Id);
+    if (!level2) return;
     setFormDialog({
       isOpen: true,
       type: 'level2',
       title: 'Edit Group',
+      mode: 'edit',
       editingId: level2Id,
+      initialData: {
+        ...level2,
+        parentSectionId: level2.parentLevelId ?? undefined,
+      },
     });
   };
 
   const handleEditItem = (itemId: string) => {
-    // Find item and show edit dialog
+    if (!draftConfig) return;
+    const item = findMenuItem(draftConfig, itemId);
+    if (!item) return;
     setFormDialog({
       isOpen: true,
       type: 'item',
       title: 'Edit Menu Item',
+      mode: 'edit',
       editingId: itemId,
+      initialData: {
+        ...item,
+        route: item.route ?? getDefaultRouteForKey(item.key) ?? '',
+        parentLevel2Id: item.parentLevelId,
+      },
     });
   };
 
-  const handleFormSubmit = (data: any) => {
+  const handleFormSubmit = (data: MenuFormData) => {
     if (!formDialog) return;
 
     switch (formDialog.type) {
       case 'section':
-        if (formDialog.editingId && state.draftConfig?.sections.find((s: any) => s.id === formDialog.editingId)) {
-          updateSection(formDialog.editingId, data);
+        if (formDialog.mode === 'edit' && formDialog.editingId) {
+          updateSection(formDialog.editingId, data as Partial<MenuSectionData>);
         } else {
-          addSection(data.label);
+          addSection(data as Pick<MenuSectionData, 'label' | 'description' | 'iconName' | 'isVisible'>);
         }
         break;
 
       case 'level2':
-        if (formDialog.editingId && state.draftConfig?.sections.find((s: any) => s.id === formDialog.editingId)) {
-          // Adding new level2
-          addLevel2(formDialog.editingId, data.label);
+        if (formDialog.mode === 'edit' && formDialog.editingId) {
+          const nextParentSectionId = data.parentSectionId as string;
+          if (nextParentSectionId) {
+            const currentParentSection = draftConfig ? findParentSection(draftConfig, formDialog.editingId) : null;
+            if (currentParentSection && currentParentSection.id !== nextParentSectionId) {
+              moveLevel2Group(formDialog.editingId, nextParentSectionId, Number.MAX_SAFE_INTEGER);
+            }
+          }
+          updateLevel2(formDialog.editingId, {
+            ...data,
+            parentLevelId: data.parentSectionId,
+          } as Partial<MenuLevelData>);
         } else if (formDialog.editingId) {
-          // Updating level2
-          updateLevel2(formDialog.editingId, data);
+          addLevel2(
+            data.parentSectionId || formDialog.editingId,
+            data as Pick<MenuLevelData, 'label' | 'description' | 'hideLabel' | 'isVisible'>
+          );
         }
         break;
 
       case 'item':
-        if (formDialog.editingId && state.draftConfig?.sections.some((s: any) =>
-          s.level2Groups.some((l2: any) => l2.id === formDialog.editingId)
-        )) {
-          // Adding new item
-          addMenuItem(formDialog.editingId, data.label);
+        if (formDialog.mode === 'edit' && formDialog.editingId) {
+          const nextParentLevel2Id = data.parentLevel2Id as string;
+          const currentItem = draftConfig ? findMenuItem(draftConfig, formDialog.editingId) : null;
+          if (currentItem && nextParentLevel2Id && currentItem.parentLevelId !== nextParentLevel2Id) {
+            moveMenuItem(formDialog.editingId, currentItem.parentLevelId, nextParentLevel2Id, Number.MAX_SAFE_INTEGER);
+          }
+
+          updateMenuItem(formDialog.editingId, {
+            ...data,
+            parentLevelId: nextParentLevel2Id,
+          } as Partial<MenuItemData>);
         } else if (formDialog.editingId) {
-          // Updating item
-          updateMenuItem(formDialog.editingId, data);
+          addMenuItem(
+            data.parentLevel2Id || formDialog.editingId,
+            data as Pick<MenuItemData, 'label' | 'key' | 'description' | 'iconName' | 'route' | 'externalUrl' | 'openInNewTab' | 'isVisible'>
+          );
         }
         break;
     }
 
     setFormDialog(null);
-    showSuccess(`${formDialog.type} ${formDialog.editingId ? 'updated' : 'created'} successfully`);
+    showSuccess(`${formDialog.type} ${formDialog.mode === 'edit' ? 'updated' : 'created'} successfully`);
+  };
+
+  const handleRemoveSection = (sectionId: string) => {
+    const section = draftConfig?.sections.find((currentSection) => currentSection.id === sectionId);
+    if (!section) {
+      return;
+    }
+
+    if (section.level2Groups.length > 0) {
+      showSuccess('Move or remove all groups before deleting a section');
+      return;
+    }
+
+    removeSection(sectionId);
+  };
+
+  const handleRemoveLevel2 = (level2Id: string) => {
+    const level2 = draftConfig ? findLevel2(draftConfig, level2Id) : null;
+    if (!level2) {
+      return;
+    }
+
+    if (level2.items.length > 0) {
+      showSuccess('Move or remove all items before deleting a group');
+      return;
+    }
+
+    removeLevel2(level2Id);
   };
 
   const handleReset = () => {
@@ -163,8 +247,11 @@ const MenuBuilderPage: React.FC<MenuBuilderPageProps> = ({ onBack }) => {
   };
 
   const handlePublish = () => {
-    validateConfig();
-    if (state.validationResult && !state.validationResult.isValid) {
+    const validation = validateConfig() ?? (draftConfig ? validateMenuConfig(draftConfig) : null);
+    if (!validation) {
+      return;
+    }
+    if (!validation.isValid) {
       showSuccess('Cannot publish: Configuration has errors');
       return;
     }
@@ -178,24 +265,95 @@ const MenuBuilderPage: React.FC<MenuBuilderPageProps> = ({ onBack }) => {
   };
 
   const handleSaveDraft = () => {
-    showSuccess('Draft saved to browser storage');
+    const validation = validateConfig();
+    saveDraft();
+    showSuccess(validation?.isValid ? 'Draft saved locally' : 'Draft saved locally with validation issues');
   };
 
   const handlePublish2 = () => {
-    validateConfig();
+    const validation = validateConfig() ?? (draftConfig ? validateMenuConfig(draftConfig) : null);
+    if (!validation) {
+      return;
+    }
+    if (!validation.isValid) {
+      showSuccess('Fix validation errors before publishing');
+      return;
+    }
     setPublishConfirmOpen(true);
   };
 
-  const handleDragStart = (_payload: DragDropPayload) => {
-    // Handled by MenuTree
-  };
+  const handleMoveNode = (payload: DragDropPayload, target: { type: 'section' | 'level2' | 'item'; targetId: string; position: number }) => {
+    if (!draftConfig || payload.itemId === target.targetId) {
+      return;
+    }
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
+    if (payload.type === 'section' && target.type === 'section') {
+      const nextOrder = draftConfig.sections
+        .map((section) => section.id)
+        .filter((sectionId) => sectionId !== payload.itemId);
+      const targetIndex = nextOrder.indexOf(target.targetId);
+      nextOrder.splice(targetIndex >= 0 ? targetIndex : nextOrder.length, 0, payload.itemId);
+      reorderSections(nextOrder);
+      return;
+    }
 
-  const handleDropItem = (level2Id: string, _payload: DragDropPayload, _position: number) => {
-    // Simplified - in production, you'd want proper order management
+    if (payload.type === 'level2') {
+      const movingLevel2 = findLevel2(draftConfig, payload.itemId);
+      if (!movingLevel2) {
+        return;
+      }
+
+      if (target.type === 'section') {
+        moveLevel2Group(payload.itemId, target.targetId, Number.MAX_SAFE_INTEGER);
+        return;
+      }
+
+      if (target.type === 'level2') {
+        const targetLevel2 = findLevel2(draftConfig, target.targetId);
+        if (!targetLevel2) {
+          return;
+        }
+
+        const targetSectionId = targetLevel2.parentLevelId ?? payload.sourceParentId;
+        if (!targetSectionId) {
+          return;
+        }
+
+        if (movingLevel2.parentLevelId !== targetSectionId) {
+          moveLevel2Group(payload.itemId, targetSectionId, target.position);
+          return;
+        }
+
+        const currentSection = draftConfig.sections.find((section) => section.id === targetSectionId);
+        if (!currentSection) {
+          return;
+        }
+
+        const nextOrder = currentSection.level2Groups
+          .map((group) => group.id)
+          .filter((groupId) => groupId !== payload.itemId);
+        const targetIndex = nextOrder.indexOf(target.targetId);
+        nextOrder.splice(targetIndex >= 0 ? targetIndex : nextOrder.length, 0, payload.itemId);
+        reorderLevel2Groups(targetSectionId, nextOrder);
+        return;
+      }
+    }
+
+    if (payload.type === 'item') {
+      if (target.type === 'level2') {
+        moveMenuItem(payload.itemId, payload.sourceParentId ?? '', target.targetId, Number.MAX_SAFE_INTEGER);
+        return;
+      }
+
+      if (target.type === 'item') {
+        const targetItem = findMenuItem(draftConfig, target.targetId);
+        if (!targetItem) {
+          return;
+        }
+
+        moveMenuItem(payload.itemId, payload.sourceParentId ?? '', targetItem.parentLevelId, target.position);
+      }
+    }
   };
 
   if (!draftConfig) {
@@ -210,59 +368,116 @@ const MenuBuilderPage: React.FC<MenuBuilderPageProps> = ({ onBack }) => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Header */}
-      <div className="bg-white border-b sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              {onBack && (
-                <button
-                  onClick={onBack}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                  aria-label="Back"
-                >
-                  <ChevronLeft size={20} />
-                </button>
-              )}
-              <div>
-                <h1 className="text-2xl font-bold">Navigation Menu Builder</h1>
-                <p className="text-sm text-gray-500">Design and configure your application's navigation structure</p>
+    <AppShell activeLeaf={null} contentClassName="menu-builder-shell">
+      <main className="min-h-full bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl space-y-6">
+          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  {onBack && (
+                    <button
+                      type="button"
+                      onClick={onBack}
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition-colors hover:bg-slate-100"
+                      aria-label="Back"
+                    >
+                      <ArrowLeft size={18} />
+                    </button>
+                  )}
+                  <span className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-blue-700">
+                    <Sparkles size={12} />
+                    Profile Tools
+                  </span>
+                </div>
+                <div>
+                  <h1 className="brand-page-title text-slate-900">Navigation Menu Builder</h1>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+                    Create sections, rearrange groups, assign routes, and publish a live navigation experience without changing the existing sidebar architecture.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-col items-start gap-4 lg:items-end">
+                <MenuStatusBadge status={draftConfig.status} isDirty={state.isDirty} />
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    onClick={handleReset2}
+                    className="btn btn--outline btn--icon-left"
+                    type="button"
+                  >
+                    <RotateCcw size={15} />
+                    Reset
+                  </button>
+                  <button
+                    onClick={handleSaveDraft}
+                    className="btn btn--outline btn--icon-left"
+                    type="button"
+                    disabled={!state.isDirty}
+                  >
+                    <Save size={15} />
+                    Save Draft
+                  </button>
+                  <button
+                    onClick={handlePublish2}
+                    className="btn btn--primary btn--icon-left"
+                    type="button"
+                  >
+                    <Send size={15} />
+                    Publish Navigation
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-sm text-slate-600 sm:grid-cols-4">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <div className="text-xs uppercase tracking-wide text-slate-400">Sections</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-900">{draftConfig.sections.length}</div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <div className="text-xs uppercase tracking-wide text-slate-400">Groups</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-900">
+                      {draftConfig.sections.reduce((count, section) => count + section.level2Groups.length, 0)}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <div className="text-xs uppercase tracking-wide text-slate-400">Items</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-900">
+                      {draftConfig.sections.reduce(
+                        (count, section) => count + section.level2Groups.reduce((groupCount, level2) => groupCount + level2.items.length, 0),
+                        0
+                      )}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <div className="text-xs uppercase tracking-wide text-slate-400">Status</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-900">{state.validationResult?.isValid ? 'Ready' : 'Review'}</div>
+                  </div>
+                </div>
               </div>
             </div>
-            <MenuStatusBadge status={draftConfig.status} isDirty={state.isDirty} />
-          </div>
-        </div>
-      </div>
 
-      {/* Success Message */}
-      {successMessage && (
-        <div className="bg-green-50 border-b border-green-200 px-4 py-3 text-sm text-green-700">
-          ✓ {successMessage}
-        </div>
-      )}
+            {successMessage && (
+              <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                {successMessage}
+              </div>
+            )}
+          </section>
 
-      {/* Content */}
-      <div className="flex-1 overflow-auto">
-        <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
-          {/* Validation Summary */}
           {state.validationResult && (
-            <div className="mb-6">
-              <MenuValidationSummary validation={state.validationResult} />
-            </div>
+            <MenuValidationSummary validation={state.validationResult} onDismiss={() => validateConfig()} />
           )}
 
-          {/* Main Content Layout */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left: Menu Configuration */}
-            <div className="lg:col-span-2 space-y-4">
-              <div className="bg-white rounded-lg shadow-sm border">
-                <div className="p-4 border-b flex items-center justify-between">
-                  <h2 className="font-semibold">Menu Configuration</h2>
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.6fr)_380px]">
+            <section className="space-y-6">
+              <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+                <div className="flex flex-col gap-4 border-b border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold text-slate-900">Structure Editor</h2>
+                    <p className="mt-1 text-sm text-slate-500">Drag sections, groups, and items to reorder the navigation hierarchy.</p>
+                  </div>
                   <button
                     onClick={handleAddSection}
                     className={cn(
-                      'flex items-center gap-2 px-3 py-2 rounded text-sm font-medium',
+                      'inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium',
                       'bg-blue-600 text-white hover:bg-blue-700 transition-colors'
                     )}
                   >
@@ -271,7 +486,7 @@ const MenuBuilderPage: React.FC<MenuBuilderPageProps> = ({ onBack }) => {
                   </button>
                 </div>
 
-                <div className="p-4">
+                <div className="p-5">
                   <MenuTree
                     sections={draftConfig.sections}
                     selectedSectionId={state.selectedSectionId}
@@ -281,19 +496,15 @@ const MenuBuilderPage: React.FC<MenuBuilderPageProps> = ({ onBack }) => {
                     onSelectLevel2={selectLevel2}
                     onSelectItem={selectItem}
                     onToggleSection={(sectionId) => {
-                      const section = draftConfig.sections.find((s: any) => s.id === sectionId);
+                      const section = draftConfig.sections.find((currentSection) => currentSection.id === sectionId);
                       if (section) {
                         updateSection(sectionId, { isExpanded: !section.isExpanded });
                       }
                     }}
                     onToggleLevel2={(level2Id) => {
-                      // Find and toggle level2
-                      for (const section of draftConfig.sections) {
-                        const level2 = section.level2Groups.find((l2: any) => l2.id === level2Id);
-                        if (level2) {
-                          updateLevel2(level2Id, { isExpanded: !level2.isExpanded });
-                          return;
-                        }
+                      const level2 = findLevel2(draftConfig, level2Id);
+                      if (level2) {
+                        updateLevel2(level2Id, { isExpanded: !level2.isExpanded });
                       }
                     }}
                     onAddLevel2={handleAddLevel2}
@@ -301,87 +512,89 @@ const MenuBuilderPage: React.FC<MenuBuilderPageProps> = ({ onBack }) => {
                     onEditSection={handleEditSection}
                     onEditLevel2={handleEditLevel2}
                     onEditItem={handleEditItem}
-                    onRemoveSection={removeSection}
-                    onRemoveLevel2={removeLevel2}
+                    onRemoveSection={handleRemoveSection}
+                    onRemoveLevel2={handleRemoveLevel2}
                     onRemoveItem={removeMenuItem}
-                    onDragStart={handleDragStart}
-                    onDragOver={handleDragOver}
-                    onDropItem={handleDropItem}
+                    onMoveNode={handleMoveNode}
                   />
                 </div>
               </div>
-            </div>
 
-            {/* Right: Preview */}
-            <div className="lg:col-span-1">
-              <MenuPreview sections={draftConfig.sections} className="sticky top-24" />
-            </div>
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-2">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                    <MoveRight size={16} />
+                    Selected node details
+                  </div>
+                  <div className="mt-4 text-sm text-slate-600">
+                    {selectedItem ? (
+                      <div className="space-y-2">
+                        <div className="text-base font-semibold text-slate-900">{selectedItem.label}</div>
+                        <div>Key: {selectedItem.key}</div>
+                        <div>Route: {selectedItem.route || getDefaultRouteForKey(selectedItem.key) || 'Uses existing sidebar action'}</div>
+                        <div>External URL: {selectedItem.externalUrl || 'None'}</div>
+                        <div>Visibility: {selectedItem.isVisible === false ? 'Hidden' : 'Visible'}</div>
+                      </div>
+                    ) : selectedLevel2 ? (
+                      <div className="space-y-2">
+                        <div className="text-base font-semibold text-slate-900">{selectedLevel2.label}</div>
+                        <div>Items: {selectedLevel2.items.length}</div>
+                        <div>Flatten group: {selectedLevel2.hideLabel ? 'Yes' : 'No'}</div>
+                        <div>Visibility: {selectedLevel2.isVisible === false ? 'Hidden' : 'Visible'}</div>
+                      </div>
+                    ) : selectedSection ? (
+                      <div className="space-y-2">
+                        <div className="text-base font-semibold text-slate-900">{selectedSection.label}</div>
+                        <div>Groups: {selectedSection.level2Groups.length}</div>
+                        <div>Visibility: {selectedSection.isVisible === false ? 'Hidden' : 'Visible'}</div>
+                      </div>
+                    ) : (
+                      <p>Select a section, group, or menu item to inspect and edit its properties.</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <h3 className="text-sm font-semibold text-slate-900">Publish checklist</h3>
+                  <ul className="mt-4 space-y-3 text-sm text-slate-600">
+                    <li>Every visible item needs a working route or external URL.</li>
+                    <li>Use existing navigation presets in create or edit to retain current labels, routes, and icons.</li>
+                    <li>Use unique keys so the current routing callbacks stay predictable.</li>
+                    <li>Delete only empty groups and sections to avoid accidental bulk removal.</li>
+                    <li>Publish updates the live sidebar immediately through the shared hook.</li>
+                  </ul>
+                </div>
+              </div>
+            </section>
+
+            <aside className="space-y-6 xl:sticky xl:top-24 xl:self-start">
+              <MenuPreview sections={draftConfig.sections} />
+
+              <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <h3 className="text-sm font-semibold text-slate-900">Existing navigation coverage</h3>
+                <div className="mt-4 space-y-3 text-sm text-slate-600">
+                  <p>
+                    The builder starts from your current published navigation. When adding or editing items, use the existing navigation preset list to preserve routed pages already used by the sidebar.
+                  </p>
+                  <p>
+                    This keeps Menu Builder aligned with Theme Builder and Form Layout: primary actions stay at the top, and editing panels focus on controlled configuration instead of freeform recreation.
+                  </p>
+                </div>
+              </div>
+            </aside>
           </div>
         </div>
-      </div>
-
-      {/* Footer Actions */}
-      <div className="bg-white border-t sticky bottom-0">
-        <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              {state.isDirty && (
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 bg-yellow-500 rounded-full" />
-                  Unsaved changes
-                </span>
-              )}
-            </div>
-
-            <div className="flex items-center gap-3">
-              <button
-                onClick={handleReset2}
-                className={cn(
-                  'flex items-center gap-2 px-4 py-2 rounded font-medium text-sm',
-                  'border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors'
-                )}
-                title="Reset changes to last published version"
-              >
-                <RotateCcw size={16} />
-                Reset
-              </button>
-
-              <button
-                onClick={handleSaveDraft}
-                className={cn(
-                  'flex items-center gap-2 px-4 py-2 rounded font-medium text-sm',
-                  'bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors'
-                )}
-                disabled={!state.isDirty}
-              >
-                <Save size={16} />
-                Save Draft
-              </button>
-
-              <button
-                onClick={handlePublish2}
-                className={cn(
-                  'flex items-center gap-2 px-4 py-2 rounded font-medium text-sm',
-                  'bg-green-600 text-white hover:bg-green-700 transition-colors',
-                  state.validationResult && !state.validationResult.isValid && 'opacity-50 cursor-not-allowed'
-                )}
-                disabled={state.validationResult ? !state.validationResult.isValid : false}
-                title="Publish menu configuration for users to see"
-              >
-                <Send size={16} />
-                Publish
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+      </main>
 
       {/* Dialogs */}
       {formDialog && (
         <MenuFormDialog
+          key={`${formDialog.type}-${formDialog.mode}-${formDialog.editingId ?? 'new'}`}
           isOpen={formDialog.isOpen}
           formType={formDialog.type}
           title={formDialog.title}
+          sections={draftConfig.sections}
+          initialData={formDialog.initialData ?? null}
           onSubmit={handleFormSubmit}
           onCancel={() => setFormDialog(null)}
         />
@@ -401,7 +614,7 @@ const MenuBuilderPage: React.FC<MenuBuilderPageProps> = ({ onBack }) => {
         onConfirm={handlePublish}
         onCancel={() => setPublishConfirmOpen(false)}
       />
-    </div>
+    </AppShell>
   );
 };
 

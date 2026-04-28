@@ -55,6 +55,9 @@ export interface Level3Item {
   icon?: LucideIcon;
   active?: boolean;
   onClick?: () => void;
+  route?: string;
+  externalUrl?: string;
+  openInNewTab?: boolean;
 }
 
 export interface Level2Item {

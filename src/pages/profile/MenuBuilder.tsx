@@ -11,7 +11,7 @@ interface MenuBuilderPageWrapperProps {
   onNavigateToPurchaseRequisitionList: () => void;
 }
 
-const MenuBuilderPageWrapper: React.FC<MenuBuilderPageWrapperProps> = ({ onNavigateToPurchaseRequisitionList }) => {
+const MenuBuilderPageWrapper: React.FC<MenuBuilderPageWrapperProps> = () => {
   const navigate = useNavigate();
 
   return (

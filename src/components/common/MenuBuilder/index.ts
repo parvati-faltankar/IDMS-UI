@@ -10,3 +10,4 @@ export { default as MenuFormDialog } from './MenuFormDialog';
 export { default as MenuConfirmationDialog } from './MenuConfirmationDialog';
 export { default as MenuStatusBadge } from './MenuStatusBadge';
 export { default as MenuValidationSummary } from './MenuValidationSummary';
+export type { MenuFormData } from './types';
