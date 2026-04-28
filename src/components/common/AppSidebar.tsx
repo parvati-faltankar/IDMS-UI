@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '../../utils/classNames';
-import { menuStructure, navigateToHash, type Level3Item, type SidebarComponentProps } from './appShellShared';
+import { navigateToHash, type Level3Item, type SidebarComponentProps } from './appShellShared';
+import { usePublishedMenu } from '../../hooks/usePublishedMenu';
 
 const AppSidebar: React.FC<SidebarComponentProps> = ({
   isCollapsed,
@@ -18,6 +19,7 @@ const AppSidebar: React.FC<SidebarComponentProps> = ({
   isMobileOpen,
   onCloseMobile,
 }) => {
+  const currentMenuStructure = usePublishedMenu();
   const isSalesLeaf =
     activeLeaf === 'sale-order' ||
     activeLeaf === 'sale-allocation-requisition' ||
@@ -141,7 +143,7 @@ const AppSidebar: React.FC<SidebarComponentProps> = ({
       )}
     >
       <nav className="app-sidebar__nav" aria-label="Primary navigation">
-        {menuStructure.map((level1) => {
+        {currentMenuStructure.map((level1) => {
           const isLevel1Expanded = expandedLevel1[level1.label];
 
           return (

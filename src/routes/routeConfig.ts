@@ -3,6 +3,7 @@ export const paths = {
   brandGuidelines: '/brand-guidelines',
   businessSettings: '/profile/business-settings',
   themeBuilder: '/profile/theme-builder',
+  menuBuilder: '/profile/menu-builder',
   formLayoutSettings: '/profile/form-layout',
   formLayoutEditor: '/profile/form-layout/edit',
   purchaseRequisitionList: '/purchase-requisition',
