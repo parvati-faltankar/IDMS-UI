@@ -8,6 +8,7 @@ import {
   LogOut,
   Mic,
   MicOff,
+  Palette,
   Search,
   Settings,
   UserCircle2,
@@ -100,7 +101,8 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
   }, [voiceState]);
 
   const headerLogo =
-    themeKey === 'bajaj'
+    theme.logoDataUrl ??
+    (themeKey === 'bajaj'
       ? bajajLogoDark
       : themeKey === 'tata-motors'
         ? tataMotorsLogo
@@ -112,7 +114,7 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
               ? heroLogo
               : themeKey === 'royal-enfield'
                 ? royalEnfieldLogoWhite
-                : excellonsoftLogo;
+                : excellonsoftLogo);
   const moduleLabel =
     activeLeaf === 'purchase-requisition' ||
     activeLeaf === 'purchase-order' ||
@@ -859,6 +861,18 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
               >
                 <Settings size={16} />
                 Business Settings
+              </button>
+              <button
+                type="button"
+                className="app-topbar__dropdown-item"
+                role="menuitem"
+                onClick={() => {
+                  setIsProfileMenuOpen(false);
+                  navigateToHash('#/profile/theme-builder');
+                }}
+              >
+                <Palette size={16} />
+                Theme Builder
               </button>
               <button
                 type="button"

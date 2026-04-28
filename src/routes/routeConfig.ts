@@ -2,6 +2,7 @@ export const paths = {
   home: '/purchase-requisition',
   brandGuidelines: '/brand-guidelines',
   businessSettings: '/profile/business-settings',
+  themeBuilder: '/profile/theme-builder',
   formLayoutSettings: '/profile/form-layout',
   formLayoutEditor: '/profile/form-layout/edit',
   purchaseRequisitionList: '/purchase-requisition',

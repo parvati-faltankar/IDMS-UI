@@ -1,6 +1,6 @@
 import { Navigate, Route } from 'react-router-dom';
 import { paths } from './routeConfig';
-import { BusinessSettings, ExcellonBrandGuidelinesPreview, FormLayoutEditor, FormLayoutSettings } from './routeScreens';
+import { BusinessSettings, ExcellonBrandGuidelinesPreview, FormLayoutEditor, FormLayoutSettings, ThemeBuilder } from './routeScreens';
 import type { SharedRouteContext } from './routeTypes';
 
 export function renderProfileRoutes({ locationSearch, navigateTo, routeQuery }: SharedRouteContext) {
@@ -12,6 +12,8 @@ export function renderProfileRoutes({ locationSearch, navigateTo, routeQuery }: 
         path={paths.businessSettings}
         element={<BusinessSettings onBack={() => navigateTo(paths.purchaseRequisitionList)} />}
       />
+
+      <Route path={paths.themeBuilder} element={<ThemeBuilder onBack={() => navigateTo(paths.purchaseRequisitionList)} />} />
 
       <Route
         path={paths.formLayoutSettings}

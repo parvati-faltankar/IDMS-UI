@@ -1,10 +1,11 @@
 import { createContext } from 'react';
-import { themeRegistry, type AppearanceMode, type ThemeKey } from './themeRegistry';
+import { type AppearanceMode, type BrandThemeDefinition, type ThemeKey } from './themeRegistry';
 
 export interface ThemeContextValue {
   themeKey: ThemeKey;
-  theme: (typeof themeRegistry)[ThemeKey];
-  themes: typeof themeRegistry;
+  theme: BrandThemeDefinition;
+  themes: Record<string, BrandThemeDefinition>;
+  themeKeys: ThemeKey[];
   appearanceMode: AppearanceMode;
   setTheme: (themeKey: ThemeKey) => void;
   toggleTheme: () => void;

@@ -1,6 +1,7 @@
 import { lazy } from 'react';
 
 export const BusinessSettings = lazy(() => import('../pages/profile/BusinessSettings'));
+export const ThemeBuilder = lazy(() => import('../pages/profile/ThemeBuilder'));
 export const CreateDelivery = lazy(() => import('../pages/delivery/CreateDelivery'));
 export const CreatePurchaseInvoice = lazy(() => import('../pages/purchase-invoice/CreatePurchaseInvoice'));
 export const CreatePurchaseOrder = lazy(() => import('../pages/purchase-order/CreatePurchaseOrder'));

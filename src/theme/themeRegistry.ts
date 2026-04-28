@@ -5,7 +5,57 @@ export const DEFAULT_APPEARANCE_MODE = 'light';
 export const appearanceModes = ['light', 'dark'] as const;
 export type AppearanceMode = (typeof appearanceModes)[number];
 
-export const themeRegistry = {
+export interface BrandThemeDefinition {
+  key: string;
+  label: string;
+  shortLabel: string;
+  logoDataUrl?: string;
+  brandScale: {
+    50: string;
+    100: string;
+    200: string;
+    300: string;
+    400: string;
+    500: string;
+    600: string;
+    700: string;
+    800: string;
+    900: string;
+  };
+  customTokens?: Record<string, string>;
+}
+
+const customThemeTokenNames = [
+  '--font-family-base',
+  '--font-weight-medium',
+  '--font-weight-semibold',
+  '--font-size-14',
+  '--line-height-20',
+  '--radius-sm',
+  '--radius-md',
+  '--radius-lg',
+  '--space-2',
+  '--space-3',
+  '--space-4',
+  '--color-text',
+  '--color-text-muted',
+  '--color-border',
+  '--color-border-strong',
+  '--color-surface',
+  '--color-surface-subtle',
+  '--color-surface-hover',
+  '--color-surface-elevated',
+  '--color-danger',
+  '--color-topbar-bg',
+  '--color-nav-hover',
+  '--color-nav-active',
+  '--color-brand-surface',
+  '--color-brand-border',
+  '--color-brand-text',
+  '--shadow-dropdown',
+];
+
+const builtInThemeRegistry = {
   excellon: {
     key: 'excellon',
     label: 'Excellon',
@@ -125,14 +175,21 @@ export const themeRegistry = {
       900: '#5e1715',
     },
   },
-} as const;
+} satisfies Record<string, BrandThemeDefinition>;
 
-export type ThemeKey = keyof typeof themeRegistry;
+export const themeRegistry: Record<string, BrandThemeDefinition> = builtInThemeRegistry;
 
-export const themeKeys = Object.keys(themeRegistry) as ThemeKey[];
+export type BuiltInThemeKey = keyof typeof builtInThemeRegistry;
+export type ThemeKey = string;
+
+export const themeKeys = Object.keys(themeRegistry) as BuiltInThemeKey[];
+
+export function isBuiltInThemeKey(value: string | null | undefined): value is BuiltInThemeKey {
+  return Boolean(value && value in themeRegistry);
+}
 
 export function isThemeKey(value: string | null | undefined): value is ThemeKey {
-  return Boolean(value && value in themeRegistry);
+  return Boolean(value);
 }
 
 export function resolveThemeKey(value: string | null | undefined): ThemeKey {
@@ -153,7 +210,8 @@ export function getStoredThemeKey(): ThemeKey {
   }
 
   try {
-    return resolveThemeKey(window.localStorage.getItem(THEME_STORAGE_KEY));
+    const storedThemeKey = window.localStorage.getItem(THEME_STORAGE_KEY);
+    return storedThemeKey || DEFAULT_THEME_KEY;
   } catch {
     return DEFAULT_THEME_KEY;
   }
@@ -195,12 +253,32 @@ export function persistAppearanceMode(appearanceMode: AppearanceMode) {
   }
 }
 
-export function applyThemeKey(themeKey: ThemeKey) {
+export function applyThemeKey(themeKey: ThemeKey, theme?: BrandThemeDefinition) {
   if (typeof document === 'undefined') {
     return;
   }
 
   document.documentElement.dataset.theme = themeKey;
+  const selectedTheme = theme ?? (isBuiltInThemeKey(themeKey) ? themeRegistry[themeKey] : null);
+  const rootStyle = document.documentElement.style;
+
+  if (!selectedTheme) {
+    return;
+  }
+
+  customThemeTokenNames.forEach((tokenName) => rootStyle.removeProperty(tokenName));
+
+  Object.entries(selectedTheme.brandScale).forEach(([step, color]) => {
+    rootStyle.setProperty(`--brand-${step}`, color);
+  });
+  rootStyle.setProperty('--color-primary', selectedTheme.brandScale[500]);
+  rootStyle.setProperty('--color-primary-hover', selectedTheme.brandScale[600]);
+  rootStyle.setProperty('--color-primary-active', selectedTheme.brandScale[700]);
+  rootStyle.setProperty('--color-focus-ring', `color-mix(in srgb, ${selectedTheme.brandScale[500]} 22%, transparent)`);
+
+  Object.entries(selectedTheme.customTokens ?? {}).forEach(([token, value]) => {
+    rootStyle.setProperty(token, value);
+  });
 }
 
 export function applyAppearanceMode(appearanceMode: AppearanceMode) {
@@ -221,6 +299,6 @@ export function initializeTheme(): ThemeKey {
 }
 
 export function getNextThemeKey(themeKey: ThemeKey): ThemeKey {
-  const currentIndex = themeKeys.indexOf(themeKey);
+  const currentIndex = themeKeys.indexOf(themeKey as BuiltInThemeKey);
   return themeKeys[(currentIndex + 1) % themeKeys.length] ?? DEFAULT_THEME_KEY;
 }

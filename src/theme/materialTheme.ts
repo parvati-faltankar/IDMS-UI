@@ -1,5 +1,5 @@
 import { alpha, createTheme, type Shadows } from '@mui/material/styles';
-import { themeRegistry, type AppearanceMode, type ThemeKey } from './themeRegistry';
+import { themeRegistry, DEFAULT_THEME_KEY, type AppearanceMode, type BrandThemeDefinition, type ThemeKey } from './themeRegistry';
 
 function createAppShadows(isDark: boolean): Shadows {
   const shadowColor = isDark ? 'rgb(2 6 23 / 42%)' : 'rgb(15 23 42 / 12%)';
@@ -14,8 +14,8 @@ function createAppShadows(isDark: boolean): Shadows {
   return shadows;
 }
 
-export function createAppMuiTheme(themeKey: ThemeKey, appearanceMode: AppearanceMode) {
-  const brand = themeRegistry[themeKey].brandScale;
+export function createAppMuiTheme(themeKey: ThemeKey, appearanceMode: AppearanceMode, theme?: BrandThemeDefinition) {
+  const brand = (theme ?? themeRegistry[themeKey] ?? themeRegistry[DEFAULT_THEME_KEY]).brandScale;
   const isDark = appearanceMode === 'dark';
   const surface = isDark ? '#151e2a' : '#ffffff';
   const surfaceSubtle = isDark ? '#101720' : '#f8fafc';

@@ -1,10 +1,10 @@
 import React from 'react';
 import { ChevronDown, Moon, Palette, Sun } from 'lucide-react';
 import { useTheme } from '../../theme/useTheme';
-import { themeKeys, type ThemeKey } from '../../theme/themeRegistry';
+import type { ThemeKey } from '../../theme/themeRegistry';
 
 const ThemeSwitcher: React.FC = () => {
-  const { theme, themeKey, themes, setTheme, appearanceMode, toggleAppearanceMode } = useTheme();
+  const { theme, themeKey, themeKeys, themes, setTheme, appearanceMode, toggleAppearanceMode } = useTheme();
 
   return (
     <div className="app-topbar__theme-group" aria-label="Theme controls">
