@@ -2335,6 +2335,7 @@ h3 {
   text-align: left;
   padding: 4px 6px;
   border-radius: 12px;
+  cursor: pointer;
 }
 
 .catalogue-view-selector__item-select:focus-visible,
