@@ -6,7 +6,7 @@ import type {
 } from '../components/common/dataGridTypes';
 
 const STORAGE_PREFIX = 'catalogue-grid-preferences:';
-const STORAGE_VERSION = 1;
+const STORAGE_VERSION = 2;
 
 function createDefaultPreferences<TData>(
   columns: DataGridColumn<TData>[],
@@ -55,6 +55,14 @@ export function loadDataGridPreferences<TData>(
     }
 
     const parsedValue = JSON.parse(rawValue) as Partial<DataGridStoredPreferences>;
+
+    // If stored version doesn't match the current version, discard stale prefs
+    // so that changes like defaultPin on new/updated columns take effect.
+    if (parsedValue.version !== STORAGE_VERSION) {
+      window.localStorage.removeItem(`${STORAGE_PREFIX}${gridId}`);
+      return defaults;
+    }
+
     return sanitizeDataGridPreferences(parsedValue, columns, density);
   } catch {
     return defaults;

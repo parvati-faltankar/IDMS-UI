@@ -486,8 +486,7 @@ const CommonDataGrid = <TData, TSortKey extends string = string>({
         className={cn(
           column.className,
           pinState === 'left' && 'catalogue-grid__cell--pinned-left',
-          pinState === 'right' && 'catalogue-grid__cell--pinned-right',
-          column.type === 'actions' && 'catalogue-table__action-cell'
+          pinState === 'right' && 'catalogue-grid__cell--pinned-right'
         )}
         style={style}
       >

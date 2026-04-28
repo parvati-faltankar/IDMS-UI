@@ -385,6 +385,7 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
   const [catalogueViewMode, setCatalogueViewMode] = useState<'list' | 'grid'>('list');
   const [dateRangeError, setDateRangeError] = useState('');
   const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null);
+  const [menuAnchorRect, setMenuAnchorRect] = useState<DOMRect | null>(null);
   const [cancelDocumentId, setCancelDocumentId] = useState<string | null>(null);
   const [expandedCardIds, setExpandedCardIds] = useState<Record<string, boolean>>({});
   const [activeInsightKey, setActiveInsightKey] = useState<string | null>(null);
@@ -924,7 +925,11 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
     >
       <button
         type="button"
-        onClick={() => setOpenActionMenuId((current) => (current === item.id ? null : item.id))}
+        onClick={(event) => {
+          const rect = (event.currentTarget as HTMLButtonElement).getBoundingClientRect();
+          setMenuAnchorRect(openActionMenuId === item.id ? null : rect);
+          setOpenActionMenuId((current) => (current === item.id ? null : item.id));
+        }}
         className="catalogue-action-menu__trigger"
         aria-label={`Open actions for ${item.number}`}
         aria-expanded={openActionMenuId === item.id}
@@ -932,8 +937,18 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
         <MoreVertical size={15} />
       </button>
 
-      {openActionMenuId === item.id && (
-        <div className="catalogue-action-menu__panel" role="menu" aria-label={`Actions for ${item.number}`}>
+      {openActionMenuId === item.id && menuAnchorRect && (
+        <div
+          className="catalogue-action-menu__panel"
+          role="menu"
+          aria-label={`Actions for ${item.number}`}
+          style={{
+            position: 'fixed',
+            top: menuAnchorRect.bottom + 8,
+            right: window.innerWidth - menuAnchorRect.right,
+            left: 'auto',
+          }}
+        >
           <button type="button" className="catalogue-action-menu__item" role="menuitem" onClick={() => handleViewDocument(item.id)}>
             <Eye size={16} />
             View

@@ -786,6 +786,7 @@ const CreatePurchaseInvoice: React.FC<CreatePurchaseInvoiceProps> = ({
           <div className="create-pr-header__actions">
             <div className="po-create__requisition-picker">
               <div className="po-create__requisition-search">
+              <div className="po-create__requisition-search-shell">
                 <Search size={16} className="po-create__requisition-search-icon" />
                 <input
                   type="search"
@@ -805,6 +806,7 @@ const CreatePurchaseInvoice: React.FC<CreatePurchaseInvoiceProps> = ({
                   aria-label="Search source documents"
                   disabled={!canUseRequisitionAsInvoiceSource}
                 />
+              </div>
               </div>
 
               {isRequisitionResultsOpen && matchingRequisitions.length > 0 && (
