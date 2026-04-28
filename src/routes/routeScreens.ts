@@ -17,7 +17,7 @@ export const FormLayoutSettings = lazy(() => import('../pages/form-layout/FormLa
 export const PurchaseInvoiceList = lazy(() => import('../pages/purchase-invoice/purchaseinvoicelist'));
 export const PurchaseReceiptList = lazy(() => import('../pages/purchase-receipt/purchasereceiptlist'));
 export const PurchaseRequisitionCatalogueView = lazy(() => import('../pages/purchase-requisition/PurchaseRequisitionCatalogueView'));
-export const PurchaseOrderList = lazy(() => import('../pages/purchase-order/purhcaseorderlist'));
+export const PurchaseOrderList = lazy(() => import('../pages/purchase-order/purchaseorderlist'));
 export const SaleAllocationList = lazy(() => import('../pages/sale-allocation/saleallocationlist'));
 export const SaleAllocationRequisitionList = lazy(() => import('../pages/sale-allocation-requisition/saleallocationrequisitionlist'));
 export const SaleInvoiceList = lazy(() => import('../pages/sale-invoice/saleinvoicelist'));

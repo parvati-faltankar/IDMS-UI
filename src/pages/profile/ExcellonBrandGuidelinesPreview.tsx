@@ -17,7 +17,7 @@ const palette = [
 
 const ExcellonBrandGuidelinesPreview: React.FC = () => {
   return (
-    <AppShell activeLeaf="purchase-requisition">
+    <AppShell activeLeaf={null}>
       <div className="page-container guidelines-stack">
         <div className="brand-surface guidelines-section guidelines-section--spaced">
           <h1 className="brand-page-title">Excellon Brand Guidelines Preview</h1>

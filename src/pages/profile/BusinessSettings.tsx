@@ -105,7 +105,7 @@ const BusinessSettings: React.FC<BusinessSettingsProps> = ({ onBack }) => {
     <AppShell activeLeaf={null} contentClassName="business-settings-shell">
       <main className="business-settings">
         <section className="business-settings__hero">
-          <button type="button" className="page-back-button" onClick={onBack} aria-label="Back to form layout settings">
+          <button type="button" className="page-back-button" onClick={onBack} aria-label="Back to purchase requisition list">
             <ArrowLeft size={18} />
           </button>
           <div className="business-settings__hero-copy">
