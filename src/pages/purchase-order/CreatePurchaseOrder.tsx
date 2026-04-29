@@ -14,7 +14,7 @@ import type { PurchaseOrderDocument } from './purchaseOrderData';
 import {
   extendedPurchaseRequisitionDocuments,
   type PurchaseRequisitionDocument,
-} from '../purchase-requisition/purchaseRequisitionCatalogueData';
+} from '../purchase-requisition/purchaseRequisitionCatalogueData'
 
 interface CreatePurchaseOrderProps {
   editingDocument?: PurchaseOrderDocument;
