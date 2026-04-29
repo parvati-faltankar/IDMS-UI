@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { ArrowLeft, MoveRight, Plus, RotateCcw, Save, Send, Sparkles } from 'lucide-react';
+import { ArrowLeft, Plus, RotateCcw, Save, Send, Sparkles } from 'lucide-react';
 import AppShell from '../AppShell';
 import { useMenuBuilder } from '../../../theme/MenuBuilderContext';
 import MenuTree from './MenuTree';
@@ -14,7 +14,6 @@ import type { MenuFormData } from './types';
 import MenuConfirmationDialog from './MenuConfirmationDialog';
 import MenuStatusBadge from './MenuStatusBadge';
 import MenuValidationSummary from './MenuValidationSummary';
-import { cn } from '../../../utils/classNames';
 import type { DragDropPayload, MenuItemData, MenuLevelData, MenuSectionData } from '../../../utils/menuBuilderTypes';
 import { findLevel2, findMenuItem, findParentSection, validateMenuConfig } from '../../../utils/menuBuilderUtils';
 import { getDefaultRouteForKey } from '../../../utils/menuBuilderNavigation';
@@ -63,10 +62,6 @@ const MenuBuilderPage: React.FC<MenuBuilderPageProps> = ({ onBack }) => {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const draftConfig = state.draftConfig;
-
-  const selectedSection = draftConfig?.sections.find((section) => section.id === state.selectedSectionId) ?? null;
-  const selectedLevel2 = draftConfig && state.selectedLevel2Id ? findLevel2(draftConfig, state.selectedLevel2Id) : null;
-  const selectedItem = draftConfig && state.selectedItemId ? findMenuItem(draftConfig, state.selectedItemId) : null;
 
   // Show success message
   const showSuccess = (message: string) => {
@@ -340,6 +335,17 @@ const MenuBuilderPage: React.FC<MenuBuilderPageProps> = ({ onBack }) => {
     }
 
     if (payload.type === 'item') {
+      if (target.type === 'section') {
+        const targetSection = draftConfig.sections.find((section) => section.id === target.targetId);
+        const targetLevel2Id = targetSection?.level2Groups[0]?.id;
+        if (targetLevel2Id) {
+          moveMenuItem(payload.itemId, payload.sourceParentId ?? '', targetLevel2Id, Number.MAX_SAFE_INTEGER);
+        } else {
+          showSuccess('Add a group before moving items into this section');
+        }
+        return;
+      }
+
       if (target.type === 'level2') {
         moveMenuItem(payload.itemId, payload.sourceParentId ?? '', target.targetId, Number.MAX_SAFE_INTEGER);
         return;
@@ -369,38 +375,38 @@ const MenuBuilderPage: React.FC<MenuBuilderPageProps> = ({ onBack }) => {
 
   return (
     <AppShell activeLeaf={null} contentClassName="menu-builder-shell">
-      <main className="min-h-full bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-7xl space-y-6">
-          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
+      <main className="menu-builder-page">
+        <div className="menu-builder-page__inner">
+          <section className="menu-builder-page__hero">
+            <div className="menu-builder-page__hero-layout">
+              <div className="menu-builder-page__hero-copy">
+                <div className="menu-builder-page__eyebrow-row">
                   {onBack && (
                     <button
                       type="button"
                       onClick={onBack}
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition-colors hover:bg-slate-100"
+                      className="menu-builder-page__back"
                       aria-label="Back"
                     >
                       <ArrowLeft size={18} />
                     </button>
                   )}
-                  <span className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-blue-700">
+                  <span className="menu-builder-page__eyebrow">
                     <Sparkles size={12} />
                     Profile Tools
                   </span>
                 </div>
                 <div>
-                  <h1 className="brand-page-title text-slate-900">Navigation Menu Builder</h1>
-                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+                  <h1 className="brand-page-title">Navigation Menu Builder</h1>
+                  <p className="menu-builder-page__subtitle">
                     Create sections, rearrange groups, assign routes, and publish a live navigation experience without changing the existing sidebar architecture.
                   </p>
                 </div>
               </div>
 
-              <div className="flex flex-col items-start gap-4 lg:items-end">
-                <MenuStatusBadge status={draftConfig.status} isDirty={state.isDirty} />
-                <div className="flex flex-wrap items-center gap-3">
+              <div className="menu-builder-page__hero-side">
+                <div className="menu-builder-page__top-actions">
+                  <MenuStatusBadge status={draftConfig.status} isDirty={state.isDirty} />
                   <button
                     onClick={handleReset2}
                     className="btn btn--outline btn--icon-left"
@@ -424,39 +430,39 @@ const MenuBuilderPage: React.FC<MenuBuilderPageProps> = ({ onBack }) => {
                     type="button"
                   >
                     <Send size={15} />
-                    Publish Navigation
+                    Publish
                   </button>
                 </div>
-                <div className="grid grid-cols-2 gap-3 text-sm text-slate-600 sm:grid-cols-4">
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                    <div className="text-xs uppercase tracking-wide text-slate-400">Sections</div>
-                    <div className="mt-1 text-lg font-semibold text-slate-900">{draftConfig.sections.length}</div>
+                <div className="menu-builder-page__metrics">
+                  <div className="menu-builder-page__metric">
+                    <div>Sections</div>
+                    <strong>{draftConfig.sections.length}</strong>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                    <div className="text-xs uppercase tracking-wide text-slate-400">Groups</div>
-                    <div className="mt-1 text-lg font-semibold text-slate-900">
+                  <div className="menu-builder-page__metric">
+                    <div>Groups</div>
+                    <strong>
                       {draftConfig.sections.reduce((count, section) => count + section.level2Groups.length, 0)}
-                    </div>
+                    </strong>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                    <div className="text-xs uppercase tracking-wide text-slate-400">Items</div>
-                    <div className="mt-1 text-lg font-semibold text-slate-900">
+                  <div className="menu-builder-page__metric">
+                    <div>Items</div>
+                    <strong>
                       {draftConfig.sections.reduce(
                         (count, section) => count + section.level2Groups.reduce((groupCount, level2) => groupCount + level2.items.length, 0),
                         0
                       )}
-                    </div>
+                    </strong>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                    <div className="text-xs uppercase tracking-wide text-slate-400">Status</div>
-                    <div className="mt-1 text-lg font-semibold text-slate-900">{state.validationResult?.isValid ? 'Ready' : 'Review'}</div>
+                  <div className="menu-builder-page__metric">
+                    <div>Status</div>
+                    <strong>{state.validationResult?.isValid ? 'Ready' : 'Review'}</strong>
                   </div>
                 </div>
               </div>
             </div>
 
             {successMessage && (
-              <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+              <div className="menu-builder-page__message">
                 {successMessage}
               </div>
             )}
@@ -466,27 +472,25 @@ const MenuBuilderPage: React.FC<MenuBuilderPageProps> = ({ onBack }) => {
             <MenuValidationSummary validation={state.validationResult} onDismiss={() => validateConfig()} />
           )}
 
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.6fr)_380px]">
-            <section className="space-y-6">
-              <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
-                <div className="flex flex-col gap-4 border-b border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="menu-builder-page__layout">
+            <section className="menu-builder-page__main">
+              <div className="menu-builder-page__panel">
+                <div className="menu-builder-page__panel-head">
                   <div>
-                    <h2 className="text-lg font-semibold text-slate-900">Structure Editor</h2>
-                    <p className="mt-1 text-sm text-slate-500">Drag sections, groups, and items to reorder the navigation hierarchy.</p>
+                    <h2>Structure Editor</h2>
+                    <p>Drag sections, groups, and items to reorder the navigation hierarchy.</p>
                   </div>
                   <button
                     onClick={handleAddSection}
-                    className={cn(
-                      'inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium',
-                      'bg-blue-600 text-white hover:bg-blue-700 transition-colors'
-                    )}
+                    className="btn btn--primary btn--icon-left"
+                    type="button"
                   >
                     <Plus size={16} />
                     Add Section
                   </button>
                 </div>
 
-                <div className="p-5">
+                <div className="menu-builder-page__tree-wrap">
                   <MenuTree
                     sections={draftConfig.sections}
                     selectedSectionId={state.selectedSectionId}
@@ -520,67 +524,10 @@ const MenuBuilderPage: React.FC<MenuBuilderPageProps> = ({ onBack }) => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-2">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                    <MoveRight size={16} />
-                    Selected node details
-                  </div>
-                  <div className="mt-4 text-sm text-slate-600">
-                    {selectedItem ? (
-                      <div className="space-y-2">
-                        <div className="text-base font-semibold text-slate-900">{selectedItem.label}</div>
-                        <div>Key: {selectedItem.key}</div>
-                        <div>Route: {selectedItem.route || getDefaultRouteForKey(selectedItem.key) || 'Uses existing sidebar action'}</div>
-                        <div>External URL: {selectedItem.externalUrl || 'None'}</div>
-                        <div>Visibility: {selectedItem.isVisible === false ? 'Hidden' : 'Visible'}</div>
-                      </div>
-                    ) : selectedLevel2 ? (
-                      <div className="space-y-2">
-                        <div className="text-base font-semibold text-slate-900">{selectedLevel2.label}</div>
-                        <div>Items: {selectedLevel2.items.length}</div>
-                        <div>Flatten group: {selectedLevel2.hideLabel ? 'Yes' : 'No'}</div>
-                        <div>Visibility: {selectedLevel2.isVisible === false ? 'Hidden' : 'Visible'}</div>
-                      </div>
-                    ) : selectedSection ? (
-                      <div className="space-y-2">
-                        <div className="text-base font-semibold text-slate-900">{selectedSection.label}</div>
-                        <div>Groups: {selectedSection.level2Groups.length}</div>
-                        <div>Visibility: {selectedSection.isVisible === false ? 'Hidden' : 'Visible'}</div>
-                      </div>
-                    ) : (
-                      <p>Select a section, group, or menu item to inspect and edit its properties.</p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <h3 className="text-sm font-semibold text-slate-900">Publish checklist</h3>
-                  <ul className="mt-4 space-y-3 text-sm text-slate-600">
-                    <li>Every visible item needs a working route or external URL.</li>
-                    <li>Use existing navigation presets in create or edit to retain current labels, routes, and icons.</li>
-                    <li>Use unique keys so the current routing callbacks stay predictable.</li>
-                    <li>Delete only empty groups and sections to avoid accidental bulk removal.</li>
-                    <li>Publish updates the live sidebar immediately through the shared hook.</li>
-                  </ul>
-                </div>
-              </div>
             </section>
 
-            <aside className="space-y-6 xl:sticky xl:top-24 xl:self-start">
+            <aside className="menu-builder-page__preview">
               <MenuPreview sections={draftConfig.sections} />
-
-              <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                <h3 className="text-sm font-semibold text-slate-900">Existing navigation coverage</h3>
-                <div className="mt-4 space-y-3 text-sm text-slate-600">
-                  <p>
-                    The builder starts from your current published navigation. When adding or editing items, use the existing navigation preset list to preserve routed pages already used by the sidebar.
-                  </p>
-                  <p>
-                    This keeps Menu Builder aligned with Theme Builder and Form Layout: primary actions stay at the top, and editing panels focus on controlled configuration instead of freeform recreation.
-                  </p>
-                </div>
-              </div>
             </aside>
           </div>
         </div>

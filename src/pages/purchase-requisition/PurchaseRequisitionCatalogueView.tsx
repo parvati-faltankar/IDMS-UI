@@ -1,7 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Ban, ChevronDown, ChevronUp, Eye, FileText, Filter, LayoutGrid, List, MoreVertical, PencilLine, Plus, Search } from 'lucide-react';
+import { Ban, Check, ChevronDown, ChevronUp, Circle, Columns3, Eye, FileText, Filter, LayoutGrid, List, MoreVertical, PencilLine, Plus, Search, X } from 'lucide-react';
 import AppShell from '../../components/common/AppShell';
 import CatalogueInsightCards from '../../components/common/CatalogueInsightCards';
+import CatalogueFieldDisplaySettings from '../../components/common/CatalogueFieldDisplaySettings';
+import type { CatalogueDisplayField } from '../../components/common/CatalogueFieldDisplaySettings';
+import CatalogueSectionLayoutSettings from '../../components/common/CatalogueSectionLayoutSettings';
+import type { CatalogueConfigurableSection, CatalogueSectionLayoutMode } from '../../components/common/CatalogueSectionLayoutSettings';
 import CatalogueViewConfigurator from '../../components/common/CatalogueViewConfigurator';
 import CatalogueViewSelector from '../../components/common/CatalogueViewSelector';
 import CommonDataGrid from '../../components/common/CommonDataGrid';
@@ -34,6 +38,14 @@ import { buildCountInsight, formatInsightCount, getInsightPercent } from '../../
 import { formatDate, formatDateTime } from '../../utils/dateFormat';
 import type { SortState } from '../../utils/sortState';
 import type { CatalogueViewDefinition, EditableCatalogueViewDefinition } from '../../utils/catalogueViews';
+import type { CatalogueViewModeId } from '../../utils/catalogueViewModes';
+import {
+  catalogueViewModeRegistry,
+  getCatalogueViewModeConfig,
+  loadCatalogueDisplayViewMode,
+  resolveCatalogueViewMode,
+  saveCatalogueDisplayViewMode,
+} from '../../utils/catalogueViewModes';
 import { useBusinessSettings } from '../../utils/businessSettings';
 import {
   createCustomCatalogueView,
@@ -124,6 +136,8 @@ const purchaseRequisitionSortOptions = [
   { value: 'validTillDate', label: 'Valid till date' },
   { value: 'status', label: 'Status' },
 ];
+
+const purchaseRequisitionCatalogueDocumentType = 'purchase-requisition';
 
 const FilterDrawer: React.FC<{
   isOpen: boolean;
@@ -368,6 +382,481 @@ const RequisitionCard: React.FC<{
   );
 };
 
+const catalogueViewModeIconMap: Record<CatalogueViewModeId, React.ElementType> = {
+  list: List,
+  grid: LayoutGrid,
+  split: Columns3,
+};
+
+type PurchaseRequisitionSplitFieldId =
+  | 'number'
+  | 'supplierName'
+  | 'priority'
+  | 'requirementDate'
+  | 'status'
+  | 'requesterName'
+  | 'department'
+  | 'branch'
+  | 'lineCount'
+  | 'validTillDate'
+  | 'spendCategory'
+  | 'budgetCode';
+
+const defaultPurchaseRequisitionSplitFieldIds: PurchaseRequisitionSplitFieldId[] = [
+  'number',
+  'supplierName',
+  'priority',
+  'requirementDate',
+];
+
+const purchaseRequisitionPreviewSections: CatalogueConfigurableSection[] = [
+  {
+    id: 'document-information',
+    title: 'Document information',
+    description: 'Status, priority, document date, currency, and lines.',
+  },
+  {
+    id: 'party-details',
+    title: 'Party details',
+    description: 'Supplier and requester information.',
+  },
+  {
+    id: 'requisition-timeline',
+    title: 'Requisition timeline',
+    description: 'Progress based on requisition status.',
+  },
+  {
+    id: 'reference-fulfilment',
+    title: 'Reference and fulfilment',
+    description: 'Department, branch, dates, budget, and contract details.',
+  },
+  {
+    id: 'notes',
+    title: 'Notes',
+    description: 'Document notes and remarks.',
+  },
+  {
+    id: 'product-lines',
+    title: 'Product lines',
+    description: 'Line item table.',
+  },
+];
+
+const defaultPurchaseRequisitionPreviewSectionOrder = purchaseRequisitionPreviewSections.map((section) => section.id);
+
+const purchaseRequisitionSplitFields: CatalogueDisplayField<PurchaseRequisitionDocument>[] = [
+  {
+    id: 'number',
+    label: 'Document no.',
+    description: 'Primary requisition number.',
+    render: (item) => item.number,
+  },
+  {
+    id: 'supplierName',
+    label: 'Supplier',
+    description: 'Supplier name.',
+    render: (item) => item.supplierName,
+  },
+  {
+    id: 'priority',
+    label: 'Priority',
+    description: 'Priority value.',
+    render: (item) => item.priority,
+  },
+  {
+    id: 'requirementDate',
+    label: 'Requirement date',
+    description: 'Needed-by date.',
+    render: (item) => formatDate(item.requirementDate),
+  },
+  {
+    id: 'status',
+    label: 'Status',
+    description: 'Document status.',
+    render: (item) => item.status,
+  },
+  {
+    id: 'requesterName',
+    label: 'Requester',
+    description: 'Person who raised the PR.',
+    render: (item) => item.requesterName,
+  },
+  {
+    id: 'department',
+    label: 'Department',
+    description: 'Requesting department.',
+    render: (item) => item.department,
+  },
+  {
+    id: 'branch',
+    label: 'Branch',
+    description: 'Branch or location.',
+    render: (item) => item.branch,
+  },
+  {
+    id: 'lineCount',
+    label: 'Line count',
+    description: 'Number of product lines.',
+    render: (item) => `${item.lineCount} lines`,
+  },
+  {
+    id: 'validTillDate',
+    label: 'Valid till',
+    description: 'Validity date.',
+    render: (item) => formatDate(item.validTillDate),
+  },
+  {
+    id: 'spendCategory',
+    label: 'Spend category',
+    description: 'Spend grouping.',
+    render: (item) => item.spendCategory,
+  },
+  {
+    id: 'budgetCode',
+    label: 'Budget code',
+    description: 'Budget reference.',
+    render: (item) => item.budgetCode,
+  },
+];
+
+function getRequisitionTimelineSteps(item: PurchaseRequisitionDocument) {
+  const documentDateTime = formatDateTime(item.documentDateTime);
+  const requirementDate = formatDate(item.requirementDate);
+  const validTillDate = formatDate(item.validTillDate);
+  const isCancelled = item.status === 'Cancelled';
+  const isRejected = item.status === 'Rejected';
+  const terminalState = isCancelled ? 'cancelled' : isRejected ? 'rejected' : 'ordered';
+  const steps = [
+    {
+      key: 'Draft',
+      label: 'Created',
+      dateLabel: documentDateTime.dateLabel,
+      timeLabel: documentDateTime.timeLabel,
+      tone: 'success',
+    },
+    {
+      key: 'Pending Approval',
+      label: 'Approval review',
+      dateLabel: item.status === 'Draft' ? 'Awaiting submission' : documentDateTime.dateLabel,
+      timeLabel: item.status === 'Draft' ? '-' : documentDateTime.timeLabel,
+      tone: 'approval',
+    },
+    {
+      key: 'Approved',
+      label: 'Approved',
+      dateLabel: item.status === 'Approved' ? requirementDate : 'Pending approval',
+      timeLabel: item.status === 'Approved' ? 'Ready for ordering' : '-',
+      tone: 'success',
+    },
+    {
+      key: terminalState,
+      label: isCancelled ? 'Cancelled' : isRejected ? 'Rejected' : 'Ordering',
+      dateLabel: isCancelled || isRejected ? validTillDate : 'Next workflow step',
+      timeLabel: isCancelled ? 'Closed' : isRejected ? 'Approval stopped' : 'Pending conversion',
+      tone: isCancelled || isRejected ? 'danger' : 'pending',
+    },
+  ];
+  const currentKey = isCancelled || isRejected ? terminalState : item.status;
+  const currentIndex = steps.findIndex((step) => step.key === currentKey);
+  const completedIndex =
+    currentIndex >= 0
+      ? currentIndex
+      : item.status === 'Approved'
+        ? 2
+        : 0;
+
+  return steps.map((step, index) => ({
+    ...step,
+    state: index < completedIndex ? 'complete' : index === completedIndex ? 'current' : 'pending',
+  }));
+}
+
+const CatalogueSplitView: React.FC<{
+  rows: PurchaseRequisitionDocument[];
+  canEdit: boolean;
+  canCancel: boolean;
+  onView: (documentId: string) => void;
+  onEdit: (documentId: string) => void;
+  onCancel: (documentId: string) => void;
+}> = ({ rows, canEdit, canCancel, onView, onEdit, onCancel }) => {
+  const [selectedId, setSelectedId] = useState<string | null>(rows[0]?.id ?? null);
+  const [selectedFieldIds, setSelectedFieldIds] = useState<string[]>(defaultPurchaseRequisitionSplitFieldIds);
+  const [previewSectionOrder, setPreviewSectionOrder] = useState<string[]>(defaultPurchaseRequisitionPreviewSectionOrder);
+  const [previewLayoutMode, setPreviewLayoutMode] = useState<CatalogueSectionLayoutMode>('single');
+  const selectedItem = useMemo(
+    () => rows.find((item) => item.id === selectedId) ?? rows[0] ?? null,
+    [rows, selectedId]
+  );
+  const selectedFields = useMemo(
+    () => purchaseRequisitionSplitFields.filter((field) => selectedFieldIds.includes(field.id)),
+    [selectedFieldIds]
+  );
+  const previewSectionMap = useMemo(() => {
+    if (!selectedItem) {
+      return new Map<string, { id: string; title: string; isWide?: boolean; content: React.ReactNode }>();
+    }
+
+    return new Map<string, { id: string; title: string; isWide?: boolean; content: React.ReactNode }>([
+              [
+                'document-information',
+                {
+                  id: 'document-information',
+                  title: 'Document information',
+                  content: (
+                    <div className="catalogue-split-view__compact-grid">
+                      <div><span>Priority</span><strong>{selectedItem.priority}</strong></div>
+                      <div><span>Document date</span><strong>{formatDateTime(selectedItem.documentDateTime).dateLabel}</strong></div>
+                      <div><span>Document time</span><strong>{formatDateTime(selectedItem.documentDateTime).timeLabel}</strong></div>
+              <div><span>Currency</span><strong>{selectedItem.currency}</strong></div>
+              <div><span>Lines</span><strong>{selectedItem.lineCount}</strong></div>
+            </div>
+                  ),
+                },
+              ],
+      [
+        'requisition-timeline',
+        {
+          id: 'requisition-timeline',
+          title: 'Requisition timeline',
+          isWide: true,
+          content: (
+            <div className="catalogue-split-view__timeline" aria-label={`Requisition timeline for ${selectedItem.number}`}>
+              {getRequisitionTimelineSteps(selectedItem).map((step) => (
+                <div
+                  key={step.key}
+                  className={cn(
+                    'catalogue-split-view__timeline-step',
+                    `catalogue-split-view__timeline-step--${step.tone}`,
+                    step.state === 'complete' && 'catalogue-split-view__timeline-step--complete',
+                    step.state === 'current' && 'catalogue-split-view__timeline-step--current'
+                  )}
+                >
+                  <span className="catalogue-split-view__timeline-marker">
+                    {step.tone === 'danger' && step.state === 'current' ? (
+                      <X size={14} />
+                    ) : step.state === 'complete' || step.state === 'current' ? (
+                      <Check size={14} />
+                    ) : (
+                      <Circle size={9} />
+                    )}
+                  </span>
+                  <strong>{step.label}</strong>
+                  <small>{step.dateLabel} {step.timeLabel}</small>
+                </div>
+              ))}
+            </div>
+          ),
+        },
+      ],
+      [
+        'party-details',
+        {
+          id: 'party-details',
+          title: 'Party details',
+          content: (
+            <div className="catalogue-split-view__compact-grid">
+              <div><span>Supplier</span><strong>{selectedItem.supplierName}</strong></div>
+              <div><span>Supplier contact</span><strong>{selectedItem.supplierContact}</strong></div>
+              <div><span>Requester</span><strong>{selectedItem.requesterName}</strong></div>
+              <div><span>Requester email</span><strong>{selectedItem.requesterEmail}</strong></div>
+            </div>
+          ),
+        },
+      ],
+      [
+        'reference-fulfilment',
+        {
+          id: 'reference-fulfilment',
+          title: 'Reference and fulfilment',
+          content: (
+            <div className="catalogue-split-view__compact-grid">
+              <div><span>Department</span><strong>{selectedItem.department}</strong></div>
+              <div><span>Branch</span><strong>{selectedItem.branch}</strong></div>
+              <div><span>Legal entity</span><strong>{selectedItem.legalEntity}</strong></div>
+              <div><span>Cost center</span><strong>{selectedItem.costCenter}</strong></div>
+              <div><span>Requirement date</span><strong>{formatDate(selectedItem.requirementDate)}</strong></div>
+              <div><span>Valid till</span><strong>{formatDate(selectedItem.validTillDate)}</strong></div>
+              <div><span>Spend category</span><strong>{selectedItem.spendCategory}</strong></div>
+              <div><span>Contract</span><strong>{selectedItem.contractReference || '-'}</strong></div>
+              <div><span>Budget</span><strong>{selectedItem.budgetCode || '-'}</strong></div>
+            </div>
+          ),
+        },
+      ],
+      [
+        'notes',
+        {
+          id: 'notes',
+          title: 'Notes',
+          content: <p>{selectedItem.notes || 'No notes added.'}</p>,
+        },
+      ],
+      [
+        'product-lines',
+        {
+          id: 'product-lines',
+          title: 'Product lines',
+          isWide: true,
+          content: (
+            <div className="catalogue-split-view__line-table-wrap">
+              <table className="catalogue-split-view__line-table">
+                <thead>
+                  <tr>
+                    <th>Code</th>
+                    <th>Product</th>
+                    <th>UOM</th>
+                    <th>Priority</th>
+                    <th>Required</th>
+                    <th className="catalogue-split-view__number-cell">Requested</th>
+                    <th className="catalogue-split-view__number-cell">Ordered</th>
+                    <th className="catalogue-split-view__number-cell">Pending</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedItem.productLines.map((line) => (
+                    <tr key={`${line.productCode}-${line.productName}`}>
+                      <td>{line.productCode}</td>
+                      <td>
+                        <strong>{line.productName}</strong>
+                        <span>{line.description}</span>
+                      </td>
+                      <td>{line.uom}</td>
+                      <td>{line.priority}</td>
+                      <td>{formatDate(line.requirementDate)}</td>
+                      <td className="catalogue-split-view__number-cell">{line.requestedQty}</td>
+                      <td className="catalogue-split-view__number-cell">{line.orderedQty}</td>
+                      <td className="catalogue-split-view__number-cell">{line.pendingQty}</td>
+                      <td>{line.status}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ),
+        },
+      ],
+    ]);
+  }, [selectedItem]);
+  const orderedPreviewSections = useMemo(
+    () =>
+      previewSectionOrder
+        .map((sectionId) => previewSectionMap.get(sectionId))
+        .filter((section): section is { id: string; title: string; isWide?: boolean; content: React.ReactNode } => Boolean(section)),
+    [previewSectionMap, previewSectionOrder]
+  );
+
+  return (
+    <div className="catalogue-split-view">
+      <div className="catalogue-split-view__list" aria-label="Purchase requisition compact list">
+        <div className="catalogue-split-view__list-header">
+          <span>{selectedFieldIds.length} fields</span>
+          <CatalogueFieldDisplaySettings
+            title="Compact List Fields"
+            fields={purchaseRequisitionSplitFields}
+            selectedFieldIds={selectedFieldIds}
+            maxFields={8}
+            onChange={setSelectedFieldIds}
+          />
+        </div>
+
+        {rows.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => setSelectedId(item.id)}
+            className={cn('catalogue-split-view__item', selectedItem?.id === item.id && 'catalogue-split-view__item--active')}
+            aria-pressed={selectedItem?.id === item.id}
+          >
+            <span className="catalogue-split-view__field-grid">
+              {selectedFields.map((field) => (
+                <span key={field.id} className="catalogue-split-view__field-row">
+                  <span className="catalogue-split-view__field-label">{field.label}</span>
+                  <span className={cn('catalogue-split-view__field-value', field.id === 'number' && 'catalogue-split-view__field-value--title')}>
+                    {field.render(item)}
+                  </span>
+                </span>
+              ))}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <div className="catalogue-split-view__preview" aria-live="polite">
+        {selectedItem ? (
+          <>
+            <div className="catalogue-split-view__preview-header">
+              <div>
+                <button type="button" onClick={() => onView(selectedItem.id)} className="catalogue-split-view__number">
+                  {selectedItem.number}
+                </button>
+                <h2>{selectedItem.title}</h2>
+                <p>{selectedItem.supplierName} - {selectedItem.department}</p>
+              </div>
+              <div className="catalogue-split-view__preview-actions" aria-label={`${selectedItem.number} actions`}>
+                <CatalogueSectionLayoutSettings
+                  title="Detail Section Layout"
+                  sections={purchaseRequisitionPreviewSections}
+                  sectionOrder={previewSectionOrder}
+                  layoutMode={previewLayoutMode}
+                  onSectionOrderChange={setPreviewSectionOrder}
+                  onLayoutModeChange={setPreviewLayoutMode}
+                />
+                <button
+                  type="button"
+                  onClick={() => onEdit(selectedItem.id)}
+                  className="catalogue-split-view__icon-action"
+                  disabled={!canEdit}
+                  aria-label={`Edit ${selectedItem.number}`}
+                  title={canEdit ? 'Edit' : 'Edit is not available'}
+                >
+                  <PencilLine size={15} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onCancel(selectedItem.id)}
+                  className="catalogue-split-view__icon-action catalogue-split-view__icon-action--danger"
+                  disabled={!canCancel || selectedItem.status === 'Cancelled'}
+                  aria-label={`Cancel ${selectedItem.number}`}
+                  title={canCancel && selectedItem.status !== 'Cancelled' ? 'Cancel' : 'Cancel is not available'}
+                >
+                  <Ban size={15} />
+                </button>
+              </div>
+            </div>
+
+            <div
+              className={cn(
+                'catalogue-split-view__configured-sections',
+                previewLayoutMode === 'two-column' && 'catalogue-split-view__configured-sections--two'
+              )}
+            >
+              {orderedPreviewSections.map((section) => (
+                <section
+                  key={section.id}
+                  className={cn(
+                    'catalogue-split-view__compact-section',
+                    section.isWide && 'catalogue-split-view__compact-section--wide'
+                  )}
+                >
+                  <h3>{section.title}</h3>
+                  {section.content}
+                </section>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="catalogue-split-view__empty">
+            <FileText size={28} />
+            <strong>No document selected</strong>
+            <span>Select a requisition to preview it here.</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueViewProps> = ({
   filters,
   onFiltersChange,
@@ -382,7 +871,12 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
   const [previewDocumentId, setPreviewDocumentId] = useState<string | null>(null);
   const [draftFilters, setDraftFilters] = useState<CatalogueFilters>(filters);
   const [tableSearch, setTableSearch] = useState('');
-  const [catalogueViewMode, setCatalogueViewMode] = useState<'list' | 'grid'>('list');
+  const [catalogueViewMode, setCatalogueViewMode] = useState<CatalogueViewModeId>(() =>
+    resolveCatalogueViewMode(
+      purchaseRequisitionCatalogueDocumentType,
+      loadCatalogueDisplayViewMode(purchaseRequisitionCatalogueDocumentType)
+    )
+  );
   const [dateRangeError, setDateRangeError] = useState('');
   const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null);
   const [menuAnchorRect, setMenuAnchorRect] = useState<DOMRect | null>(null);
@@ -417,6 +911,15 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
   const businessSettings = useBusinessSettings();
   const actionSettings = businessSettings.actions.purchaseRequisition;
   const actionMenuRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const viewModeConfig = useMemo(
+    () => getCatalogueViewModeConfig(purchaseRequisitionCatalogueDocumentType),
+    []
+  );
+  const availableCatalogueViewModes = useMemo(
+    () => viewModeConfig.enabledViews.map((viewMode) => catalogueViewModeRegistry[viewMode]),
+    [viewModeConfig.enabledViews]
+  );
+  const activeCatalogueViewMode = resolveCatalogueViewMode(purchaseRequisitionCatalogueDocumentType, catalogueViewMode);
 
   const systemViews = useMemo(
     () => getPurchaseRequisitionSystemViews(currentUserName),
@@ -782,6 +1285,12 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
     setSortState(direction ? { key, direction } : null);
   };
 
+  const handleCatalogueViewModeChange = (viewMode: CatalogueViewModeId) => {
+    const nextViewMode = resolveCatalogueViewMode(purchaseRequisitionCatalogueDocumentType, viewMode);
+    setCatalogueViewMode(nextViewMode);
+    saveCatalogueDisplayViewMode(purchaseRequisitionCatalogueDocumentType, nextViewMode);
+  };
+
   const handleSelectCatalogueView = (viewId: string) => {
     const nextView = availableViews.find((view) => view.id === viewId);
     if (!nextView) {
@@ -1104,7 +1613,7 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
   };
 
   const handleTakeTour = () => {
-    setCatalogueViewMode('list');
+    handleCatalogueViewModeChange('list');
     setIsTourInviteVisible(false);
     setIsTourActive(true);
     setTourStepIndex(0);
@@ -1161,22 +1670,26 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
                 </div>
 
                 <div className="catalogue-view-toggle" role="group" aria-label="Catalogue view mode">
-                  <button
-                    type="button"
-                    onClick={() => setCatalogueViewMode('list')}
-                    className={cn('catalogue-view-toggle__button', catalogueViewMode === 'list' && 'catalogue-view-toggle__button--active')}
-                    aria-pressed={catalogueViewMode === 'list'}
-                  >
-                    <List size={16} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCatalogueViewMode('grid')}
-                    className={cn('catalogue-view-toggle__button', catalogueViewMode === 'grid' && 'catalogue-view-toggle__button--active')}
-                    aria-pressed={catalogueViewMode === 'grid'}
-                  >
-                    <LayoutGrid size={16} />
-                  </button>
+                  {availableCatalogueViewModes.map((viewMode) => {
+                    const ViewModeIcon = catalogueViewModeIconMap[viewMode.id];
+
+                    return (
+                      <button
+                        key={viewMode.id}
+                        type="button"
+                        onClick={() => handleCatalogueViewModeChange(viewMode.id)}
+                        className={cn(
+                          'catalogue-view-toggle__button',
+                          activeCatalogueViewMode === viewMode.id && 'catalogue-view-toggle__button--active'
+                        )}
+                        aria-label={viewMode.description}
+                        aria-pressed={activeCatalogueViewMode === viewMode.id}
+                        title={viewMode.label}
+                      >
+                        <ViewModeIcon size={16} />
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -1259,7 +1772,7 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
               </div>
             )}
 
-            {loadState === 'ready' && sortedRows.length > 0 && catalogueViewMode === 'list' && (
+            {loadState === 'ready' && sortedRows.length > 0 && activeCatalogueViewMode === 'list' && (
               <div className="catalogue-table-scroll" data-tour="pr-catalogue-table">
                 <CommonDataGrid
                   gridId="purchase-requisition-catalogue"
@@ -1273,7 +1786,7 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
               </div>
             )}
 
-            {loadState === 'ready' && sortedRows.length > 0 && catalogueViewMode === 'grid' && (
+            {loadState === 'ready' && sortedRows.length > 0 && activeCatalogueViewMode === 'grid' && (
               <div className="catalogue-card-grid">
                 {sortedRows.map((item) => (
                   <RequisitionCard
@@ -1295,6 +1808,18 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
                 ))}
               </div>
             )}
+
+            {loadState === 'ready' && sortedRows.length > 0 && activeCatalogueViewMode === 'split' && (
+              <CatalogueSplitView
+                rows={sortedRows}
+                canEdit={actionSettings.allowEdit}
+                canCancel={actionSettings.allowCancel}
+                onView={handleViewDocument}
+                onEdit={handleEditDocument}
+                onCancel={handleOpenCancelDialog}
+              />
+            )}
+
           </div>
         </section>
       </div>

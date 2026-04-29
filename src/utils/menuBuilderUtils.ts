@@ -279,6 +279,15 @@ export function moveLevel2Group(
   }
 
   const sourceSection = findParentSection(config, level2Id);
+  if (sourceSection?.id === toSectionId) {
+    const nextOrder = sourceSection.level2Groups
+      .map((group) => group.id)
+      .filter((groupId) => groupId !== level2Id);
+    const clampedOrder = Math.max(0, Math.min(newOrder, nextOrder.length));
+    nextOrder.splice(clampedOrder, 0, level2Id);
+    return reorderLevel2Groups(config, toSectionId, nextOrder);
+  }
+
   const nextSections = config.sections.map((section) => {
     if (section.id === sourceSection?.id) {
       return {

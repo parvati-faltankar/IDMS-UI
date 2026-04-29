@@ -118,16 +118,25 @@ function getBuiltInThemeList(): ListedTheme[] {
   }));
 }
 
-function createDraftFromListedTheme(theme: ListedTheme) {
+function createDraftFromListedTheme(theme: ListedTheme, customThemes: ThemeBuilderTheme[]) {
   const now = new Date().toISOString();
+  const existingOverride = theme.source === 'built-in' ? customThemes.find((item) => item.key === theme.key) : null;
+
+  if (existingOverride) {
+    return {
+      ...existingOverride,
+      updatedAt: now,
+    };
+  }
+
   return {
     ...theme,
-    id: theme.source === 'built-in' ? `theme-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` : theme.id,
-    key: theme.source === 'built-in' ? `custom-${theme.key}` : theme.key,
-    name: theme.source === 'built-in' ? `${theme.name} Custom` : theme.name,
+    id: theme.source === 'built-in' ? `built-in-override-${theme.key}` : theme.id,
+    key: theme.key,
+    name: theme.name,
     description:
       theme.source === 'built-in'
-        ? `Custom editable version based on the ${theme.name} built-in theme.`
+        ? `Editable configuration for the ${theme.name} header theme.`
         : theme.description,
     status: theme.source === 'built-in' ? 'draft' : theme.status,
     createdAt: theme.source === 'built-in' ? now : theme.createdAt,
@@ -397,7 +406,12 @@ function validateTheme(theme: ThemeBuilderTheme, allThemes: ListedTheme[], requi
     errors.name = 'Theme name is required.';
   }
 
-  const duplicate = allThemes.some((item) => item.id !== theme.id && item.name.trim().toLowerCase() === theme.name.trim().toLowerCase());
+  const duplicate = allThemes.some(
+    (item) =>
+      item.id !== theme.id &&
+      item.key !== theme.key &&
+      item.name.trim().toLowerCase() === theme.name.trim().toLowerCase()
+  );
   if (duplicate) {
     errors.name = 'Theme name must be unique.';
   }
@@ -828,7 +842,15 @@ const ThemeBuilder: React.FC<ThemeBuilderProps> = () => {
   const [isPreviewExpanded, setIsPreviewExpanded] = useState(false);
   const [pendingDeactivateTheme, setPendingDeactivateTheme] = useState<ThemeBuilderTheme | null>(null);
   const listedThemes = useMemo<ListedTheme[]>(
-    () => [...getBuiltInThemeList(), ...customThemes.map((theme) => ({ ...theme, source: 'custom' as const }))],
+    () => {
+      const builtInKeys = new Set(Object.keys(themeRegistry));
+      return [
+        ...getBuiltInThemeList(),
+        ...customThemes
+          .filter((theme) => !builtInKeys.has(theme.key))
+          .map((theme) => ({ ...theme, source: 'custom' as const })),
+      ];
+    },
     [customThemes]
   );
 
@@ -945,7 +967,7 @@ const ThemeBuilder: React.FC<ThemeBuilderProps> = () => {
         onSortChange={setSortKey}
         onNew={handleNew}
         onEdit={(theme) => {
-          setDraft(createDraftFromListedTheme(theme));
+          setDraft(createDraftFromListedTheme(theme, customThemes));
           setFormHeading(theme.source === 'built-in' ? 'Customize Theme' : 'Edit Theme');
           setMessage('');
           setMode('form');

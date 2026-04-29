@@ -56,15 +56,19 @@ const MenuTree: React.FC<MenuTreeProps> = ({
   onMoveNode,
 }) => {
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [dragPayload, setDragPayload] = useState<DragDropPayload | null>(null);
 
   const startDrag = (event: React.DragEvent, payload: DragDropPayload) => {
+    setDragPayload(payload);
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData('application/json', JSON.stringify(payload));
+    event.dataTransfer.setData('text/plain', JSON.stringify(payload));
   };
 
   const handleDragOver = (event: React.DragEvent, targetId: string) => {
     event.preventDefault();
     event.stopPropagation();
+    event.dataTransfer.dropEffect = 'move';
     setDragOverId(targetId);
   };
 
@@ -72,13 +76,35 @@ const MenuTree: React.FC<MenuTreeProps> = ({
     event.preventDefault();
     event.stopPropagation();
     setDragOverId(null);
+    setDragPayload(null);
 
     try {
-      const payload = JSON.parse(event.dataTransfer.getData('application/json')) as DragDropPayload;
+      const rawPayload = event.dataTransfer.getData('application/json') || event.dataTransfer.getData('text/plain');
+      const payload = rawPayload ? (JSON.parse(rawPayload) as DragDropPayload) : dragPayload;
+      if (!payload) {
+        return;
+      }
       onMoveNode(payload, target);
     } catch {
-      // Ignore malformed drag payloads.
+      if (dragPayload) {
+        onMoveNode(dragPayload, target);
+      }
     }
+  };
+
+  const handleDragEnd = () => {
+    setDragOverId(null);
+    setDragPayload(null);
+  };
+
+  const handleItemDrop = (event: React.DragEvent, item: MenuItemData, itemIndex: number) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const dropAfter = event.clientY > bounds.top + bounds.height / 2;
+    handleDrop(event, {
+      type: 'item',
+      targetId: item.id,
+      position: itemIndex + (dropAfter ? 1 : 0),
+    });
   };
 
   const canRemoveSection = (section: MenuSectionData) => section.level2Groups.length === 0;
@@ -96,10 +122,11 @@ const MenuTree: React.FC<MenuTreeProps> = ({
           sourceOrder: itemIndex,
         })
       }
+      onDragEnd={handleDragEnd}
       onDragOver={(event) => handleDragOver(event, item.id)}
-      onDrop={(event) => handleDrop(event, { type: 'item', targetId: item.id, position: itemIndex })}
+      onDrop={(event) => handleItemDrop(event, item, itemIndex)}
       className={cn(
-        'flex items-center gap-2 rounded border border-transparent p-2 transition-colors',
+        'menu-tree__item flex items-center gap-2 rounded border border-transparent p-2 transition-colors',
         'cursor-move hover:bg-white',
         selectedItemId === item.id && 'bg-blue-100 border-blue-200',
         dragOverId === item.id && 'border-blue-300 bg-blue-50',
@@ -170,6 +197,7 @@ const MenuTree: React.FC<MenuTreeProps> = ({
                   sourceOrder: section.order,
                 })
               }
+              onDragEnd={handleDragEnd}
             >
               <GripVertical size={16} className="text-gray-400 flex-shrink-0" />
               <button
@@ -224,9 +252,29 @@ const MenuTree: React.FC<MenuTreeProps> = ({
             {section.isExpanded && (
               <div className="space-y-1 p-3 bg-gray-50">
                 {section.level2Groups.length === 0 ? (
-                  <p className="text-xs text-gray-500 italic">No groups. Click + to add one.</p>
+                  <div
+                    className={cn(
+                      'menu-tree__drop-zone',
+                      dragOverId === `${section.id}-empty` && 'menu-tree__drop-zone--active'
+                    )}
+                    onDragOver={(event) => handleDragOver(event, `${section.id}-empty`)}
+                    onDrop={(event) => handleDrop(event, { type: 'section', targetId: section.id, position: 0 })}
+                  >
+                    No groups. Drop a group here or click + to add one.
+                  </div>
                 ) : (
-                  section.level2Groups.map((level2) => (
+                  <>
+                  <div
+                    className={cn(
+                      'menu-tree__drop-zone',
+                      dragOverId === `${section.id}-section-drop` && 'menu-tree__drop-zone--active'
+                    )}
+                    onDragOver={(event) => handleDragOver(event, `${section.id}-section-drop`)}
+                    onDrop={(event) => handleDrop(event, { type: 'section', targetId: section.id, position: section.level2Groups.length })}
+                  >
+                    Drop item here to move into this section
+                  </div>
+                  {section.level2Groups.map((level2) => (
                     <div
                       key={level2.id}
                       className={cn('border rounded bg-white', dragOverId === level2.id && 'border-blue-300 ring-1 ring-blue-200')}
@@ -250,6 +298,7 @@ const MenuTree: React.FC<MenuTreeProps> = ({
                             sourceOrder: level2.order,
                           })
                         }
+                        onDragEnd={handleDragEnd}
                       >
                         <GripVertical size={14} className="text-gray-400 flex-shrink-0" />
                         <button
@@ -316,14 +365,32 @@ const MenuTree: React.FC<MenuTreeProps> = ({
                           onDrop={(event) => handleDrop(event, { type: 'level2', targetId: level2.id, position: level2.items.length })}
                         >
                           {level2.items.length === 0 ? (
-                            <p className="text-xs text-gray-500 italic p-2">No items. Click + to add one.</p>
+                            <div
+                              className={cn(
+                                'menu-tree__drop-zone',
+                                dragOverId === `${level2.id}-items` && 'menu-tree__drop-zone--active'
+                              )}
+                            >
+                              No items. Drop menu item here or click + to add one.
+                            </div>
                           ) : (
-                            level2.items.map((item, itemIndex) => renderItem(item, level2, itemIndex))
+                            <>
+                              {level2.items.map((item, itemIndex) => renderItem(item, level2, itemIndex))}
+                              <div
+                                className={cn(
+                                  'menu-tree__drop-zone menu-tree__drop-zone--compact',
+                                  dragOverId === `${level2.id}-items` && 'menu-tree__drop-zone--active'
+                                )}
+                              >
+                                Drop here to move to end
+                              </div>
+                            </>
                           )}
                         </div>
                       )}
                     </div>
-                  ))
+                  ))}
+                  </>
                 )}
               </div>
             )}

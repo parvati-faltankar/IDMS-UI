@@ -195,8 +195,8 @@ const MenuFormDialog: React.FC<MenuFormDialogProps> = ({
     <>
       <div className="fixed inset-0 bg-black/50 z-40" onClick={onCancel} />
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg shadow-lg max-w-md w-full">
-          <div className="flex items-center justify-between p-4 border-b">
+        <div className="menu-form-dialog bg-white rounded-lg shadow-lg max-w-md w-full">
+          <div className="menu-form-dialog__header flex items-center justify-between p-4 border-b">
             <h2 className="text-lg font-semibold">{title}</h2>
             <button
               onClick={onCancel}
@@ -207,7 +207,8 @@ const MenuFormDialog: React.FC<MenuFormDialogProps> = ({
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="p-4 space-y-4">
+          <form onSubmit={handleSubmit} className="menu-form-dialog__form">
+            <div className="menu-form-dialog__body p-4 space-y-4">
             {/* Label field */}
             <div>
               <label className="block text-sm font-medium mb-1">
@@ -426,9 +427,10 @@ const MenuFormDialog: React.FC<MenuFormDialogProps> = ({
               />
               Visible in navigation
             </label>
+            </div>
 
             {/* Actions */}
-            <div className="flex gap-2 justify-end pt-4">
+            <div className="menu-form-dialog__actions flex gap-2 justify-end">
               <button
                 type="button"
                 onClick={onCancel}
