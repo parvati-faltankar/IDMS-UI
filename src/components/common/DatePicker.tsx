@@ -267,9 +267,9 @@ export const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
         {isOpen && isInteractive && (
           <div className="date-picker__popover" role="dialog" aria-label="Choose date">
             <div className="date-picker__header">
-              <button type="button" className="date-picker__month-button" onClick={() => setViewDate(startOfMonth(today))}>
+              <div className="date-picker__month-label" aria-live="polite">
                 {monthFormatter.format(viewDate)}
-              </button>
+              </div>
               <div className="date-picker__nav">
                 <button type="button" className="date-picker__nav-button" aria-label="Previous month" onClick={() => goToMonth(-1)}>
                   <ChevronLeft size={16} aria-hidden="true" />

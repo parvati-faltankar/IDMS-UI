@@ -1,0 +1,5 @@
+2026/04/30-15:30:35.901 82f8 Creating DB D:\iDMS-UI\IDMS-UI\thememenu\edge-profile-date-fix\Default\EdgeCoupons/coupons_data.db since it was missing.
+2026/04/30-15:30:35.932 82f8 Reusing MANIFEST D:\iDMS-UI\IDMS-UI\thememenu\edge-profile-date-fix\Default\EdgeCoupons/coupons_data.db/MANIFEST-000001
+2026/04/30-15:30:36.024 5960 Level-0 table #5: started
+2026/04/30-15:30:36.043 5960 Level-0 table #5: 682129 bytes OK
+2026/04/30-15:30:36.046 5960 Delete type=0 #3

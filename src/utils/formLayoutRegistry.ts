@@ -157,6 +157,7 @@ const ALLOCATION_NON_SERIALIZED_COLUMNS = [
 export const PURCHASE_REQUISITION_LAYOUT: FormLayoutConfig = {
   formId: 'purchase-requisition-create',
   version: 2,
+  tabPlacement: 'header',
   tabs: [
     { id: 'general', label: 'General Details', sectionIds: ['requisition-details'] },
     { id: 'product', label: 'Product Details', sectionIds: ['product-lines'] },
@@ -220,6 +221,7 @@ function buildLayout(
   return {
     formId,
     version: 1,
+    tabPlacement: 'header',
     tabs: tabs.map((tab) => ({
       id: tab.id,
       label: tab.label,

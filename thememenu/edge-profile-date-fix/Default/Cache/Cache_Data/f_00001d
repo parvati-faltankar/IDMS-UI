@@ -1,0 +1,200 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/src/components/common/GridColumnConfigurator.tsx");const React = __vite__cjsImport0_react; const useState = __vite__cjsImport0_react["useState"];const _jsxDEV = __vite__cjsImport4_react_jsxDevRuntime["jsxDEV"];import __vite__cjsImport0_react from "/node_modules/.vite/deps/react.js?v=e80fb39e";
+import { GripVertical, LockKeyhole } from "/node_modules/.vite/deps/lucide-react.js?v=e80fb39e";
+import { cn } from "/src/utils/classNames.ts";
+import { moveGridColumn, updateGridColumnVisibility } from "/src/utils/formLayoutConfig.ts";
+var _jsxFileName = "D:/iDMS-UI/IDMS-UI/src/components/common/GridColumnConfigurator.tsx";
+import __vite__cjsImport4_react_jsxDevRuntime from "/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=e80fb39e";
+var _s = $RefreshSig$();
+const GridColumnConfigurator = ({ layoutConfig, onChange }) => {
+	_s();
+	const [dragPayload, setDragPayload] = useState(null);
+	const grids = Object.values(layoutConfig.grids ?? {});
+	if (grids.length === 0) {
+		return null;
+	}
+	const startDrag = (event, payload) => {
+		setDragPayload(payload);
+		event.dataTransfer.effectAllowed = "move";
+		event.dataTransfer.setData("application/json", JSON.stringify(payload));
+	};
+	const readPayload = (event) => {
+		const rawPayload = event.dataTransfer.getData("application/json");
+		if (!rawPayload) {
+			return dragPayload;
+		}
+		try {
+			return JSON.parse(rawPayload);
+		} catch {
+			return dragPayload;
+		}
+	};
+	return /* @__PURE__ */ _jsxDEV("section", {
+		className: "grid-column-configurator",
+		"aria-label": "Grid column configuration",
+		children: [/* @__PURE__ */ _jsxDEV("div", {
+			className: "grid-column-configurator__header",
+			children: /* @__PURE__ */ _jsxDEV("div", { children: [/* @__PURE__ */ _jsxDEV("h3", { children: "Grid columns" }, void 0, false, {
+				fileName: _jsxFileName,
+				lineNumber: 51,
+				columnNumber: 11
+			}, this), /* @__PURE__ */ _jsxDEV("p", { children: "Reorder columns and hide optional columns. Locked columns stay visible to protect document logic." }, void 0, false, {
+				fileName: _jsxFileName,
+				lineNumber: 52,
+				columnNumber: 11
+			}, this)] }, void 0, true, {
+				fileName: _jsxFileName,
+				lineNumber: 50,
+				columnNumber: 9
+			}, this)
+		}, void 0, false, {
+			fileName: _jsxFileName,
+			lineNumber: 49,
+			columnNumber: 7
+		}, this), /* @__PURE__ */ _jsxDEV("div", {
+			className: "grid-column-configurator__grids",
+			children: grids.map((grid) => /* @__PURE__ */ _jsxDEV("div", {
+				className: "grid-column-configurator__grid",
+				children: [/* @__PURE__ */ _jsxDEV("div", {
+					className: "grid-column-configurator__grid-title",
+					children: [/* @__PURE__ */ _jsxDEV("strong", { children: grid.label }, void 0, false, {
+						fileName: _jsxFileName,
+						lineNumber: 60,
+						columnNumber: 15
+					}, this), /* @__PURE__ */ _jsxDEV("span", { children: [grid.columns.filter((column) => column.visible !== false || column.locked).length, " visible"] }, void 0, true, {
+						fileName: _jsxFileName,
+						lineNumber: 61,
+						columnNumber: 15
+					}, this)]
+				}, void 0, true, {
+					fileName: _jsxFileName,
+					lineNumber: 59,
+					columnNumber: 13
+				}, this), /* @__PURE__ */ _jsxDEV("div", {
+					className: "grid-column-configurator__columns",
+					children: grid.columns.map((column, columnIndex) => /* @__PURE__ */ _jsxDEV("div", {
+						className: cn("grid-column-configurator__column", dragPayload?.gridId === grid.id && dragPayload.columnKey !== column.key && "grid-column-configurator__column--drop-target"),
+						onDragOver: (event) => event.preventDefault(),
+						onDrop: (event) => {
+							event.preventDefault();
+							const payload = readPayload(event);
+							if (payload?.gridId === grid.id) {
+								onChange((currentConfig) => moveGridColumn(currentConfig, grid.id, payload.columnKey, columnIndex));
+							}
+							setDragPayload(null);
+						},
+						children: [
+							/* @__PURE__ */ _jsxDEV("button", {
+								type: "button",
+								draggable: true,
+								className: "grid-column-configurator__drag",
+								"aria-label": `Move ${column.label}`,
+								onDragStart: (event) => startDrag(event, {
+									gridId: grid.id,
+									columnKey: column.key
+								}),
+								onDragEnd: () => setDragPayload(null),
+								children: /* @__PURE__ */ _jsxDEV(GripVertical, {
+									size: 14,
+									"aria-hidden": "true"
+								}, void 0, false, {
+									fileName: _jsxFileName,
+									lineNumber: 93,
+									columnNumber: 21
+								}, this)
+							}, void 0, false, {
+								fileName: _jsxFileName,
+								lineNumber: 85,
+								columnNumber: 19
+							}, this),
+							/* @__PURE__ */ _jsxDEV("label", {
+								className: "grid-column-configurator__visibility",
+								children: [/* @__PURE__ */ _jsxDEV("input", {
+									type: "checkbox",
+									checked: column.visible !== false || column.locked,
+									disabled: column.locked,
+									onChange: (event) => onChange((currentConfig) => updateGridColumnVisibility(currentConfig, grid.id, column.key, event.target.checked))
+								}, void 0, false, {
+									fileName: _jsxFileName,
+									lineNumber: 96,
+									columnNumber: 21
+								}, this), /* @__PURE__ */ _jsxDEV("span", { children: column.label }, void 0, false, {
+									fileName: _jsxFileName,
+									lineNumber: 106,
+									columnNumber: 21
+								}, this)]
+							}, void 0, true, {
+								fileName: _jsxFileName,
+								lineNumber: 95,
+								columnNumber: 19
+							}, this),
+							column.locked && /* @__PURE__ */ _jsxDEV("span", {
+								className: "grid-column-configurator__locked",
+								children: [/* @__PURE__ */ _jsxDEV(LockKeyhole, {
+									size: 12,
+									"aria-hidden": "true"
+								}, void 0, false, {
+									fileName: _jsxFileName,
+									lineNumber: 110,
+									columnNumber: 23
+								}, this), "Locked"]
+							}, void 0, true, {
+								fileName: _jsxFileName,
+								lineNumber: 109,
+								columnNumber: 21
+							}, this)
+						]
+					}, column.key, true, {
+						fileName: _jsxFileName,
+						lineNumber: 65,
+						columnNumber: 17
+					}, this))
+				}, void 0, false, {
+					fileName: _jsxFileName,
+					lineNumber: 63,
+					columnNumber: 13
+				}, this)]
+			}, grid.id, true, {
+				fileName: _jsxFileName,
+				lineNumber: 58,
+				columnNumber: 11
+			}, this))
+		}, void 0, false, {
+			fileName: _jsxFileName,
+			lineNumber: 56,
+			columnNumber: 7
+		}, this)]
+	}, void 0, true, {
+		fileName: _jsxFileName,
+		lineNumber: 48,
+		columnNumber: 5
+	}, this);
+};
+_s(GridColumnConfigurator, "JpXokP/exlB7L7YhndQe6jYZ8+g=");
+_c = GridColumnConfigurator;
+export default GridColumnConfigurator;
+var _c;
+$RefreshReg$(_c, "GridColumnConfigurator");
+import * as RefreshRuntime from "/@react-refresh";
+const inWebWorker = typeof WorkerGlobalScope !== 'undefined' && self instanceof WorkerGlobalScope;
+import * as __vite_react_currentExports from "/src/components/common/GridColumnConfigurator.tsx";
+if (import.meta.hot && !inWebWorker) {
+  if (!window.$RefreshReg$) {
+    throw new Error(
+      "@vitejs/plugin-react can't detect preamble. Something is wrong."
+    );
+  }
+
+  const currentExports = __vite_react_currentExports;
+  queueMicrotask(() => {
+    RefreshRuntime.registerExportsForReactRefresh("D:/iDMS-UI/IDMS-UI/src/components/common/GridColumnConfigurator.tsx", currentExports);
+    import.meta.hot.accept((nextExports) => {
+      if (!nextExports) return;
+      const invalidateMessage = RefreshRuntime.validateRefreshBoundaryAndEnqueueUpdate("D:/iDMS-UI/IDMS-UI/src/components/common/GridColumnConfigurator.tsx", currentExports, nextExports);
+      if (invalidateMessage) import.meta.hot.invalidate(invalidateMessage);
+    });
+  });
+}
+function $RefreshReg$(type, id) { return RefreshRuntime.register(type, "D:/iDMS-UI/IDMS-UI/src/components/common/GridColumnConfigurator.tsx" + ' ' + id); }
+function $RefreshSig$() { return RefreshRuntime.createSignatureFunctionForTransform(); }
+
+//# sourceMappingURL=data:application/json;base64,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QUV2Qzs7Ozs7O09BRUw7UUFoREMsT0FBTzs7OzthQWdEUixDQUNOO0tBQ0U7Ozs7YUFDRjtNQTNESSxLQUFLOzs7O1dBMkRULENBQ047R0FDRTs7OztXQUNFOzs7Ozs7Ozs7QUFJZCxlQUFlIiwibmFtZXMiOltdLCJzb3VyY2VzIjpbIkdyaWRDb2x1bW5Db25maWd1cmF0b3IudHN4Il0sInZlcnNpb24iOjMsInNvdXJjZXNDb250ZW50IjpbImltcG9ydCBSZWFjdCwgeyB1c2VTdGF0ZSB9IGZyb20gJ3JlYWN0JztcclxuaW1wb3J0IHsgR3JpcFZlcnRpY2FsLCBMb2NrS2V5aG9sZSB9IGZyb20gJ2x1Y2lkZS1yZWFjdCc7XHJcbmltcG9ydCB7IGNuIH0gZnJvbSAnLi4vLi4vdXRpbHMvY2xhc3NOYW1lcyc7XHJcbmltcG9ydCB7XHJcbiAgbW92ZUdyaWRDb2x1bW4sXHJcbiAgdHlwZSBGb3JtTGF5b3V0Q29uZmlnLFxyXG4gIHVwZGF0ZUdyaWRDb2x1bW5WaXNpYmlsaXR5LFxyXG59IGZyb20gJy4uLy4uL3V0aWxzL2Zvcm1MYXlvdXRDb25maWcnO1xyXG5cclxuaW50ZXJmYWNlIEdyaWRDb2x1bW5Db25maWd1cmF0b3JQcm9wcyB7XHJcbiAgbGF5b3V0Q29uZmlnOiBGb3JtTGF5b3V0Q29uZmlnO1xyXG4gIG9uQ2hhbmdlOiAodXBkYXRlcjogKGNvbmZpZzogRm9ybUxheW91dENvbmZpZykgPT4gRm9ybUxheW91dENvbmZpZykgPT4gdm9pZDtcclxufVxyXG5cclxuaW50ZXJmYWNlIENvbHVtbkRyYWdQYXlsb2FkIHtcclxuICBncmlkSWQ6IHN0cmluZztcclxuICBjb2x1bW5LZXk6IHN0cmluZztcclxufVxyXG5cclxuY29uc3QgR3JpZENvbHVtbkNvbmZpZ3VyYXRvcjogUmVhY3QuRkM8R3JpZENvbHVtbkNvbmZpZ3VyYXRvclByb3BzPiA9ICh7IGxheW91dENvbmZpZywgb25DaGFuZ2UgfSkgPT4ge1xyXG4gIGNvbnN0IFtkcmFnUGF5bG9hZCwgc2V0RHJhZ1BheWxvYWRdID0gdXNlU3RhdGU8Q29sdW1uRHJhZ1BheWxvYWQgfCBudWxsPihudWxsKTtcclxuICBjb25zdCBncmlkcyA9IE9iamVjdC52YWx1ZXMobGF5b3V0Q29uZmlnLmdyaWRzID8/IHt9KTtcclxuXHJcbiAgaWYgKGdyaWRzLmxlbmd0aCA9PT0gMCkge1xyXG4gICAgcmV0dXJuIG51bGw7XHJcbiAgfVxyXG5cclxuICBjb25zdCBzdGFydERyYWcgPSAoZXZlbnQ6IFJlYWN0LkRyYWdFdmVudDxIVE1MQnV0dG9uRWxlbWVudD4sIHBheWxvYWQ6IENvbHVtbkRyYWdQYXlsb2FkKSA9PiB7XHJcbiAgICBzZXREcmFnUGF5bG9hZChwYXlsb2FkKTtcclxuICAgIGV2ZW50LmRhdGFUcmFuc2Zlci5lZmZlY3RBbGxvd2VkID0gJ21vdmUnO1xyXG4gICAgZXZlbnQuZGF0YVRyYW5zZmVyLnNldERhdGEoJ2FwcGxpY2F0aW9uL2pzb24nLCBKU09OLnN0cmluZ2lmeShwYXlsb2FkKSk7XHJcbiAgfTtcclxuXHJcbiAgY29uc3QgcmVhZFBheWxvYWQgPSAoZXZlbnQ6IFJlYWN0LkRyYWdFdmVudDxIVE1MRWxlbWVudD4pOiBDb2x1bW5EcmFnUGF5bG9hZCB8IG51bGwgPT4ge1xyXG4gICAgY29uc3QgcmF3UGF5bG9hZCA9IGV2ZW50LmRhdGFUcmFuc2Zlci5nZXREYXRhKCdhcHBsaWNhdGlvbi9qc29uJyk7XHJcbiAgICBpZiAoIXJhd1BheWxvYWQpIHtcclxuICAgICAgcmV0dXJuIGRyYWdQYXlsb2FkO1xyXG4gICAgfVxyXG5cclxuICAgIHRyeSB7XHJcbiAgICAgIHJldHVybiBKU09OLnBhcnNlKHJhd1BheWxvYWQpIGFzIENvbHVtbkRyYWdQYXlsb2FkO1xyXG4gICAgfSBjYXRjaCB7XHJcbiAgICAgIHJldHVybiBkcmFnUGF5bG9hZDtcclxuICAgIH1cclxuICB9O1xyXG5cclxuICByZXR1cm4gKFxyXG4gICAgPHNlY3Rpb24gY2xhc3NOYW1lPVwiZ3JpZC1jb2x1bW4tY29uZmlndXJhdG9yXCIgYXJpYS1sYWJlbD1cIkdyaWQgY29sdW1uIGNvbmZpZ3VyYXRpb25cIj5cclxuICAgICAgPGRpdiBjbGFzc05hbWU9XCJncmlkLWNvbHVtbi1jb25maWd1cmF0b3JfX2hlYWRlclwiPlxyXG4gICAgICAgIDxkaXY+XHJcbiAgICAgICAgICA8aDM+R3JpZCBjb2x1bW5zPC9oMz5cclxuICAgICAgICAgIDxwPlJlb3JkZXIgY29sdW1ucyBhbmQgaGlkZSBvcHRpb25hbCBjb2x1bW5zLiBMb2NrZWQgY29sdW1ucyBzdGF5IHZpc2libGUgdG8gcHJvdGVjdCBkb2N1bWVudCBsb2dpYy48L3A+XHJcbiAgICAgICAgPC9kaXY+XHJcbiAgICAgIDwvZGl2PlxyXG5cclxuICAgICAgPGRpdiBjbGFzc05hbWU9XCJncmlkLWNvbHVtbi1jb25maWd1cmF0b3JfX2dyaWRzXCI+XHJcbiAgICAgICAge2dyaWRzLm1hcCgoZ3JpZCkgPT4gKFxyXG4gICAgICAgICAgPGRpdiBrZXk9e2dyaWQuaWR9IGNsYXNzTmFtZT1cImdyaWQtY29sdW1uLWNvbmZpZ3VyYXRvcl9fZ3JpZFwiPlxyXG4gICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImdyaWQtY29sdW1uLWNvbmZpZ3VyYXRvcl9fZ3JpZC10aXRsZVwiPlxyXG4gICAgICAgICAgICAgIDxzdHJvbmc+e2dyaWQubGFiZWx9PC9zdHJvbmc+XHJcbiAgICAgICAgICAgICAgPHNwYW4+e2dyaWQuY29sdW1ucy5maWx0ZXIoKGNvbHVtbikgPT4gY29sdW1uLnZpc2libGUgIT09IGZhbHNlIHx8IGNvbHVtbi5sb2NrZWQpLmxlbmd0aH0gdmlzaWJsZTwvc3Bhbj5cclxuICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZ3JpZC1jb2x1bW4tY29uZmlndXJhdG9yX19jb2x1bW5zXCI+XHJcbiAgICAgICAgICAgICAge2dyaWQuY29sdW1ucy5tYXAoKGNvbHVtbiwgY29sdW1uSW5kZXgpID0+IChcclxuICAgICAgICAgICAgICAgIDxkaXZcclxuICAgICAgICAgICAgICAgICAga2V5PXtjb2x1bW4ua2V5fVxyXG4gICAgICAgICAgICAgICAgICBjbGFzc05hbWU9e2NuKFxyXG4gICAgICAgICAgICAgICAgICAgICdncmlkLWNvbHVtbi1jb25maWd1cmF0b3JfX2NvbHVtbicsXHJcbiAgICAgICAgICAgICAgICAgICAgZHJhZ1BheWxvYWQ/LmdyaWRJZCA9PT0gZ3JpZC5pZCAmJlxyXG4gICAgICAgICAgICAgICAgICAgICAgZHJhZ1BheWxvYWQuY29sdW1uS2V5ICE9PSBjb2x1bW4ua2V5ICYmXHJcbiAgICAgICAgICAgICAgICAgICAgICAnZ3JpZC1jb2x1bW4tY29uZmlndXJhdG9yX19jb2x1bW4tLWRyb3AtdGFyZ2V0J1xyXG4gICAgICAgICAgICAgICAgICApfVxyXG4gICAgICAgICAgICAgICAgICBvbkRyYWdPdmVyPXsoZXZlbnQpID0+IGV2ZW50LnByZXZlbnREZWZhdWx0KCl9XHJcbiAgICAgICAgICAgICAgICAgIG9uRHJvcD17KGV2ZW50KSA9PiB7XHJcbiAgICAgICAgICAgICAgICAgICAgZXZlbnQucHJldmVudERlZmF1bHQoKTtcclxuICAgICAgICAgICAgICAgICAgICBjb25zdCBwYXlsb2FkID0gcmVhZFBheWxvYWQoZXZlbnQpO1xyXG4gICAgICAgICAgICAgICAgICAgIGlmIChwYXlsb2FkPy5ncmlkSWQgPT09IGdyaWQuaWQpIHtcclxuICAgICAgICAgICAgICAgICAgICAgIG9uQ2hhbmdlKChjdXJyZW50Q29uZmlnKSA9PlxyXG4gICAgICAgICAgICAgICAgICAgICAgICBtb3ZlR3JpZENvbHVtbihjdXJyZW50Q29uZmlnLCBncmlkLmlkLCBwYXlsb2FkLmNvbHVtbktleSwgY29sdW1uSW5kZXgpXHJcbiAgICAgICAgICAgICAgICAgICAgICApO1xyXG4gICAgICAgICAgICAgICAgICAgIH1cclxuICAgICAgICAgICAgICAgICAgICBzZXREcmFnUGF5bG9hZChudWxsKTtcclxuICAgICAgICAgICAgICAgICAgfX1cclxuICAgICAgICAgICAgICAgID5cclxuICAgICAgICAgICAgICAgICAgPGJ1dHRvblxyXG4gICAgICAgICAgICAgICAgICAgIHR5cGU9XCJidXR0b25cIlxyXG4gICAgICAgICAgICAgICAgICAgIGRyYWdnYWJsZVxyXG4gICAgICAgICAgICAgICAgICAgIGNsYXNzTmFtZT1cImdyaWQtY29sdW1uLWNvbmZpZ3VyYXRvcl9fZHJhZ1wiXHJcbiAgICAgICAgICAgICAgICAgICAgYXJpYS1sYWJlbD17YE1vdmUgJHtjb2x1bW4ubGFiZWx9YH1cclxuICAgICAgICAgICAgICAgICAgICBvbkRyYWdTdGFydD17KGV2ZW50KSA9PiBzdGFydERyYWcoZXZlbnQsIHsgZ3JpZElkOiBncmlkLmlkLCBjb2x1bW5LZXk6IGNvbHVtbi5rZXkgfSl9XHJcbiAgICAgICAgICAgICAgICAgICAgb25EcmFnRW5kPXsoKSA9PiBzZXREcmFnUGF5bG9hZChudWxsKX1cclxuICAgICAgICAgICAgICAgICAgPlxyXG4gICAgICAgICAgICAgICAgICAgIDxHcmlwVmVydGljYWwgc2l6ZT17MTR9IGFyaWEtaGlkZGVuPVwidHJ1ZVwiIC8+XHJcbiAgICAgICAgICAgICAgICAgIDwvYnV0dG9uPlxyXG4gICAgICAgICAgICAgICAgICA8bGFiZWwgY2xhc3NOYW1lPVwiZ3JpZC1jb2x1bW4tY29uZmlndXJhdG9yX192aXNpYmlsaXR5XCI+XHJcbiAgICAgICAgICAgICAgICAgICAgPGlucHV0XHJcbiAgICAgICAgICAgICAgICAgICAgICB0eXBlPVwiY2hlY2tib3hcIlxyXG4gICAgICAgICAgICAgICAgICAgICAgY2hlY2tlZD17Y29sdW1uLnZpc2libGUgIT09IGZhbHNlIHx8IGNvbHVtbi5sb2NrZWR9XHJcbiAgICAgICAgICAgICAgICAgICAgICBkaXNhYmxlZD17Y29sdW1uLmxvY2tlZH1cclxuICAgICAgICAgICAgICAgICAgICAgIG9uQ2hhbmdlPXsoZXZlbnQpID0+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgIG9uQ2hhbmdlKChjdXJyZW50Q29uZmlnKSA9PlxyXG4gICAgICAgICAgICAgICAgICAgICAgICAgIHVwZGF0ZUdyaWRDb2x1bW5WaXNpYmlsaXR5KGN1cnJlbnRDb25maWcsIGdyaWQuaWQsIGNvbHVtbi5rZXksIGV2ZW50LnRhcmdldC5jaGVja2VkKVxyXG4gICAgICAgICAgICAgICAgICAgICAgICApXHJcbiAgICAgICAgICAgICAgICAgICAgICB9XHJcbiAgICAgICAgICAgICAgICAgICAgLz5cclxuICAgICAgICAgICAgICAgICAgICA8c3Bhbj57Y29sdW1uLmxhYmVsfTwvc3Bhbj5cclxuICAgICAgICAgICAgICAgICAgPC9sYWJlbD5cclxuICAgICAgICAgICAgICAgICAge2NvbHVtbi5sb2NrZWQgJiYgKFxyXG4gICAgICAgICAgICAgICAgICAgIDxzcGFuIGNsYXNzTmFtZT1cImdyaWQtY29sdW1uLWNvbmZpZ3VyYXRvcl9fbG9ja2VkXCI+XHJcbiAgICAgICAgICAgICAgICAgICAgICA8TG9ja0tleWhvbGUgc2l6ZT17MTJ9IGFyaWEtaGlkZGVuPVwidHJ1ZVwiIC8+XHJcbiAgICAgICAgICAgICAgICAgICAgICBMb2NrZWRcclxuICAgICAgICAgICAgICAgICAgICA8L3NwYW4+XHJcbiAgICAgICAgICAgICAgICAgICl9XHJcbiAgICAgICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgICAgICApKX1cclxuICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICApKX1cclxuICAgICAgPC9kaXY+XHJcbiAgICA8L3NlY3Rpb24+XHJcbiAgKTtcclxufTtcclxuXHJcbmV4cG9ydCBkZWZhdWx0IEdyaWRDb2x1bW5Db25maWd1cmF0b3I7XHJcbiJdfQ==

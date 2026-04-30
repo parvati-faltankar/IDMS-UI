@@ -358,6 +358,28 @@ const FormLayoutEditor: React.FC<FormLayoutEditorProps> = ({
         </section>
 
         <div className="create-pr-page mx-auto w-full max-w-[1800px] px-6 py-6 space-y-6">
+          <div className="form-layout-placement">
+            <label className="form-layout-row-control">
+              <span>Tab placement</span>
+              <select
+                className="form-layout-select"
+                value={layoutConfig.tabPlacement ?? 'header'}
+                onChange={(event) =>
+                  setLayoutConfig((currentConfig) =>
+                    currentConfig
+                      ? {
+                          ...currentConfig,
+                          tabPlacement: event.target.value === 'bottom-fixed' ? 'bottom-fixed' : 'header',
+                        }
+                      : currentConfig
+                  )
+                }
+              >
+                <option value="header">Header</option>
+                <option value="bottom-fixed">Footer (Bottom fixed)</option>
+              </select>
+            </label>
+          </div>
           <div className="create-pr-tabs">
             <div className="create-pr-tabs__list" role="tablist" aria-label={`${form.formName} sections`}>
               {layoutConfig.tabs.map((tab, tabIndex) => (

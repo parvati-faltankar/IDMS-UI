@@ -1,0 +1,23 @@
+{
+   "action": {
+      "default_popup": "core/blacklistBlockedPage.html"
+   },
+   "background": {
+      "service_worker": "core/extraction.js"
+   },
+   "default_locale": "en",
+   "description": "__MSG_app_ext_desc__",
+   "host_permissions": [ "http://*/*", "*://*/*", "https://*/*" ],
+   "icons": {
+      "128": "assets/icon128.png",
+      "16": "assets/icon16.png",
+      "48": "assets/icon48.png"
+   },
+   "incognito": "split",
+   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAro+pw7T3z0YvaKw0bFm95bxpQCd82VRF4nMmMBYfpCa2ZY7OXLaRtbWcM+x011Bc5OZeHwUre3d6R/Utn0HIObfek3w2nA7osdlmIjutBDV3iReahRlByeSxTaiQrG8VnfI1yha7JChrmrV7xBDDJa/ft3A9Ui6cfCc7Il3ilWgSYqwfURPF00vxoaocZ8DCXuVdScjoXWN69ymbBb2NTTddqYe8WrIC9uP8tAhxURnWyFSlmAOQuFQu4xU+00WmH2lFr7IZ+9I1lFDu7JJ33gxGFR4q1EVb/WhwwgVwv7NjNnhGpnMrFxX4VjkaHFBRDRQZOV+80OoA3Gbf0XktmwIDAQAB",
+   "manifest_version": 3,
+   "name": "__MSG_app_name__",
+   "permissions": [ "webRequest", "tabs", "downloads", "storage" ],
+   "update_url": "https://edge.microsoft.com/extensionwebstorebase/v1/crx",
+   "version": "2.3"
+}

@@ -24,9 +24,12 @@ export interface FormLayoutGrid {
   columns: FormLayoutGridColumn[];
 }
 
+export type FormLayoutTabPlacement = 'header' | 'bottom-fixed';
+
 export interface FormLayoutConfig {
   formId: string;
   version: number;
+  tabPlacement?: FormLayoutTabPlacement;
   tabs: FormLayoutTab[];
   sections: Record<string, FormLayoutSection>;
   grids?: Record<string, FormLayoutGrid>;
@@ -62,6 +65,7 @@ function clampFieldsPerRow(value: unknown, fallback = 3): number {
 function cloneConfig(config: FormLayoutConfig): FormLayoutConfig {
   return {
     ...config,
+    tabPlacement: config.tabPlacement === 'bottom-fixed' ? 'bottom-fixed' : 'header',
     tabs: config.tabs.map((tab) => ({ ...tab, sectionIds: [...tab.sectionIds] })),
     sections: Object.fromEntries(
       Object.entries(config.sections).map(([sectionId, section]) => [
@@ -182,6 +186,7 @@ export function sanitizeFormLayoutConfig(
   return {
     formId: defaultConfig.formId,
     version: defaultConfig.version,
+    tabPlacement: savedConfig.tabPlacement === 'bottom-fixed' ? 'bottom-fixed' : defaultConfig.tabPlacement ?? 'header',
     tabs: tabs.length > 0 ? tabs : cloneConfig(defaultConfig).tabs,
     sections,
     grids,

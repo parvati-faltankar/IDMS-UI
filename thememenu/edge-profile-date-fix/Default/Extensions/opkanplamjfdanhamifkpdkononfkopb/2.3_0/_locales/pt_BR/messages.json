@@ -1,0 +1,44 @@
+{
+   "app_access_block_msg": {
+      "message": "O acesso ao site está bloqueado para sua proteção."
+   },
+   "app_access_category_block_msg": {
+      "message": "O acesso ao site está bloqueado."
+   },
+   "app_browsing_block_msg": {
+      "message": "O site que você está visitando pode ser prejudicial."
+   },
+   "app_browsing_protection": {
+      "message": "Proteção de Navegação"
+   },
+   "app_category": {
+      "message": "Categoria"
+   },
+   "app_contact_admin": {
+      "message": "Por favor, entre em contato com seu administrador em caso de qualquer dúvida."
+   },
+   "app_ext_desc": {
+      "message": "Extensão de navegador para fornecer recurso de proteção web do Seqrite Endpoint Protection Console."
+   },
+   "app_name": {
+      "message": "Seqrite Proteção Web"
+   },
+   "app_parental_control": {
+      "message": "Segurança Web"
+   },
+   "app_pc_block_msg": {
+      "message": "Você está visitando um site que está em categoria restrita."
+   },
+   "app_phishing_block_msg": {
+      "message": "Você está visitando um site fraudulento."
+   },
+   "app_phishing_protection": {
+      "message": "Proteção contra Phishing"
+   },
+   "app_prod_desc": {
+      "message": "Seqrite Endpoint Protection"
+   },
+   "app_website": {
+      "message": "Site"
+   }
+}

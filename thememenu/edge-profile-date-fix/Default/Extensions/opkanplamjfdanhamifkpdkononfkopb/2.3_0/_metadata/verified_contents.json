@@ -1,0 +1,24 @@
+[
+  {
+    "description": "treehash per file",
+    "signed_content": {
+      "payload": "eyJpdGVtX2lkIjoib3BrYW5wbGFtamZkYW5oYW1pZmtwZGtvbm9uZmtvcGIiLCJpdGVtX3ZlcnNpb24iOiIyLjMiLCJwcm90b2NvbF92ZXJzaW9uIjoxLCJjb250ZW50X2hhc2hlcyI6W3siZm9ybWF0IjoidHJlZWhhc2giLCJkaWdlc3QiOiJzaGEyNTYiLCJibG9ja19zaXplIjo0MDk2LCJoYXNoX2Jsb2NrX3NpemUiOjQwOTYsImZpbGVzIjpbeyJwYXRoIjoiX2xvY2FsZXMvZW4vbWVzc2FnZXMuanNvbiIsInJvb3RfaGFzaCI6IkhEU1dVRUdLcjMzSERwUlNWaURtandyeUVFam0zcVFJd1U0Y1FhU1pZLW8ifSx7InBhdGgiOiJfbG9jYWxlcy9lcy9tZXNzYWdlcy5qc29uIiwicm9vdF9oYXNoIjoiV3lXZUJlaDA2c3Jnb2tEc0piSjFzMWdmWS1XdTk5Mmt1aWUxS2Z2UWpfUSJ9LHsicGF0aCI6Il9sb2NhbGVzL2tvL21lc3NhZ2VzLmpzb24iLCJyb290X2hhc2giOiJKczk0MjJGdmlvR1lWSGJBUHpyMENOb1hYUWJIVUNWQ0RyTGxWS3NkRnNRIn0seyJwYXRoIjoiX2xvY2FsZXMvcHRfQlIvbWVzc2FnZXMuanNvbiIsInJvb3RfaGFzaCI6IjBGcXJIc29Ia0pQSE5Cb25xR1VIOV81UWV4bl9oRk82Y1VWMWxFR2lvQ1UifSx7InBhdGgiOiJhc3NldHMvaWNvbjEyOC5wbmciLCJyb290X2hhc2giOiJTLXgwYkVmMDlTU3ZfY0Z6SDdhNFVCNTFvVDFPUUM1MmtZRkw5U19zS2NFIn0seyJwYXRoIjoiYXNzZXRzL2ljb24xNi5wbmciLCJyb290X2hhc2giOiJjT3JUZUJMZl9CeWRFckZIbmdST1ZyNktJYW5PeEVDTjlPY2VmOUFiTWdnIn0seyJwYXRoIjoiYXNzZXRzL2ljb240OC5wbmciLCJyb290X2hhc2giOiJ2YldNcW1Pb3BKbGl5R2pJbnhyb0dvaE5hclZib1lNZktvTlEycE5jOWJBIn0seyJwYXRoIjoiY29yZS9ibGFja2xpc3RCbG9ja2VkUGFnZS5odG1sIiwicm9vdF9oYXNoIjoiM0ZfS1NRc1BWT0FPY2JGWjRrX1c3OHg0RXpNMktWUEVCd2NtdmV3Q2oxcyJ9LHsicGF0aCI6ImNvcmUvZXh0cmFjdGlvbi5qcyIsInJvb3RfaGFzaCI6Ik9LZDN4eHZENjRWTEdwYmxvYXpnUDZ0R0RDOHF4emFGTHBHS3dHOGsyNzAifSx7InBhdGgiOiJjb3JlL3Nob3dkYXRhLmpzIiwicm9vdF9oYXNoIjoiNE5UX1dKc2tNNHBRTThCbkYya19zUkdNSzhycDdmeEVCWFdXZGRPNGIyVSJ9LHsicGF0aCI6Im1hbmlmZXN0Lmpzb24iLCJyb290X2hhc2giOiI0cU1mYlZMM29ScHhiYWIzbElOaXk2b1BfcU1JSVc5NE91UF96U2pNR2pVIn1dfV19",
+      "signatures": [
+        {
+          "header": {
+            "kid": "publisher"
+          },
+          "protected": "eyJhbGciOiJSUzI1NiJ9",
+          "signature": "Vo6vE0hicWNouT1i5OC4RKqsV0SmPznseNU0MQHMrwV-Fo1ntFCxZCTdH6FcvDRguIm6XP3hyfyjZKipY1yjl8BJnHtpPob8vYf49lrFmwDifQXSljo4EI1J4_TJ_-7bPx8scw8QeSKRHWaZ6808QpIlGzvveuU_dpsWpk7rpTPen2CZ0_e1aMOTeHT94OGYNaYbhHiwvN1-GswXLbotf4c9jQK9iEF3JqQ8YCxwk2EzEAfQSfsvrMR1jCRETIA5rZ7CQkMz-s_ecF8REDx4pZlptjLIKsR2UNXpbWuwHNdFhUYp_MyK3aSu6f-ICelE5Y3Ii3tPA0sEspx69vNFig"
+        },
+        {
+          "header": {
+            "kid": "webstore"
+          },
+          "protected": "eyJhbGciOiJSUzI1NiJ9",
+          "signature": "WysBGLuDbQBGGcvjftq-eT9SH4qQ-IbrxgUehVelDW639jInF9bU1RnJA-maBbpX4y-KnHILldgX7tBQ45NV4GIkjafWy1jrjVMB3Wt17DMAb7T2MDIiYnO764KEU2k22oLl_0bYC0-i9_dShKxw5PhGicJLTlrOspgS9G9uslj38Sln43bHC5mGmze4ykkNZnZTIt7GyzFkLV8K4u_O3FKPrLhqHDsQylprnuhsQNSvwJtMAlpFUTt8vPt3KTRSgupPGFsb3P233wZ42kX1T8wuxJJPyAtiybHZaXIrPVta-8b7Ja99jpguhYLh5Msu9yTFEJU17QAN3u7GeaFKCw"
+        }
+      ]
+    }
+  }
+]

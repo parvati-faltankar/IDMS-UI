@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, Eye, Plus, Trash2, Upload, FileText, ArrowLeft, MoreVertical, PencilLine, ChevronDown, GripVertical, RotateCcw, Save } from 'lucide-react';
 import AppShell from '../../components/common/AppShell';
 import CompactFormDialog from '../../components/common/CompactFormDialog';
@@ -883,6 +883,7 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
   const [createTourStepIndex, setCreateTourStepIndex] = useState(0);
   const [isLayoutPreviewOpen, setIsLayoutPreviewOpen] = useState(false);
   const contentScrollRef = useRef<HTMLDivElement | null>(null);
+  const createPageRef = useRef<HTMLDivElement | null>(null);
   const lastProductScrollTopRef = useRef(0);
   const focusLineIdRef = useRef<string | null>(null);
   const fieldRefs = useRef<Record<string, HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null>>({});
@@ -1310,6 +1311,42 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
   const effectiveActiveTab = layoutConfig.tabs.some((tab) => tab.id === activeTab)
     ? activeTab
     : layoutConfig.tabs[0]?.id ?? 'general';
+  const isBottomFixedTabs = layoutConfig.tabPlacement === 'bottom-fixed';
+  const [bottomTabsStyle, setBottomTabsStyle] = useState<React.CSSProperties>({});
+
+  useLayoutEffect(() => {
+    if (!isBottomFixedTabs) {
+      return;
+    }
+
+    const updateBottomTabsBounds = () => {
+      const pageElement = createPageRef.current;
+      if (!pageElement) {
+        return;
+      }
+
+      const pageBounds = pageElement.getBoundingClientRect();
+      setBottomTabsStyle({
+        left: `${Math.max(0, pageBounds.left)}px`,
+        width: `${Math.max(0, pageBounds.width)}px`,
+      });
+    };
+
+    updateBottomTabsBounds();
+    const resizeObserver = typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(updateBottomTabsBounds)
+      : null;
+
+    if (createPageRef.current && resizeObserver) {
+      resizeObserver.observe(createPageRef.current);
+    }
+
+    window.addEventListener('resize', updateBottomTabsBounds);
+    return () => {
+      window.removeEventListener('resize', updateBottomTabsBounds);
+      resizeObserver?.disconnect();
+    };
+  }, [isBottomFixedTabs]);
 
   const readDropPayload = (event: React.DragEvent<HTMLElement>): LayoutDragPayload | null => {
     const rawPayload = event.dataTransfer.getData('application/json');
@@ -1893,6 +1930,22 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
   const shouldCollapseProductHeader = effectiveActiveTab === 'product' && isProductHeaderCollapsed;
   const configuratorHeaderActions = configurationMode ? (
     <>
+      <label className="form-layout-row-control">
+        <span>Tab placement</span>
+        <select
+          className="form-layout-select"
+          value={layoutConfig.tabPlacement ?? 'header'}
+          onChange={(event) =>
+            setLayoutConfig((currentConfig) => ({
+              ...currentConfig,
+              tabPlacement: event.target.value === 'bottom-fixed' ? 'bottom-fixed' : 'header',
+            }))
+          }
+        >
+          <option value="header">Header</option>
+          <option value="bottom-fixed">Footer (Bottom fixed)</option>
+        </select>
+      </label>
       <button type="button" className="btn btn--outline btn--sm" onClick={handleCreateTab}>
         <Plus size={14} aria-hidden="true" />
         Tab
@@ -1935,6 +1988,58 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
     </>
   ) : undefined;
 
+  const renderTabs = (tabsClassName?: string) => (
+    <div
+      className={cn('create-pr-tabs', tabsClassName)}
+      style={tabsClassName === 'create-pr-tabs--bottom-fixed' ? bottomTabsStyle : undefined}
+    >
+      <div className="create-pr-tabs__list" role="tablist" aria-label="Purchase requisition sections">
+        {layoutConfig.tabs.map((tab, tabIndex) => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={effectiveActiveTab === tab.id}
+            draggable={isLayoutEditing}
+            onDragStart={(event) => startLayoutDrag(event, { type: 'tab', id: tab.id })}
+            onDragOver={(event) => isLayoutEditing && event.preventDefault()}
+            onDrop={(event) => handleDropOnTab(event, tab.id, tabIndex)}
+            onDragEnd={() => setDragPayload(null)}
+            onClick={() => handleTabChange(tab.id)}
+            className={cn(
+              'create-pr-tab',
+              effectiveActiveTab === tab.id
+                ? 'create-pr-tab--active'
+                : 'create-pr-tab--inactive'
+            )}
+          >
+            <span className="create-pr-tab__label">{tab.label}</span>
+            {isLayoutEditing && (
+              <span
+                role="button"
+                tabIndex={0}
+                className="create-pr-tab__rename"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  handleRenameTab(tab.id, tab.label);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    handleRenameTab(tab.id, tab.label);
+                  }
+                }}
+              >
+                Rename
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <AppShell
       activeLeaf="purchase-requisition"
@@ -1970,7 +2075,13 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
         />
       </div>
 
-      <div className="create-pr-page mx-auto w-full max-w-[1800px] px-6 py-6 space-y-6">
+      <div
+        ref={createPageRef}
+        className={cn(
+          'create-pr-page mx-auto w-full max-w-[1800px] px-6 py-6 space-y-6',
+          isBottomFixedTabs && 'create-pr-page--tabs-bottom'
+        )}
+      >
             {/* ============================================================================
             REQUISITION DETAILS SECTION
             ============================================================================ */}
@@ -1980,52 +2091,7 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
                 shouldCollapseProductHeader ? 'max-h-0 -translate-y-2 opacity-0' : 'max-h-80 translate-y-0 opacity-100'
               )}
             >
-              <div className="create-pr-tabs">
-                <div className="create-pr-tabs__list" role="tablist" aria-label="Purchase requisition sections">
-                  {layoutConfig.tabs.map((tab, tabIndex) => (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      role="tab"
-                      aria-selected={effectiveActiveTab === tab.id}
-                      draggable={isLayoutEditing}
-                      onDragStart={(event) => startLayoutDrag(event, { type: 'tab', id: tab.id })}
-                      onDragOver={(event) => isLayoutEditing && event.preventDefault()}
-                      onDrop={(event) => handleDropOnTab(event, tab.id, tabIndex)}
-                      onDragEnd={() => setDragPayload(null)}
-                      onClick={() => handleTabChange(tab.id)}
-                      className={cn(
-                        'create-pr-tab',
-                        effectiveActiveTab === tab.id
-                          ? 'create-pr-tab--active'
-                          : 'create-pr-tab--inactive'
-                      )}
-                    >
-                      <span className="create-pr-tab__label">{tab.label}</span>
-                      {isLayoutEditing && (
-                        <span
-                          role="button"
-                          tabIndex={0}
-                          className="create-pr-tab__rename"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            handleRenameTab(tab.id, tab.label);
-                          }}
-                          onKeyDown={(event) => {
-                            if (event.key === 'Enter' || event.key === ' ') {
-                              event.preventDefault();
-                              event.stopPropagation();
-                              handleRenameTab(tab.id, tab.label);
-                            }
-                          }}
-                        >
-                          Rename
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              {!isBottomFixedTabs && renderTabs()}
 
               {formMessage && (
                 <div className="brand-message px-4 py-3 text-sm">
@@ -2049,6 +2115,7 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
                 <pre className="overflow-x-auto whitespace-pre-wrap break-words">{previewPayload}</pre>
               </div>
             )}
+            {isBottomFixedTabs && renderTabs('create-pr-tabs--bottom-fixed')}
       </div>
       <ConfirmationDialog
         isOpen={isDiscardDialogOpen}

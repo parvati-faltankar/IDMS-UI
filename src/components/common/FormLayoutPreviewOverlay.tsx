@@ -32,6 +32,7 @@ const FormLayoutPreviewOverlay: React.FC<FormLayoutPreviewOverlayProps> = ({
     () => config.tabs.find((tab) => tab.id === activeTab) ?? config.tabs[0],
     [activeTab, config.tabs]
   );
+  const isBottomFixedTabs = config.tabPlacement === 'bottom-fixed';
 
   if (!isOpen) {
     return null;
@@ -166,26 +167,33 @@ const FormLayoutPreviewOverlay: React.FC<FormLayoutPreviewOverlayProps> = ({
           </div>
         </div>
 
-        <div className="form-layout-preview__body">
-          <div className="form-layout-preview__tabs">
-            <div className="create-pr-tabs__list" role="tablist" aria-label={`${formName} preview tabs`}>
-              {config.tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={currentTab?.id === tab.id}
-                  className={cn('create-pr-tab', currentTab?.id === tab.id ? 'create-pr-tab--active' : 'create-pr-tab--inactive')}
-                  onClick={() => setActiveTab(tab.id)}
-                >
-                  <span className="create-pr-tab__label">{tab.label}</span>
-                  <span className="form-layout-preview__tab-count">
-                    {tab.sectionIds.reduce((count, sectionId) => count + (config.sections[sectionId]?.fieldIds.length ?? 0), 0)}
-                  </span>
-                </button>
-              ))}
+        <div
+          className={cn(
+            'form-layout-preview__body',
+            isBottomFixedTabs && 'form-layout-preview__body--tabs-bottom'
+          )}
+        >
+          {!isBottomFixedTabs && (
+            <div className="form-layout-preview__tabs">
+              <div className="create-pr-tabs__list" role="tablist" aria-label={`${formName} preview tabs`}>
+                {config.tabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={currentTab?.id === tab.id}
+                    className={cn('create-pr-tab', currentTab?.id === tab.id ? 'create-pr-tab--active' : 'create-pr-tab--inactive')}
+                    onClick={() => setActiveTab(tab.id)}
+                  >
+                    <span className="create-pr-tab__label">{tab.label}</span>
+                    <span className="form-layout-preview__tab-count">
+                      {tab.sectionIds.reduce((count, sectionId) => count + (config.sections[sectionId]?.fieldIds.length ?? 0), 0)}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="form-layout-preview__sections">
             {currentTab?.sectionIds.map((sectionId) => {
@@ -211,7 +219,7 @@ const FormLayoutPreviewOverlay: React.FC<FormLayoutPreviewOverlayProps> = ({
                         className={cn(
                           ['productGrid', 'attachments', 'serializedGrid', 'nonSerializedGrid'].includes(fieldId) &&
                             'form-layout-preview__field-shell--wide'
-                      )}
+                        )}
                       >
                         {renderPreviewField(fieldId)}
                       </div>
@@ -221,6 +229,28 @@ const FormLayoutPreviewOverlay: React.FC<FormLayoutPreviewOverlayProps> = ({
               );
             })}
           </div>
+
+          {isBottomFixedTabs && (
+            <div className="form-layout-preview__tabs form-layout-preview__tabs--bottom-fixed">
+              <div className="create-pr-tabs__list" role="tablist" aria-label={`${formName} preview tabs`}>
+                {config.tabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={currentTab?.id === tab.id}
+                    className={cn('create-pr-tab', currentTab?.id === tab.id ? 'create-pr-tab--active' : 'create-pr-tab--inactive')}
+                    onClick={() => setActiveTab(tab.id)}
+                  >
+                    <span className="create-pr-tab__label">{tab.label}</span>
+                    <span className="form-layout-preview__tab-count">
+                      {tab.sectionIds.reduce((count, sectionId) => count + (config.sections[sectionId]?.fieldIds.length ?? 0), 0)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </aside>
     </div>
