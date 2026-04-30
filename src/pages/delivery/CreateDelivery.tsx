@@ -6,7 +6,7 @@ import { FormField, Input, Select, Textarea } from '../../components/common/Form
 import { handleGridLastCellTab, hasRequiredGridValues } from '../../components/common/gridKeyboard';
 import SuccessSummaryDialog from '../../components/common/SuccessSummaryDialog';
 import { cn } from '../../utils/classNames'
-import { formatDate } from '../../utils/dateFormat';
+import { formatDate } from '../../utils/dateFormat'
 import { extendedSaleInvoiceDocuments, type SaleInvoiceDocument } from '../sale-invoice/saleInvoiceData';
 import type { DeliveryDocument } from './deliveryData';
 
