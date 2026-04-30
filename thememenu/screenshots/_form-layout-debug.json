@@ -1,0 +1,274 @@
+{
+  "before": {
+    "url": "http://127.0.0.1:5173/#/profile/form-layout/edit?formId=purchase-requisition-create",
+    "buttons": [
+      {
+        "i": 0,
+        "text": "",
+        "cls": "app-topbar__menu-button"
+      },
+      {
+        "i": 1,
+        "text": "",
+        "cls": "app-topbar__voice-button app-topbar__voice-button--outside"
+      },
+      {
+        "i": 2,
+        "text": "Light",
+        "cls": "app-topbar__appearance-toggle"
+      },
+      {
+        "i": 3,
+        "text": "",
+        "cls": "app-topbar__icon-button"
+      },
+      {
+        "i": 4,
+        "text": "",
+        "cls": "app-topbar__icon-button app-topbar__icon-button--secondary"
+      },
+      {
+        "i": 5,
+        "text": "AKAlex KumarBuyer Lead",
+        "cls": "app-topbar__profile-trigger"
+      },
+      {
+        "i": 6,
+        "text": "Procurement",
+        "cls": "app-sidebar__level1 app-sidebar__level1--expanded"
+      },
+      {
+        "i": 7,
+        "text": "Purchase Requisition",
+        "cls": "app-sidebar__level3"
+      },
+      {
+        "i": 8,
+        "text": "Purchase Order",
+        "cls": "app-sidebar__level3"
+      },
+      {
+        "i": 9,
+        "text": "Purchase Receipt",
+        "cls": "app-sidebar__level3"
+      },
+      {
+        "i": 10,
+        "text": "Purchase Invoice",
+        "cls": "app-sidebar__level3"
+      },
+      {
+        "i": 11,
+        "text": "Purchase Return Requisition",
+        "cls": "app-sidebar__level3"
+      },
+      {
+        "i": 12,
+        "text": "Purchase Return",
+        "cls": "app-sidebar__level3"
+      },
+      {
+        "i": 13,
+        "text": "Sales",
+        "cls": "app-sidebar__level1"
+      },
+      {
+        "i": 14,
+        "text": "Inventory",
+        "cls": "app-sidebar__level1"
+      },
+      {
+        "i": 15,
+        "text": "Services",
+        "cls": "app-sidebar__level1"
+      },
+      {
+        "i": 16,
+        "text": "",
+        "cls": "app-shell__overlay"
+      },
+      {
+        "i": 17,
+        "text": "",
+        "cls": "page-back-button create-pr-header__back"
+      },
+      {
+        "i": 18,
+        "text": "Tab",
+        "cls": "btn btn--outline btn--sm"
+      },
+      {
+        "i": 19,
+        "text": "Section",
+        "cls": "btn btn--outline btn--sm"
+      }
+    ],
+    "dialogs": 0
+  },
+  "afterTab": {
+    "dialogs": 1,
+    "body": "Workspace\nEX\nExcellon\nBajaj\nTata Motors\nOla\nEka\nHero\nRoyal Enfield\nLight\nAK\nAlex Kumar\nBuyer Lead\nProcurement\nPurchase Requisition\nPurchase Order\nPurchase Receipt\nPurchase Invoice\nPurchase Return Requisition\nPurchase Return\nSales\nInventory\nServices\nConfigure Purchase Requisition Create\n\nProcurement form layout\n\nTab\nSection\nSave draft\nPreview\nPublish\nReset draft\nGeneral DetailsRename\nProduct DetailsRename\nAdditional DetailsRename\nDrop section here\nRequisition Details\n7 fields\nRename\nFields/row\n1\n2\n3\n4\nMerge into...\nLine Details\nAttachments And Notes\nDepartment\nDepartment\nSupplier\nSupplier\nPriority\nPriority\nRequirement Date\nRequirement Date\nValid Till Date\nValid Till Date\nReference Number\nReference Number\nRemarks\nRemarks\nDrop field here\nGrid columns\n\nReorder columns and hide optional columns. Locked columns stay visible to protect document logic.\n\nProduct Details Columns\n14 visible\nAction\nLocked\nProduct Code\nLocked\nProduct Name\nDescription\nUOM\nLocked\nPriority\nRequirement Date\nRequested Q",
+    "active": "<input id=\"create-tab-compact-dialog-title-input\" placeholder=\"Enter tab name\" aria-invalid=\"false\" class=\"field-control css-jcecrc\" value=\"New tab\">"
+  },
+  "afterSection": {
+    "dialogs": 1,
+    "body": "Workspace\nEX\nExcellon\nBajaj\nTata Motors\nOla\nEka\nHero\nRoyal Enfield\nLight\nAK\nAlex Kumar\nBuyer Lead\nProcurement\nPurchase Requisition\nPurchase Order\nPurchase Receipt\nPurchase Invoice\nPurchase Return Requisition\nPurchase Return\nSales\nInventory\nServices\nConfigure Purchase Requisition Create\n\nProcurement form layout\n\nTab\nSection\nSave draft\nPreview\nPublish\nReset draft\nGeneral DetailsRename\nProduct DetailsRename\nAdditional DetailsRename\nDrop section here\nRequisition Details\n7 fields\nRename\nFields/row\n1\n2\n3\n4\nMerge into...\nLine Details\nAttachments And Notes\nDepartment\nDepartment\nSupplier\nSupplier\nPriority\nPriority\nRequirement Date\nRequirement Date\nValid Till Date\nValid Till Date\nReference Number\nReference Number\nRemarks\nRemarks\nDrop field here\nGrid columns\n\nReorder columns and hide optional columns. Locked columns stay visible to protect document logic.\n\nProduct Details Columns\n14 visible\nAction\nLocked\nProduct Code\nLocked\nProduct Name\nDescription\nUOM\nLocked\nPriority\nRequirement Date\nRequested Q",
+    "active": "<input id=\"create-section-compact-dialog-title-input\" placeholder=\"Enter section name\" aria-invalid=\"false\" class=\"field-control css-jcecrc\" value=\"New tab\">"
+  },
+  "logs": [
+    {
+      "type": "debug",
+      "args": [
+        {
+          "type": "string",
+          "value": "[vite] connecting..."
+        }
+      ],
+      "executionContextId": 2,
+      "timestamp": 1777537975144.752,
+      "stackTrace": {
+        "callFrames": [
+          {
+            "functionName": "",
+            "scriptId": "7",
+            "url": "http://127.0.0.1:5173/@vite/client",
+            "lineNumber": 826,
+            "columnNumber": 8
+          }
+        ]
+      }
+    },
+    {
+      "type": "debug",
+      "args": [
+        {
+          "type": "string",
+          "value": "[vite] connected."
+        }
+      ],
+      "executionContextId": 2,
+      "timestamp": 1777537975191.597,
+      "stackTrace": {
+        "callFrames": [
+          {
+            "functionName": "handleMessage",
+            "scriptId": "7",
+            "url": "http://127.0.0.1:5173/@vite/client",
+            "lineNumber": 930,
+            "columnNumber": 11
+          },
+          {
+            "functionName": "",
+            "scriptId": "7",
+            "url": "http://127.0.0.1:5173/@vite/client",
+            "lineNumber": 445,
+            "columnNumber": 41
+          },
+          {
+            "functionName": "dequeue",
+            "scriptId": "7",
+            "url": "http://127.0.0.1:5173/@vite/client",
+            "lineNumber": 467,
+            "columnNumber": 7
+          },
+          {
+            "functionName": "",
+            "scriptId": "7",
+            "url": "http://127.0.0.1:5173/@vite/client",
+            "lineNumber": 459,
+            "columnNumber": 8
+          },
+          {
+            "functionName": "enqueue",
+            "scriptId": "7",
+            "url": "http://127.0.0.1:5173/@vite/client",
+            "lineNumber": 453,
+            "columnNumber": 9
+          },
+          {
+            "functionName": "",
+            "scriptId": "7",
+            "url": "http://127.0.0.1:5173/@vite/client",
+            "lineNumber": 445,
+            "columnNumber": 27
+          },
+          {
+            "functionName": "onMessage",
+            "scriptId": "7",
+            "url": "http://127.0.0.1:5173/@vite/client",
+            "lineNumber": 293,
+            "columnNumber": 5
+          },
+          {
+            "functionName": "",
+            "scriptId": "7",
+            "url": "http://127.0.0.1:5173/@vite/client",
+            "lineNumber": 401,
+            "columnNumber": 4
+          }
+        ]
+      }
+    },
+    {
+      "type": "info",
+      "args": [
+        {
+          "type": "string",
+          "value": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools"
+        },
+        {
+          "type": "string",
+          "value": "font-weight:bold"
+        }
+      ],
+      "executionContextId": 2,
+      "timestamp": 1777537975493.597,
+      "stackTrace": {
+        "callFrames": [
+          {
+            "functionName": "",
+            "scriptId": "12",
+            "url": "http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=e80fb39e",
+            "lineNumber": 14336,
+            "columnNumber": 48
+          },
+          {
+            "functionName": "",
+            "scriptId": "12",
+            "url": "http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=e80fb39e",
+            "lineNumber": 14373,
+            "columnNumber": 3
+          },
+          {
+            "functionName": "",
+            "scriptId": "21",
+            "url": "http://127.0.0.1:5173/node_modules/.vite/deps/react-B6J-hxuQ.js?v=e80fb39e",
+            "lineNumber": 7,
+            "columnNumber": 47
+          },
+          {
+            "functionName": "",
+            "scriptId": "12",
+            "url": "http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=e80fb39e",
+            "lineNumber": 14378,
+            "columnNumber": 18
+          },
+          {
+            "functionName": "",
+            "scriptId": "21",
+            "url": "http://127.0.0.1:5173/node_modules/.vite/deps/react-B6J-hxuQ.js?v=e80fb39e",
+            "lineNumber": 7,
+            "columnNumber": 47
+          },
+          {
+            "functionName": "",
+            "scriptId": "12",
+            "url": "http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=e80fb39e",
+            "lineNumber": 14381,
+            "columnNumber": 15
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -7412,6 +7412,11 @@ h3 {
     transform 0.22s ease;
 }
 
+.MuiDialog-paper.compact-form-dialog__panel {
+  opacity: 1;
+  transform: none;
+}
+
 .compact-form-dialog--open .compact-form-dialog__panel {
   opacity: 1;
   transform: translateY(0) scale(1);

@@ -1,0 +1,14 @@
+{
+  "tab": {
+    "dialogCount": 1,
+    "opacity": "1",
+    "transform": "none",
+    "title": "Create tabAdd a new tab and move sections or fields into it.Tab nameDiscardSave"
+  },
+  "section": {
+    "dialogCount": 1,
+    "opacity": "1",
+    "transform": "none",
+    "title": "Create sectionAdd a new section in the current tab.Section nameDiscardSave"
+  }
+}

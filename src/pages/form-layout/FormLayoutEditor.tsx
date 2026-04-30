@@ -82,6 +82,22 @@ function getDialogCopy(dialog: LayoutDialogState) {
   };
 }
 
+function getDialogKey(dialog: Exclude<LayoutDialogState, null>) {
+  if (dialog.mode === 'create-tab') {
+    return `create-tab:${dialog.initialValue}`;
+  }
+
+  if (dialog.mode === 'create-section') {
+    return `create-section:${dialog.tabId}:${dialog.initialValue}`;
+  }
+
+  if (dialog.mode === 'rename-tab') {
+    return `rename-tab:${dialog.tabId}:${dialog.initialValue}`;
+  }
+
+  return `rename-section:${dialog.sectionId}:${dialog.initialValue}`;
+}
+
 const FormLayoutEditor: React.FC<FormLayoutEditorProps> = ({
   formId,
   onBack,
@@ -504,8 +520,9 @@ const FormLayoutEditor: React.FC<FormLayoutEditorProps> = ({
           />
         </div>
       </main>
-      {dialogCopy && (
+      {layoutDialog && dialogCopy && (
         <CompactFormDialog
+          key={getDialogKey(layoutDialog)}
           isOpen={Boolean(layoutDialog)}
           title={dialogCopy.title}
           description={dialogCopy.description}

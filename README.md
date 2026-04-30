@@ -23,6 +23,18 @@ Useful scripts:
 - `npm run build` performs the TypeScript build and bundles the app
 - `npm run preview` previews the production build
 
+## Agent Execution Policy
+
+For AI agent-driven small fixes, use a minimal-command workflow:
+
+- work only in user-requested scope
+- prefer static inspection over running the app
+- do not start dev servers unless explicitly requested
+- do not run browser automation or screenshot tools unless explicitly requested
+- avoid full test/build/format commands for small changes
+
+See [AGENTS.md](./AGENTS.md) for the full project-level agent rules.
+
 ## Routing
 
 The app uses hash-based routing in [src/App.tsx](./src/App.tsx).
