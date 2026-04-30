@@ -5,7 +5,7 @@ import ConfirmationDialog from '../../components/common/ConfirmationDialog';
 import { FormField, Input, Select, Textarea } from '../../components/common/FormControls';
 import { handleGridLastCellTab, hasRequiredGridValues } from '../../components/common/gridKeyboard';
 import SuccessSummaryDialog from '../../components/common/SuccessSummaryDialog';
-import { cn } from '../../utils/classNames';
+import { cn } from '../../utils/classNames'
 import { formatDate } from '../../utils/dateFormat';
 import { extendedSaleInvoiceDocuments, type SaleInvoiceDocument } from '../sale-invoice/saleInvoiceData';
 import type { DeliveryDocument } from './deliveryData';
