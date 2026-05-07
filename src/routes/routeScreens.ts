@@ -1,6 +1,8 @@
 import { lazy } from 'react';
 
 export const BusinessSettings = lazy(() => import('../pages/profile/BusinessSettings'));
+export const ApprovalStudioList = lazy(() => import('../pages/approval-studio/ApprovalStudioList'));
+export const CreateApprovalWorkflow = lazy(() => import('../pages/approval-studio/CreateApprovalWorkflow'));
 export const ThemeBuilder = lazy(() => import('../pages/profile/ThemeBuilder'));
 export const MenuBuilder = lazy(() => import('../pages/profile/MenuBuilder'));
 export const CreateDelivery = lazy(() => import('../pages/delivery/CreateDelivery'));

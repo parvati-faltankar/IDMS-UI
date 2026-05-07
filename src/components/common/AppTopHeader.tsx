@@ -116,7 +116,9 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
                 ? royalEnfieldLogoWhite
                 : excellonsoftLogo);
   const moduleLabel =
-    activeLeaf === 'purchase-requisition' ||
+    activeLeaf === 'approval-studio'
+      ? 'Approval Studio'
+      : activeLeaf === 'purchase-requisition' ||
     activeLeaf === 'purchase-order' ||
     activeLeaf === 'purchase-receipt' ||
     activeLeaf === 'purchase-invoice'

@@ -8,7 +8,7 @@ import {
 import { parseVoiceCommand, resolveVoiceCommand } from './voiceCommand';
 import { resolveSearchInsight, type SearchInsightMatch } from './searchInsights';
 
-export type SearchScopeId = 'all' | GlobalSearchEntity | 'procurement' | 'sales' | 'form-layout';
+export type SearchScopeId = 'all' | GlobalSearchEntity | 'procurement' | 'sales' | 'form-layout' | 'approval-studio';
 
 export interface SearchScopeOption {
   id: SearchScopeId;
@@ -33,6 +33,7 @@ export interface SearchModuleShortcut {
   icon:
     | 'procurement'
     | 'sales'
+    | 'approval-studio'
     | 'purchase-requisition'
     | 'purchase-order'
     | 'purchase-receipt'
@@ -90,6 +91,7 @@ export const searchScopeOptions: SearchScopeOption[] = [
   { id: 'delivery', label: globalSearchEntityLabels.delivery, kind: 'entity' },
   { id: 'procurement', label: 'Procurement', kind: 'module', route: '#/purchase-requisition' },
   { id: 'sales', label: 'Sales', kind: 'module', route: '#/sale-order' },
+  { id: 'approval-studio', label: 'Approval Studio', kind: 'module', route: '#/approval-studio' },
   { id: 'form-layout', label: 'Form Layout', kind: 'module', route: '#/profile/form-layout' },
 ];
 
@@ -173,6 +175,14 @@ export const searchModuleShortcuts: SearchModuleShortcut[] = [
     href: '#/sale-order',
     scopeId: 'sales',
     icon: 'sales',
+  },
+  {
+    id: 'shortcut-approval-studio',
+    label: 'Approval Studio',
+    description: 'Manage approval components and workflows',
+    href: '#/approval-studio',
+    scopeId: 'approval-studio',
+    icon: 'approval-studio',
   },
   {
     id: 'shortcut-form-layout',
@@ -280,7 +290,7 @@ export function getScopeEntities(scopeId: SearchScopeId): GlobalSearchEntity[] |
     return undefined;
   }
 
-  if (scopeId === 'form-layout') {
+  if (scopeId === 'form-layout' || scopeId === 'approval-studio') {
     return [];
   }
 

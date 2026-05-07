@@ -1,5 +1,7 @@
 export const paths = {
   home: '/purchase-requisition',
+  approvalStudioList: '/approval-studio',
+  approvalStudioCreate: '/approval-studio/new',
   brandGuidelines: '/brand-guidelines',
   businessSettings: '/profile/business-settings',
   themeBuilder: '/profile/theme-builder',
@@ -33,6 +35,7 @@ export type LegacyRedirect = {
 };
 
 export const legacyRedirects: LegacyRedirect[] = [
+  { path: '/approvalstudio', to: paths.approvalStudioList },
   { path: '/profile/form-layout-editor', to: paths.formLayoutEditor, preserveSearch: true },
   { path: '/create-purchase-requisition', to: paths.purchaseRequisitionCreate },
   { path: '/create-purchase-order', to: paths.purchaseOrderCreate },

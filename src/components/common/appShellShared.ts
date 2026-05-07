@@ -6,6 +6,7 @@ import {
   FileCheck2,
   FileMinus2,
   FilePlus2,
+  FolderKanban,
   PackageCheck,
   ReceiptText,
   ShoppingBag,
@@ -15,6 +16,7 @@ import {
 import type { ReactNode, RefObject, UIEvent } from 'react';
 
 export type ActiveLeaf =
+  | 'approval-studio'
   | 'purchase-requisition'
   | 'purchase-order'
   | 'purchase-receipt'
@@ -111,6 +113,24 @@ export interface BrowserSpeechRecognition {
 export type BrowserSpeechRecognitionConstructor = new () => BrowserSpeechRecognition;
 
 export const menuStructure: Level1Item[] = [
+  {
+    label: 'Approval Studio',
+    icon: FolderKanban,
+    level2: [
+      {
+        label: 'Pages',
+        hideLabel: true,
+        level3: [
+          {
+            key: 'approval-studio',
+            label: 'Approval Studio',
+            icon: FolderKanban,
+            route: '/approval-studio',
+          },
+        ],
+      },
+    ],
+  },
   {
     label: 'Procurement',
     icon: ClipboardList,

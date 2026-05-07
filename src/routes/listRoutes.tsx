@@ -1,6 +1,7 @@
 import { Route } from 'react-router-dom';
 import { paths } from './routeConfig';
 import {
+  ApprovalStudioList,
   DeliveryList,
   PurchaseInvoiceList,
   PurchaseReceiptList,
@@ -26,6 +27,17 @@ export function renderListRoutes({
 }: ListRouteContext) {
   return (
     <>
+      <Route
+        path={paths.approvalStudioList}
+        element={
+          <ApprovalStudioList
+            onNew={() => navigateTo(paths.approvalStudioCreate)}
+            onView={(workflowId) => navigateTo(paths.approvalStudioCreate, { id: workflowId, mode: 'view' })}
+            onEdit={(workflowId) => navigateTo(paths.approvalStudioCreate, { id: workflowId, mode: 'edit' })}
+          />
+        }
+      />
+
       <Route
         path={paths.purchaseOrderList}
         element={

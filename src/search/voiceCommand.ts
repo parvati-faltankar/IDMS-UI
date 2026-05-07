@@ -148,6 +148,11 @@ const moduleConfigs: ModuleVoiceConfig[] = [
     synonyms: ['sales', 'sale module', 'sales module'],
   },
   {
+    label: 'Approval Studio',
+    route: '#/approval-studio',
+    synonyms: ['approval studio', 'approvals', 'approval workflows', 'approval module'],
+  },
+  {
     label: 'Form Layout',
     route: '#/profile/form-layout',
     synonyms: ['form layout', 'form layout screen', 'layout settings', 'layout screen', 'form configuration'],

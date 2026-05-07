@@ -27,12 +27,14 @@ const AppSidebar: React.FC<SidebarComponentProps> = ({
     activeLeaf === 'sale-invoice' ||
     activeLeaf === 'delivery';
   const [expandedLevel1, setExpandedLevel1] = useState<Record<string, boolean>>({
+    'Approval Studio': activeLeaf === 'approval-studio',
     Procurement: !isSalesLeaf,
     Sales: isSalesLeaf,
     Inventory: false,
     Services: false,
   });
   const [expandedLevel2, setExpandedLevel2] = useState<Record<string, boolean>>({
+    'Approval Studio_Pages': activeLeaf === 'approval-studio',
     Procurement_Pages: !isSalesLeaf,
     Sales_Pages: isSalesLeaf,
     Inventory_Pages: false,

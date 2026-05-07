@@ -3,6 +3,7 @@ import {
   Boxes,
   ClipboardList,
   Clock3,
+  FolderKanban,
   FileStack,
   LayoutTemplate,
   PackageCheck,
@@ -69,6 +70,8 @@ function shortcutIcon(shortcut: SearchModuleShortcut) {
       return <Boxes size={16} />;
     case 'sales':
       return <ShoppingBag size={16} />;
+    case 'approval-studio':
+      return <FolderKanban size={16} />;
     case 'purchase-requisition':
       return <ClipboardList size={16} />;
     case 'purchase-order':

@@ -67,6 +67,7 @@ const canonicalMenuItemKeys = new Set(
 );
 
 export const defaultMenuItemRouteByKey: Record<string, string> = {
+  'approval-studio': paths.approvalStudioList,
   'purchase-requisition': paths.purchaseRequisitionList,
   'purchase-order': paths.purchaseOrderList,
   'purchase-receipt': paths.purchaseReceiptList,
@@ -352,11 +353,10 @@ export function migrateMenuConfiguration(rawConfig: unknown): MenuConfiguration 
       }),
   };
 
-  if (migratedConfig.version < MENU_BUILDER_CONSTANTS.VERSION) {
-    return mergeWithCanonicalNavigation(migratedConfig);
-  }
-
-  return migratedConfig;
+  // Always merge with canonical navigation so newly introduced
+  // system modules (like Approval Studio) appear even when users
+  // already have a published config at the latest schema version.
+  return mergeWithCanonicalNavigation(migratedConfig);
 }
 
 export function notifyPublishedMenuUpdated() {

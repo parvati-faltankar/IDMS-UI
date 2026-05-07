@@ -10,6 +10,7 @@ import { getSaleInvoiceById } from '../pages/sale-invoice/saleInvoiceData';
 import { getDeliveryById } from '../pages/delivery/deliveryData';
 import { paths } from './routeConfig';
 import {
+  CreateApprovalWorkflow,
   CreateDelivery,
   CreatePurchaseInvoice,
   CreatePurchaseOrder,
@@ -30,6 +31,20 @@ export function renderCreateRoutes({
 }: CreateRouteContext) {
   return (
     <>
+      <Route
+        path={paths.approvalStudioCreate}
+        element={
+          <CreateApprovalWorkflow
+            editingWorkflowId={editingDocumentId}
+            mode={routeQuery.get('mode') === 'view' ? 'view' : routeQuery.get('mode') === 'edit' ? 'edit' : 'create'}
+            onBack={() => navigateTo(paths.approvalStudioList)}
+            onNavigateToList={() => navigateTo(paths.approvalStudioList)}
+            onNavigateToCreate={() => navigateTo(paths.approvalStudioCreate)}
+            onNavigateToView={(workflowId) => navigateTo(paths.approvalStudioCreate, { id: workflowId, mode: 'view' })}
+          />
+        }
+      />
+
       <Route
         path={paths.purchaseRequisitionCreate}
         element={
