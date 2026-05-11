@@ -3,6 +3,7 @@ import Box from '@mui/material/Box';
 import { Input } from './FormControls';
 import AppButton from '../app/AppButton';
 import AppDialog from '../app/AppDialog';
+import { useLocalization } from '../../localization';
 
 interface CompactFormDialogProps {
   isOpen: boolean;
@@ -24,14 +25,17 @@ const CompactFormDialog: React.FC<CompactFormDialogProps> = ({
   label,
   initialValue = '',
   placeholder,
-  saveLabel = 'Save',
-  discardLabel = 'Discard',
+  saveLabel,
+  discardLabel,
   onSave,
   onClose,
 }) => {
+  const { t } = useLocalization();
   const [value, setValue] = useState(initialValue);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const titleId = `${title.replace(/\s+/g, '-').toLowerCase()}-compact-dialog-title`;
+  const resolvedSaveLabel = saveLabel ?? t('common.save');
+  const resolvedDiscardLabel = discardLabel ?? t('common.cancel');
 
   useEffect(() => {
     if (!isOpen) {
@@ -58,7 +62,7 @@ const CompactFormDialog: React.FC<CompactFormDialogProps> = ({
       actions={
         <Box className="compact-form-dialog__actions" sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1.25, width: '100%' }}>
           <AppButton type="button" tone="outline" className="compact-form-dialog__button" onClick={onClose}>
-            {discardLabel}
+            {resolvedDiscardLabel}
           </AppButton>
           <AppButton
             type="submit"
@@ -67,7 +71,7 @@ const CompactFormDialog: React.FC<CompactFormDialogProps> = ({
             className="compact-form-dialog__button"
             disabled={!trimmedValue}
           >
-            {saveLabel}
+            {resolvedSaveLabel}
           </AppButton>
         </Box>
       }

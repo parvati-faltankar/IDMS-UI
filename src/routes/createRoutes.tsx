@@ -8,6 +8,7 @@ import { getSaleAllocationRequisitionById } from '../pages/sale-allocation-requi
 import { getSaleAllocationById } from '../pages/sale-allocation/saleAllocationData';
 import { getSaleInvoiceById } from '../pages/sale-invoice/saleInvoiceData';
 import { getDeliveryById } from '../pages/delivery/deliveryData';
+import { getPurchaseOrderByIdFromStore, getSaleOrderByIdFromStore } from '../stores/documentStore';
 import { paths } from './routeConfig';
 import {
   CreateApprovalWorkflow,
@@ -67,7 +68,7 @@ export function renderCreateRoutes({
         element={
           <CreatePurchaseOrder
             key={editingDocumentId ?? 'new-purchase-order'}
-            editingDocument={getPurchaseOrderById(editingDocumentId)}
+            editingDocument={getPurchaseOrderByIdFromStore(editingDocumentId) ?? getPurchaseOrderById(editingDocumentId)}
             onBack={() => navigateTo(paths.purchaseOrderList)}
             onNavigateToPurchaseOrderList={() => navigateTo(paths.purchaseOrderList)}
             onNavigateToPurchaseRequisitionList={() => navigateTo(paths.purchaseRequisitionList)}
@@ -110,7 +111,7 @@ export function renderCreateRoutes({
         element={
           <CreateSaleOrder
             key={editingDocumentId ?? 'new-sale-order'}
-            editingDocument={getSaleOrderById(editingDocumentId)}
+            editingDocument={getSaleOrderByIdFromStore(editingDocumentId) ?? getSaleOrderById(editingDocumentId)}
             onBack={() => navigateTo(paths.saleOrderList)}
             onNavigateToSaleOrderList={() => navigateTo(paths.saleOrderList)}
           />

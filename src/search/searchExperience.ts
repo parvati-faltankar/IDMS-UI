@@ -8,7 +8,7 @@ import {
 import { parseVoiceCommand, resolveVoiceCommand } from './voiceCommand';
 import { resolveSearchInsight, type SearchInsightMatch } from './searchInsights';
 
-export type SearchScopeId = 'all' | GlobalSearchEntity | 'procurement' | 'sales' | 'form-layout' | 'approval-studio';
+export type SearchScopeId = 'all' | GlobalSearchEntity | 'procurement' | 'sales' | 'form-layout' | 'approval-studio' | 'print-builder';
 
 export interface SearchScopeOption {
   id: SearchScopeId;
@@ -42,7 +42,8 @@ export interface SearchModuleShortcut {
     | 'sale-invoice'
     | 'sale-allocation'
     | 'delivery'
-    | 'form-layout';
+    | 'form-layout'
+    | 'print-builder';
 }
 
 export interface SearchCommandPreview {
@@ -93,6 +94,7 @@ export const searchScopeOptions: SearchScopeOption[] = [
   { id: 'sales', label: 'Sales', kind: 'module', route: '#/sale-order' },
   { id: 'approval-studio', label: 'Approval Studio', kind: 'module', route: '#/approval-studio' },
   { id: 'form-layout', label: 'Form Layout', kind: 'module', route: '#/profile/form-layout' },
+  { id: 'print-builder', label: 'Print Builder', kind: 'module', route: '#/profile/print-builder' },
 ];
 
 export const searchModuleShortcuts: SearchModuleShortcut[] = [
@@ -191,6 +193,14 @@ export const searchModuleShortcuts: SearchModuleShortcut[] = [
     href: '#/profile/form-layout',
     scopeId: 'form-layout',
     icon: 'form-layout',
+  },
+  {
+    id: 'shortcut-print-builder',
+    label: 'Print Builder',
+    description: 'Create and manage reusable print layouts',
+    href: '#/profile/print-builder',
+    scopeId: 'print-builder',
+    icon: 'print-builder',
   },
 ];
 

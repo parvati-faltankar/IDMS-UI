@@ -1,6 +1,6 @@
 import { Navigate, Route } from 'react-router-dom';
 import { paths } from './routeConfig';
-import { BusinessSettings, ExcellonBrandGuidelinesPreview, FormLayoutEditor, FormLayoutSettings, ThemeBuilder, MenuBuilder } from './routeScreens';
+import { BusinessSettings, ExcellonBrandGuidelinesPreview, FormLayoutEditor, FormLayoutSettings, LanguageBuilder, ThemeBuilder, MenuBuilder, PrintBuilder } from './routeScreens';
 import type { SharedRouteContext } from './routeTypes';
 
 export function renderProfileRoutes({ locationSearch, navigateTo, routeQuery }: SharedRouteContext) {
@@ -13,11 +13,26 @@ export function renderProfileRoutes({ locationSearch, navigateTo, routeQuery }: 
         element={<BusinessSettings onBack={() => navigateTo(paths.purchaseRequisitionList)} />}
       />
 
+      <Route
+        path={paths.languageBuilder}
+        element={<LanguageBuilder onBack={() => navigateTo(paths.purchaseRequisitionList)} />}
+      />
+
       <Route path={paths.themeBuilder} element={<ThemeBuilder onBack={() => navigateTo(paths.purchaseRequisitionList)} />} />
 
       <Route
         path={paths.menuBuilder}
         element={<MenuBuilder onNavigateToPurchaseRequisitionList={() => navigateTo(paths.purchaseRequisitionList)} />}
+      />
+
+      <Route
+        path={paths.printBuilder}
+        element={<PrintBuilder onBack={() => navigateTo(paths.purchaseRequisitionList)} />}
+      />
+
+      <Route
+        path={paths.printBuilderEditor}
+        element={<PrintBuilder onBack={() => navigateTo(paths.printBuilder)} />}
       />
 
       <Route

@@ -3,6 +3,7 @@ import { ChevronDown } from 'lucide-react';
 import { cn } from '../../utils/classNames';
 import { navigateToHash, type Level3Item, type SidebarComponentProps } from './appShellShared';
 import { usePublishedMenu } from '../../hooks/usePublishedMenu';
+import { navigationItemTranslationKeys, navigationSectionTranslationKeys, useLocalization } from '../../localization';
 
 const AppSidebar: React.FC<SidebarComponentProps> = ({
   isCollapsed,
@@ -19,6 +20,7 @@ const AppSidebar: React.FC<SidebarComponentProps> = ({
   isMobileOpen,
   onCloseMobile,
 }) => {
+  const { t } = useLocalization();
   const currentMenuStructure = usePublishedMenu();
   const isSalesLeaf =
     activeLeaf === 'sale-order' ||
@@ -159,6 +161,14 @@ const AppSidebar: React.FC<SidebarComponentProps> = ({
   };
 
   const sidebarCollapsed = isCollapsed && !isMobileOpen;
+  const getSectionLabel = (label: string) => {
+    const translationKey = navigationSectionTranslationKeys[label];
+    return translationKey ? t(translationKey) : label;
+  };
+  const getItemLabel = (item: Level3Item) => {
+    const translationKey = navigationItemTranslationKeys[item.key];
+    return translationKey ? t(translationKey) : item.label;
+  };
 
   return (
     <aside
@@ -184,7 +194,7 @@ const AppSidebar: React.FC<SidebarComponentProps> = ({
                 )}
                 disabled={sidebarCollapsed}
                 aria-expanded={sidebarCollapsed ? undefined : isLevel1Expanded}
-                title={sidebarCollapsed ? level1.label : undefined}
+                title={sidebarCollapsed ? getSectionLabel(level1.label) : undefined}
               >
                 {!sidebarCollapsed && (
                   <ChevronDown
@@ -193,13 +203,13 @@ const AppSidebar: React.FC<SidebarComponentProps> = ({
                   />
                 )}
                 {!sidebarCollapsed ? (
-                  <span>{level1.label}</span>
+                  <span>{getSectionLabel(level1.label)}</span>
                 ) : (
                   <>
                     {level1.icon ? (
                       <level1.icon size={18} strokeWidth={1.9} aria-hidden="true" />
                     ) : (
-                      <span className="app-sidebar__collapsed-label">{level1.label.charAt(0)}</span>
+                      <span className="app-sidebar__collapsed-label">{getSectionLabel(level1.label).charAt(0)}</span>
                     )}
                   </>
                 )}
@@ -233,7 +243,7 @@ const AppSidebar: React.FC<SidebarComponentProps> = ({
                             ) : (
                               <span className="app-sidebar__level2-spacer" />
                             )}
-                            <span>{level2.label}</span>
+                            <span>{getSectionLabel(level2.label)}</span>
                           </button>
                         )}
 
@@ -247,7 +257,7 @@ const AppSidebar: React.FC<SidebarComponentProps> = ({
                                 className={cn('app-sidebar__level3', level3.key === activeLeaf && 'app-sidebar__level3--active')}
                               >
                                 {level3.icon && <level3.icon size={15} strokeWidth={1.9} aria-hidden="true" />}
-                                <span>{level3.label}</span>
+                                <span>{getItemLabel(level3)}</span>
                               </button>
                             ))}
                           </div>

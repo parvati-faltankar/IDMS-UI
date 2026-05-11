@@ -26,7 +26,7 @@ const AppShell: React.FC<AppShellProps> = ({
   onFormLayoutClick,
   onBusinessSettingsClick,
 }) => {
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
 
   const handleToggleNavigation = () => {

@@ -8,6 +8,10 @@ interface AmountBreakdownItem {
   value: string;
   hint?: string;
   tone?: 'default' | 'accent' | 'muted';
+  editable?: boolean;
+  inputValue?: string;
+  inputPlaceholder?: string;
+  onInputChange?: (value: string) => void;
 }
 
 interface AmountBreakdownGroup {
@@ -26,7 +30,10 @@ interface AmountBreakdownDrawerProps {
   totalValue: string;
   items: AmountBreakdownItem[];
   groups?: AmountBreakdownGroup[];
+  mainSectionTitle?: string;
+  groupSectionTitle?: string;
   note?: string;
+  panelClassName?: string;
   onClose: () => void;
 }
 
@@ -38,7 +45,10 @@ const AmountBreakdownDrawer: React.FC<AmountBreakdownDrawerProps> = ({
   totalValue,
   items,
   groups,
+  mainSectionTitle = 'Amount breakdown',
+  groupSectionTitle = 'Document-wise breakdown',
   note,
+  panelClassName,
   onClose,
 }) => {
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
@@ -56,7 +66,7 @@ const AmountBreakdownDrawer: React.FC<AmountBreakdownDrawerProps> = ({
       title={title}
       subtitle={subtitle}
       onClose={onClose}
-      panelClassName="side-drawer__panel--narrow amount-breakdown-drawer__panel"
+      panelClassName={cn('side-drawer__panel--narrow amount-breakdown-drawer__panel', panelClassName)}
       contentClassName="amount-breakdown-drawer"
       footer={
         <div className="amount-breakdown-drawer__total">
@@ -66,7 +76,7 @@ const AmountBreakdownDrawer: React.FC<AmountBreakdownDrawerProps> = ({
       }
     >
       <div className="amount-breakdown-drawer__section">
-        <div className="amount-breakdown-drawer__section-title">Amount breakdown</div>
+        <div className="amount-breakdown-drawer__section-title">{mainSectionTitle}</div>
 
         <div className="amount-breakdown-drawer__list" role="list">
           {items.map((item) => (
@@ -82,7 +92,17 @@ const AmountBreakdownDrawer: React.FC<AmountBreakdownDrawerProps> = ({
                   item.tone === 'muted' && 'amount-breakdown-drawer__value--muted'
                 )}
               >
-                {item.value}
+                {item.editable ? (
+                  <input
+                    type="text"
+                    className="amount-breakdown-drawer__input"
+                    value={item.inputValue ?? ''}
+                    placeholder={item.inputPlaceholder}
+                    onChange={(event) => item.onInputChange?.(event.target.value)}
+                  />
+                ) : (
+                  item.value
+                )}
               </div>
             </div>
           ))}
@@ -91,7 +111,7 @@ const AmountBreakdownDrawer: React.FC<AmountBreakdownDrawerProps> = ({
 
       {groups && groups.length > 0 && (
         <div className="amount-breakdown-drawer__group-section">
-          <div className="amount-breakdown-drawer__section-title">Document-wise breakdown</div>
+          <div className="amount-breakdown-drawer__section-title">{groupSectionTitle}</div>
 
           {groups.map((group) => {
             const isCollapsed = collapsedGroups[group.id] ?? Boolean(group.defaultCollapsed);
@@ -127,7 +147,17 @@ const AmountBreakdownDrawer: React.FC<AmountBreakdownDrawerProps> = ({
                               item.tone === 'muted' && 'amount-breakdown-drawer__value--muted'
                             )}
                           >
-                            {item.value}
+                            {item.editable ? (
+                              <input
+                                type="text"
+                                className="amount-breakdown-drawer__input"
+                                value={item.inputValue ?? ''}
+                                placeholder={item.inputPlaceholder}
+                                onChange={(event) => item.onInputChange?.(event.target.value)}
+                              />
+                            ) : (
+                              item.value
+                            )}
                           </div>
                         </div>
                       ))}

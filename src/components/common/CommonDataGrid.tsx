@@ -504,7 +504,6 @@ const CommonDataGrid = <TData, TSortKey extends string = string>({
     <>
       <div className="catalogue-table-toolbar catalogue-grid-toolbar" aria-label={toolbarLabel}>
         <div className="catalogue-table-toolbar__meta">
-          Showing {renderedRows.length} of {sortedRows.length} rows
           {preferences.groupByColumnId && (
             <span className="catalogue-grid-toolbar__pill">
               Grouped by {columnMap.get(preferences.groupByColumnId)?.label ?? 'column'}

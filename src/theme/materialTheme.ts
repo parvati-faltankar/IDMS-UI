@@ -1,4 +1,4 @@
-import { alpha, createTheme, type Shadows } from '@mui/material/styles';
+import { alpha, createTheme, type Direction, type Shadows } from '@mui/material/styles';
 import { themeRegistry, DEFAULT_THEME_KEY, type AppearanceMode, type BrandThemeDefinition, type ThemeKey } from './themeRegistry';
 
 function createAppShadows(isDark: boolean): Shadows {
@@ -14,7 +14,12 @@ function createAppShadows(isDark: boolean): Shadows {
   return shadows;
 }
 
-export function createAppMuiTheme(themeKey: ThemeKey, appearanceMode: AppearanceMode, theme?: BrandThemeDefinition) {
+export function createAppMuiTheme(
+  themeKey: ThemeKey,
+  appearanceMode: AppearanceMode,
+  theme?: BrandThemeDefinition,
+  direction: Direction = 'ltr'
+) {
   const brand = (theme ?? themeRegistry[themeKey] ?? themeRegistry[DEFAULT_THEME_KEY]).brandScale;
   const isDark = appearanceMode === 'dark';
   const surface = isDark ? '#151e2a' : '#ffffff';
@@ -29,6 +34,7 @@ export function createAppMuiTheme(themeKey: ThemeKey, appearanceMode: Appearance
   const hoverBorder = isDark ? '#475569' : '#c7ced8';
 
   return createTheme({
+    direction,
     palette: {
       mode: isDark ? 'dark' : 'light',
       primary: {
@@ -96,12 +102,14 @@ export function createAppMuiTheme(themeKey: ThemeKey, appearanceMode: Appearance
           },
           html: {
             backgroundColor: bodyBackground,
+            direction,
           },
           body: {
             margin: 0,
             backgroundColor: bodyBackground,
             color: textPrimary,
             fontFamily: 'var(--font-family-base, "Noto Sans", sans-serif)',
+            direction,
           },
         },
       },

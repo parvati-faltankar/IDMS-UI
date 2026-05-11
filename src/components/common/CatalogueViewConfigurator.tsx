@@ -15,6 +15,21 @@ interface Option {
   label: string;
 }
 
+interface CatalogueViewConfiguratorLabels {
+  ownerScope: string;
+  ownerAll: string;
+  ownerMine: string;
+  ownerSpecific: string;
+  ownerField: string;
+  ownerTag: string;
+  primaryEntityField: string;
+  primaryEntityAll: string;
+  primaryEntityTag: string;
+  secondaryEntityField: string;
+  secondaryEntityAll: string;
+  secondaryEntityTag: string;
+}
+
 interface CatalogueViewConfiguratorProps {
   isOpen: boolean;
   title: string;
@@ -29,6 +44,7 @@ interface CatalogueViewConfiguratorProps {
   statusOptions: Option[];
   priorityOptions: Option[];
   sortOptions: Option[];
+  labels?: Partial<CatalogueViewConfiguratorLabels>;
   onClose: () => void;
   onSave: (draft: EditableCatalogueViewDefinition, options: { viewId?: string; pinAsDefault: boolean }) => string;
   onDelete: (viewId: string) => void;
@@ -63,13 +79,32 @@ function toDraft(view: CatalogueViewDefinition): EditableCatalogueViewDefinition
   };
 }
 
-function buildCriteriaSummary(draft: EditableCatalogueViewDefinition, currentUserName: string): string[] {
+const defaultLabels: CatalogueViewConfiguratorLabels = {
+  ownerScope: 'Requester scope',
+  ownerAll: 'All requesters',
+  ownerMine: 'My requisitions',
+  ownerSpecific: 'Specific requester',
+  ownerField: 'Requester',
+  ownerTag: 'Requester',
+  primaryEntityField: 'Supplier',
+  primaryEntityAll: 'All suppliers',
+  primaryEntityTag: 'Supplier',
+  secondaryEntityField: 'Branch',
+  secondaryEntityAll: 'All branches',
+  secondaryEntityTag: 'Branch',
+};
+
+function buildCriteriaSummary(
+  draft: EditableCatalogueViewDefinition,
+  currentUserName: string,
+  labels: CatalogueViewConfiguratorLabels
+): string[] {
   const tags: string[] = [];
 
   if (draft.criteria.ownerScope === 'me') {
-    tags.push(`Requester: ${currentUserName}`);
+    tags.push(`${labels.ownerTag}: ${currentUserName}`);
   } else if (draft.criteria.ownerScope === 'specific' && draft.criteria.ownerName) {
-    tags.push(`Requester: ${draft.criteria.ownerName}`);
+    tags.push(`${labels.ownerTag}: ${draft.criteria.ownerName}`);
   }
 
   if (draft.criteria.statuses.length > 0) {
@@ -81,11 +116,11 @@ function buildCriteriaSummary(draft: EditableCatalogueViewDefinition, currentUse
   }
 
   if (draft.criteria.suppliers[0]) {
-    tags.push(`Supplier: ${draft.criteria.suppliers[0]}`);
+    tags.push(`${labels.primaryEntityTag}: ${draft.criteria.suppliers[0]}`);
   }
 
   if (draft.criteria.branches[0]) {
-    tags.push(`Branch: ${draft.criteria.branches[0]}`);
+    tags.push(`${labels.secondaryEntityTag}: ${draft.criteria.branches[0]}`);
   }
 
   if (draft.criteria.datePreset !== 'all') {
@@ -113,11 +148,16 @@ const CatalogueViewConfigurator: React.FC<CatalogueViewConfiguratorProps> = ({
   statusOptions,
   priorityOptions,
   sortOptions,
+  labels: labelsProp,
   onClose,
   onSave,
   onDelete,
   onPin,
 }) => {
+  const labels = {
+    ...defaultLabels,
+    ...labelsProp,
+  };
   const initialView = views.find((view) => view.id === activeViewId) ?? views[0] ?? null;
   const [selectedViewId, setSelectedViewId] = useState<string>(initialView?.id ?? draftViewId);
   const [draft, setDraft] = useState<EditableCatalogueViewDefinition>(() =>
@@ -203,7 +243,7 @@ const CatalogueViewConfigurator: React.FC<CatalogueViewConfiguratorProps> = ({
     });
   };
 
-  const criteriaSummary = buildCriteriaSummary(draft, currentUserName);
+  const criteriaSummary = buildCriteriaSummary(draft, currentUserName, labels);
 
   return (
     <SideDrawer
@@ -322,7 +362,7 @@ const CatalogueViewConfigurator: React.FC<CatalogueViewConfiguratorProps> = ({
 
               <div className="catalogue-view-configurator__form-grid">
                 <label className="drawer-form__field">
-                  <span className="field-label">Requester scope</span>
+                  <span className="field-label">{labels.ownerScope}</span>
                   <Select
                     value={draft.criteria.ownerScope}
                     onChange={(event) =>
@@ -339,9 +379,9 @@ const CatalogueViewConfigurator: React.FC<CatalogueViewConfiguratorProps> = ({
                       }))
                     }
                     options={[
-                      { value: 'all', label: 'All requesters' },
-                      { value: 'me', label: 'My requisitions' },
-                      { value: 'specific', label: 'Specific requester' },
+                      { value: 'all', label: labels.ownerAll },
+                      { value: 'me', label: labels.ownerMine },
+                      { value: 'specific', label: labels.ownerSpecific },
                     ]}
                   />
                 </label>
@@ -370,7 +410,7 @@ const CatalogueViewConfigurator: React.FC<CatalogueViewConfiguratorProps> = ({
 
                 {draft.criteria.ownerScope === 'specific' && (
                   <label className="drawer-form__field">
-                    <span className="field-label">Requester</span>
+                    <span className="field-label">{labels.ownerField}</span>
                     <Select
                       value={draft.criteria.ownerName}
                       onChange={(event) =>
@@ -383,7 +423,7 @@ const CatalogueViewConfigurator: React.FC<CatalogueViewConfiguratorProps> = ({
                         }))
                       }
                       options={[
-                        { value: '', label: 'Select requester' },
+                        { value: '', label: `Select ${labels.ownerField.toLowerCase()}` },
                         ...requesterOptions,
                       ]}
                     />
@@ -391,7 +431,7 @@ const CatalogueViewConfigurator: React.FC<CatalogueViewConfiguratorProps> = ({
                 )}
 
                 <label className="drawer-form__field">
-                  <span className="field-label">Supplier</span>
+                  <span className="field-label">{labels.primaryEntityField}</span>
                   <Select
                     value={draft.criteria.suppliers[0] ?? ''}
                     onChange={(event) =>
@@ -404,14 +444,14 @@ const CatalogueViewConfigurator: React.FC<CatalogueViewConfiguratorProps> = ({
                       }))
                     }
                     options={[
-                      { value: '', label: 'All suppliers' },
+                      { value: '', label: labels.primaryEntityAll },
                       ...supplierOptions,
                     ]}
                   />
                 </label>
 
                 <label className="drawer-form__field">
-                  <span className="field-label">Branch</span>
+                  <span className="field-label">{labels.secondaryEntityField}</span>
                   <Select
                     value={draft.criteria.branches[0] ?? ''}
                     onChange={(event) =>
@@ -424,7 +464,7 @@ const CatalogueViewConfigurator: React.FC<CatalogueViewConfiguratorProps> = ({
                       }))
                     }
                     options={[
-                      { value: '', label: 'All branches' },
+                      { value: '', label: labels.secondaryEntityAll },
                       ...branchOptions,
                     ]}
                   />

@@ -37,6 +37,7 @@ export default function AppDrawer({
               backgroundColor: 'background.paper',
               boxShadow: (theme: Theme) => theme.shadows[8],
               backgroundImage: 'none',
+              overflowX: 'hidden',
             },
             ...(Array.isArray(paperSx) ? paperSx : paperSx ? [paperSx] : []),
           ],

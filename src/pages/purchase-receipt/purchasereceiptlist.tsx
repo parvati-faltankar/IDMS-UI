@@ -258,6 +258,7 @@ const PurchaseReceiptPreviewDrawer: React.FC<{
     isOpen={isOpen}
     documentTypeLabel="Purchase Receipt"
     subtitle="Purchase Receipt preview"
+    printEntityType="purchase-receipt"
     onClose={onClose}
     onEdit={onEdit}
     onCancel={onCancel}

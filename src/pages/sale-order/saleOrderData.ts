@@ -8,8 +8,22 @@ export interface SaleOrderLineDocument {
   requestedDate: string;
   fulfillmentDate: string;
   priority: Exclude<RequisitionPriority, 'Critical'>;
+  warehouse?: string;
+  locationBin?: string;
+  serialNumber?: string;
+  batchLotNumber?: string;
+  manufacturingDate?: string;
+  expiryDate?: string;
   rate: string;
   orderQuantity: string;
+  cancelledQuantity?: string;
+  allocatedQuantity?: string;
+  pendingAllocationQuantity?: string;
+  invoicedQuantity?: string;
+  pendingInvoiceQuantity?: string;
+  deliveryQuantity?: string;
+  pendingDeliveryQuantity?: string;
+  returnedQuantity?: string;
   baseAmount: string;
   discountPercent: string;
   discountAmount: string;
@@ -47,6 +61,10 @@ export interface SaleOrderDocument {
   balanceAmount: string;
   tenure: string;
   emiInterestRate: string;
+  insuranceProvider: string;
+  policyNumber: string;
+  policyDate: string;
+  insuranceRemarks: string;
   deliveryTerm: string;
   deliveryType: string;
   deliverySlot: string;
@@ -86,6 +104,10 @@ export const saleOrderDocuments: SaleOrderDocument[] = [
     balanceAmount: '185000.00',
     tenure: '24 Months',
     emiInterestRate: '8.50',
+    insuranceProvider: 'ICICI Lombard',
+    policyNumber: 'POL-1001',
+    policyDate: '2026-04-18',
+    insuranceRemarks: 'Comprehensive policy requested.',
     deliveryTerm: 'Door Delivery',
     deliveryType: 'Standard',
     deliverySlot: 'Morning',
@@ -166,6 +188,10 @@ export const saleOrderDocuments: SaleOrderDocument[] = [
     balanceAmount: '0.00',
     tenure: '',
     emiInterestRate: '0.00',
+    insuranceProvider: '',
+    policyNumber: '',
+    policyDate: '',
+    insuranceRemarks: '',
     deliveryTerm: 'Pickup',
     deliveryType: 'Express',
     deliverySlot: 'Evening',
@@ -225,6 +251,10 @@ export const saleOrderDocuments: SaleOrderDocument[] = [
     balanceAmount: '90000.00',
     tenure: '12 Months',
     emiInterestRate: '7.90',
+    insuranceProvider: 'HDFC ERGO',
+    policyNumber: 'POL-1003',
+    policyDate: '2026-04-15',
+    insuranceRemarks: '',
     deliveryTerm: 'Branch Delivery',
     deliveryType: 'Standard',
     deliverySlot: 'Afternoon',
@@ -261,7 +291,7 @@ export const saleOrderDocuments: SaleOrderDocument[] = [
   },
 ];
 
-export const extendedSaleOrderDocuments: SaleOrderDocument[] = Array.from({ length: 2 }, (_, cycle) =>
+const baseExtendedSaleOrderDocuments: SaleOrderDocument[] = Array.from({ length: 2 }, (_, cycle) =>
   saleOrderDocuments.map((document, index) => {
     const sequence = cycle * saleOrderDocuments.length + index + 1;
     const paddedSequence = String(sequence + 10).padStart(5, '0');
@@ -273,6 +303,23 @@ export const extendedSaleOrderDocuments: SaleOrderDocument[] = Array.from({ leng
     };
   })
 ).flat();
+
+const additionalSaleOrderDocuments: SaleOrderDocument[] = Array.from({ length: 100 }, (_, offset) => {
+  const template = saleOrderDocuments[offset % saleOrderDocuments.length];
+  const sequence = baseExtendedSaleOrderDocuments.length + offset + 1;
+  const paddedSequence = String(sequence + 10).padStart(5, '0');
+
+  return {
+    ...template,
+    id: `${template.id}-${sequence}`,
+    number: `SO-2026-${paddedSequence}`,
+  };
+});
+
+export const extendedSaleOrderDocuments: SaleOrderDocument[] = [
+  ...baseExtendedSaleOrderDocuments,
+  ...additionalSaleOrderDocuments,
+];
 
 export function getSaleOrderById(id: string | null): SaleOrderDocument | undefined {
   if (!id) {

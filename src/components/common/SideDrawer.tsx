@@ -35,7 +35,16 @@ const SideDrawer: React.FC<SideDrawerProps> = ({
   const isNarrow = panelClassName?.includes('side-drawer__panel--narrow');
   const isWide = panelClassName?.includes('side-drawer__panel--wide');
   const isChart = panelClassName?.includes('side-drawer__panel--chart');
-  const drawerWidth = isChart ? 620 : isNarrow ? 384 : isWide ? 720 : 960;
+  const isThirty = panelClassName?.includes('side-drawer__panel--thirty');
+  const drawerWidth = isChart
+    ? 620
+    : isThirty
+      ? Math.max(420, Math.round(window.innerWidth * 0.4))
+      : isNarrow
+        ? 384
+        : isWide
+          ? 720
+          : 960;
 
   useEffect(() => {
     if (!isOpen) {

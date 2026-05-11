@@ -1,30 +1,25 @@
 import React, { useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
-  BadgeCheck,
-  Building2,
   ChevronRight,
   ChevronDown,
-  FileText,
-  Mail,
-  MapPin,
-  MoreVertical,
-  PencilLine,
   Plus,
   Search,
   Trash2,
-  UserRound,
   X,
 } from 'lucide-react';
 import AppShell from '../../components/common/AppShell';
 import AmountBreakdownDrawer from '../../components/common/AmountBreakdownDrawer';
 import ConfirmationDialog from '../../components/common/ConfirmationDialog';
 import SuccessSummaryDialog from '../../components/common/SuccessSummaryDialog';
+import StatusBadge from '../../components/common/StatusBadge';
 import { FormField, Input, Select } from '../../components/common/FormControls';
 import { handleGridLastCellTab, hasRequiredGridValues } from '../../components/common/gridKeyboard';
 import { cn } from '../../utils/classNames';
 import { formatDate } from '../../utils/dateFormat';
+import { useDocumentPrint } from '../../print-builder/useDocumentPrint';
 import type { SaleOrderDocument } from './saleOrderData';
+import { createSaleOrderId, createSaleOrderNumber, upsertSaleOrder } from '../../stores/documentStore';
 
 type SaleOrderTabKey =
   | 'customer-order'
@@ -44,8 +39,19 @@ interface SaleOrderLineForm {
   requestedDate: string;
   fulfillmentDate: string;
   priority: SalePriority;
+  warehouse: string;
+  locationBin: string;
+  serialNumber: string;
+  batchLotNumber: string;
+  manufacturingDate: string;
+  expiryDate: string;
   rate: string;
   orderQuantity: string;
+  cancelledQuantity: string;
+  allocatedQuantity: string;
+  invoicedQuantity: string;
+  deliveryQuantity: string;
+  returnedQuantity: string;
   discountPercent: string;
   discountAmount: string;
   convertedQuantity: string;
@@ -78,6 +84,8 @@ interface SaleOrderFormData {
   emiInterestRate: string;
   insuranceProvider: string;
   policyNumber: string;
+  policyDate: string;
+  insuranceRemarks: string;
   deliveryTerm: string;
   deliveryType: string;
   deliverySlot: string;
@@ -312,6 +320,51 @@ const productLookupOptions: ProductLookupOption[] = [
   { code: 'SP-1004', name: 'Steering Rack Kit', hsnSac: '870894', uoms: ['Unit'], rate: '15000.00', taxLabel: 'GST 18%', taxRate: 18 },
 ];
 
+const warehouseOptions = [
+  { value: '', label: 'Select warehouse' },
+  { value: 'Main Warehouse', label: 'Main Warehouse' },
+  { value: 'Finished Goods Yard', label: 'Finished Goods Yard' },
+  { value: 'Regional Depot', label: 'Regional Depot' },
+];
+
+const warehouseLocationMap: Record<string, Array<{ value: string; label: string }>> = {
+  'Main Warehouse': [
+    { value: 'A1-01', label: 'A1-01' },
+    { value: 'A1-02', label: 'A1-02' },
+    { value: 'B2-04', label: 'B2-04' },
+  ],
+  'Finished Goods Yard': [
+    { value: 'FG-01', label: 'FG-01' },
+    { value: 'FG-02', label: 'FG-02' },
+  ],
+  'Regional Depot': [
+    { value: 'RD-11', label: 'RD-11' },
+    { value: 'RD-12', label: 'RD-12' },
+  ],
+};
+
+const productBatchCatalog: Record<string, Array<{
+  warehouse: string;
+  locationBin: string;
+  batchLotNumber: string;
+  manufacturingDate: string;
+  expiryDate: string;
+}>> = {
+  'SP-1001': [
+    { warehouse: 'Main Warehouse', locationBin: 'A1-01', batchLotNumber: 'FB-2401', manufacturingDate: '2026-01-12', expiryDate: '2028-01-11' },
+    { warehouse: 'Regional Depot', locationBin: 'RD-11', batchLotNumber: 'FB-2402', manufacturingDate: '2026-02-05', expiryDate: '2028-02-04' },
+  ],
+  'SP-1002': [
+    { warehouse: 'Main Warehouse', locationBin: 'A1-02', batchLotNumber: 'CM-1801', manufacturingDate: '2026-01-28', expiryDate: '2028-01-27' },
+  ],
+  'SP-1003': [
+    { warehouse: 'Finished Goods Yard', locationBin: 'FG-01', batchLotNumber: 'AK-3205', manufacturingDate: '2026-03-14', expiryDate: '2028-03-13' },
+  ],
+  'SP-1004': [
+    { warehouse: 'Regional Depot', locationBin: 'RD-12', batchLotNumber: 'SR-1108', manufacturingDate: '2026-02-20', expiryDate: '2028-02-19' },
+  ],
+};
+
 function parseDecimal(value: string): number {
   const parsed = Number.parseFloat(value);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -332,6 +385,33 @@ function formatCount(value: number): string {
   return Number.isInteger(value)
     ? new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(value)
     : new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
+}
+
+function sanitizeDecimalInput(value: string): string {
+  const sanitized = value.replace(/[^0-9.]/g, '');
+  const [integerPart = '', ...decimalParts] = sanitized.split('.');
+  if (decimalParts.length === 0) {
+    return sanitized;
+  }
+
+  return `${integerPart}.${decimalParts.join('')}`;
+}
+
+function getTodayDateString(): string {
+  const now = new Date();
+  const localDate = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
+  return localDate.toISOString().slice(0, 10);
+}
+
+function getNextDateString(value: string): string {
+  if (!value) {
+    return value;
+  }
+
+  const date = new Date(`${value}T00:00:00`);
+  date.setDate(date.getDate() + 1);
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return localDate.toISOString().slice(0, 10);
 }
 
 function normalizePaymentMode(value: string): SalePaymentMode {
@@ -356,8 +436,19 @@ function createEmptyLine(index: number): SaleOrderLineForm {
     requestedDate: '',
     fulfillmentDate: '',
     priority: '',
+    warehouse: '',
+    locationBin: '',
+    serialNumber: '',
+    batchLotNumber: '',
+    manufacturingDate: '',
+    expiryDate: '',
     rate: '',
     orderQuantity: '',
+    cancelledQuantity: '0.00',
+    allocatedQuantity: '0.00',
+    invoicedQuantity: '0.00',
+    deliveryQuantity: '0.00',
+    returnedQuantity: '0.00',
     discountPercent: '',
     discountAmount: '',
     convertedQuantity: '0.00',
@@ -367,6 +458,23 @@ function createEmptyLine(index: number): SaleOrderLineForm {
 
 function getProductOption(code: string): ProductLookupOption | undefined {
   return productLookupOptions.find((product) => product.code === code);
+}
+
+function getLocationOptions(warehouse: string) {
+  return [
+    { value: '', label: 'Select location/bin' },
+    ...(warehouseLocationMap[warehouse] ?? []),
+  ];
+}
+
+function getBatchMetadata(line: Pick<SaleOrderLineForm, 'productCode' | 'warehouse' | 'locationBin' | 'batchLotNumber'>) {
+  const candidates = productBatchCatalog[line.productCode] ?? [];
+  return candidates.find(
+    (item) =>
+      item.batchLotNumber === line.batchLotNumber &&
+      (!line.warehouse || item.warehouse === line.warehouse) &&
+      (!line.locationBin || item.locationBin === line.locationBin)
+  );
 }
 
 function getBaseAmount(line: SaleOrderLineForm): number {
@@ -407,10 +515,51 @@ function getPendingQuantity(line: SaleOrderLineForm): number {
   return Math.max(parseDecimal(line.orderQuantity) - parseDecimal(line.convertedQuantity), 0);
 }
 
+function getPendingAllocationQuantity(line: SaleOrderLineForm): number {
+  return Math.max(parseDecimal(line.orderQuantity) - parseDecimal(line.allocatedQuantity), 0);
+}
+
+function getPendingInvoiceQuantity(line: SaleOrderLineForm): number {
+  return Math.max(parseDecimal(line.orderQuantity) - parseDecimal(line.invoicedQuantity), 0);
+}
+
+function getPendingDeliveryQuantity(line: SaleOrderLineForm): number {
+  return Math.max(parseDecimal(line.orderQuantity) - parseDecimal(line.deliveryQuantity), 0);
+}
+
+function lineHasCustomerDependentData(line: SaleOrderLineForm): boolean {
+  return Boolean(
+    line.productCode ||
+      line.productName ||
+      line.hsnSac ||
+      line.uom ||
+      line.requestedDate ||
+      line.fulfillmentDate ||
+      line.priority ||
+      line.warehouse ||
+      line.locationBin ||
+      line.serialNumber ||
+      line.batchLotNumber ||
+      line.manufacturingDate ||
+      line.expiryDate ||
+      parseDecimal(line.rate) > 0 ||
+      parseDecimal(line.orderQuantity) > 0 ||
+      parseDecimal(line.cancelledQuantity) > 0 ||
+      parseDecimal(line.allocatedQuantity) > 0 ||
+      parseDecimal(line.invoicedQuantity) > 0 ||
+      parseDecimal(line.deliveryQuantity) > 0 ||
+      parseDecimal(line.returnedQuantity) > 0 ||
+      parseDecimal(line.discountPercent) > 0 ||
+      parseDecimal(line.discountAmount) > 0 ||
+      parseDecimal(line.convertedQuantity) > 0 ||
+      Boolean(line.remark)
+  );
+}
+
 function mapDocumentToForm(document?: SaleOrderDocument): SaleOrderFormData {
   if (!document) {
     return {
-      number: 'SO-2026-00021',
+      number: createSaleOrderNumber(),
       documentDate: new Date().toISOString().slice(0, 10),
       customer: '',
       orderSource: '',
@@ -435,6 +584,8 @@ function mapDocumentToForm(document?: SaleOrderDocument): SaleOrderFormData {
       emiInterestRate: '',
       insuranceProvider: '',
       policyNumber: '',
+      policyDate: '',
+      insuranceRemarks: '',
       deliveryTerm: '',
       deliveryType: '',
       deliverySlot: '',
@@ -486,11 +637,13 @@ function mapDocumentToForm(document?: SaleOrderDocument): SaleOrderFormData {
     downPayment: document.downPayment,
     financeAmount: document.financeAmount,
     emiAmount: document.emiAmount,
-    balanceAmount: formatDecimal(Math.max(parseDecimal(document.financeAmount) - parseDecimal(document.downPayment), 0)),
+    balanceAmount: document.balanceAmount,
     tenure: document.tenure,
     emiInterestRate: document.emiInterestRate,
-    insuranceProvider: '',
-    policyNumber: '',
+    insuranceProvider: document.insuranceProvider,
+    policyNumber: document.policyNumber,
+    policyDate: document.policyDate,
+    insuranceRemarks: document.insuranceRemarks,
     deliveryTerm: document.deliveryTerm,
     deliveryType: document.deliveryType,
     deliverySlot: document.deliverySlot,
@@ -535,8 +688,19 @@ function mapDocumentLines(document?: SaleOrderDocument): SaleOrderLineForm[] {
     requestedDate: line.requestedDate,
     fulfillmentDate: line.fulfillmentDate,
     priority: line.priority,
+    warehouse: line.warehouse ?? '',
+    locationBin: line.locationBin ?? '',
+    serialNumber: line.serialNumber ?? '',
+    batchLotNumber: line.batchLotNumber ?? '',
+    manufacturingDate: line.manufacturingDate ?? '',
+    expiryDate: line.expiryDate ?? '',
     rate: line.rate,
     orderQuantity: line.orderQuantity,
+    cancelledQuantity: line.cancelledQuantity ?? '0.00',
+    allocatedQuantity: line.allocatedQuantity ?? '0.00',
+    invoicedQuantity: line.invoicedQuantity ?? '0.00',
+    deliveryQuantity: line.deliveryQuantity ?? '0.00',
+    returnedQuantity: line.returnedQuantity ?? '0.00',
     discountPercent: line.discountPercent,
     discountAmount: line.discountAmount,
     convertedQuantity: line.convertedQuantity,
@@ -549,9 +713,25 @@ const CreateSaleOrder: React.FC<CreateSaleOrderProps> = ({
   onBack,
   onNavigateToSaleOrderList,
 }) => {
+  const printTools = useDocumentPrint('sale-order');
+  const numericFormFields: Array<keyof SaleOrderFormData> = [
+    'advancePayment',
+    'downPayment',
+    'financeAmount',
+    'emiAmount',
+    'balanceAmount',
+    'emiInterestRate',
+  ];
+  const numericLineFields: Array<keyof SaleOrderLineForm> = [
+    'rate',
+    'orderQuantity',
+    'discountPercent',
+    'discountAmount',
+  ];
   const customerSearchInputRef = useRef<HTMLInputElement | null>(null);
   const quickLinkMenuRef = useRef<HTMLDivElement | null>(null);
   const voicePrefillAppliedRef = useRef<string | null>(null);
+  const pendingCustomerChangeRef = useRef<string>('');
   const [formData, setFormData] = useState<SaleOrderFormData>(() => mapDocumentToForm(editingDocument));
   const [lines, setLines] = useState<SaleOrderLineForm[]>(() => mapDocumentLines(editingDocument));
   const [activeTab, setActiveTab] = useState<SaleOrderTabKey>('customer-order');
@@ -559,8 +739,22 @@ const CreateSaleOrder: React.FC<CreateSaleOrderProps> = ({
   const [isCustomerResultsOpen, setIsCustomerResultsOpen] = useState(false);
   const [isQuickLinkMenuOpen, setIsQuickLinkMenuOpen] = useState(false);
   const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
+  const [isCustomerChangeDialogOpen, setIsCustomerChangeDialogOpen] = useState(false);
   const [isSaveSuccessDialogOpen, setIsSaveSuccessDialogOpen] = useState(false);
   const [isAmountDrawerOpen, setIsAmountDrawerOpen] = useState(false);
+  const [showAdvancedProductColumns, setShowAdvancedProductColumns] = useState(false);
+  const [orderLevelDiscountAmount, setOrderLevelDiscountAmount] = useState('');
+  const [orderLevelDiscountPercent, setOrderLevelDiscountPercent] = useState('');
+  const [chargesInputAmount, setChargesInputAmount] = useState('');
+  const todayDate = useMemo(() => getTodayDateString(), []);
+  const requestedDeliveryMinDate = useMemo(() => getNextDateString(todayDate), [todayDate]);
+  const validTillMinDate = useMemo(() => {
+    if (!formData.requestedDeliveryDate) {
+      return todayDate;
+    }
+
+    return [todayDate, getNextDateString(formData.requestedDeliveryDate)].sort().slice(-1)[0];
+  }, [formData.requestedDeliveryDate, todayDate]);
 
   const tabs: Array<{ id: SaleOrderTabKey; label: string }> = [
     { id: 'customer-order', label: 'Customer & Order' },
@@ -589,6 +783,51 @@ const CreateSaleOrder: React.FC<CreateSaleOrderProps> = ({
     () => Math.max(totalAmount - totalTaxableAmount, 0),
     [totalAmount, totalTaxableAmount]
   );
+  const totalOrderQuantity = useMemo(
+    () => lines.reduce((sum, line) => sum + parseDecimal(line.orderQuantity), 0),
+    [lines]
+  );
+  const totalDiscountPercent = useMemo(
+    () => (grossOrderAmount > 0 ? (totalDiscountAmount / grossOrderAmount) * 100 : 0),
+    [grossOrderAmount, totalDiscountAmount]
+  );
+  const taxBreakup = useMemo(() => {
+    const breakupMap = new Map<string, number>();
+    lines.forEach((line) => {
+      if (!line.productCode) {
+        return;
+      }
+      const product = getProductOption(line.productCode);
+      const taxLabel = product?.taxLabel ?? 'Tax';
+      const taxAmountForLine = Math.max(getLineAmount(line) - getTaxableAmount(line), 0);
+      breakupMap.set(taxLabel, (breakupMap.get(taxLabel) ?? 0) + taxAmountForLine);
+    });
+    return Array.from(breakupMap.entries()).map(([label, amount]) => ({ label, amount }));
+  }, [lines]);
+  const baseNetOrderAmount = totalTaxableAmount;
+  const orderDiscountAmount = parseDecimal(orderLevelDiscountAmount);
+  const orderDiscountPercentValue = parseDecimal(orderLevelDiscountPercent);
+  const orderLevelDiscountByPercent = (baseNetOrderAmount * orderDiscountPercentValue) / 100;
+  const appliedOrderDiscountAmount = Math.min(
+    Math.max(orderDiscountAmount > 0 ? orderDiscountAmount : orderLevelDiscountByPercent, 0),
+    baseNetOrderAmount
+  );
+  const netOrderAmount = Math.max(baseNetOrderAmount - appliedOrderDiscountAmount, 0);
+  const computedFinanceBalanceAmount = useMemo(() => {
+    if (formData.paymentMode !== 'Finance') {
+      return '';
+    }
+
+    return formatDecimal(
+      Math.max(
+        netOrderAmount - parseDecimal(formData.downPayment) - parseDecimal(formData.financeAmount),
+        0
+      )
+    );
+  }, [formData.downPayment, formData.financeAmount, formData.paymentMode, netOrderAmount]);
+  const chargesAmount = parseDecimal(chargesInputAmount);
+  const advancePaidAmount = parseDecimal(formData.advancePayment);
+  const netPayableAmount = netOrderAmount + chargesAmount + (totalTaxAmount - advancePaidAmount);
 
   const totalLineCount = lines.filter((line) => Boolean(line.productCode)).length;
 
@@ -611,24 +850,163 @@ const CreateSaleOrder: React.FC<CreateSaleOrderProps> = ({
     () => customerOptions.find((option) => option.value === formData.customer) ?? null,
     [formData.customer]
   );
+  const hasCustomerDependentDetails = useMemo(() => {
+    const { number, documentDate, customer, status, ...customerDependentFormFields } = formData;
+    const hasFormDetails = Object.values(customerDependentFormFields).some((value) => String(value).trim() !== '');
+    const hasLineDetails = lines.some(lineHasCustomerDependentData);
+    const hasSummaryDetails =
+      orderLevelDiscountAmount.trim() !== '' ||
+      orderLevelDiscountPercent.trim() !== '' ||
+      chargesInputAmount.trim() !== '';
+
+    return hasFormDetails || hasLineDetails || hasSummaryDetails;
+  }, [chargesInputAmount, formData, lines, orderLevelDiscountAmount, orderLevelDiscountPercent]);
+  const requestedDeliveryDateError = useMemo(() => {
+    if (!formData.requestedDeliveryDate) {
+      return '';
+    }
+
+    if (formData.requestedDeliveryDate <= todayDate) {
+      return 'Requested delivery date must be a future date.';
+    }
+
+    return '';
+  }, [formData.requestedDeliveryDate, todayDate]);
+  const validTillDateError = useMemo(() => {
+    if (!formData.validTillDate) {
+      return '';
+    }
+
+    if (formData.validTillDate < todayDate) {
+      return 'Valid till date must be today or a future date.';
+    }
+
+    if (formData.requestedDeliveryDate && formData.validTillDate <= formData.requestedDeliveryDate) {
+      return 'Valid till date must be greater than requested delivery date.';
+    }
+
+    return '';
+  }, [formData.requestedDeliveryDate, formData.validTillDate, todayDate]);
+  const promisedDeliveryDateError = useMemo(() => {
+    if (!formData.promisedDeliveryDate) {
+      return '';
+    }
+
+    if (formData.promisedDeliveryDate < todayDate) {
+      return 'Promised delivery date must be today or a future date.';
+    }
+
+    return '';
+  }, [formData.promisedDeliveryDate, todayDate]);
   const isSaleOrderLineComplete = (line: SaleOrderLineForm) =>
     hasRequiredGridValues(line, ['productCode', 'rate', 'orderQuantity']);
   const canAddProductLine = lines.length === 0 || isSaleOrderLineComplete(lines[lines.length - 1]);
 
   const handleFieldChange = <K extends keyof SaleOrderFormData>(field: K, value: SaleOrderFormData[K]) => {
-    setFormData((current) => ({ ...current, [field]: value }));
+    const nextValue = numericFormFields.includes(field) ? sanitizeDecimalInput(String(value)) : value;
+    setFormData((current) => ({ ...current, [field]: nextValue as SaleOrderFormData[K] }));
   };
 
-  const handleSelectCustomer = (customer: string) => {
+  const handleDiscountAmountChange = (value: string) => {
+    const normalizedValue = sanitizeDecimalInput(value);
+    setOrderLevelDiscountAmount(normalizedValue);
+    const amount = parseDecimal(normalizedValue);
+    const percent = baseNetOrderAmount > 0 ? (amount / baseNetOrderAmount) * 100 : 0;
+    setOrderLevelDiscountPercent(amount > 0 ? formatDecimal(percent) : '');
+  };
+
+  const handleDiscountPercentChange = (value: string) => {
+    const normalizedValue = sanitizeDecimalInput(value);
+    setOrderLevelDiscountPercent(normalizedValue);
+    const percent = parseDecimal(normalizedValue);
+    const amount = baseNetOrderAmount > 0 ? (baseNetOrderAmount * percent) / 100 : 0;
+    setOrderLevelDiscountAmount(percent > 0 ? formatDecimal(amount) : '');
+  };
+
+  const handleChargesAmountChange = (value: string) => {
+    setChargesInputAmount(sanitizeDecimalInput(value));
+  };
+
+  const resetDetailsForCustomerChange = (customer: string) => {
+    setFormData((current) => {
+      const blankForm = mapDocumentToForm(undefined);
+
+      return {
+        ...blankForm,
+        number: current.number,
+        documentDate: current.documentDate,
+        status: current.status,
+        customer,
+      };
+    });
+    setLines([createEmptyLine(0)]);
+    setOrderLevelDiscountAmount('');
+    setOrderLevelDiscountPercent('');
+    setChargesInputAmount('');
+    setCustomerSearch('');
+    setIsCustomerResultsOpen(false);
+    setActiveTab('customer-order');
+  };
+
+  const applyCustomerSelection = (customer: string) => {
     handleFieldChange('customer', customer);
     setCustomerSearch('');
     setIsCustomerResultsOpen(false);
   };
-  const handleSelectCustomerRef = useRef(handleSelectCustomer);
+
+  const requestCustomerSelection = (customer: string) => {
+    if (customer === formData.customer) {
+      setCustomerSearch('');
+      setIsCustomerResultsOpen(false);
+      return;
+    }
+
+    if (formData.customer && hasCustomerDependentDetails) {
+      pendingCustomerChangeRef.current = customer;
+      setIsCustomerResultsOpen(false);
+      setIsCustomerChangeDialogOpen(true);
+      return;
+    }
+
+    applyCustomerSelection(customer);
+  };
+
+  const requestCustomerRemoval = () => {
+    if (!formData.customer) {
+      return;
+    }
+
+    if (hasCustomerDependentDetails) {
+      pendingCustomerChangeRef.current = '';
+      setIsCustomerResultsOpen(false);
+      setIsCustomerChangeDialogOpen(true);
+      return;
+    }
+
+    applyCustomerSelection('');
+  };
+
+  const handleSelectCustomerRef = useRef(requestCustomerSelection);
 
   React.useEffect(() => {
-    handleSelectCustomerRef.current = handleSelectCustomer;
+    handleSelectCustomerRef.current = requestCustomerSelection;
   });
+
+  React.useEffect(() => {
+    setFormData((current) => {
+      const nextBalanceAmount =
+        current.paymentMode === 'Finance' ? computedFinanceBalanceAmount : current.balanceAmount;
+
+      if (current.balanceAmount === nextBalanceAmount) {
+        return current;
+      }
+
+      return {
+        ...current,
+        balanceAmount: nextBalanceAmount,
+      };
+    });
+  }, [computedFinanceBalanceAmount]);
 
   React.useEffect(() => {
     if (editingDocument) {
@@ -674,11 +1052,6 @@ const CreateSaleOrder: React.FC<CreateSaleOrderProps> = ({
     return () => window.removeEventListener('hashchange', applyVoicePrefill);
   }, [editingDocument]);
 
-  const handleEditCustomerCard = () => {
-    setIsCustomerResultsOpen(true);
-    customerSearchInputRef.current?.focus();
-  };
-
   React.useEffect(() => {
     if (!isQuickLinkMenuOpen) {
       return;
@@ -706,6 +1079,7 @@ const CreateSaleOrder: React.FC<CreateSaleOrderProps> = ({
   }, [isQuickLinkMenuOpen]);
 
   const handleLineChange = (lineId: string, field: keyof SaleOrderLineForm, value: string) => {
+    const normalizedValue = numericLineFields.includes(field) ? sanitizeDecimalInput(value) : value;
     setLines((current) =>
       current.map((line) => {
         if (line.id !== lineId) {
@@ -713,20 +1087,125 @@ const CreateSaleOrder: React.FC<CreateSaleOrderProps> = ({
         }
 
         if (field === 'productCode') {
-          const product = getProductOption(value);
+          const product = getProductOption(normalizedValue);
           return {
             ...line,
-            productCode: value,
+            productCode: normalizedValue,
             productName: product?.name ?? '',
             hsnSac: product?.hsnSac ?? '',
             uom: product?.uoms[0] ?? '',
+            warehouse: '',
+            locationBin: '',
+            serialNumber: '',
+            batchLotNumber: '',
+            manufacturingDate: '',
+            expiryDate: '',
             rate: product?.rate ?? '',
           };
         }
 
+        if (field === 'warehouse') {
+          return {
+            ...line,
+            warehouse: normalizedValue,
+            locationBin: '',
+            batchLotNumber: '',
+            manufacturingDate: '',
+            expiryDate: '',
+          };
+        }
+
+        if (field === 'locationBin') {
+          return {
+            ...line,
+            locationBin: normalizedValue,
+            batchLotNumber: '',
+            manufacturingDate: '',
+            expiryDate: '',
+          };
+        }
+
+        if (field === 'batchLotNumber') {
+          const nextLine = {
+            ...line,
+            batchLotNumber: normalizedValue,
+          };
+          const batch = getBatchMetadata(nextLine);
+          return {
+            ...nextLine,
+            manufacturingDate: batch?.manufacturingDate ?? '',
+            expiryDate: batch?.expiryDate ?? '',
+          };
+        }
+
+        if (field === 'discountPercent') {
+          if (normalizedValue.trim() !== '' && parseDecimal(normalizedValue) >= 100) {
+            return line;
+          }
+
+          const nextLine = {
+            ...line,
+            discountPercent: normalizedValue,
+          };
+          const baseAmount = getBaseAmount(nextLine);
+          const percent = parseDecimal(normalizedValue);
+          return {
+            ...nextLine,
+            discountAmount: percent > 0 && baseAmount > 0 ? formatDecimal((baseAmount * percent) / 100) : '',
+          };
+        }
+
+        if (field === 'discountAmount') {
+          const nextLine = {
+            ...line,
+            discountAmount: normalizedValue,
+          };
+          const baseAmount = getBaseAmount(nextLine);
+          const amount = parseDecimal(normalizedValue);
+          if (amount > 0 && baseAmount > 0 && amount >= baseAmount) {
+            return line;
+          }
+          return {
+            ...nextLine,
+            discountPercent: amount > 0 && baseAmount > 0 ? formatDecimal((amount / baseAmount) * 100) : '',
+          };
+        }
+
+        if (field === 'rate' || field === 'orderQuantity') {
+          const nextLine = {
+            ...line,
+            [field]: normalizedValue,
+          };
+          const baseAmount = getBaseAmount(nextLine);
+
+          if (parseDecimal(nextLine.discountPercent) > 0) {
+            return {
+              ...nextLine,
+              discountAmount: formatDecimal((baseAmount * parseDecimal(nextLine.discountPercent)) / 100),
+            };
+          }
+
+          if (parseDecimal(nextLine.discountAmount) > 0) {
+            if (baseAmount <= 0 || parseDecimal(nextLine.discountAmount) >= baseAmount) {
+              return {
+                ...nextLine,
+                discountAmount: '',
+                discountPercent: '',
+              };
+            }
+
+            return {
+              ...nextLine,
+              discountPercent: baseAmount > 0 ? formatDecimal((parseDecimal(nextLine.discountAmount) / baseAmount) * 100) : '',
+            };
+          }
+
+          return nextLine;
+        }
+
         return {
           ...line,
-          [field]: value,
+          [field]: normalizedValue,
         };
       })
     );
@@ -762,11 +1241,176 @@ const CreateSaleOrder: React.FC<CreateSaleOrderProps> = ({
   };
 
   const handleSave = () => {
+    if (requestedDeliveryDateError || validTillDateError || promisedDeliveryDateError) {
+      setActiveTab('customer-order');
+      return;
+    }
+
+    const persistedDocument: SaleOrderDocument = {
+      id: editingDocument?.id ?? createSaleOrderId(),
+      number: formData.number || createSaleOrderNumber(),
+      orderDateTime: `${formData.documentDate || new Date().toISOString().slice(0, 10)}T00:00:00`,
+      customerName: formData.customer,
+      orderSource: formData.orderSource,
+      salesExecutive: formData.salesExecutive,
+      requestedDeliveryDate: formData.requestedDeliveryDate,
+      validTillDate: formData.validTillDate,
+      placeOfSupply: formData.placeOfSupply,
+      promisedDeliveryDate: formData.promisedDeliveryDate,
+      priority: (formData.priority || 'Medium') as SaleOrderDocument['priority'],
+      status: formData.status,
+      paymentMode: formData.paymentMode,
+      paymentMethod: formData.paymentMethod,
+      paymentTerm: formData.paymentTerm,
+      advancePayment: formData.advancePayment || '0.00',
+      paymentRemarks: formData.paymentRemarks,
+      financer: formData.financer,
+      downPayment: formData.downPayment || '0.00',
+      financeAmount: formData.financeAmount || '0.00',
+      emiAmount: formData.emiAmount || '0.00',
+      balanceAmount:
+        formData.paymentMode === 'Finance'
+          ? computedFinanceBalanceAmount || '0.00'
+          : formData.balanceAmount || '0.00',
+      tenure: formData.tenure,
+      emiInterestRate: formData.emiInterestRate || '0.00',
+      insuranceProvider: formData.insuranceProvider,
+      policyNumber: formData.policyNumber,
+      policyDate: formData.policyDate,
+      insuranceRemarks: formData.insuranceRemarks,
+      deliveryTerm: formData.deliveryTerm,
+      deliveryType: formData.deliveryType,
+      deliverySlot: formData.deliverySlot,
+      deliveryAddress: formData.deliveryAddress,
+      deliveryInstruction: formData.deliveryInstruction,
+      shippingAddress: formData.shippingAddress,
+      shippingTerm: formData.shippingTerm,
+      shippingMethod: formData.shippingMethod,
+      shippingInstructions: formData.shippingInstructions,
+      totalAmount: formatDecimal(totalAmount),
+      lines: lines.map((line) => {
+        const baseAmount = getBaseAmount(line);
+        const discountAmount = getDiscountAmount(line);
+        const taxableAmount = getTaxableAmount(line);
+        const lineAmount = getLineAmount(line);
+        const product = getProductOption(line.productCode);
+        const pendingQuantity = getPendingQuantity(line);
+        const pendingAllocationQuantity = getPendingAllocationQuantity(line);
+        const pendingInvoiceQuantity = getPendingInvoiceQuantity(line);
+        const pendingDeliveryQuantity = getPendingDeliveryQuantity(line);
+        return {
+          productCode: line.productCode,
+          productName: line.productName,
+          hsnSac: line.hsnSac,
+          uom: line.uom,
+          requestedDate: line.requestedDate,
+          fulfillmentDate: line.fulfillmentDate,
+          priority: (line.priority || 'Medium') as SaleOrderDocument['lines'][number]['priority'],
+          warehouse: line.warehouse,
+          locationBin: line.locationBin,
+          serialNumber: line.serialNumber,
+          batchLotNumber: line.batchLotNumber,
+          manufacturingDate: line.manufacturingDate,
+          expiryDate: line.expiryDate,
+          rate: line.rate || '0.00',
+          orderQuantity: line.orderQuantity || '0.00',
+          cancelledQuantity: line.cancelledQuantity || '0.00',
+          allocatedQuantity: line.allocatedQuantity || '0.00',
+          pendingAllocationQuantity: formatDecimal(pendingAllocationQuantity),
+          invoicedQuantity: line.invoicedQuantity || '0.00',
+          pendingInvoiceQuantity: formatDecimal(pendingInvoiceQuantity),
+          deliveryQuantity: line.deliveryQuantity || '0.00',
+          pendingDeliveryQuantity: formatDecimal(pendingDeliveryQuantity),
+          returnedQuantity: line.returnedQuantity || '0.00',
+          baseAmount: formatDecimal(baseAmount),
+          discountPercent: line.discountPercent || '0.00',
+          discountAmount: formatDecimal(discountAmount),
+          taxableAmount: formatDecimal(taxableAmount),
+          taxationColumn: product?.taxLabel ?? '',
+          lineAmount: formatDecimal(lineAmount),
+          convertedQuantity: line.convertedQuantity || '0.00',
+          pendingQuantity: formatDecimal(pendingQuantity),
+          status: pendingQuantity <= 0 ? 'Fully Ordered' : Number.parseFloat(line.convertedQuantity || '0') > 0 ? 'Partially Ordered' : 'Open',
+          remark: line.remark,
+        };
+      }),
+    };
+    upsertSaleOrder(persistedDocument);
     setIsSaveSuccessDialogOpen(true);
   };
 
+  const buildSaleOrderPrintPreviewDocument = (): Record<string, unknown> => ({
+    id: editingDocument?.id ?? `sale-order-preview-${formData.number}`,
+    number: formData.number,
+    orderDateTime: formData.documentDate ? `${formData.documentDate}T09:00:00.000Z` : '',
+    documentDate: formData.documentDate,
+    customerName: formData.customer,
+    orderSource: formData.orderSource,
+    salesExecutive: formData.salesExecutive,
+    requestedDeliveryDate: formData.requestedDeliveryDate,
+    validTillDate: formData.validTillDate,
+    placeOfSupply: formData.placeOfSupply,
+    promisedDeliveryDate: formData.promisedDeliveryDate,
+    priority: formData.priority,
+    status: formData.status,
+    paymentMode: formData.paymentMode,
+    paymentMethod: formData.paymentMethod,
+    paymentTerm: formData.paymentTerm,
+    advancePayment: formData.advancePayment || '0.00',
+    financeAmount: formData.financeAmount || '0.00',
+    emiAmount: formData.emiAmount || '0.00',
+    balanceAmount: formData.balanceAmount || '0.00',
+    paymentRemarks: formData.paymentRemarks,
+    deliveryTerm: formData.deliveryTerm,
+    deliveryType: formData.deliveryType,
+    deliverySlot: formData.deliverySlot,
+    deliveryAddress: formData.deliveryAddress,
+    deliveryInstruction: formData.deliveryInstruction,
+    shippingAddress: formData.shippingAddress,
+    shippingTerm: formData.shippingTerm,
+    shippingMethod: formData.shippingMethod,
+    shippingInstructions: formData.shippingInstructions,
+    insuranceProvider: formData.insuranceProvider,
+    policyNumber: formData.policyNumber,
+    policyDate: formData.policyDate,
+    insuranceRemarks: formData.insuranceRemarks,
+    totalTaxAmount: formatDecimal(totalTaxAmount),
+    totalAmount: formatDecimal(totalAmount),
+    netAmount: formatDecimal(netPayableAmount),
+    taxableAmount: formatDecimal(totalTaxableAmount),
+    discountAmount: formatDecimal(totalDiscountAmount + appliedOrderDiscountAmount),
+    lines: lines.map((line) => {
+      const product = productLookupOptions.find((option) => option.code === line.productCode);
+      const rate = parseDecimal(line.rate);
+      const orderQuantity = parseDecimal(line.orderQuantity);
+      const baseAmount = rate * orderQuantity;
+      const discountAmount = parseDecimal(line.discountAmount);
+      const taxableAmount = Math.max(baseAmount - discountAmount, 0);
+      const taxAmount = taxableAmount * ((product?.taxRate ?? 0) / 100);
+
+      return {
+        productCode: line.productCode,
+        productName: line.productName,
+        hsnSac: line.hsnSac,
+        uom: line.uom,
+        warehouse: line.warehouse,
+        locationBin: line.locationBin,
+        requestedDate: line.requestedDate,
+        fulfillmentDate: line.fulfillmentDate,
+        orderQuantity: line.orderQuantity || '0.00',
+        rate: line.rate || '0.00',
+        discountPercent: line.discountPercent || '0.00',
+        discountAmount: formatDecimal(discountAmount),
+        taxableAmount: formatDecimal(taxableAmount),
+        taxAmount: formatDecimal(taxAmount),
+        lineAmount: formatDecimal(taxableAmount + taxAmount),
+        remark: line.remark,
+      };
+    }),
+  });
+
   const handlePrintSummary = () => {
-    window.print();
+    printTools.openPrintPreview(buildSaleOrderPrintPreviewDocument(), () => window.print());
   };
 
   const handleShareSummary = async () => {
@@ -800,14 +1444,21 @@ const CreateSaleOrder: React.FC<CreateSaleOrderProps> = ({
         <div className="po-create__summary-bar">
           <div className="po-create__summary-shell">
             <div className="po-create__summary-metric po-create__summary-metric--right">
-              <span className="po-create__summary-label">Total amount</span>
+              <span className="po-create__summary-label">Total qty</span>
+              <span className="po-create__summary-value">{formatCount(totalOrderQuantity)}</span>
+            </div>
+
+            <div className="po-create__summary-divider" aria-hidden="true" />
+
+            <div className="po-create__summary-metric po-create__summary-metric--right">
+              <span className="po-create__summary-label">Gross order amount</span>
               <span className="po-create__summary-value">Rs {formatCurrency(grossOrderAmount)}</span>
             </div>
 
             <div className="po-create__summary-divider" aria-hidden="true" />
 
             <div className="po-create__summary-metric po-create__summary-metric--emphasis po-create__summary-metric--right">
-              <span className="po-create__summary-label">Net order amount</span>
+              <span className="po-create__summary-label">Net payable amount</span>
 
               <div className="po-create__summary-net-row">
                 <button
@@ -817,17 +1468,29 @@ const CreateSaleOrder: React.FC<CreateSaleOrderProps> = ({
                   aria-label="Open sale order amount breakdown"
                 >
                   <span className="po-create__summary-value po-create__summary-value--accent">
-                    Rs {formatCurrency(totalAmount)}
+                    Rs {formatCurrency(netPayableAmount)}
                   </span>
                   <ChevronRight size={18} className="po-create__summary-chevron" />
                 </button>
               </div>
 
-              {totalDiscountAmount > 0 && (
+              {(appliedOrderDiscountAmount > 0 || chargesAmount > 0 || advancePaidAmount > 0) && (
                 <div className="po-create__summary-subrow">
-                  <span className="po-create__summary-badge">
-                    Discount Rs {formatCurrency(totalDiscountAmount)}
-                  </span>
+                  {appliedOrderDiscountAmount > 0 && (
+                    <span className="po-create__summary-badge">
+                      Order discount Rs {formatCurrency(appliedOrderDiscountAmount)}
+                    </span>
+                  )}
+                  {chargesAmount > 0 && (
+                    <span className="po-create__summary-badge po-create__summary-badge--neutral">
+                      Charges Rs {formatCurrency(chargesAmount)}
+                    </span>
+                  )}
+                  {advancePaidAmount > 0 && (
+                    <span className="po-create__summary-badge po-create__summary-badge--neutral">
+                      Advance paid Rs {formatCurrency(advancePaidAmount)}
+                    </span>
+                  )}
                 </div>
               )}
             </div>
@@ -854,146 +1517,52 @@ const CreateSaleOrder: React.FC<CreateSaleOrderProps> = ({
                 <h2 className="brand-page-title create-pr-header__title">
                   {editingDocument ? 'Edit Sale Order' : 'New Sale Order'}
                 </h2>
-                <span className="create-pr-header__status">{formData.status}</span>
+                <StatusBadge kind="requisition-status" value={formData.status} className="sale-order-header__status-badge" />
               </div>
+              <p className="sale-order-header__submeta">
+                {formData.number}
+                <span className="sale-order-header__submeta-separator">|</span>
+                {formatDate(formData.documentDate)}
+              </p>
             </div>
           </div>
-
-          <div className="create-pr-header__meta">
-            <div className="create-pr-header__meta-item">
-              <span className="create-pr-header__meta-label">Doc no:</span>
-              <span className="create-pr-header__meta-value">{formData.number}</span>
-            </div>
-            <div className="create-pr-header__meta-item">
-              <span className="create-pr-header__meta-label">Doc date:</span>
-              <span className="create-pr-header__meta-value">{formatDate(formData.documentDate)}</span>
-            </div>
-            <button type="button" className="create-pr-header__icon-button" aria-label="Edit sale order header">
-              <PencilLine size={16} />
-            </button>
-            <button type="button" className="create-pr-header__icon-button" aria-label="More options">
-              <MoreVertical size={16} />
-            </button>
-        </div>
-      </div>
-
-      <div className="create-pr-header__actions">
-        <div className="po-create__requisition-picker">
-            <div className="po-create__requisition-search">
-              <div className="po-create__requisition-search-shell">
-                <Search size={16} className="po-create__requisition-search-icon" />
-                {formData.customer && (
-                  <span className="po-create__selected-chip">
-                    <span className="po-create__selected-chip-text">{formData.customer}</span>
-                    <button
-                      type="button"
-                      className="po-create__selected-chip-remove"
-                      onMouseDown={(event) => event.preventDefault()}
-                      onClick={() => {
-                        handleFieldChange('customer', '');
-                        setCustomerSearch('');
-                      }}
-                      aria-label={`Remove ${formData.customer}`}
-                    >
-                      <X size={12} />
-                    </button>
-                  </span>
-                )}
-                <input
-                  ref={customerSearchInputRef}
-                  type="search"
-                  value={customerSearch}
-                  onChange={(event) => {
-                    setCustomerSearch(event.target.value);
-                    setIsCustomerResultsOpen(true);
-                  }}
-                  onFocus={() => setIsCustomerResultsOpen(true)}
-                  onBlur={() => {
-                    window.setTimeout(() => {
-                      setIsCustomerResultsOpen(false);
-                    }, 120);
-                  }}
-                  className="search-input po-create__requisition-search-input"
-                  placeholder={formData.customer ? '' : 'Search customer by code, name, primary number, etc...'}
-                  aria-label="Search customers"
+          <div className="sale-order-header__top-actions">
+            <div ref={quickLinkMenuRef} className="so-create__quick-link">
+              <button
+                type="button"
+                onClick={() => setIsQuickLinkMenuOpen((current) => !current)}
+                className="so-create__quick-link-trigger"
+                aria-expanded={isQuickLinkMenuOpen}
+                aria-label="Open quick links"
+              >
+                <span>Quick links</span>
+                <ChevronDown
+                  size={16}
+                  className={cn('so-create__quick-link-chevron', isQuickLinkMenuOpen && 'so-create__quick-link-chevron--open')}
                 />
-              </div>
+              </button>
+
+              {isQuickLinkMenuOpen && (
+                <div className="so-create__quick-link-menu" role="menu" aria-label="Quick links">
+                  <button
+                    type="button"
+                    className="so-create__quick-link-item"
+                    role="menuitem"
+                    onClick={() => setIsQuickLinkMenuOpen(false)}
+                  >
+                    New Customer
+                  </button>
+                </div>
+              )}
             </div>
 
-            {isCustomerResultsOpen && matchingCustomers.length > 0 && (
-              <div className="po-create__requisition-results so-create__customer-results" role="listbox" aria-label="Customer results">
-                <table className="po-create__requisition-results-table so-create__customer-results-table">
-                  <thead>
-                    <tr>
-                      <th>Customer code</th>
-                      <th>Customer name</th>
-                      <th>Email</th>
-                      <th>Primary mobile number</th>
-                      <th>GSTIN</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {matchingCustomers.map((customer) => (
-                      <tr
-                        key={customer.code}
-                        className="po-create__requisition-results-row"
-                        role="option"
-                        tabIndex={0}
-                        aria-label={`Select ${customer.label}`}
-                        onMouseDown={(event) => event.preventDefault()}
-                        onClick={() => handleSelectCustomer(customer.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault();
-                            handleSelectCustomer(customer.value);
-                          }
-                        }}
-                      >
-                        <td className="po-create__requisition-results-number">{customer.code}</td>
-                        <td>{customer.label}</td>
-                        <td>{customer.email}</td>
-                        <td>{customer.mobileNumber}</td>
-                        <td>{customer.gstin}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          <div ref={quickLinkMenuRef} className="so-create__quick-link">
-            <button
-              type="button"
-              onClick={() => setIsQuickLinkMenuOpen((current) => !current)}
-              className="so-create__quick-link-trigger"
-              aria-expanded={isQuickLinkMenuOpen}
-              aria-label="Open quick links"
-            >
-              <span>Quick links</span>
-              <ChevronDown size={16} className={cn('so-create__quick-link-chevron', isQuickLinkMenuOpen && 'so-create__quick-link-chevron--open')} />
+            <button type="button" onClick={() => setIsDiscardDialogOpen(true)} className="btn btn--outline">
+              Discard
             </button>
-
-            {isQuickLinkMenuOpen && (
-              <div className="so-create__quick-link-menu" role="menu" aria-label="Quick links">
-                <button
-                  type="button"
-                  className="so-create__quick-link-item"
-                  role="menuitem"
-                  onClick={() => setIsQuickLinkMenuOpen(false)}
-                >
-                  New Customer
-                </button>
-              </div>
-            )}
+            <button type="button" onClick={handleSave} className="btn btn--primary">
+              Save
+            </button>
           </div>
-
-          <button type="button" onClick={() => setIsDiscardDialogOpen(true)} className="btn btn--outline">
-            Discard
-          </button>
-          <button type="button" onClick={handleSave} className="btn btn--primary">
-            Save
-          </button>
         </div>
       </div>
 
@@ -1017,96 +1586,172 @@ const CreateSaleOrder: React.FC<CreateSaleOrderProps> = ({
 
         {activeTab === 'customer-order' && (
           <div className="space-y-6">
-            {selectedCustomer && (
-              <div className="so-create__customer-card">
-                <div className="so-create__customer-card__section-title">Customer details</div>
-                <div className="so-create__customer-card__header">
-                  <div className="so-create__customer-card__summary">
-                    <div className="so-create__customer-card__avatar" aria-hidden="true">
-                      <UserRound size={24} />
-                    </div>
-
-                    <div className="so-create__customer-card__identity">
-                      <div className="so-create__customer-card__title-row">
-                        <h3 className="so-create__customer-card__title">
-                          {selectedCustomer.label} ({selectedCustomer.code})
-                        </h3>
+            <div className="rounded border border-slate-200 bg-white p-4 space-y-4">
+              <div className="sale-order-customer-section">
+                <div className="sale-order-customer-field">
+                  <FormField label="Select Customer" required>
+                    <div className="po-create__requisition-picker">
+                      <div className="po-create__requisition-search">
+                        <div className="po-create__requisition-search-shell">
+                          <Search size={16} className="po-create__requisition-search-icon" />
+                          {formData.customer && (
+                            <span className="po-create__selected-chip">
+                              <span className="po-create__selected-chip-text">{formData.customer}</span>
+                              <button
+                                type="button"
+                                className="po-create__selected-chip-remove"
+                                onMouseDown={(event) => event.preventDefault()}
+                                onClick={requestCustomerRemoval}
+                                aria-label={`Remove ${formData.customer}`}
+                              >
+                                <X size={12} />
+                              </button>
+                            </span>
+                          )}
+                          <input
+                            ref={customerSearchInputRef}
+                            type="search"
+                            value={customerSearch}
+                            onChange={(event) => {
+                              setCustomerSearch(event.target.value);
+                              setIsCustomerResultsOpen(true);
+                            }}
+                            onFocus={() => setIsCustomerResultsOpen(true)}
+                            onBlur={() => {
+                              window.setTimeout(() => {
+                                setIsCustomerResultsOpen(false);
+                              }, 120);
+                            }}
+                            className="search-input po-create__requisition-search-input"
+                            placeholder={formData.customer ? '' : 'Search customer by code, name, primary number, etc...'}
+                            aria-label="Select customer"
+                          />
+                        </div>
                       </div>
 
-                      <div className="so-create__customer-card__phone-row">
-                        <span className="so-create__customer-card__phone">
-                          {selectedCustomer.mobileNumber}
-                        </span>
-                        {selectedCustomer.isPrimaryVerified && (
-                          <span className="so-create__customer-card__verified" aria-label="Primary number verified">
-                            <BadgeCheck size={14} />
-                          </span>
-                        )}
-                        <span className="so-create__customer-card__secondary-phone">
-                          {selectedCustomer.secondaryNumber}
-                        </span>
+                      {isCustomerResultsOpen && matchingCustomers.length > 0 && (
+                        <div className="po-create__requisition-results so-create__customer-results" role="listbox" aria-label="Customer results">
+                          <table className="po-create__requisition-results-table so-create__customer-results-table">
+                            <thead>
+                              <tr>
+                                <th>Customer code</th>
+                                <th>Customer name</th>
+                                <th>Email</th>
+                                <th>Primary mobile number</th>
+                                <th>GSTIN</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {matchingCustomers.map((customer) => (
+                                <tr
+                                  key={customer.code}
+                                  className="po-create__requisition-results-row"
+                                  role="option"
+                                  tabIndex={0}
+                                  aria-label={`Select ${customer.label}`}
+                                  onMouseDown={(event) => event.preventDefault()}
+                                  onClick={() => requestCustomerSelection(customer.value)}
+                                  onKeyDown={(event) => {
+                                    if (event.key === 'Enter' || event.key === ' ') {
+                                      event.preventDefault();
+                                      requestCustomerSelection(customer.value);
+                                    }
+                                  }}
+                                >
+                                  <td className="po-create__requisition-results-number">{customer.code}</td>
+                                  <td>{customer.label}</td>
+                                  <td>{customer.email}</td>
+                                  <td>{customer.mobileNumber}</td>
+                                  <td>{customer.gstin}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  </FormField>
+                </div>
+
+                {selectedCustomer && (
+                  <div className="sale-order-customer-context" aria-live="polite">
+                    <div className="sale-order-customer-context__top">
+                      <div className="sale-order-customer-context__identity">
+                        <div className="sale-order-customer-context__name">{selectedCustomer.label}</div>
+                        <div className="sale-order-customer-context__meta">
+                          {selectedCustomer.code}
+                          <span className="sale-order-customer-context__separator">|</span>
+                          {selectedCustomer.customerType}
+                        </div>
                       </div>
+                      <span className="sale-order-customer-context__badge">GSTIN {selectedCustomer.gstin}</span>
+                    </div>
+
+                    <div className="sale-order-customer-context__details">
+                      <span>{selectedCustomer.mobileNumber}</span>
+                      <span>{selectedCustomer.email}</span>
+                      <span>{selectedCustomer.address}</span>
                     </div>
                   </div>
+                )}
+              </div>
 
-                  <button
-                    type="button"
-                    onClick={handleEditCustomerCard}
-                    className="so-create__customer-card__edit"
-                    aria-label="Edit selected customer"
-                  >
-                    <PencilLine size={15} />
-                  </button>
-                </div>
-
-                  <div className="so-create__customer-card__details">
-                    <div className="so-create__customer-card__detail-row">
-                      <Mail size={16} className="so-create__customer-card__detail-icon" />
-                      <span className="so-create__customer-card__detail-text">{selectedCustomer.email}</span>
-                  </div>
-
-                  <div className="so-create__customer-card__detail-row">
-                    <Building2 size={16} className="so-create__customer-card__detail-icon" />
-                    <span className="so-create__customer-card__detail-text">{selectedCustomer.customerType}</span>
-                  </div>
-
-                  <div className="so-create__customer-card__detail-row">
-                    <FileText size={16} className="so-create__customer-card__detail-icon" />
-                    <span className="so-create__customer-card__detail-text">{selectedCustomer.gstin}</span>
-                  </div>
-
-                    <div className="so-create__customer-card__detail-row">
-                      <MapPin size={16} className="so-create__customer-card__detail-icon" />
-                      <span className="so-create__customer-card__detail-text">{selectedCustomer.address}</span>
-                    </div>
-                  </div>
-                </div>
-              )}
+            </div>
 
             <div className="rounded border border-slate-200 bg-white p-4 space-y-4">
               <div className="brand-section-title font-semibold">Order Details</div>
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <FormField label="Order Source">
-                  <Select value={formData.orderSource} onChange={(event) => handleFieldChange('orderSource', event.target.value)} options={orderSourceOptions} />
-                </FormField>
-                <FormField label="Sales Executive">
-                  <Select value={formData.salesExecutive} onChange={(event) => handleFieldChange('salesExecutive', event.target.value)} options={salesExecutiveOptions} />
-                </FormField>
-                <FormField label="Requested Delivery Date">
-                  <Input type="date" value={formData.requestedDeliveryDate} onChange={(event) => handleFieldChange('requestedDeliveryDate', event.target.value)} />
-                </FormField>
-                <FormField label="Valid Till Date">
-                  <Input type="date" value={formData.validTillDate} onChange={(event) => handleFieldChange('validTillDate', event.target.value)} />
-                </FormField>
-                <FormField label="Place of Supply" required>
-                  <Select value={formData.placeOfSupply} onChange={(event) => handleFieldChange('placeOfSupply', event.target.value)} options={placeOfSupplyOptions} />
-                </FormField>
-                <FormField label="Promised Delivery Date">
-                  <Input type="date" value={formData.promisedDeliveryDate} onChange={(event) => handleFieldChange('promisedDeliveryDate', event.target.value)} />
-                </FormField>
-                <FormField label="Priority">
-                  <Select value={formData.priority} onChange={(event) => handleFieldChange('priority', event.target.value as SalePriority)} options={priorityOptions} />
-                </FormField>
+              <div className="sale-order-order-panel">
+                <div className="sale-order-order-panel__title">Commercial details</div>
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  <FormField label="Order Source">
+                    <Select value={formData.orderSource} onChange={(event) => handleFieldChange('orderSource', event.target.value)} options={orderSourceOptions} />
+                  </FormField>
+                  <FormField label="Sales Executive">
+                    <Select value={formData.salesExecutive} onChange={(event) => handleFieldChange('salesExecutive', event.target.value)} options={salesExecutiveOptions} />
+                  </FormField>
+                  <FormField label="Place of Supply" required>
+                    <Select value={formData.placeOfSupply} onChange={(event) => handleFieldChange('placeOfSupply', event.target.value)} options={placeOfSupplyOptions} />
+                  </FormField>
+                  <FormField label="Priority">
+                    <Select value={formData.priority} onChange={(event) => handleFieldChange('priority', event.target.value as SalePriority)} options={priorityOptions} />
+                  </FormField>
+                </div>
+              </div>
+
+              <div className="sale-order-order-panel sale-order-order-panel--accent">
+                <div className="sale-order-order-panel__title">Delivery commitments</div>
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  <FormField label="Requested Delivery Date" help={requestedDeliveryDateError || 'Customer commitment date. Must be a future date.'}>
+                    <Input
+                      type="date"
+                      value={formData.requestedDeliveryDate}
+                      min={requestedDeliveryMinDate}
+                      error={requestedDeliveryDateError || undefined}
+                      onChange={(event) => handleFieldChange('requestedDeliveryDate', event.target.value)}
+                    />
+                  </FormField>
+                  <FormField label="Promised Delivery Date" help={promisedDeliveryDateError || 'Internal promise date. Must be current or future.'}>
+                    <Input
+                      type="date"
+                      value={formData.promisedDeliveryDate}
+                      min={todayDate}
+                      error={promisedDeliveryDateError || undefined}
+                      onChange={(event) => handleFieldChange('promisedDeliveryDate', event.target.value)}
+                    />
+                  </FormField>
+                  <FormField
+                    label="Valid Till Date"
+                    help={validTillDateError || 'Must be current or future, and later than requested delivery date when set.'}
+                  >
+                    <Input
+                      type="date"
+                      value={formData.validTillDate}
+                      min={validTillMinDate}
+                      error={validTillDateError || undefined}
+                      onChange={(event) => handleFieldChange('validTillDate', event.target.value)}
+                    />
+                  </FormField>
+                </div>
               </div>
             </div>
           </div>
@@ -1121,16 +1766,28 @@ const CreateSaleOrder: React.FC<CreateSaleOrderProps> = ({
                     <h4 className="create-pr-grid__title">Product detail</h4>
                     <span className="create-pr-grid__count">{lines.length}</span>
                   </div>
+                  <p className="create-pr-grid__helper">
+                    Use the entry columns first. Inventory tracking and fulfilment columns can be expanded only when needed.
+                  </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleAddLine}
-                  disabled={!canAddProductLine}
-                  className="btn btn--outline btn--icon-left create-pr-grid__add-button"
-                >
-                  <Plus size={14} />
-                  Add line
-                </button>
+                <div className="create-pr-grid__header-actions">
+                  <button
+                    type="button"
+                    onClick={() => setShowAdvancedProductColumns((current) => !current)}
+                    className="btn btn--outline create-pr-grid__secondary-action"
+                  >
+                    {showAdvancedProductColumns ? 'Hide advanced columns' : 'Show advanced columns'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAddLine}
+                    disabled={!canAddProductLine}
+                    className="btn btn--outline btn--icon-left create-pr-grid__add-button"
+                  >
+                    <Plus size={14} />
+                    Add line
+                  </button>
+                </div>
               </div>
 
               <div className="create-pr-grid__table-wrap">
@@ -1145,17 +1802,37 @@ const CreateSaleOrder: React.FC<CreateSaleOrderProps> = ({
                       <th className="create-pr-grid__cell">Requested Date</th>
                       <th className="create-pr-grid__cell">Fulfillment Date</th>
                       <th className="create-pr-grid__cell">Priority</th>
+                      <th className="create-pr-grid__cell">Warehouse</th>
+                      <th className="create-pr-grid__cell">Location/bin</th>
+                      {showAdvancedProductColumns && (
+                        <>
+                          <th className="create-pr-grid__cell">Serial Number</th>
+                          <th className="create-pr-grid__cell">Batch/Lot Number</th>
+                          <th className="create-pr-grid__cell">Manufacturing Date</th>
+                          <th className="create-pr-grid__cell">Expiry Date</th>
+                        </>
+                      )}
                       <th className="create-pr-grid__cell create-pr-grid__cell--number">Rate</th>
                       <th className="create-pr-grid__cell create-pr-grid__cell--number">Order Qty</th>
-                      <th className="create-pr-grid__cell create-pr-grid__cell--number">Converted Qty</th>
-                      <th className="create-pr-grid__cell create-pr-grid__cell--number">Pending Qty</th>
+                      {showAdvancedProductColumns && (
+                        <>
+                          <th className="create-pr-grid__cell create-pr-grid__cell--number">Cancelled Qty</th>
+                          <th className="create-pr-grid__cell create-pr-grid__cell--number">Allocated Qty</th>
+                          <th className="create-pr-grid__cell create-pr-grid__cell--number">Pending Allocation Qty</th>
+                          <th className="create-pr-grid__cell create-pr-grid__cell--number">Invoiced Qty</th>
+                          <th className="create-pr-grid__cell create-pr-grid__cell--number">Pending Invoice Qty</th>
+                          <th className="create-pr-grid__cell create-pr-grid__cell--number">Delivery Qty</th>
+                          <th className="create-pr-grid__cell create-pr-grid__cell--number">Pending Delivery Qty</th>
+                          <th className="create-pr-grid__cell create-pr-grid__cell--number">Returned Qty</th>
+                        </>
+                      )}
                       <th className="create-pr-grid__cell create-pr-grid__cell--number">Base Amount</th>
                       <th className="create-pr-grid__cell create-pr-grid__cell--number">Discount %</th>
                       <th className="create-pr-grid__cell create-pr-grid__cell--number">Discount Amount</th>
                       <th className="create-pr-grid__cell create-pr-grid__cell--number">Taxable Amount</th>
-                      <th className="create-pr-grid__cell">Taxation Column</th>
+                      <th className="create-pr-grid__cell">Tax</th>
                       <th className="create-pr-grid__cell create-pr-grid__cell--number">Total Amount</th>
-                      <th className="create-pr-grid__cell">Remark</th>
+                      <th className="create-pr-grid__cell">Item Remark</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1164,7 +1841,9 @@ const CreateSaleOrder: React.FC<CreateSaleOrderProps> = ({
                       const baseAmount = getBaseAmount(line);
                       const taxableAmount = getTaxableAmount(line);
                       const lineAmount = getLineAmount(line);
-                      const pendingQuantity = getPendingQuantity(line);
+                      const pendingAllocationQuantity = getPendingAllocationQuantity(line);
+                      const pendingInvoiceQuantity = getPendingInvoiceQuantity(line);
+                      const pendingDeliveryQuantity = getPendingDeliveryQuantity(line);
 
                       return (
                         <tr key={line.id}>
@@ -1210,18 +1889,94 @@ const CreateSaleOrder: React.FC<CreateSaleOrderProps> = ({
                           <td className="create-pr-grid__body-cell">
                             <Select value={line.priority} onChange={(event) => handleLineChange(line.id, 'priority', event.target.value)} className="create-pr-grid__control create-pr-grid__control--select min-w-24" options={priorityOptions} />
                           </td>
+                          <td className="create-pr-grid__body-cell">
+                            <Select
+                              value={line.warehouse}
+                              onChange={(event) => handleLineChange(line.id, 'warehouse', event.target.value)}
+                              className="create-pr-grid__control create-pr-grid__control--select min-w-28"
+                              options={warehouseOptions}
+                            />
+                          </td>
+                          <td className="create-pr-grid__body-cell">
+                            <Select
+                              value={line.locationBin}
+                              onChange={(event) => handleLineChange(line.id, 'locationBin', event.target.value)}
+                              className="create-pr-grid__control create-pr-grid__control--select min-w-28"
+                              options={getLocationOptions(line.warehouse)}
+                            />
+                          </td>
+                          {showAdvancedProductColumns && (
+                            <>
+                              <td className="create-pr-grid__body-cell">
+                                <Input
+                                  value={line.serialNumber}
+                                  onChange={(event) => handleLineChange(line.id, 'serialNumber', event.target.value)}
+                                  className="create-pr-grid__control create-pr-grid__control--input min-w-28"
+                                  placeholder="Enter serial no."
+                                />
+                              </td>
+                              <td className="create-pr-grid__body-cell">
+                                <Input
+                                  value={line.batchLotNumber}
+                                  onChange={(event) => handleLineChange(line.id, 'batchLotNumber', event.target.value)}
+                                  className="create-pr-grid__control create-pr-grid__control--input min-w-28"
+                                  placeholder="Enter batch/lot"
+                                />
+                              </td>
+                              <td className="create-pr-grid__body-cell">
+                                <Input
+                                  type="date"
+                                  value={line.manufacturingDate}
+                                  readOnly
+                                  disabled
+                                  className="create-pr-grid__control create-pr-grid__control--readonly create-pr-grid__control--date min-w-28"
+                                />
+                              </td>
+                              <td className="create-pr-grid__body-cell">
+                                <Input
+                                  type="date"
+                                  value={line.expiryDate}
+                                  readOnly
+                                  disabled
+                                  className="create-pr-grid__control create-pr-grid__control--readonly create-pr-grid__control--date min-w-28"
+                                />
+                              </td>
+                            </>
+                          )}
                           <td className="create-pr-grid__body-cell create-pr-grid__body-cell--number">
                             <Input value={line.rate} onChange={(event) => handleLineChange(line.id, 'rate', event.target.value)} className="create-pr-grid__control create-pr-grid__control--input create-pr-grid__control--number min-w-24" />
                           </td>
                           <td className="create-pr-grid__body-cell create-pr-grid__body-cell--number">
                             <Input value={line.orderQuantity} onChange={(event) => handleLineChange(line.id, 'orderQuantity', event.target.value)} className="create-pr-grid__control create-pr-grid__control--input create-pr-grid__control--number min-w-24" />
                           </td>
-                          <td className="create-pr-grid__body-cell create-pr-grid__body-cell--number">
-                            <Input value={line.convertedQuantity} readOnly disabled className="create-pr-grid__control create-pr-grid__control--readonly create-pr-grid__control--number min-w-20" />
-                          </td>
-                          <td className="create-pr-grid__body-cell create-pr-grid__body-cell--number">
-                            <Input value={formatDecimal(pendingQuantity)} readOnly disabled className="create-pr-grid__control create-pr-grid__control--readonly create-pr-grid__control--number min-w-20" />
-                          </td>
+                          {showAdvancedProductColumns && (
+                            <>
+                              <td className="create-pr-grid__body-cell create-pr-grid__body-cell--number">
+                                <Input value={line.cancelledQuantity} readOnly disabled className="create-pr-grid__control create-pr-grid__control--readonly create-pr-grid__control--number min-w-20" />
+                              </td>
+                              <td className="create-pr-grid__body-cell create-pr-grid__body-cell--number">
+                                <Input value={line.allocatedQuantity} readOnly disabled className="create-pr-grid__control create-pr-grid__control--readonly create-pr-grid__control--number min-w-20" />
+                              </td>
+                              <td className="create-pr-grid__body-cell create-pr-grid__body-cell--number">
+                                <Input value={formatDecimal(pendingAllocationQuantity)} readOnly disabled className="create-pr-grid__control create-pr-grid__control--readonly create-pr-grid__control--number min-w-24" />
+                              </td>
+                              <td className="create-pr-grid__body-cell create-pr-grid__body-cell--number">
+                                <Input value={line.invoicedQuantity} readOnly disabled className="create-pr-grid__control create-pr-grid__control--readonly create-pr-grid__control--number min-w-20" />
+                              </td>
+                              <td className="create-pr-grid__body-cell create-pr-grid__body-cell--number">
+                                <Input value={formatDecimal(pendingInvoiceQuantity)} readOnly disabled className="create-pr-grid__control create-pr-grid__control--readonly create-pr-grid__control--number min-w-24" />
+                              </td>
+                              <td className="create-pr-grid__body-cell create-pr-grid__body-cell--number">
+                                <Input value={line.deliveryQuantity} readOnly disabled className="create-pr-grid__control create-pr-grid__control--readonly create-pr-grid__control--number min-w-20" />
+                              </td>
+                              <td className="create-pr-grid__body-cell create-pr-grid__body-cell--number">
+                                <Input value={formatDecimal(pendingDeliveryQuantity)} readOnly disabled className="create-pr-grid__control create-pr-grid__control--readonly create-pr-grid__control--number min-w-24" />
+                              </td>
+                              <td className="create-pr-grid__body-cell create-pr-grid__body-cell--number">
+                                <Input value={line.returnedQuantity} readOnly disabled className="create-pr-grid__control create-pr-grid__control--readonly create-pr-grid__control--number min-w-20" />
+                              </td>
+                            </>
+                          )}
                           <td className="create-pr-grid__body-cell create-pr-grid__body-cell--number">
                             <Input value={formatDecimal(baseAmount)} readOnly disabled className="create-pr-grid__control create-pr-grid__control--readonly create-pr-grid__control--number min-w-24" />
                           </td>
@@ -1305,8 +2060,17 @@ const CreateSaleOrder: React.FC<CreateSaleOrderProps> = ({
                 <FormField label="EMI Interest Rate">
                   <Input value={formData.emiInterestRate} onChange={(event) => handleFieldChange('emiInterestRate', event.target.value)} placeholder="0.00" />
                 </FormField>
-                <FormField label="Balance Amount">
-                  <Input value={formData.balanceAmount} onChange={(event) => handleFieldChange('balanceAmount', event.target.value)} placeholder="0.00" />
+                <FormField
+                  label="Balance Amount"
+                  help={formData.paymentMode === 'Finance' ? 'Auto-calculated as net order amount minus down payment and finance amount.' : undefined}
+                >
+                  <Input
+                    value={formData.paymentMode === 'Finance' ? computedFinanceBalanceAmount : formData.balanceAmount}
+                    onChange={(event) => handleFieldChange('balanceAmount', event.target.value)}
+                    placeholder="0.00"
+                    readOnly={formData.paymentMode === 'Finance'}
+                    disabled={formData.paymentMode === 'Finance'}
+                  />
                 </FormField>
                 <FormField label="Tenure">
                   <Select value={formData.tenure} onChange={(event) => handleFieldChange('tenure', event.target.value)} options={tenureOptions} />
@@ -1329,6 +2093,20 @@ const CreateSaleOrder: React.FC<CreateSaleOrderProps> = ({
                     value={formData.policyNumber}
                     onChange={(event) => handleFieldChange('policyNumber', event.target.value)}
                     placeholder="Enter policy number"
+                  />
+                </FormField>
+                <FormField label="Policy Date">
+                  <Input
+                    type="date"
+                    value={formData.policyDate}
+                    onChange={(event) => handleFieldChange('policyDate', event.target.value)}
+                  />
+                </FormField>
+                <FormField label="Insurance Remarks">
+                  <Input
+                    value={formData.insuranceRemarks}
+                    onChange={(event) => handleFieldChange('insuranceRemarks', event.target.value)}
+                    placeholder="Enter remarks"
                   />
                 </FormField>
               </div>
@@ -1397,6 +2175,23 @@ const CreateSaleOrder: React.FC<CreateSaleOrderProps> = ({
         }}
         onClose={() => setIsDiscardDialogOpen(false)}
       />
+      <ConfirmationDialog
+        isOpen={isCustomerChangeDialogOpen}
+        title="Change customer?"
+        description="Changing or removing the customer will discard all entered details. Are you sure?"
+        confirmLabel="Yes"
+        cancelLabel="No"
+        onConfirm={() => {
+          const nextCustomer = pendingCustomerChangeRef.current;
+          pendingCustomerChangeRef.current = '';
+          setIsCustomerChangeDialogOpen(false);
+          resetDetailsForCustomerChange(nextCustomer);
+        }}
+        onClose={() => {
+          pendingCustomerChangeRef.current = '';
+          setIsCustomerChangeDialogOpen(false);
+        }}
+      />
 
       <SuccessSummaryDialog
         isOpen={isSaveSuccessDialogOpen}
@@ -1410,9 +2205,9 @@ const CreateSaleOrder: React.FC<CreateSaleOrderProps> = ({
           { label: 'Priority', value: formData.priority || '-' },
           { label: 'Total line count', value: formatCount(totalLineCount) },
         ]}
-        totalLabel="Net order amount"
-        totalValue={formatCount(totalAmount)}
-        primaryActionLabel="Go to homepage"
+        totalLabel="Net payable amount"
+        totalValue={`Rs ${formatCurrency(netPayableAmount)}`}
+        primaryActionLabel="Go to sale orders"
         onPrimaryAction={() => {
           setIsSaveSuccessDialogOpen(false);
           onNavigateToSaleOrderList();
@@ -1423,19 +2218,83 @@ const CreateSaleOrder: React.FC<CreateSaleOrderProps> = ({
       />
       <AmountBreakdownDrawer
         isOpen={isAmountDrawerOpen}
-        title="Order amount details"
-        subtitle="Review the amount summary for this sale order."
+        title="Order summary"
+        subtitle={formData.customer || 'Customer not selected'}
+        panelClassName="side-drawer__panel--thirty"
+        mainSectionTitle="Calculation summary"
+        groupSectionTitle="Detailed sections"
         items={[
+          { label: 'Net Order Amount (A)', value: `Rs ${formatCurrency(netOrderAmount)}` },
           { label: 'Gross order amount', value: `Rs ${formatCurrency(grossOrderAmount)}` },
-          { label: 'Total discount', value: `Rs ${formatCurrency(totalDiscountAmount)}` },
+          { label: 'Total qty', value: formatCount(totalOrderQuantity) },
+          { label: 'Line discount amount', value: `Rs ${formatCurrency(totalDiscountAmount)}` },
+          { label: 'Line discount percent', value: `${formatCount(totalDiscountPercent)}%` },
           { label: 'Taxable amount', value: `Rs ${formatCurrency(totalTaxableAmount)}` },
-          { label: 'Total tax', value: `Rs ${formatCurrency(totalTaxAmount)}` },
+          { label: 'Advance Paid (D)', value: `Rs ${formatCurrency(advancePaidAmount)}` },
         ]}
-        totalLabel="Net order amount"
-        totalValue={`Rs ${formatCurrency(totalAmount)}`}
+        groups={[
+          {
+            id: 'discount-summary',
+            title: 'Discount summary',
+            defaultCollapsed: true,
+            items: [
+              {
+                label: 'Order Discount Amount',
+                value: '',
+                editable: true,
+                inputValue: orderLevelDiscountAmount,
+                inputPlaceholder: 'Enter amount',
+                onInputChange: handleDiscountAmountChange,
+              },
+              {
+                label: 'Order Discount Percent',
+                value: '',
+                editable: true,
+                inputValue: orderLevelDiscountPercent,
+                inputPlaceholder: 'Enter percent',
+                onInputChange: handleDiscountPercentChange,
+              },
+              {
+                label: 'Applied Discount',
+                value: `Rs ${formatCurrency(appliedOrderDiscountAmount)}`,
+                tone: 'accent',
+              },
+            ],
+          },
+          {
+            id: 'charges-summary',
+            title: 'Charges summary',
+            defaultCollapsed: true,
+            items: [
+              {
+                label: 'Charges (B)',
+                value: '',
+                editable: true,
+                inputValue: chargesInputAmount,
+                inputPlaceholder: 'Enter charges',
+                onInputChange: handleChargesAmountChange,
+              },
+            ],
+          },
+          {
+            id: 'tax-breakup',
+            title: `Tax summary (C) - Total Taxes: Rs ${formatCurrency(totalTaxAmount)}`,
+            defaultCollapsed: true,
+            items:
+              taxBreakup.length > 0
+                ? taxBreakup.map((tax, index) => ({
+                    label: `${String.fromCharCode(69 + index)}. ${tax.label}`,
+                    value: `Rs ${formatCurrency(tax.amount)}`,
+                  }))
+                : [{ label: 'No tax breakup available', value: 'Rs 0.00', tone: 'muted' }],
+          },
+        ]}
+        totalLabel="Net Payable Amount (A + B + (C - D))"
+        totalValue={`Rs ${formatCurrency(netPayableAmount)}`}
         note={`This summary is calculated from ${lines.length} line item${lines.length === 1 ? '' : 's'} in the product details grid.`}
         onClose={() => setIsAmountDrawerOpen(false)}
       />
+      {printTools.printPreviewOverlay}
     </AppShell>
   );
 };

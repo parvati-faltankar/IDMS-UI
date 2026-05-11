@@ -260,6 +260,7 @@ const PurchaseInvoicePreviewDrawer: React.FC<{
     isOpen={isOpen}
     documentTypeLabel="Purchase Invoice"
     subtitle="Purchase Invoice preview"
+    printEntityType="purchase-invoice"
     onClose={onClose}
     onEdit={onEdit}
     onCancel={onCancel}

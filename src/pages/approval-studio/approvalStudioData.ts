@@ -106,6 +106,13 @@ export interface ApprovalRule {
   operator: string;
   value: string;
   action: string;
+  comparisonType?: 'Literal' | 'Field' | 'Expression' | '';
+  joinLogic?: 'AND' | 'OR' | '';
+  nullHandling?: 'Fail' | 'Treat as blank' | 'Skip' | '';
+  priority?: string;
+  enabled?: boolean;
+  effectiveFrom?: string;
+  effectiveTo?: string;
 }
 
 export interface ApprovalActionRow {

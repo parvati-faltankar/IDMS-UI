@@ -10,6 +10,7 @@ import SuccessSummaryDialog from '../../components/common/SuccessSummaryDialog';
 import { FormField, Input, Select, Textarea } from '../../components/common/FormControls';
 import { handleGridLastCellTab } from '../../components/common/gridKeyboard';
 import StatusBadge from '../../components/common/StatusBadge';
+import { useDocumentPrint } from '../../print-builder/useDocumentPrint';
 import { PURCHASE_REQUISITION_LAYOUT, purchaseRequisitionFieldLabels } from '../../utils/formLayoutRegistry';
 import type { PurchaseRequisitionDocument } from './purchaseRequisitionCatalogueData';
 import { cn } from '../../utils/classNames';
@@ -859,6 +860,7 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
   tourMode,
   configurationMode = false,
 }) => {
+  const printTools = useDocumentPrint('purchase-requisition');
   type TabKey = string;
 
   const [requisition, setRequisition] = useState<RequisitionData>(() => getInitialRequisition(editingDocument));
@@ -1279,8 +1281,45 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
     }
   };
 
+  const buildRequisitionPrintPreviewDocument = (): Record<string, unknown> => ({
+    id: editingDocument?.id ?? `purchase-requisition-preview-${requisition.number}`,
+    number: requisition.number,
+    title: requisition.title,
+    documentDateTime: requisition.documentDate ? `${requisition.documentDate}T09:00:00.000Z` : '',
+    supplierName: requisition.supplier,
+    requesterName: requisition.requestor,
+    department: requisition.department,
+    branch: requisition.deliveryLocation,
+    legalEntity: requisition.legalEntity,
+    costCenter: requisition.costCenter,
+    requirementDate: requisition.neededByDate,
+    validTillDate: requisition.validTillDate,
+    priority: requisition.priority,
+    status: getHeaderStatusLabel(requisition.status),
+    currency: requisition.currency,
+    lineCount: lineItems.length,
+    contractReference: requisition.contractReference,
+    budgetCode: requisition.budgetCode,
+    notes: requisition.remarks,
+    productLines: lineItems.map((line) => ({
+      productCode: line.productCode,
+      productName: line.productName,
+      description: line.description,
+      uom: line.uom,
+      priority: line.priority || 'Low',
+      requirementDate: line.requirementDate || '',
+      requestedQty: formatDecimal(parseDecimal(line.requestedQty)),
+      orderedQty: formatDecimal(parseDecimal(line.orderedQty)),
+      cancelledQty: formatDecimal(parseDecimal(line.cancelledQty)),
+      pendingQty: formatDecimal(Math.max(getPendingQty(line), 0)),
+      status: getLineStatus(line),
+      cancellationReason: line.cancellationReason,
+      remarks: line.remarks,
+    })),
+  });
+
   const handlePrintSummary = () => {
-    window.print();
+    printTools.openPrintPreview(buildRequisitionPrintPreviewDocument(), () => window.print());
   };
 
   const handleShareSummary = async () => {
@@ -2178,6 +2217,7 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
         onClose={() => setIsLayoutPreviewOpen(false)}
         onPublish={handlePublishLayout}
       />
+      {printTools.printPreviewOverlay}
     </AppShell>
   );
 };

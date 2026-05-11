@@ -10,7 +10,9 @@ import SuccessSummaryDialog from '../../components/common/SuccessSummaryDialog';
 import { formatDate } from '../../utils/dateFormat';
 import { cn } from '../../utils/classNames';
 import { useBusinessSettings } from '../../utils/businessSettings';
+import { useDocumentPrint } from '../../print-builder/useDocumentPrint';
 import type { PurchaseOrderDocument } from './purchaseOrderData';
+import { createPurchaseOrderId, createPurchaseOrderNumber, upsertPurchaseOrder } from '../../stores/documentStore';
 import {
   extendedPurchaseRequisitionDocuments,
   type PurchaseRequisitionDocument,
@@ -439,6 +441,7 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({
   onNavigateToPurchaseOrderList,
   onNavigateToPurchaseRequisitionList,
 }) => {
+  const printTools = useDocumentPrint('purchase-order');
   type TabKey = 'general' | 'product' | 'delivery';
   const todayIso = new Date().toISOString().slice(0, 10);
 
@@ -470,7 +473,7 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({
           insuranceAddress: '',
         }
     : {
-        number: `PO-${new Date().getFullYear()}-00001`,
+        number: createPurchaseOrderNumber(),
         linkedRequisitionNumber: '',
         supplierName: '',
         buyerName: '',
@@ -787,6 +790,43 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({
       return;
     }
 
+    const persistedDocument: PurchaseOrderDocument = {
+      id: editingDocument?.id ?? createPurchaseOrderId(),
+      number: formData.number || createPurchaseOrderNumber(),
+      orderDateTime: `${formData.orderDate || todayIso}T00:00:00`,
+      requisitionNumber: formData.linkedRequisitionNumber,
+      requisitionDate: formData.orderDate || todayIso,
+      supplierName: formData.supplierName,
+      buyerName: formData.buyerName,
+      createdBy: formData.buyerName || 'System User',
+      createdOn: new Date().toISOString(),
+      buyerEmail: '',
+      branch: formData.branch,
+      department: formData.department,
+      priority: (formData.priority || 'Medium') as PurchaseOrderDocument['priority'],
+      status: 'Draft',
+      expectedDeliveryDate: formData.expectedDeliveryDate,
+      paymentTerms: formData.paymentTerms,
+      incoterm: formData.incoterm,
+      taxableAmount: formatDecimal(totalTaxableAmount),
+      totalDiscount: formatDecimal(totalDiscountAmount),
+      totalTaxes: formatDecimal(totalTaxAmount),
+      totalAmount: formatDecimal(totalAmount),
+      currency: 'INR',
+      notes: formData.notes,
+      lines: lines.map((line) => ({
+        itemCode: line.productCode,
+        itemName: line.productName,
+        description: line.remarks,
+        uom: line.uom,
+        quantity: line.orderQty || '0.00',
+        unitPrice: line.purchaseRate || '0.00',
+        expectedDate: line.requirementDate,
+        amount: formatDecimal(getLineAmount(line)),
+      })),
+    };
+    upsertPurchaseOrder(persistedDocument);
+
     setWorkflowError('');
     setIsSaveSuccessDialogOpen(true);
   };
@@ -813,8 +853,50 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({
     onNavigateToPurchaseOrderList();
   };
 
+  const buildPurchaseOrderPrintPreviewDocument = (): Record<string, unknown> => ({
+    id: editingDocument?.id ?? `purchase-order-preview-${formData.number}`,
+    number: formData.number,
+    linkedRequisitionNumber: formData.linkedRequisitionNumber,
+    requisitionNumber: formData.linkedRequisitionNumber,
+    supplierName: formData.supplierName,
+    buyerName: formData.buyerName,
+    placeOfSupply: formData.placeOfSupply,
+    branch: formData.branch,
+    department: formData.department,
+    priority: formData.priority,
+    orderDateTime: formData.orderDate ? `${formData.orderDate}T09:00:00.000Z` : '',
+    expectedDeliveryDate: formData.expectedDeliveryDate,
+    paymentMode: formData.paymentMode,
+    paymentTerms: formData.paymentTerms,
+    validTillDate: formData.validTillDate,
+    incoterm: formData.incoterm,
+    shipToLocation: formData.shipToLocation,
+    shippingTerm: formData.shippingTerm,
+    shippingMethod: formData.shippingMethod,
+    shippingInstructions: formData.shippingInstructions,
+    insuranceProvider: formData.insuranceProvider,
+    insuranceContactPerson: formData.insuranceContactPerson,
+    insuranceType: formData.insuranceType,
+    insuranceNumber: formData.insuranceNumber,
+    insuranceAddress: formData.insuranceAddress,
+    notes: formData.notes,
+    totalTaxes: formatDecimal(totalTaxAmount),
+    totalAmount: formatDecimal(totalAmount),
+    totalDiscount: formatDecimal(totalDiscountAmount),
+    lines: lines.map((line) => ({
+      itemCode: line.productCode,
+      itemName: line.productName,
+      description: line.remarks,
+      uom: line.uom,
+      quantity: line.orderQty || '0.00',
+      unitPrice: line.purchaseRate || '0.00',
+      amount: formatDecimal(getLineAmount(line)),
+      expectedDate: line.requirementDate,
+    })),
+  });
+
   const handlePrintSummary = () => {
-    window.print();
+    printTools.openPrintPreview(buildPurchaseOrderPrintPreviewDocument(), () => window.print());
   };
 
   const handleShareSummary = async () => {
@@ -1613,6 +1695,7 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({
         isOpen={Boolean(previewRequisition)}
         onClose={() => setPreviewRequisitionId(null)}
       />
+      {printTools.printPreviewOverlay}
     </AppShell>
   );
 };

@@ -631,6 +631,7 @@ const SaleInvoiceList: React.FC<SaleInvoiceListProps> = ({
         isOpen={Boolean(previewDocument)}
         documentTypeLabel="Sale Invoice"
         subtitle="Sale Invoice preview"
+        printEntityType="sale-invoice"
         onClose={() => setPreviewDocumentId(null)}
         onEdit={(document) => onEdit(document.id)}
         onCancel={(document) => {

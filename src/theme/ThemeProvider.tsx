@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import CssBaseline from '@mui/material/CssBaseline';
 import { StyledEngineProvider, ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
+import { useLocalization } from '../localization';
 import {
   applyAppearanceMode,
   applyThemeKey,
@@ -32,6 +33,7 @@ function getAvailableThemes(): Record<string, BrandThemeDefinition> {
 }
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { direction } = useLocalization();
   const [themeKey, setThemeKey] = useState<ThemeKey>(() => initializeTheme());
   const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>(() => getStoredAppearanceMode());
   const [themes, setThemes] = useState<Record<string, BrandThemeDefinition>>(() => getAvailableThemes());
@@ -87,8 +89,8 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   );
 
   const muiTheme = useMemo(
-    () => createAppMuiTheme(resolvedThemeKey, appearanceMode, resolvedTheme),
-    [appearanceMode, resolvedTheme, resolvedThemeKey]
+    () => createAppMuiTheme(resolvedThemeKey, appearanceMode, resolvedTheme, direction),
+    [appearanceMode, direction, resolvedTheme, resolvedThemeKey]
   );
 
   return (

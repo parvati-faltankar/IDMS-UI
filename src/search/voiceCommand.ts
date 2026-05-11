@@ -157,6 +157,11 @@ const moduleConfigs: ModuleVoiceConfig[] = [
     route: '#/profile/form-layout',
     synonyms: ['form layout', 'form layout screen', 'layout settings', 'layout screen', 'form configuration'],
   },
+  {
+    label: 'Print Builder',
+    route: '#/profile/print-builder',
+    synonyms: ['print builder', 'print layout', 'print template', 'document print layout', 'print design'],
+  },
 ];
 
 const actionPatterns: Array<[VoiceAction, RegExp]> = [

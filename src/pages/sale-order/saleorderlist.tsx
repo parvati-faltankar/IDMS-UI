@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Ban,
-  ChevronDown,
+  Columns3,
   Eye,
   FileText,
   Filter,
@@ -14,7 +14,13 @@ import {
 } from 'lucide-react';
 import AppShell from '../../components/common/AppShell';
 import CancelDocumentDialog from '../../components/common/CancelDocumentDialog';
+import CatalogueFieldDisplaySettings from '../../components/common/CatalogueFieldDisplaySettings';
+import type { CatalogueDisplayField } from '../../components/common/CatalogueFieldDisplaySettings';
 import CatalogueInsightCards from '../../components/common/CatalogueInsightCards';
+import CatalogueViewConfigurator from '../../components/common/CatalogueViewConfigurator';
+import CatalogueViewSelector from '../../components/common/CatalogueViewSelector';
+import CatalogueSectionLayoutSettings from '../../components/common/CatalogueSectionLayoutSettings';
+import type { CatalogueConfigurableSection, CatalogueSectionLayoutMode } from '../../components/common/CatalogueSectionLayoutSettings';
 import CommonDataGrid from '../../components/common/CommonDataGrid';
 import type { DataGridColumn } from '../../components/common/dataGridTypes';
 import DocumentPreviewDrawer from '../../components/common/DocumentPreviewDrawer';
@@ -25,7 +31,28 @@ import type { RequisitionPriority, RequisitionStatus } from '../purchase-requisi
 import { cn } from '../../utils/classNames';
 import { formatDate, formatDateTime } from '../../utils/dateFormat';
 import type { SortState } from '../../utils/sortState';
+import type { CatalogueViewDefinition, EditableCatalogueViewDefinition } from '../../utils/catalogueViews';
+import {
+  createCustomCatalogueView,
+  loadCatalogueViewState,
+  loadCustomCatalogueViews,
+  loadRecentlyViewedEntries,
+  recordRecentlyViewedDocument,
+  resolveCatalogueViewId,
+  saveCatalogueViewState,
+  saveCustomCatalogueViews,
+  setLastSelectedCatalogueViewId,
+  setPinnedCatalogueViewId,
+  updateCustomCatalogueView,
+} from '../../utils/catalogueViews';
 import { extendedSaleOrderDocuments, type SaleOrderDocument } from './saleOrderData';
+import { DOCUMENT_STORE_EVENTS, getSaleOrders } from '../../stores/documentStore';
+import {
+  filterSaleOrdersByView,
+  getSaleOrderSystemViews,
+  SALE_ORDER_ALL_VIEW_ID,
+  SALE_ORDER_CATALOGUE_VIEW_ENTITY,
+} from './saleOrderViews';
 
 interface SaleOrderListProps {
   onNew: () => void;
@@ -49,6 +76,16 @@ type SortKey =
   | 'number'
   | 'orderDateTime'
   | 'customerName'
+  | 'promisedDeliveryDate'
+  | 'paymentMode'
+  | 'paymentMethod'
+  | 'totalQuantity'
+  | 'totalTaxAmount'
+  | 'netAmount'
+  | 'allocationStatus'
+  | 'invoiceStatus'
+  | 'deliveryStatus'
+  | 'returnStatus'
   | 'orderSource'
   | 'salesExecutive'
   | 'requestedDeliveryDate'
@@ -76,6 +113,15 @@ interface AnalyticsInsightItem {
   tone: AnalyticsInsightTone;
 }
 
+type SaleOrderSplitFieldId =
+  | 'number'
+  | 'customerName'
+  | 'priority'
+  | 'requestedDeliveryDate'
+  | 'status'
+  | 'salesExecutive'
+  | 'totalAmount';
+
 const emptySaleOrderFilters: SaleOrderFilters = {
   customer: '',
   orderSource: '',
@@ -97,6 +143,78 @@ const saleOrderStatuses: RequisitionStatus[] = [
 ];
 
 const saleOrderPriorities: Array<Exclude<RequisitionPriority, 'Critical'>> = ['High', 'Medium', 'Low'];
+const currentUserName = 'Alex Kumar';
+
+const saleOrderStatusOptions = saleOrderStatuses.map((status) => ({
+  value: status,
+  label: status,
+}));
+
+const saleOrderPriorityOptions = saleOrderPriorities.map((priority) => ({
+  value: priority,
+  label: priority,
+}));
+
+const saleOrderSortOptions = [
+  { value: 'number', label: 'Document Number' },
+  { value: 'orderDateTime', label: 'Document Date' },
+  { value: 'customerName', label: 'Customer' },
+  { value: 'orderSource', label: 'Order Source' },
+  { value: 'salesExecutive', label: 'Sales Executive' },
+  { value: 'requestedDeliveryDate', label: 'Requested Delivery Date' },
+  { value: 'validTillDate', label: 'Valid Till Date' },
+  { value: 'promisedDeliveryDate', label: 'Promised Delivery Date' },
+  { value: 'priority', label: 'Priority' },
+  { value: 'status', label: 'Status' },
+  { value: 'paymentMode', label: 'Payment Mode' },
+  { value: 'paymentMethod', label: 'Payment Method' },
+  { value: 'totalQuantity', label: 'Total Quantity' },
+  { value: 'totalTaxAmount', label: 'Total Tax Amount' },
+  { value: 'netAmount', label: 'Net Amount' },
+  { value: 'totalAmount', label: 'Total Amount' },
+];
+
+const defaultSaleOrderSplitFieldIds: SaleOrderSplitFieldId[] = [
+  'number',
+  'customerName',
+  'priority',
+  'requestedDeliveryDate',
+];
+
+const saleOrderPreviewSections: CatalogueConfigurableSection[] = [
+  {
+    id: 'document-information',
+    title: 'Document information',
+    description: 'Number, status, priority, dates, and document timing.',
+  },
+  {
+    id: 'party-details',
+    title: 'Party details',
+    description: 'Customer, sales executive, and place of supply.',
+  },
+  {
+    id: 'commercial-summary',
+    title: 'Commercial summary',
+    description: 'Order source, payment, taxes, and totals.',
+  },
+  {
+    id: 'delivery-fulfilment',
+    title: 'Delivery and fulfilment',
+    description: 'Requested, promised, delivery, and shipping details.',
+  },
+  {
+    id: 'notes',
+    title: 'Notes',
+    description: 'Payment, delivery, shipping, and insurance remarks.',
+  },
+  {
+    id: 'product-lines',
+    title: 'Product lines',
+    description: 'Line item table.',
+  },
+];
+
+const defaultSaleOrderPreviewSectionOrder = saleOrderPreviewSections.map((section) => section.id);
 
 function getActiveFilterCount(filters: SaleOrderFilters): number {
   return Object.values(filters).filter((value) => {
@@ -149,6 +267,72 @@ function validateSaleOrderDateRanges(filters: SaleOrderFilters): string {
   }
 
   return '';
+}
+
+function parseAmount(value: string): number {
+  const parsed = Number.parseFloat(value || '0');
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatCurrency(value: number): string {
+  return `Rs ${new Intl.NumberFormat('en-IN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value)}`;
+}
+
+function getTotalQuantity(document: SaleOrderDocument): number {
+  return document.lines.reduce((sum, line) => sum + parseAmount(line.orderQuantity), 0);
+}
+
+function getTotalTaxAmount(document: SaleOrderDocument): number {
+  return document.lines.reduce(
+    (sum, line) => sum + Math.max(parseAmount(line.lineAmount) - parseAmount(line.taxableAmount), 0),
+    0
+  );
+}
+
+function getNetAmount(document: SaleOrderDocument): number {
+  return document.lines.reduce((sum, line) => sum + parseAmount(line.taxableAmount), 0);
+}
+
+function getProgressStatus(completed: number, total: number): string {
+  if (total <= 0) {
+    return '-';
+  }
+
+  if (completed <= 0) {
+    return 'Not Started';
+  }
+
+  if (completed >= total) {
+    return 'Completed';
+  }
+
+  return 'Partial';
+}
+
+function getAllocationStatus(document: SaleOrderDocument): string {
+  const total = getTotalQuantity(document);
+  const allocated = document.lines.reduce((sum, line) => sum + parseAmount(line.allocatedQuantity ?? '0'), 0);
+  return getProgressStatus(allocated, total);
+}
+
+function getInvoiceStatus(document: SaleOrderDocument): string {
+  const total = getTotalQuantity(document);
+  const invoiced = document.lines.reduce((sum, line) => sum + parseAmount(line.invoicedQuantity ?? '0'), 0);
+  return getProgressStatus(invoiced, total);
+}
+
+function getDeliveryStatus(document: SaleOrderDocument): string {
+  const total = getTotalQuantity(document);
+  const delivered = document.lines.reduce((sum, line) => sum + parseAmount(line.deliveryQuantity ?? '0'), 0);
+  return getProgressStatus(delivered, total);
+}
+
+function getReturnStatus(document: SaleOrderDocument): string {
+  const returned = document.lines.reduce((sum, line) => sum + parseAmount(line.returnedQuantity ?? '0'), 0);
+  return returned > 0 ? 'Returned' : 'No Return';
 }
 
 const FilterDrawer: React.FC<{
@@ -336,6 +520,364 @@ const FilterDrawer: React.FC<{
   );
 };
 
+const saleOrderSplitFields: CatalogueDisplayField<SaleOrderDocument>[] = [
+  {
+    id: 'number',
+    label: 'Document no.',
+    description: 'Primary sale order number.',
+    render: (item) => item.number,
+  },
+  {
+    id: 'customerName',
+    label: 'Customer',
+    description: 'Customer name.',
+    render: (item) => item.customerName,
+  },
+  {
+    id: 'priority',
+    label: 'Priority',
+    description: 'Priority value.',
+    render: (item) => item.priority,
+  },
+  {
+    id: 'requestedDeliveryDate',
+    label: 'Requested delivery',
+    description: 'Requested delivery date.',
+    render: (item) => formatDate(item.requestedDeliveryDate),
+  },
+  {
+    id: 'status',
+    label: 'Status',
+    description: 'Document status.',
+    render: (item) => item.status,
+  },
+  {
+    id: 'salesExecutive',
+    label: 'Sales executive',
+    description: 'Assigned sales executive.',
+    render: (item) => item.salesExecutive || '-',
+  },
+  {
+    id: 'totalAmount',
+    label: 'Total amount',
+    description: 'Document total amount.',
+    render: (item) => formatCurrency(parseAmount(item.totalAmount)),
+  },
+];
+
+const CatalogueSplitView: React.FC<{
+  rows: SaleOrderDocument[];
+  onView: (documentId: string) => void;
+  onEdit: (documentId: string) => void;
+  onCancel: (documentId: string) => void;
+}> = ({ rows, onView, onEdit, onCancel }) => {
+  const [selectedId, setSelectedId] = useState<string | null>(rows[0]?.id ?? null);
+  const [selectedFieldIds, setSelectedFieldIds] = useState<string[]>(defaultSaleOrderSplitFieldIds);
+  const [previewSectionOrder, setPreviewSectionOrder] = useState<string[]>(defaultSaleOrderPreviewSectionOrder);
+  const [previewLayoutMode, setPreviewLayoutMode] = useState<CatalogueSectionLayoutMode>('single');
+
+  const selectedItem = useMemo(
+    () => rows.find((item) => item.id === selectedId) ?? rows[0] ?? null,
+    [rows, selectedId]
+  );
+
+  const selectedFields = useMemo(
+    () => saleOrderSplitFields.filter((field) => selectedFieldIds.includes(field.id)),
+    [selectedFieldIds]
+  );
+
+  const notesSummary = useMemo(() => {
+    if (!selectedItem) {
+      return [];
+    }
+
+    return [
+      selectedItem.paymentRemarks && { label: 'Payment remarks', value: selectedItem.paymentRemarks },
+      selectedItem.deliveryInstruction && { label: 'Delivery instruction', value: selectedItem.deliveryInstruction },
+      selectedItem.shippingInstructions && { label: 'Shipping instructions', value: selectedItem.shippingInstructions },
+      selectedItem.insuranceRemarks && { label: 'Insurance remarks', value: selectedItem.insuranceRemarks },
+    ].filter(Boolean) as Array<{ label: string; value: string }>;
+  }, [selectedItem]);
+
+  const previewSectionMap = useMemo(() => {
+    if (!selectedItem) {
+      return new Map<string, { id: string; title: string; isWide?: boolean; content: React.ReactNode }>();
+    }
+
+    return new Map<string, { id: string; title: string; isWide?: boolean; content: React.ReactNode }>([
+      [
+        'document-information',
+        {
+          id: 'document-information',
+          title: 'Document information',
+          content: (
+            <div className="catalogue-split-view__compact-grid">
+              <div><span>Status</span><strong>{selectedItem.status}</strong></div>
+              <div><span>Priority</span><strong>{selectedItem.priority}</strong></div>
+              <div><span>Document date</span><strong>{formatDateTime(selectedItem.orderDateTime).dateLabel}</strong></div>
+              <div><span>Document time</span><strong>{formatDateTime(selectedItem.orderDateTime).timeLabel}</strong></div>
+              <div><span>Requested delivery</span><strong>{formatDate(selectedItem.requestedDeliveryDate)}</strong></div>
+              <div><span>Promised delivery</span><strong>{formatDate(selectedItem.promisedDeliveryDate)}</strong></div>
+              <div><span>Valid till</span><strong>{formatDate(selectedItem.validTillDate)}</strong></div>
+              <div><span>Lines</span><strong>{selectedItem.lines.length}</strong></div>
+            </div>
+          ),
+        },
+      ],
+      [
+        'party-details',
+        {
+          id: 'party-details',
+          title: 'Party details',
+          content: (
+            <div className="catalogue-split-view__compact-grid">
+              <div><span>Customer</span><strong>{selectedItem.customerName}</strong></div>
+              <div><span>Sales executive</span><strong>{selectedItem.salesExecutive || '-'}</strong></div>
+              <div><span>Order source</span><strong>{selectedItem.orderSource || '-'}</strong></div>
+              <div><span>Place of supply</span><strong>{selectedItem.placeOfSupply || '-'}</strong></div>
+            </div>
+          ),
+        },
+      ],
+      [
+        'commercial-summary',
+        {
+          id: 'commercial-summary',
+          title: 'Commercial summary',
+          content: (
+            <div className="catalogue-split-view__compact-grid">
+              <div><span>Payment mode</span><strong>{selectedItem.paymentMode || '-'}</strong></div>
+              <div><span>Payment method</span><strong>{selectedItem.paymentMethod || '-'}</strong></div>
+              <div><span>Payment term</span><strong>{selectedItem.paymentTerm || '-'}</strong></div>
+              <div><span>Advance payment</span><strong>{formatCurrency(parseAmount(selectedItem.advancePayment))}</strong></div>
+              <div><span>Total quantity</span><strong>{getTotalQuantity(selectedItem)}</strong></div>
+              <div><span>Total tax amount</span><strong>{formatCurrency(getTotalTaxAmount(selectedItem))}</strong></div>
+              <div><span>Net amount</span><strong>{formatCurrency(getNetAmount(selectedItem))}</strong></div>
+              <div><span>Total amount</span><strong>{formatCurrency(parseAmount(selectedItem.totalAmount))}</strong></div>
+            </div>
+          ),
+        },
+      ],
+      [
+        'delivery-fulfilment',
+        {
+          id: 'delivery-fulfilment',
+          title: 'Delivery and fulfilment',
+          content: (
+            <div className="catalogue-split-view__compact-grid">
+              <div><span>Delivery term</span><strong>{selectedItem.deliveryTerm || '-'}</strong></div>
+              <div><span>Delivery type</span><strong>{selectedItem.deliveryType || '-'}</strong></div>
+              <div><span>Delivery slot</span><strong>{selectedItem.deliverySlot || '-'}</strong></div>
+              <div><span>Delivery address</span><strong>{selectedItem.deliveryAddress || '-'}</strong></div>
+              <div><span>Shipping term</span><strong>{selectedItem.shippingTerm || '-'}</strong></div>
+              <div><span>Shipping method</span><strong>{selectedItem.shippingMethod || '-'}</strong></div>
+              <div><span>Shipping address</span><strong>{selectedItem.shippingAddress || '-'}</strong></div>
+              <div><span>Allocation status</span><strong>{getAllocationStatus(selectedItem)}</strong></div>
+              <div><span>Invoice status</span><strong>{getInvoiceStatus(selectedItem)}</strong></div>
+              <div><span>Delivery status</span><strong>{getDeliveryStatus(selectedItem)}</strong></div>
+              <div><span>Return status</span><strong>{getReturnStatus(selectedItem)}</strong></div>
+            </div>
+          ),
+        },
+      ],
+      [
+        'notes',
+        {
+          id: 'notes',
+          title: 'Notes',
+          isWide: true,
+          content: notesSummary.length > 0 ? (
+            <div className="catalogue-split-view__compact-grid">
+              {notesSummary.map((note) => (
+                <div key={note.label}>
+                  <span>{note.label}</span>
+                  <strong>{note.value}</strong>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p>No notes added.</p>
+          ),
+        },
+      ],
+      [
+        'product-lines',
+        {
+          id: 'product-lines',
+          title: 'Product lines',
+          isWide: true,
+          content: (
+            <div className="catalogue-split-view__line-table-wrap">
+              <table className="catalogue-split-view__line-table">
+                <thead>
+                  <tr>
+                    <th>Code</th>
+                    <th>Product</th>
+                    <th>UOM</th>
+                    <th>Priority</th>
+                    <th>Requested</th>
+                    <th className="catalogue-split-view__number-cell">Rate</th>
+                    <th className="catalogue-split-view__number-cell">Order Qty</th>
+                    <th className="catalogue-split-view__number-cell">Taxable</th>
+                    <th className="catalogue-split-view__number-cell">Line Amount</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedItem.lines.map((line) => (
+                    <tr key={`${line.productCode}-${line.requestedDate}-${line.productName}`}>
+                      <td>{line.productCode}</td>
+                      <td>
+                        <strong>{line.productName}</strong>
+                        <span>{line.remark || '-'}</span>
+                      </td>
+                      <td>{line.uom}</td>
+                      <td>{line.priority}</td>
+                      <td>{formatDate(line.requestedDate)}</td>
+                      <td className="catalogue-split-view__number-cell">{formatCurrency(parseAmount(line.rate))}</td>
+                      <td className="catalogue-split-view__number-cell">{line.orderQuantity}</td>
+                      <td className="catalogue-split-view__number-cell">{formatCurrency(parseAmount(line.taxableAmount))}</td>
+                      <td className="catalogue-split-view__number-cell">{formatCurrency(parseAmount(line.lineAmount))}</td>
+                      <td>{line.status}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ),
+        },
+      ],
+    ]);
+  }, [notesSummary, selectedItem]);
+
+  const orderedPreviewSections = useMemo(
+    () =>
+      previewSectionOrder
+        .map((sectionId) => previewSectionMap.get(sectionId))
+        .filter((section): section is { id: string; title: string; isWide?: boolean; content: React.ReactNode } => Boolean(section)),
+    [previewSectionMap, previewSectionOrder]
+  );
+
+  return (
+    <div className="catalogue-split-view">
+      <div className="catalogue-split-view__list" aria-label="Sale order compact list">
+        <div className="catalogue-split-view__list-header">
+          <span>{selectedFieldIds.length} fields</span>
+          <CatalogueFieldDisplaySettings
+            title="Compact List Fields"
+            fields={saleOrderSplitFields}
+            selectedFieldIds={selectedFieldIds}
+            maxFields={7}
+            onChange={setSelectedFieldIds}
+          />
+        </div>
+
+        {rows.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => setSelectedId(item.id)}
+            className={cn('catalogue-split-view__item', selectedItem?.id === item.id && 'catalogue-split-view__item--active')}
+            aria-pressed={selectedItem?.id === item.id}
+          >
+            <span className="catalogue-split-view__field-grid">
+              {selectedFields.map((field) => (
+                <span key={field.id} className="catalogue-split-view__field-row">
+                  <span className="catalogue-split-view__field-label">{field.label}</span>
+                  <span className={cn('catalogue-split-view__field-value', field.id === 'number' && 'catalogue-split-view__field-value--title')}>
+                    {field.render(item)}
+                  </span>
+                </span>
+              ))}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <div className="catalogue-split-view__preview" aria-live="polite">
+        {selectedItem ? (
+          <>
+            <div className="catalogue-split-view__preview-header">
+              <div>
+                <button type="button" onClick={() => onView(selectedItem.id)} className="catalogue-split-view__number">
+                  {selectedItem.number}
+                </button>
+                <h2>{selectedItem.customerName}</h2>
+                <p>{selectedItem.orderSource || '-'} - {selectedItem.salesExecutive || '-'}</p>
+              </div>
+              <div className="catalogue-split-view__preview-actions" aria-label={`${selectedItem.number} actions`}>
+                <CatalogueSectionLayoutSettings
+                  title="Detail Section Layout"
+                  sections={saleOrderPreviewSections}
+                  sectionOrder={previewSectionOrder}
+                  layoutMode={previewLayoutMode}
+                  onSectionOrderChange={setPreviewSectionOrder}
+                  onLayoutModeChange={setPreviewLayoutMode}
+                />
+                <button
+                  type="button"
+                  onClick={() => onView(selectedItem.id)}
+                  className="catalogue-split-view__icon-action"
+                  aria-label={`View ${selectedItem.number}`}
+                  title="View"
+                >
+                  <Eye size={15} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onEdit(selectedItem.id)}
+                  className="catalogue-split-view__icon-action"
+                  disabled={selectedItem.status === 'Cancelled'}
+                  aria-label={`Edit ${selectedItem.number}`}
+                  title={selectedItem.status !== 'Cancelled' ? 'Edit' : 'Edit is not available'}
+                >
+                  <PencilLine size={15} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onCancel(selectedItem.id)}
+                  className="catalogue-split-view__icon-action catalogue-split-view__icon-action--danger"
+                  disabled={selectedItem.status === 'Cancelled'}
+                  aria-label={`Cancel ${selectedItem.number}`}
+                  title={selectedItem.status !== 'Cancelled' ? 'Cancel' : 'Cancel is not available'}
+                >
+                  <Ban size={15} />
+                </button>
+              </div>
+            </div>
+
+            <div
+              className={cn(
+                'catalogue-split-view__configured-sections',
+                previewLayoutMode === 'two-column' && 'catalogue-split-view__configured-sections--two'
+              )}
+            >
+              {orderedPreviewSections.map((section) => (
+                <section
+                  key={section.id}
+                  className={cn(
+                    'catalogue-split-view__compact-section',
+                    section.isWide && 'catalogue-split-view__compact-section--wide'
+                  )}
+                >
+                  <h3>{section.title}</h3>
+                  {section.content}
+                </section>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="catalogue-split-view__empty">
+            <FileText size={28} />
+            <strong>No document selected</strong>
+            <span>Select a sale order to preview it here.</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const SaleOrderList: React.FC<SaleOrderListProps> = ({
   onNew,
   onEdit,
@@ -346,7 +888,7 @@ const SaleOrderList: React.FC<SaleOrderListProps> = ({
   const [draftFilters, setDraftFilters] = useState<SaleOrderFilters>(emptySaleOrderFilters);
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
   const [tableSearch, setTableSearch] = useState('');
-  const [catalogueViewMode, setCatalogueViewMode] = useState<'list' | 'grid'>('list');
+  const [catalogueViewMode, setCatalogueViewMode] = useState<'list' | 'grid' | 'split'>('list');
   const [dateRangeError, setDateRangeError] = useState('');
   const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null);
   const [previewDocumentId, setPreviewDocumentId] = useState<string | null>(null);
@@ -354,7 +896,95 @@ const SaleOrderList: React.FC<SaleOrderListProps> = ({
   const [sortState, setSortState] = useState<SortState<SortKey>>(null);
   const [activeAnalyticsFilter, setActiveAnalyticsFilter] = useState<AnalyticsFilterKey | null>(null);
   const [loadState, setLoadState] = useState<'loading' | 'ready'>('loading');
+  const [customViews, setCustomViews] = useState<CatalogueViewDefinition[]>(() =>
+    loadCustomCatalogueViews(SALE_ORDER_CATALOGUE_VIEW_ENTITY)
+  );
+  const [recentlyViewedEntries, setRecentlyViewedEntries] = useState(() =>
+    loadRecentlyViewedEntries(SALE_ORDER_CATALOGUE_VIEW_ENTITY)
+  );
+  const [viewState, setViewState] = useState(() =>
+    loadCatalogueViewState(SALE_ORDER_CATALOGUE_VIEW_ENTITY)
+  );
+  const [activeViewId, setActiveViewId] = useState(() =>
+    resolveCatalogueViewId(
+      [
+        ...getSaleOrderSystemViews(currentUserName),
+        ...loadCustomCatalogueViews(SALE_ORDER_CATALOGUE_VIEW_ENTITY),
+      ],
+      loadCatalogueViewState(SALE_ORDER_CATALOGUE_VIEW_ENTITY),
+      SALE_ORDER_ALL_VIEW_ID
+    )
+  );
+  const [isViewConfiguratorOpen, setIsViewConfiguratorOpen] = useState(false);
   const actionMenuRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  const systemViews = useMemo(() => getSaleOrderSystemViews(currentUserName), []);
+  const availableViews = useMemo(() => [...systemViews, ...customViews], [customViews, systemViews]);
+  const effectiveViewState = useMemo(() => {
+    const availableViewIds = new Set(availableViews.map((view) => view.id));
+
+    return {
+      pinnedViewId:
+        viewState.pinnedViewId && availableViewIds.has(viewState.pinnedViewId)
+          ? viewState.pinnedViewId
+          : null,
+      lastSelectedViewId:
+        viewState.lastSelectedViewId && availableViewIds.has(viewState.lastSelectedViewId)
+          ? viewState.lastSelectedViewId
+          : null,
+    };
+  }, [availableViews, viewState]);
+  const effectiveActiveViewId = useMemo(() => {
+    if (availableViews.some((view) => view.id === activeViewId)) {
+      return activeViewId;
+    }
+
+    return resolveCatalogueViewId(availableViews, effectiveViewState, SALE_ORDER_ALL_VIEW_ID);
+  }, [activeViewId, availableViews, effectiveViewState]);
+  const activeView = useMemo(
+    () =>
+      availableViews.find((view) => view.id === effectiveActiveViewId) ??
+      availableViews.find((view) => view.id === SALE_ORDER_ALL_VIEW_ID) ??
+      availableViews[0],
+    [availableViews, effectiveActiveViewId]
+  );
+  const viewContext = useMemo(
+    () => ({
+      currentUserName,
+      recentlyViewedEntries,
+    }),
+    [recentlyViewedEntries]
+  );
+  const viewFilteredRows = useMemo(
+    () => filterSaleOrdersByView(documents, activeView, viewContext),
+    [activeView, documents, viewContext]
+  );
+
+  useEffect(() => {
+    setDocuments(getSaleOrders());
+  }, []);
+
+  useEffect(() => {
+    const refreshDocuments = () => setDocuments(getSaleOrders());
+    window.addEventListener(DOCUMENT_STORE_EVENTS.saleOrderUpdated, refreshDocuments);
+    window.addEventListener('storage', refreshDocuments);
+    return () => {
+      window.removeEventListener(DOCUMENT_STORE_EVENTS.saleOrderUpdated, refreshDocuments);
+      window.removeEventListener('storage', refreshDocuments);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (
+      effectiveViewState.pinnedViewId === viewState.pinnedViewId &&
+      effectiveViewState.lastSelectedViewId === viewState.lastSelectedViewId
+    ) {
+      return;
+    }
+
+    saveCatalogueViewState(SALE_ORDER_CATALOGUE_VIEW_ENTITY, effectiveViewState);
+    setViewState(effectiveViewState);
+  }, [effectiveViewState, viewState]);
 
   useEffect(() => {
     if (loadState !== 'loading') {
@@ -410,7 +1040,7 @@ const SaleOrderList: React.FC<SaleOrderListProps> = ({
   const baseFilteredRows = useMemo(() => {
     const normalizedSearch = tableSearch.trim().toLowerCase();
 
-    return documents.filter((item) => {
+    return viewFilteredRows.filter((item) => {
       const orderDate = item.orderDateTime.slice(0, 10);
       const matchesCustomer = !filters.customer || item.customerName === filters.customer;
       const matchesOrderSource = !filters.orderSource || item.orderSource === filters.orderSource;
@@ -451,7 +1081,7 @@ const SaleOrderList: React.FC<SaleOrderListProps> = ({
         matchesSearch
       );
     });
-  }, [documents, filters, tableSearch]);
+  }, [filters, tableSearch, viewFilteredRows]);
 
   const analyticsFilteredRows = useMemo(() => {
     if (!activeAnalyticsFilter) {
@@ -479,7 +1109,16 @@ const SaleOrderList: React.FC<SaleOrderListProps> = ({
   }, [activeAnalyticsFilter, baseFilteredRows]);
 
   const sortedRows = useMemo(() => {
-    if (!sortState) {
+    const effectiveSortState =
+      sortState ??
+      (activeView.sort
+        ? {
+            key: activeView.sort.key as SortKey,
+            direction: activeView.sort.direction,
+          }
+        : null);
+
+    if (!effectiveSortState) {
       return analyticsFilteredRows;
     }
 
@@ -497,13 +1136,13 @@ const SaleOrderList: React.FC<SaleOrderListProps> = ({
       Cancelled: 5,
     };
 
-    const directionFactor = sortState.direction === 'asc' ? 1 : -1;
+    const directionFactor = effectiveSortState.direction === 'asc' ? 1 : -1;
     const rows = [...analyticsFilteredRows];
 
     rows.sort((left, right) => {
       let comparison = 0;
 
-      switch (sortState.key) {
+      switch (effectiveSortState.key) {
         case 'number':
           comparison = left.number.localeCompare(right.number, undefined, { numeric: true });
           break;
@@ -529,6 +1168,38 @@ const SaleOrderList: React.FC<SaleOrderListProps> = ({
             new Date(left.validTillDate).getTime() -
             new Date(right.validTillDate).getTime();
           break;
+        case 'promisedDeliveryDate':
+          comparison =
+            new Date(left.promisedDeliveryDate).getTime() -
+            new Date(right.promisedDeliveryDate).getTime();
+          break;
+        case 'paymentMode':
+          comparison = left.paymentMode.localeCompare(right.paymentMode);
+          break;
+        case 'paymentMethod':
+          comparison = left.paymentMethod.localeCompare(right.paymentMethod);
+          break;
+        case 'totalQuantity':
+          comparison = getTotalQuantity(left) - getTotalQuantity(right);
+          break;
+        case 'totalTaxAmount':
+          comparison = getTotalTaxAmount(left) - getTotalTaxAmount(right);
+          break;
+        case 'netAmount':
+          comparison = getNetAmount(left) - getNetAmount(right);
+          break;
+        case 'allocationStatus':
+          comparison = getAllocationStatus(left).localeCompare(getAllocationStatus(right));
+          break;
+        case 'invoiceStatus':
+          comparison = getInvoiceStatus(left).localeCompare(getInvoiceStatus(right));
+          break;
+        case 'deliveryStatus':
+          comparison = getDeliveryStatus(left).localeCompare(getDeliveryStatus(right));
+          break;
+        case 'returnStatus':
+          comparison = getReturnStatus(left).localeCompare(getReturnStatus(right));
+          break;
         case 'priority':
           comparison = priorityOrder[left.priority] - priorityOrder[right.priority];
           break;
@@ -549,7 +1220,7 @@ const SaleOrderList: React.FC<SaleOrderListProps> = ({
     });
 
     return rows;
-  }, [analyticsFilteredRows, sortState]);
+  }, [activeView.sort, analyticsFilteredRows, sortState]);
 
   const analyticsItems = useMemo<AnalyticsInsightItem[]>(() => {
     const today = new Date();
@@ -631,6 +1302,27 @@ const SaleOrderList: React.FC<SaleOrderListProps> = ({
 
   const activeFilterCount = useMemo(() => getActiveFilterCount(filters), [filters]);
   const hasActiveFilters = activeFilterCount > 0;
+  const viewCounts = useMemo(
+    () =>
+      Object.fromEntries(
+        availableViews.map((view) => [
+          view.id,
+          filterSaleOrdersByView(documents, view, viewContext).length,
+        ])
+      ),
+    [availableViews, documents, viewContext]
+  );
+  const catalogueViewItems = useMemo(
+    () =>
+      availableViews.map((view) => ({
+        id: view.id,
+        name: view.name,
+        kind: view.kind,
+        count: viewCounts[view.id] ?? 0,
+        isPinned: effectiveViewState.pinnedViewId === view.id,
+      })),
+    [availableViews, effectiveViewState.pinnedViewId, viewCounts]
+  );
 
   const cancelDocument = useMemo(
     () => documents.find((document) => document.id === cancelDocumentId) ?? null,
@@ -694,12 +1386,99 @@ const SaleOrderList: React.FC<SaleOrderListProps> = ({
     setSortState(direction ? { key, direction } : null);
   };
 
+  const handleSelectCatalogueView = (viewId: string) => {
+    const nextView = availableViews.find((view) => view.id === viewId);
+    if (!nextView) {
+      return;
+    }
+
+    setActiveViewId(viewId);
+    setViewState(setLastSelectedCatalogueViewId(SALE_ORDER_CATALOGUE_VIEW_ENTITY, viewId));
+    setActiveAnalyticsFilter(null);
+    setSortState(
+      nextView.sort
+        ? {
+            key: nextView.sort.key as SortKey,
+            direction: nextView.sort.direction,
+          }
+        : null
+    );
+  };
+
+  const handleTogglePinnedView = (viewId: string) => {
+    const nextPinnedViewId = effectiveViewState.pinnedViewId === viewId ? null : viewId;
+    setViewState(setPinnedCatalogueViewId(SALE_ORDER_CATALOGUE_VIEW_ENTITY, nextPinnedViewId));
+  };
+
+  const handleSaveView = (
+    draft: EditableCatalogueViewDefinition,
+    options: { viewId?: string; pinAsDefault: boolean }
+  ) => {
+    const nextCustomViews = options.viewId
+      ? customViews.map((view) =>
+          view.id === options.viewId ? updateCustomCatalogueView(view, draft) : view
+        )
+      : [...customViews, createCustomCatalogueView(SALE_ORDER_CATALOGUE_VIEW_ENTITY, draft)];
+    const savedViewId = options.viewId ?? nextCustomViews[nextCustomViews.length - 1]?.id ?? '';
+
+    setCustomViews(nextCustomViews);
+    saveCustomCatalogueViews(SALE_ORDER_CATALOGUE_VIEW_ENTITY, nextCustomViews);
+
+    if (savedViewId) {
+      const nextState = options.pinAsDefault
+        ? setPinnedCatalogueViewId(SALE_ORDER_CATALOGUE_VIEW_ENTITY, savedViewId)
+        : viewState.pinnedViewId === savedViewId
+          ? setPinnedCatalogueViewId(SALE_ORDER_CATALOGUE_VIEW_ENTITY, null)
+          : viewState;
+
+      if (nextState !== viewState) {
+        setViewState(nextState);
+      }
+
+      setActiveViewId(savedViewId);
+      setViewState(setLastSelectedCatalogueViewId(SALE_ORDER_CATALOGUE_VIEW_ENTITY, savedViewId));
+
+      if (draft.sort) {
+        setSortState({
+          key: draft.sort.key as SortKey,
+          direction: draft.sort.direction,
+        });
+      }
+    }
+
+    return savedViewId;
+  };
+
+  const handleDeleteView = (viewId: string) => {
+    setCustomViews((currentViews) => {
+      const nextViews = currentViews.filter((view) => view.id !== viewId);
+      saveCustomCatalogueViews(SALE_ORDER_CATALOGUE_VIEW_ENTITY, nextViews);
+      return nextViews;
+    });
+
+    const nextState = {
+      pinnedViewId: viewState.pinnedViewId === viewId ? null : viewState.pinnedViewId,
+      lastSelectedViewId: viewState.lastSelectedViewId === viewId ? null : viewState.lastSelectedViewId,
+    };
+    saveCatalogueViewState(SALE_ORDER_CATALOGUE_VIEW_ENTITY, nextState);
+    setViewState(nextState);
+
+    if (activeViewId === viewId) {
+      setActiveViewId(SALE_ORDER_ALL_VIEW_ID);
+    }
+  };
+
+  const registerRecentlyViewedDocument = (documentId: string) => {
+    setRecentlyViewedEntries(recordRecentlyViewedDocument(SALE_ORDER_CATALOGUE_VIEW_ENTITY, documentId));
+  };
+
   const handleOpenCancelDialog = (documentId: string) => {
     setOpenActionMenuId(null);
     setCancelDocumentId(documentId);
   };
 
   const handlePreviewDocument = (documentId: string) => {
+    registerRecentlyViewedDocument(documentId);
     setPreviewDocumentId(documentId);
     setOpenActionMenuId(null);
   };
@@ -765,131 +1544,204 @@ const SaleOrderList: React.FC<SaleOrderListProps> = ({
   );
 
   const gridColumns: DataGridColumn<SaleOrderDocument>[] = [
-      {
-        id: 'number',
-        label: 'SO No.',
-        type: 'text',
-        width: 146,
-        getValue: (item) => item.number,
-        renderCell: (item) => (
-          <button
-            type="button"
-            onClick={() => handlePreviewDocument(item.id)}
-            className="catalogue-table__document-link"
-          >
-            {item.number}
-          </button>
-        ),
-      },
-      {
-        id: 'orderDateTime',
-        label: 'Document date & time',
-        type: 'date',
-        width: 196,
-        getValue: (item) => item.orderDateTime,
-        renderCell: (item) => {
-          const documentDateTime = formatDateTime(item.orderDateTime);
-          return (
-            <div className="catalogue-table__datetime">
-              {documentDateTime.dateLabel}, {documentDateTime.timeLabel}
-            </div>
-          );
-        },
-      },
-      {
-        id: 'customerName',
-        label: 'Customer',
-        type: 'text',
-        width: 188,
-        getValue: (item) => item.customerName,
-        renderCell: (item) => (
-          <div className="catalogue-table__truncate" title={item.customerName}>
-            {item.customerName}
-          </div>
-        ),
-      },
-      {
-        id: 'orderSource',
-        label: 'Order source',
-        type: 'text',
-        width: 148,
-        getValue: (item) => item.orderSource,
-        renderCell: (item) => item.orderSource,
-      },
-      {
-        id: 'salesExecutive',
-        label: 'Sales executive',
-        type: 'text',
-        width: 164,
-        getValue: (item) => item.salesExecutive,
-        renderCell: (item) => item.salesExecutive,
-      },
-      {
-        id: 'requestedDeliveryDate',
-        label: 'Requested delivery',
-        type: 'date',
-        width: 154,
-        getValue: (item) => item.requestedDeliveryDate,
-        renderCell: (item) => formatDate(item.requestedDeliveryDate),
-      },
-      {
-        id: 'validTillDate',
-        label: 'Valid till',
-        type: 'date',
-        width: 142,
-        getValue: (item) => item.validTillDate,
-        renderCell: (item) => formatDate(item.validTillDate),
-      },
-      {
-        id: 'priority',
-        label: 'Priority',
-        type: 'status',
-        width: 116,
-        getValue: (item) => item.priority,
-        options: [
-          { value: 'Low', label: 'Low' },
-          { value: 'Medium', label: 'Medium' },
-          { value: 'High', label: 'High' },
-        ],
-        renderCell: (item) => <StatusBadge kind="priority" value={item.priority} />,
-      },
-      {
-        id: 'status',
-        label: 'Status',
-        type: 'status',
-        width: 154,
-        getValue: (item) => item.status,
-        options: [
-          { value: 'Draft', label: 'Draft' },
-          { value: 'Pending Approval', label: 'Pending Approval' },
-          { value: 'Approved', label: 'Approved' },
-          { value: 'Rejected', label: 'Rejected' },
-          { value: 'Cancelled', label: 'Cancelled' },
-        ],
-        renderCell: (item) => <StatusBadge kind="requisition-status" value={item.status} />,
-      },
-      {
-        id: 'totalAmount',
-        label: 'Total amount',
-        type: 'number',
-        width: 154,
-        getValue: (item) => item.totalAmount,
-        renderCell: (item) => item.totalAmount,
-      },
-      {
-        id: 'actions',
-        label: 'Action',
-        type: 'actions',
-        width: 86,
-        sortable: false,
-        filterable: false,
-        groupable: false,
-        hideable: false,
-        defaultPin: 'right',
-        getValue: () => '',
-        renderCell: (item) => renderActionMenu(item),
-      },
-    ];
+    {
+      id: 'number',
+      label: 'Document Number',
+      type: 'text',
+      width: 156,
+      getValue: (item) => item.number,
+      renderCell: (item) => (
+        <button
+          type="button"
+          onClick={() => handlePreviewDocument(item.id)}
+          className="catalogue-table__document-link"
+        >
+          {item.number}
+        </button>
+      ),
+    },
+    {
+      id: 'orderDateTime',
+      label: 'Document Date',
+      type: 'date',
+      width: 150,
+      getValue: (item) => item.orderDateTime,
+      renderCell: (item) => formatDate(item.orderDateTime.slice(0, 10)),
+    },
+    {
+      id: 'customerName',
+      label: 'Customer',
+      type: 'text',
+      width: 188,
+      getValue: (item) => item.customerName,
+      renderCell: (item) => (
+        <div className="catalogue-table__truncate" title={item.customerName}>
+          {item.customerName}
+        </div>
+      ),
+    },
+    {
+      id: 'salesExecutive',
+      label: 'Sales Executive',
+      type: 'text',
+      width: 164,
+      getValue: (item) => item.salesExecutive,
+      renderCell: (item) => item.salesExecutive,
+    },
+    {
+      id: 'orderSource',
+      label: 'Order Source',
+      type: 'text',
+      width: 148,
+      getValue: (item) => item.orderSource,
+      renderCell: (item) => item.orderSource,
+    },
+    {
+      id: 'status',
+      label: 'Status',
+      type: 'status',
+      width: 154,
+      getValue: (item) => item.status,
+      options: [
+        { value: 'Draft', label: 'Draft' },
+        { value: 'Pending Approval', label: 'Pending Approval' },
+        { value: 'Approved', label: 'Approved' },
+        { value: 'Rejected', label: 'Rejected' },
+        { value: 'Cancelled', label: 'Cancelled' },
+      ],
+      renderCell: (item) => <StatusBadge kind="requisition-status" value={item.status} />,
+    },
+    {
+      id: 'priority',
+      label: 'Priority',
+      type: 'status',
+      width: 116,
+      getValue: (item) => item.priority,
+      options: [
+        { value: 'Low', label: 'Low' },
+        { value: 'Medium', label: 'Medium' },
+        { value: 'High', label: 'High' },
+      ],
+      renderCell: (item) => <StatusBadge kind="priority" value={item.priority} />,
+    },
+    {
+      id: 'requestedDeliveryDate',
+      label: 'Requested Delivery Date',
+      type: 'date',
+      width: 178,
+      getValue: (item) => item.requestedDeliveryDate,
+      renderCell: (item) => formatDate(item.requestedDeliveryDate),
+    },
+    {
+      id: 'promisedDeliveryDate',
+      label: 'Promised Delivery Date',
+      type: 'date',
+      width: 178,
+      getValue: (item) => item.promisedDeliveryDate,
+      renderCell: (item) => formatDate(item.promisedDeliveryDate),
+    },
+    {
+      id: 'validTillDate',
+      label: 'Valid Till Date',
+      type: 'date',
+      width: 160,
+      getValue: (item) => item.validTillDate,
+      renderCell: (item) => formatDate(item.validTillDate),
+    },
+    {
+      id: 'paymentMode',
+      label: 'Payment Mode',
+      type: 'text',
+      width: 146,
+      getValue: (item) => item.paymentMode,
+      renderCell: (item) => item.paymentMode || '-',
+    },
+    {
+      id: 'paymentMethod',
+      label: 'Payment Method',
+      type: 'text',
+      width: 158,
+      getValue: (item) => item.paymentMethod,
+      renderCell: (item) => item.paymentMethod || '-',
+    },
+    {
+      id: 'totalQuantity',
+      label: 'Total Quantity',
+      type: 'number',
+      width: 132,
+      getValue: (item) => String(getTotalQuantity(item)),
+      renderCell: (item) => getTotalQuantity(item).toString(),
+    },
+    {
+      id: 'totalTaxAmount',
+      label: 'Total Tax Amount',
+      type: 'number',
+      width: 156,
+      getValue: (item) => String(getTotalTaxAmount(item)),
+      renderCell: (item) => formatCurrency(getTotalTaxAmount(item)),
+    },
+    {
+      id: 'totalAmount',
+      label: 'Total Amount',
+      type: 'number',
+      width: 154,
+      getValue: (item) => item.totalAmount,
+      renderCell: (item) => formatCurrency(parseAmount(item.totalAmount)),
+    },
+    {
+      id: 'netAmount',
+      label: 'Net Amount',
+      type: 'number',
+      width: 154,
+      getValue: (item) => String(getNetAmount(item)),
+      renderCell: (item) => formatCurrency(getNetAmount(item)),
+    },
+    {
+      id: 'allocationStatus',
+      label: 'Allocation Status',
+      type: 'text',
+      width: 150,
+      getValue: (item) => getAllocationStatus(item),
+      renderCell: (item) => getAllocationStatus(item),
+    },
+    {
+      id: 'invoiceStatus',
+      label: 'Invoice Status',
+      type: 'text',
+      width: 138,
+      getValue: (item) => getInvoiceStatus(item),
+      renderCell: (item) => getInvoiceStatus(item),
+    },
+    {
+      id: 'deliveryStatus',
+      label: 'Delivery Status',
+      type: 'text',
+      width: 142,
+      getValue: (item) => getDeliveryStatus(item),
+      renderCell: (item) => getDeliveryStatus(item),
+    },
+    {
+      id: 'returnStatus',
+      label: 'Return Status',
+      type: 'text',
+      width: 132,
+      getValue: (item) => getReturnStatus(item),
+      renderCell: (item) => getReturnStatus(item),
+    },
+    {
+      id: 'actions',
+      label: 'Action',
+      type: 'actions',
+      width: 86,
+      sortable: false,
+      filterable: false,
+      groupable: false,
+      hideable: false,
+      defaultPin: 'right',
+      getValue: () => '',
+      renderCell: (item) => renderActionMenu(item),
+    },
+  ];
 
   return (
     <AppShell activeLeaf="sale-order" onSaleOrderClick={onNavigateToSaleOrderList}>
@@ -897,12 +1749,15 @@ const SaleOrderList: React.FC<SaleOrderListProps> = ({
         <div className="catalogue-toolbar__inner catalogue-toolbar__inner--stacked">
           <div className="catalogue-toolbar__top">
             <div className="catalogue-toolbar__heading">
-              <div className="catalogue-toolbar__title-row">
-                <button type="button" className="catalogue-toolbar__title-button" aria-label="Sale order views">
-                  <h2 className="brand-page-title">My Sale Order</h2>
-                  <ChevronDown size={16} />
-                </button>
-                <span className="catalogue-toolbar__count">{sortedRows.length}</span>
+              <div>
+                <CatalogueViewSelector
+                  items={catalogueViewItems}
+                  activeViewId={activeView.id}
+                  activeCount={sortedRows.length}
+                  onSelect={handleSelectCatalogueView}
+                  onTogglePin={handleTogglePinnedView}
+                  onOpenConfigurator={() => setIsViewConfiguratorOpen(true)}
+                />
               </div>
             </div>
 
@@ -936,6 +1791,14 @@ const SaleOrderList: React.FC<SaleOrderListProps> = ({
                     aria-pressed={catalogueViewMode === 'grid'}
                   >
                     <LayoutGrid size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCatalogueViewMode('split')}
+                    className={cn('catalogue-view-toggle__button', catalogueViewMode === 'split' && 'catalogue-view-toggle__button--active')}
+                    aria-pressed={catalogueViewMode === 'split'}
+                  >
+                    <Columns3 size={16} />
                   </button>
                 </div>
               </div>
@@ -1065,6 +1928,15 @@ const SaleOrderList: React.FC<SaleOrderListProps> = ({
             ))}
           </div>
         )}
+
+        {loadState === 'ready' && sortedRows.length > 0 && catalogueViewMode === 'split' && (
+          <CatalogueSplitView
+            rows={sortedRows}
+            onView={handlePreviewDocument}
+            onEdit={onEdit}
+            onCancel={handleOpenCancelDialog}
+          />
+        )}
       </div>
 
       <FilterDrawer
@@ -1081,11 +1953,56 @@ const SaleOrderList: React.FC<SaleOrderListProps> = ({
         onStatusToggle={handleStatusToggle}
       />
 
+      <CatalogueViewConfigurator
+        key={`${isViewConfiguratorOpen}-${activeView.id}-${effectiveViewState.pinnedViewId ?? 'none'}-${availableViews.length}`}
+        isOpen={isViewConfiguratorOpen}
+        title="Sale Order Views"
+        views={availableViews}
+        activeViewId={activeView.id}
+        pinnedViewId={effectiveViewState.pinnedViewId}
+        viewCounts={viewCounts}
+        currentUserName={currentUserName}
+        requesterOptions={salesExecutiveOptions.map((salesExecutive) => ({
+          value: salesExecutive,
+          label: salesExecutive,
+        }))}
+        supplierOptions={customerOptions.map((customer) => ({
+          value: customer,
+          label: customer,
+        }))}
+        branchOptions={orderSourceOptions.map((orderSource) => ({
+          value: orderSource,
+          label: orderSource,
+        }))}
+        statusOptions={saleOrderStatusOptions}
+        priorityOptions={saleOrderPriorityOptions}
+        sortOptions={saleOrderSortOptions}
+        labels={{
+          ownerScope: 'Sales executive scope',
+          ownerAll: 'All sales executives',
+          ownerMine: 'My sale orders',
+          ownerSpecific: 'Specific sales executive',
+          ownerField: 'Sales Executive',
+          ownerTag: 'Sales Executive',
+          primaryEntityField: 'Customer',
+          primaryEntityAll: 'All customers',
+          primaryEntityTag: 'Customer',
+          secondaryEntityField: 'Order Source',
+          secondaryEntityAll: 'All order sources',
+          secondaryEntityTag: 'Order Source',
+        }}
+        onClose={() => setIsViewConfiguratorOpen(false)}
+        onSave={handleSaveView}
+        onDelete={handleDeleteView}
+        onPin={(viewId) => setViewState(setPinnedCatalogueViewId(SALE_ORDER_CATALOGUE_VIEW_ENTITY, viewId))}
+      />
+
       <DocumentPreviewDrawer
         document={previewDocument}
         isOpen={Boolean(previewDocument)}
         documentTypeLabel="Sale Order"
         subtitle="Sale Order preview"
+        printEntityType="sale-order"
         onClose={() => setPreviewDocumentId(null)}
         onEdit={(document) => onEdit(document.id)}
         onCancel={(document) => {

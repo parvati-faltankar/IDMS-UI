@@ -9,6 +9,8 @@ import {
   Mic,
   MicOff,
   Palette,
+  Printer,
+  Sparkles,
   Search,
   Settings,
   UserCircle2,
@@ -38,6 +40,7 @@ import { resolveVoiceCommand, type VoiceCommandResolution } from '../../search/v
 import { useTheme } from '../../theme/useTheme';
 import { formatDate } from '../../utils/dateFormat';
 import { cn } from '../../utils/classNames';
+import { useLocalization } from '../../localization';
 import GlobalSearchPanel from './GlobalSearchPanel';
 import ThemeSwitcher from './ThemeSwitcher';
 import {
@@ -51,6 +54,8 @@ import {
   type VoiceState,
 } from './appShellShared';
 
+const AIDocumentDrawer = React.lazy(() => import('../../features/ai-document/AIDocumentDrawer'));
+
 const AppTopHeader: React.FC<TopHeaderProps> = ({
   activeLeaf = 'purchase-requisition',
   isSidebarCollapsed,
@@ -59,7 +64,9 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
   onFormLayoutClick,
   onBusinessSettingsClick,
 }) => {
+  const { t, enabledLanguages, selectedLanguageCode, setLanguage } = useLocalization();
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isLanguageMenuOpen, setIsLanguageMenuOpen] = useState(false);
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
   const [selectedSearchScope, setSelectedSearchScope] = useState<SearchScopeId>('all');
   const [recentSearches, setRecentSearches] = useState<SearchRecentEntry[]>(() => loadRecentSearches());
@@ -72,7 +79,9 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
   const [voiceInsight, setVoiceInsight] = useState<SearchInsightMatch | null>(null);
   const [isVoicePanelOpen, setIsVoicePanelOpen] = useState(false);
   const [activeVoiceSuggestionIndex, setActiveVoiceSuggestionIndex] = useState(0);
+  const [isAIDrawerOpen, setIsAIDrawerOpen] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
+  const languageMenuRef = useRef<HTMLDivElement | null>(null);
   const globalSearchRef = useRef<HTMLDivElement | null>(null);
   const globalSearchInputRef = useRef<HTMLInputElement | null>(null);
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
@@ -117,19 +126,19 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
                 : excellonsoftLogo);
   const moduleLabel =
     activeLeaf === 'approval-studio'
-      ? 'Approval Studio'
+      ? t('module.approvalStudio')
       : activeLeaf === 'purchase-requisition' ||
     activeLeaf === 'purchase-order' ||
     activeLeaf === 'purchase-receipt' ||
     activeLeaf === 'purchase-invoice'
-      ? 'Procurement'
+      ? t('module.procurement')
       : activeLeaf === 'sale-order' ||
           activeLeaf === 'sale-allocation-requisition' ||
           activeLeaf === 'sale-allocation' ||
           activeLeaf === 'sale-invoice' ||
           activeLeaf === 'delivery'
-        ? 'Sales'
-        : 'Workspace';
+        ? t('module.sales')
+        : t('module.workspace');
 
   function clearVoiceTimeout() {
     if (voiceTimeoutRef.current) {
@@ -144,6 +153,10 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
         setIsProfileMenuOpen(false);
       }
 
+      if (!languageMenuRef.current?.contains(event.target as Node)) {
+        setIsLanguageMenuOpen(false);
+      }
+
       if (!globalSearchRef.current?.contains(event.target as Node) && voiceState !== 'listening') {
         setIsGlobalSearchOpen(false);
         setIsVoicePanelOpen(false);
@@ -155,9 +168,11 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
       if (event.key === 'Escape') {
         wakeListenerEnabledRef.current = false;
         setIsProfileMenuOpen(false);
+        setIsLanguageMenuOpen(false);
         setIsGlobalSearchOpen(false);
         setIsVoicePanelOpen(false);
         setVoiceInsight(null);
+        setIsAIDrawerOpen(false);
         clearVoiceTimeout();
         recognitionRef.current?.abort();
       }
@@ -574,7 +589,7 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
               <select
                 value={selectedSearchScope}
                 className="app-topbar__search-scope-select"
-                aria-label="Search scope"
+                aria-label={t('header.searchScope')}
                 onChange={(event) => {
                   setSelectedSearchScope(event.target.value as SearchScopeId);
                   setActiveSearchIndex(0);
@@ -595,9 +610,9 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
                 ref={globalSearchInputRef}
                 type="text"
                 value={globalSearchQuery}
-                placeholder="Search documents, modules, or ask for insights..."
+                placeholder={t('header.searchPlaceholder')}
                 className="app-topbar__search"
-                aria-label="Global navigation search"
+                aria-label={t('header.searchPlaceholder')}
                 role="combobox"
                 aria-expanded={shouldShowSearchPanel}
                 aria-controls="global-search-results"
@@ -623,8 +638,8 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
                     setIsGlobalSearchOpen(true);
                     window.setTimeout(() => globalSearchInputRef.current?.focus(), 0);
                   }}
-                  aria-label="Clear search"
-                  title="Clear search"
+                  aria-label={t('common.clear')}
+                  title={t('common.clear')}
                 >
                   <X size={14} />
                 </button>
@@ -808,14 +823,67 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
       </div>
 
       <div className="app-topbar__right">
+        <button
+          type="button"
+          className="app-topbar__icon-button app-topbar__icon-button--secondary"
+          aria-label={t('header.aiAssistant')}
+          onClick={() => setIsAIDrawerOpen(true)}
+        >
+          <Sparkles size={18} className="app-topbar__icon" />
+        </button>
+
         <ThemeSwitcher />
 
-        <button type="button" className="app-topbar__icon-button" aria-label="Notifications">
+        <div ref={languageMenuRef} className="app-topbar__language-menu">
+          <button
+            type="button"
+            className={cn('app-topbar__language-trigger', isLanguageMenuOpen && 'app-topbar__language-trigger--open')}
+            aria-label={t('header.selectLanguage')}
+            aria-expanded={isLanguageMenuOpen}
+            onClick={() => setIsLanguageMenuOpen((current) => !current)}
+          >
+            <span className="app-topbar__language-code">{selectedLanguageCode.toUpperCase()}</span>
+            <span className="app-topbar__language-name">
+              {enabledLanguages.find((language) => language.code === selectedLanguageCode)?.nativeName ?? selectedLanguageCode.toUpperCase()}
+            </span>
+            <ChevronDown size={14} className={cn('app-topbar__language-chevron', isLanguageMenuOpen && 'app-topbar__language-chevron--open')} />
+          </button>
+
+          {isLanguageMenuOpen && (
+            <div className="app-topbar__dropdown app-topbar__dropdown--language" role="menu" aria-label={t('header.selectLanguage')}>
+              <div className="app-topbar__dropdown-label">{t('header.currentLanguage')}</div>
+              {enabledLanguages.map((language) => (
+                <button
+                  key={language.code}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={language.code === selectedLanguageCode}
+                  className={cn(
+                    'app-topbar__dropdown-item app-topbar__dropdown-item--language',
+                    language.code === selectedLanguageCode && 'app-topbar__dropdown-item--active'
+                  )}
+                  onClick={() => {
+                    setLanguage(language.code);
+                    setIsLanguageMenuOpen(false);
+                  }}
+                >
+                  <span className="app-topbar__dropdown-item-copy">
+                    <strong>{language.nativeName}</strong>
+                    <small>{language.displayName}</small>
+                  </span>
+                  {language.isDefault && <span className="brand-badge brand-badge--draft">{t('common.default')}</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <button type="button" className="app-topbar__icon-button" aria-label={t('header.notifications')}>
           <Bell size={18} className="app-topbar__icon" />
           <span className="app-topbar__notification-dot" />
         </button>
 
-        <button type="button" className="app-topbar__icon-button app-topbar__icon-button--secondary" aria-label="Help">
+        <button type="button" className="app-topbar__icon-button app-topbar__icon-button--secondary" aria-label={t('header.help')}>
           <HelpCircle size={18} className="app-topbar__icon" />
         </button>
 
@@ -842,11 +910,11 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
             <div className="app-topbar__dropdown" role="menu" aria-label="Profile actions">
               <button type="button" className="app-topbar__dropdown-item" role="menuitem">
                 <UserCircle2 size={16} />
-                Profile
+                {t('header.profile')}
               </button>
               <button type="button" className="app-topbar__dropdown-item" role="menuitem">
                 <Settings size={16} />
-                Preferences
+                {t('header.preferences')}
               </button>
               <button
                 type="button"
@@ -862,7 +930,31 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
                 }}
               >
                 <Settings size={16} />
-                Business Settings
+                {t('header.businessSettings')}
+              </button>
+              <button
+                type="button"
+                className="app-topbar__dropdown-item"
+                role="menuitem"
+                onClick={() => {
+                  setIsProfileMenuOpen(false);
+                  navigateToHash('#/profile/print-builder');
+                }}
+              >
+                <Printer size={16} />
+                {t('header.printBuilder')}
+              </button>
+              <button
+                type="button"
+                className="app-topbar__dropdown-item"
+                role="menuitem"
+                onClick={() => {
+                  setIsProfileMenuOpen(false);
+                  navigateToHash('#/profile/language-builder');
+                }}
+              >
+                <Settings size={16} />
+                {t('header.languageBuilder')}
               </button>
               <button
                 type="button"
@@ -874,7 +966,7 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
                 }}
               >
                 <Palette size={16} />
-                Theme Builder
+                {t('header.themeBuilder')}
               </button>
               <button
                 type="button"
@@ -886,7 +978,7 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
                 }}
               >
                 <Grip size={16} />
-                Menu Builder
+                {t('header.menuBuilder')}
               </button>
               <button
                 type="button"
@@ -902,16 +994,34 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
                 }}
               >
                 <LayoutDashboard size={16} />
-                Form Layout
+                {t('header.formLayout')}
               </button>
               <button type="button" className="app-topbar__dropdown-item" role="menuitem">
                 <LogOut size={16} />
-                Sign out
+                {t('header.signOut')}
               </button>
             </div>
           )}
         </div>
       </div>
+
+      {isAIDrawerOpen && (
+        <React.Suspense fallback={null}>
+          <AIDocumentDrawer
+            isOpen={isAIDrawerOpen}
+            username="Alex Kumar"
+            onClose={() => setIsAIDrawerOpen(false)}
+            onViewDocument={(documentType, id) => {
+              const hash =
+                documentType === 'sale_order'
+                  ? `#/sale-order/new?id=${encodeURIComponent(id)}&mode=edit`
+                  : `#/purchase-order/new?id=${encodeURIComponent(id)}&mode=edit`;
+              navigateToHash(hash);
+              setIsAIDrawerOpen(false);
+            }}
+          />
+        </React.Suspense>
+      )}
     </header>
   );
 };

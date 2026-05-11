@@ -1,9 +1,11 @@
 import React, { useMemo } from 'react';
-import { Ban, Download, PencilLine } from 'lucide-react';
+import { Ban, Download, PencilLine, Printer } from 'lucide-react';
 import SideDrawer from './SideDrawer';
 import StatusBadge from './StatusBadge';
 import { cn } from '../../utils/classNames';
 import { formatDate, formatDateTime } from '../../utils/dateFormat';
+import { useDocumentPrint } from '../../print-builder/useDocumentPrint';
+import type { PrintEntityType } from '../../print-builder/types';
 
 type PreviewRecord = Record<string, unknown>;
 
@@ -16,6 +18,7 @@ interface DocumentPreviewDrawerProps<TDocument extends object> {
   onEdit?: (document: TDocument) => void;
   onCancel?: (document: TDocument) => void;
   onDownload?: (document: TDocument) => void;
+  printEntityType?: PrintEntityType;
   canEdit?: boolean;
   canCancel?: boolean;
   canDownload?: boolean;
@@ -198,6 +201,28 @@ function createSections(document: PreviewRecord): PreviewSection[] {
   return sections.filter((section) => section.entries.length > 0);
 }
 
+function isWidePreviewField(key: string, value: unknown): boolean {
+  const lowerKey = key.toLowerCase();
+
+  if (
+    lowerKey.includes('address') ||
+    lowerKey.includes('instruction') ||
+    lowerKey.includes('remarks') ||
+    lowerKey.includes('remark') ||
+    lowerKey.includes('notes') ||
+    lowerKey.includes('description') ||
+    lowerKey.includes('terms')
+  ) {
+    return true;
+  }
+
+  if (typeof value === 'string' && value.length > 42) {
+    return true;
+  }
+
+  return false;
+}
+
 function downloadDocument(document: PreviewRecord, documentTypeLabel: string) {
   const fileName = `${getDocumentNumber(document)}-${documentTypeLabel}`
     .replace(/\s+/g, '-')
@@ -226,6 +251,7 @@ const DocumentPreviewDrawer = <TDocument extends object>({
   onEdit,
   onCancel,
   onDownload,
+  printEntityType,
   canEdit,
   canCancel,
   canDownload,
@@ -233,6 +259,7 @@ const DocumentPreviewDrawer = <TDocument extends object>({
   const previewRecord = document as PreviewRecord | null;
   const sections = useMemo(() => (previewRecord ? createSections(previewRecord) : []), [previewRecord]);
   const lineCollections = useMemo(() => (previewRecord ? getLineCollections(previewRecord) : []), [previewRecord]);
+  const printTools = useDocumentPrint(printEntityType ?? 'sale-order');
 
   if (!document || !previewRecord) {
     return null;
@@ -243,6 +270,27 @@ const DocumentPreviewDrawer = <TDocument extends object>({
   const resolvedCanEdit = canEdit ?? !isCancelled;
   const resolvedCanCancel = canCancel ?? !isCancelled;
   const resolvedCanDownload = canDownload ?? true;
+  const previewStatus = status && supportedStatuses.has(status) ? status : null;
+  const previewPriority =
+    typeof previewRecord.priority === 'string' && supportedPriorities.has(previewRecord.priority)
+      ? previewRecord.priority
+      : null;
+  const previewParty =
+    String(
+      previewRecord.customerName ??
+        previewRecord.customer ??
+        previewRecord.supplierName ??
+        previewRecord.supplier ??
+        ''
+    ).trim() || null;
+  const normalizedSubtitle =
+    subtitle && !subtitle.toLowerCase().includes('preview') ? subtitle : null;
+  const drawerTitle = `${documentTypeLabel} Preview`;
+  const drawerSubtitle = previewParty ?? normalizedSubtitle ?? getDocumentNumber(previewRecord);
+  const heroSubtitle =
+    previewParty && normalizedSubtitle && normalizedSubtitle !== previewParty
+      ? `${previewParty} • ${normalizedSubtitle}`
+      : previewParty ?? normalizedSubtitle ?? 'Review document details and line items.';
 
   const headerActions = (
     <div className="document-preview__actions" aria-label={`${documentTypeLabel} actions`}>
@@ -265,6 +313,25 @@ const DocumentPreviewDrawer = <TDocument extends object>({
         title={resolvedCanCancel ? 'Cancel' : 'Cancel is not available'}
       >
         <Ban size={15} />
+      </button>
+      <button
+        type="button"
+        className={cn(
+          'document-preview__action-icon',
+          !printEntityType && 'document-preview__action-icon--disabled'
+        )}
+        onClick={() => {
+          if (!printEntityType) {
+            return;
+          }
+
+          printTools.openPrintPreview(previewRecord, () => window.print());
+        }}
+        disabled={!printEntityType}
+        aria-label={`Print ${getDocumentNumber(previewRecord)}`}
+        title={printEntityType ? 'Print' : 'Print is not available'}
+      >
+        <Printer size={15} />
       </button>
       <button
         type="button"
@@ -293,20 +360,53 @@ const DocumentPreviewDrawer = <TDocument extends object>({
   return (
     <SideDrawer
       isOpen={isOpen}
-      title={getDocumentNumber(previewRecord)}
-      subtitle={subtitle ?? `${documentTypeLabel} preview`}
+      title={drawerTitle}
+      subtitle={drawerSubtitle}
       headerActions={headerActions}
       onClose={onClose}
       panelClassName="document-preview-drawer"
     >
       <div className="document-preview">
-        <div className="document-preview__top-grid">
+        <div className="document-preview__sheet">
+          <section className="document-preview__hero">
+            <div className="document-preview__hero-copy">
+              <div className="document-preview__eyebrow">{documentTypeLabel}</div>
+              <div className="document-preview__hero-title">{getDocumentNumber(previewRecord)}</div>
+              <div className="document-preview__hero-subtitle">{heroSubtitle}</div>
+            </div>
+
+            <div className="document-preview__hero-meta">
+              {previewStatus && (
+                <StatusBadge
+                  kind="requisition-status"
+                  value={previewStatus as 'Draft'}
+                  className="document-preview__hero-badge"
+                />
+              )}
+              {previewPriority && (
+                <StatusBadge
+                  kind="priority"
+                  value={previewPriority as 'Low'}
+                  className="document-preview__hero-badge"
+                />
+              )}
+            </div>
+          </section>
+
           {sections.map((section) => (
             <section className="document-preview__section" key={section.title}>
-              <div className="document-preview__section-title">{section.title}</div>
+              <div className="document-preview__section-header">
+                <div className="document-preview__section-title">{section.title}</div>
+              </div>
               <div className="document-preview__list">
                 {section.entries.map(([key, value]) => (
-                  <div className="document-preview__item" key={key}>
+                  <div
+                    className={cn(
+                      'document-preview__item',
+                      isWidePreviewField(key, value) && 'document-preview__item--wide'
+                    )}
+                    key={key}
+                  >
                     <span className="document-preview__label">{toTitleCaseKey(key)}</span>
                     <span className="document-preview__value">{formatPreviewValue(key, value)}</span>
                   </div>
@@ -314,46 +414,52 @@ const DocumentPreviewDrawer = <TDocument extends object>({
               </div>
             </section>
           ))}
-        </div>
 
-        {lineCollections.map(([collectionName, rows]) => {
-          const columns = Array.from(new Set(rows.flatMap((row) => Object.keys(row))));
+          {lineCollections.map(([collectionName, rows]) => {
+            const columns = Array.from(new Set(rows.flatMap((row) => Object.keys(row))));
 
-          return (
-            <section className="document-preview__section" key={collectionName}>
-              <div className="document-preview__section-title">{toTitleCaseKey(collectionName)}</div>
-              <div className="document-preview__table-wrap">
-                <table className="document-preview__table">
-                  <thead>
-                    <tr>
-                      {columns.map((column) => (
-                        <th key={column}>{toTitleCaseKey(column)}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((row, rowIndex) => (
-                      <tr key={`${collectionName}-${rowIndex}`}>
+            return (
+              <section className="document-preview__section" key={collectionName}>
+                <div className="document-preview__section-header">
+                  <div className="document-preview__section-title">
+                    {toTitleCaseKey(collectionName)}
+                    <span className="document-preview__section-count">{rows.length}</span>
+                  </div>
+                </div>
+                <div className="document-preview__table-wrap">
+                  <table className="document-preview__table">
+                    <thead>
+                      <tr>
                         {columns.map((column) => (
-                          <td
-                            key={column}
-                            className={cn(
-                              /qty|quantity|amount|rate|price|tax|discount|count/i.test(column) &&
-                                'document-preview__table-number'
-                            )}
-                          >
-                            {formatPreviewValue(column, row[column])}
-                          </td>
+                          <th key={column}>{toTitleCaseKey(column)}</th>
                         ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          );
-        })}
+                    </thead>
+                    <tbody>
+                      {rows.map((row, rowIndex) => (
+                        <tr key={`${collectionName}-${rowIndex}`}>
+                          {columns.map((column) => (
+                            <td
+                              key={column}
+                              className={cn(
+                                /qty|quantity|amount|rate|price|tax|discount|count/i.test(column) &&
+                                  'document-preview__table-number'
+                              )}
+                            >
+                              {formatPreviewValue(column, row[column])}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            );
+          })}
+        </div>
       </div>
+      {printTools.printPreviewOverlay}
     </SideDrawer>
   );
 };

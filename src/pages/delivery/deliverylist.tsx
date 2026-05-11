@@ -615,6 +615,7 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
         isOpen={Boolean(previewDocument)}
         documentTypeLabel="Delivery"
         subtitle="Delivery preview"
+        printEntityType="delivery"
         onClose={() => setPreviewDocumentId(null)}
         onEdit={(document) => onEdit(document.id)}
         onCancel={(document) => {

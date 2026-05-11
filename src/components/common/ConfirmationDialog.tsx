@@ -3,6 +3,7 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import AppButton from '../app/AppButton';
 import AppDialog from '../app/AppDialog';
+import { useLocalization } from '../../localization';
 
 interface ConfirmationDialogProps {
   isOpen: boolean;
@@ -18,12 +19,15 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
   isOpen,
   title,
   description,
-  confirmLabel = 'Yes',
-  cancelLabel = 'No',
+  confirmLabel,
+  cancelLabel,
   onConfirm,
   onClose,
 }) => {
+  const { t } = useLocalization();
   const titleId = `${(title ?? 'confirmation').replace(/\s+/g, '-').toLowerCase()}-title`;
+  const resolvedConfirmLabel = confirmLabel ?? t('common.confirm');
+  const resolvedCancelLabel = cancelLabel ?? t('common.cancel');
 
   return (
     <AppDialog
@@ -34,10 +38,10 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
       actions={
         <Box className="confirmation-dialog__actions" sx={{ display: 'flex', gap: 1.25, width: '100%', justifyContent: 'flex-end' }}>
           <AppButton autoFocus onClick={onClose} tone="outline" className="confirmation-dialog__button">
-            {cancelLabel}
+            {resolvedCancelLabel}
           </AppButton>
           <AppButton onClick={onConfirm} tone="primary" className="confirmation-dialog__button">
-            {confirmLabel}
+            {resolvedConfirmLabel}
           </AppButton>
         </Box>
       }

@@ -7,6 +7,7 @@ import {
   FileStack,
   LayoutTemplate,
   PackageCheck,
+  Printer,
   ReceiptText,
   Search,
   ShoppingBag,
@@ -90,6 +91,8 @@ function shortcutIcon(shortcut: SearchModuleShortcut) {
       return <Truck size={16} />;
     case 'form-layout':
       return <LayoutTemplate size={16} />;
+    case 'print-builder':
+      return <Printer size={16} />;
     default:
       return <Search size={16} />;
   }

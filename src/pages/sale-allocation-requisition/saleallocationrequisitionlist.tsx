@@ -643,6 +643,7 @@ const SaleAllocationRequisitionList: React.FC<SaleAllocationRequisitionListProps
         isOpen={Boolean(previewDocument)}
         documentTypeLabel="Sale Allocation Requisition"
         subtitle="Sale Allocation Requisition preview"
+        printEntityType="sale-allocation-requisition"
         onClose={() => setPreviewDocumentId(null)}
         onEdit={(document) => onEdit(document.id)}
         onCancel={(document) => {

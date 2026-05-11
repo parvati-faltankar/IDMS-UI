@@ -1,10 +1,12 @@
 import { lazy } from 'react';
 
 export const BusinessSettings = lazy(() => import('../pages/profile/BusinessSettings'));
+export const LanguageBuilder = lazy(() => import('../pages/profile/LanguageBuilder'));
 export const ApprovalStudioList = lazy(() => import('../pages/approval-studio/ApprovalStudioList'));
 export const CreateApprovalWorkflow = lazy(() => import('../pages/approval-studio/CreateApprovalWorkflow'));
 export const ThemeBuilder = lazy(() => import('../pages/profile/ThemeBuilder'));
 export const MenuBuilder = lazy(() => import('../pages/profile/MenuBuilder'));
+export const PrintBuilder = lazy(() => import('../pages/profile/PrintBuilder'));
 export const CreateDelivery = lazy(() => import('../pages/delivery/CreateDelivery'));
 export const CreatePurchaseInvoice = lazy(() => import('../pages/purchase-invoice/CreatePurchaseInvoice'));
 export const CreatePurchaseOrder = lazy(() => import('../pages/purchase-order/CreatePurchaseOrder'));

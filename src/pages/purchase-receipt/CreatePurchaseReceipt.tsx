@@ -9,6 +9,7 @@ import { handleGridLastCellTab, hasRequiredGridValues } from '../../components/c
 import { formatDate } from '../../utils/dateFormat';
 import { cn } from '../../utils/classNames';
 import { useBusinessSettings } from '../../utils/businessSettings';
+import { useDocumentPrint } from '../../print-builder/useDocumentPrint';
 import type { PurchaseOrderDocument as PurchaseReceiptDocument } from './purchaseReceiptData';
 import {
   extendedPurchaseOrderDocuments,
@@ -500,6 +501,7 @@ const CreatePurchaseReceipt: React.FC<CreatePurchaseReceiptProps> = ({
   onNavigateToPurchaseOrderList,
   onNavigateToPurchaseRequisitionList,
 }) => {
+  const printTools = useDocumentPrint('purchase-receipt');
   const todayIso = new Date().toISOString().slice(0, 10);
   const initialFormData: PurchaseReceiptFormData = editingDocument
     ? {
@@ -899,8 +901,50 @@ const CreatePurchaseReceipt: React.FC<CreatePurchaseReceiptProps> = ({
     onNavigateToPurchaseReceiptList();
   };
 
+  const buildPurchaseReceiptPrintPreviewDocument = (): Record<string, unknown> => ({
+    id: editingDocument?.id ?? `purchase-receipt-preview-${formData.number}`,
+    number: formData.number,
+    orderDateTime: formData.receiveDate ? `${formData.receiveDate}T09:00:00.000Z` : '',
+    supplierName: formData.supplierName,
+    department: formData.department,
+    priority: formData.priority,
+    placeOfSupply: formData.placeOfSupply,
+    receivingLocation: formData.receivingLocation,
+    receiveDate: formData.receiveDate,
+    receivedBy: formData.receivedBy,
+    paymentMode: formData.paymentMode,
+    paymentTerm: formData.paymentTerm,
+    supplierInvoiceNumber: formData.supplierInvoiceNumber,
+    supplierInvoiceDate: formData.supplierInvoiceDate,
+    transporterName: formData.transporterName,
+    vehicleNumber: formData.vehicleNumber,
+    consignmentNumber: formData.consignmentNumber,
+    consignmentDate: formData.consignmentDate,
+    insuranceProvider: formData.insuranceProvider,
+    insuranceContactPerson: formData.insuranceContactPerson,
+    insuranceType: formData.insuranceType,
+    insuranceNumber: formData.insuranceNumber,
+    insuranceAddress: formData.insuranceAddress,
+    totalTaxes: formatDecimal(totalTaxAmount),
+    totalAmount: formatDecimal(totalAmount),
+    discountAmount: formatDecimal(totalDiscountAmount),
+    taxableAmount: formatDecimal(totalTaxableAmount),
+    lines: lines.map((line) => ({
+      itemCode: line.productCode,
+      itemName: line.productName,
+      uom: line.uom,
+      quantity: line.receivedQty || '0.00',
+      unitPrice: line.purchaseRate || '0.00',
+      amount: formatDecimal(getTotalAmount(line)),
+      storageLocation: line.storageLocation,
+      batchNo: line.batchNo,
+      serialNo: line.serialNo,
+      remarks: line.remarks,
+    })),
+  });
+
   const handlePrintSummary = () => {
-    window.print();
+    printTools.openPrintPreview(buildPurchaseReceiptPrintPreviewDocument(), () => window.print());
   };
 
   const handleShareSummary = async () => {
@@ -1491,6 +1535,7 @@ const CreatePurchaseReceipt: React.FC<CreatePurchaseReceiptProps> = ({
         note={`This summary is calculated from ${lines.length} line item${lines.length === 1 ? '' : 's'} in the product details grid.`}
         onClose={() => setIsAmountDrawerOpen(false)}
       />
+      {printTools.printPreviewOverlay}
     </AppShell>
   );
 };

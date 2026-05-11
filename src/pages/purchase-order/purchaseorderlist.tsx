@@ -30,6 +30,7 @@ import { formatDate, formatDateTime } from '../../utils/dateFormat';
 import type { SortState } from '../../utils/sortState';
 import { useBusinessSettings } from '../../utils/businessSettings';
 import { extendedPurchaseOrderDocuments, type PurchaseOrderDocument } from './purchaseOrderData';
+import { DOCUMENT_STORE_EVENTS, getPurchaseOrders } from '../../stores/documentStore';
 
 interface PurchaseOrderListProps {
   filters: CatalogueFilters;
@@ -259,6 +260,7 @@ const PurchaseOrderPreviewDrawer: React.FC<{
     isOpen={isOpen}
     documentTypeLabel="Purchase Order"
     subtitle="Purchase Order preview"
+    printEntityType="purchase-order"
     onClose={onClose}
     onEdit={onEdit}
     onCancel={onCancel}
@@ -290,6 +292,20 @@ const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({
   const businessSettings = useBusinessSettings();
   const actionSettings = businessSettings.actions.purchaseOrder;
   const actionMenuRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  useEffect(() => {
+    setDocuments(getPurchaseOrders());
+  }, []);
+
+  useEffect(() => {
+    const refreshDocuments = () => setDocuments(getPurchaseOrders());
+    window.addEventListener(DOCUMENT_STORE_EVENTS.purchaseOrderUpdated, refreshDocuments);
+    window.addEventListener('storage', refreshDocuments);
+    return () => {
+      window.removeEventListener(DOCUMENT_STORE_EVENTS.purchaseOrderUpdated, refreshDocuments);
+      window.removeEventListener('storage', refreshDocuments);
+    };
+  }, []);
 
   useEffect(() => {
     if (loadState !== 'loading') {

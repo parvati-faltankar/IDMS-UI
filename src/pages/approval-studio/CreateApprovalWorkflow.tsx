@@ -148,6 +148,43 @@ const entryCriteriaTypeOptions: EntryCriteriaType[] = [
   'Approval Eligibility Matrix',
   'Hybrid',
 ];
+
+const entryCriteriaTypeCards: Array<{
+  type: EntryCriteriaType;
+  title: string;
+  description: string;
+  useCase: string;
+  icon: React.ElementType;
+}> = [
+  {
+    type: 'Condition',
+    title: 'Condition',
+    description: 'Use straightforward business conditions.',
+    useCase: 'Best for simple threshold-based approvals.',
+    icon: GitBranch,
+  },
+  {
+    type: 'Formula',
+    title: 'Formula',
+    description: 'Use calculated logic for approval entry.',
+    useCase: 'Best for computed checks and financial logic.',
+    icon: MoveDown,
+  },
+  {
+    type: 'Approval Eligibility Matrix',
+    title: 'Approval Eligibility Matrix',
+    description: 'Use matrix combinations like amount + branch + department.',
+    useCase: 'Best for structured multi-factor decisioning.',
+    icon: UsersRound,
+  },
+  {
+    type: 'Hybrid',
+    title: 'Hybrid',
+    description: 'Use multiple methods together.',
+    useCase: 'Best for advanced policies with layered criteria.',
+    icon: CopyCheck,
+  },
+];
 const ruleInputDataTypeOptions: RuleInputDataType[] = ['Number', 'Text', 'Date', 'Boolean', 'Lookup'];
 const ruleInputSourceTypeOptions: RuleInputSourceType[] = ['Record', 'Related', 'Related Record', 'Context', 'Constant', 'Derived'];
 const ruleInputNullHandlingOptions: RuleInputNullHandling[] = ['Error', 'Zero', 'False', 'Skip', 'Use Default'];
@@ -180,6 +217,9 @@ const decisionOutputKeyOptions = ['approvalPath', 'requiredRole', 'escalationOwn
 const ruleOutputWhenMatchedOptions = ['Approval Required', 'Approval Not Required', 'Route to Matrix'] as const;
 const noMatchHandlingOptions = ['Approval Not Required', 'Block Submission', 'Send to Manual Review'] as const;
 const conditionLogicOptions = ['AND', 'OR', 'Custom Logic'] as const;
+const conditionJoinOptions = ['AND', 'OR'] as const;
+const conditionComparisonTypeOptions = ['Literal', 'Field', 'Expression'] as const;
+const conditionNullHandlingOptions = ['Fail', 'Treat as blank', 'Skip'] as const;
 const matrixOutputColumnOptions = ['ApprovalRequired', 'RuleResult', 'ReasonCode', 'ActionSet', 'Severity'] as const;
 const conditionOperatorOptions = [
   { value: '>', label: 'Greater than' },
@@ -315,6 +355,13 @@ function createRule(): ApprovalRule {
     operator: '',
     value: '',
     action: '',
+    comparisonType: 'Literal',
+    joinLogic: 'AND',
+    nullHandling: 'Fail',
+    priority: '',
+    enabled: true,
+    effectiveFrom: '',
+    effectiveTo: '',
   };
 }
 
@@ -538,6 +585,33 @@ const ActionFormField: React.FC<{
   </div>
 );
 
+const SectionHeaderToggle: React.FC<{
+  title: string;
+  description: string;
+  enabled: boolean;
+  disabled?: boolean;
+  onChange: (nextValue: boolean) => void;
+}> = ({ title, description, enabled, disabled, onChange }) => (
+  <div className={cn('approval-section-toggle-header flex items-start justify-between gap-3', enabled && 'approval-section-toggle-header--expanded')}>
+    <div>
+      <h4 className="text-sm font-semibold text-[var(--color-text)]">{title}</h4>
+      <p className="mt-1 text-xs text-[var(--color-text-muted)]">{description}</p>
+    </div>
+    <button
+      type="button"
+      className={cn('approval-section-toggle', enabled && 'approval-section-toggle--on')}
+      role="switch"
+      aria-checked={enabled}
+      aria-label={`${title} toggle`}
+      disabled={disabled}
+      onClick={() => onChange(!enabled)}
+    >
+      <span className="approval-section-toggle__thumb" />
+      <span className="approval-section-toggle__text">{enabled ? 'On' : 'Off'}</span>
+    </button>
+  </div>
+);
+
 function mapRecordToDraft(record: ApprovalWorkflowRecord): ApprovalWorkflowDraft {
   return {
     policyCode: record.policyCode || '',
@@ -702,10 +776,6 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
     return 'New Approval Workflow';
   }, [mode]);
 
-  const progressPercent = useMemo(
-    () => Math.round(((currentStep + 1) / stepDefinitions.length) * 100),
-    [currentStep]
-  );
   const moduleDocumentOptions = useMemo(
     () => (draft.businessDomain ? moduleDocumentTypeMap[draft.businessDomain] ?? [] : []),
     [draft.businessDomain]
@@ -1142,10 +1212,6 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
       if (!data.entryCriteriaType) {
         nextFieldErrors.entryCriteriaType = 'Select entry criteria type.';
       }
-      if (data.triggerDescription && data.triggerDescription.length > 255) {
-        nextFieldErrors.triggerDescription = 'Trigger description cannot exceed 255 characters.';
-      }
-
       if (Object.keys(nextFieldErrors).length > 0 && !nextStepError) {
         nextStepError = 'Fix trigger setup errors before continuing.';
       }
@@ -1399,13 +1465,6 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
           nextFieldErrors[`${prefix}_derivationExpression`] = 'Invalid derivation formula.';
         }
       });
-
-      if (!data.ruleOutputWhenMatched) {
-        nextFieldErrors.ruleOutputWhenMatched = 'Select rule output.';
-      }
-      if (data.ruleOutputWhenMatched === 'Route to Matrix' && !usesMatrix) {
-        nextFieldErrors.ruleOutputWhenMatched = 'Select rule output.';
-      }
 
       if (usesMatrix) {
         if (!data.matrixEnabled && includesMatrix) {
@@ -1787,7 +1846,6 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
   const showRelatedFields = showRelatedFieldsToggle && Boolean(triggerData.includeRelatedFields);
   const showSnapshotCapturePoint = triggerData.snapshotMode === 'Snapshot';
   const showLiveModeWarning = triggerData.snapshotMode === 'Live';
-  const triggerRulesRequired = Boolean(triggerData.entryCriteriaType);
   const rulesData = draft.dataApplicability;
   const selectedEntryCriteriaType = rulesData.entryCriteriaType || '';
   const isConditionRules = selectedEntryCriteriaType === 'Condition';
@@ -2048,13 +2106,8 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
       <div className="approval-wizard-shell mx-auto w-full max-w-[1400px] px-4 py-6 flex flex-col gap-4">
         {bannerMessage && <div className="brand-message mx-auto w-full max-w-[1400px] px-4 py-3 text-sm">{bannerMessage}</div>}
 
-        <section className="approval-wizard-steps-sticky sticky top-0 left-0 right-0 z-20 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-soft)] mx-auto w-full max-w-[1400px]">
-          <div className="flex items-center justify-between gap-3 mb-3">
-            <span className="text-xs font-semibold text-[var(--color-text-muted)]">
-              Step {currentStep + 1} / {stepDefinitions.length}
-            </span>
-          </div>
-          <div className="grid gap-2 md:grid-cols-3 lg:grid-cols-6">
+        <section className="approval-wizard-steps-sticky sticky top-2 left-0 right-0 z-20 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-soft)] mx-auto w-full max-w-[1400px]">
+          <div className="approval-wizard-step-grid grid gap-2 md:grid-cols-3 lg:grid-cols-6">
             {stepDefinitions.map((step, index) => {
               const isCompleted = index < currentStep;
               const isCurrent = index === currentStep;
@@ -2069,18 +2122,16 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
                   }}
                   disabled={false}
                   className={cn(
-                    'approval-wizard-step flex items-center gap-2 rounded-lg border px-2 py-2 text-xs transition',
-                    isCurrent
-                      ? 'border-[var(--color-primary)] bg-[var(--color-brand-surface)] text-[var(--color-brand-text-strong)]'
-                      : isCompleted
-                        ? 'border-[var(--color-brand-border)] bg-[var(--color-surface-subtle)] text-[var(--color-text)]'
-                        : 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)]'
+                    'approval-wizard-step flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm transition',
+                    isCurrent && 'approval-wizard-step--active',
+                    isCompleted && 'approval-wizard-step--completed',
+                    !isCurrent && !isCompleted && 'approval-wizard-step--idle'
                   )}
                 >
-                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-current">
+                  <span className="approval-wizard-step__badge inline-flex h-5 w-5 items-center justify-center rounded-full border border-current">
                     {isCompleted ? <Check size={12} /> : index + 1}
                   </span>
-                  <span className="truncate">{step.title}</span>
+                  <span className="approval-wizard-step__label truncate">{step.title}</span>
                 </button>
               );
             })}
@@ -2101,7 +2152,7 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
                 <div className="mb-2">
                   <span className="field-label">Setup Mode <span className="field-label__required ml-1">*</span></span>
                 </div>
-                <div className="flex gap-2">
+                <div className="inline-flex flex-wrap gap-2">
                   {(['Quick Setup', 'Detailed Setup'] as ApprovalSetupMode[]).map((modeOption) => {
                     const isSelected = draft.setupMode === modeOption;
                     return (
@@ -2130,7 +2181,7 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
                           }))
                         }
                         className={cn(
-                          'flex-1 rounded-lg border px-2 py-1.5 text-sm font-medium transition',
+                          'rounded-lg border px-3 py-1.5 text-sm font-medium transition',
                           isSelected
                             ? 'border-[var(--color-primary)] bg-[var(--color-brand-surface)] text-[var(--color-brand-text-strong)]'
                             : 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)]'
@@ -2409,162 +2460,161 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
           {currentStep === 1 && (
             <div className="space-y-4">
               <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-subtle)] p-4">
-                <h4 className="mb-3 text-sm font-semibold text-[var(--color-text)]">2.1 Submission Trigger</h4>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <InfoLabel
-                      label="Submission Trigger Mode"
-                      required
-                      tooltip={
-                        <TooltipPointerList
-                          items={[
-                            { label: 'User Submit', description: 'User clicks Submit for Approval.' },
-                            { label: 'System Event', description: 'Approval starts automatically on configured event.' },
-                            { label: 'API', description: 'Approval starts from integration or external system.' },
-                          ]}
-                        />
-                      }
-                    />
-                    <Select
-                      value={triggerData.submissionTriggerMode}
-                      error={fieldErrors.submissionTriggerMode}
-                      disabled={isReadOnly}
-                      onChange={(event) => {
-                        const nextMode = event.target.value as SubmissionTriggerMode | '';
-                        setDraft((current) => ({
-                          ...current,
-                          dataApplicability: {
-                            ...current.dataApplicability,
-                            submissionTriggerMode: nextMode,
-                            systemEvent: nextMode === 'System Event' ? current.dataApplicability.systemEvent ?? '' : '',
-                            apiTriggerKey: nextMode === 'API' ? current.dataApplicability.apiTriggerKey ?? '' : '',
-                          },
-                        }));
-                      }}
-                      options={[
-                        { value: '', label: 'Select submission trigger mode' },
-                        ...submissionTriggerModeOptions.map((value) => ({ value, label: value })),
-                      ]}
-                    />
-                    {fieldErrors.submissionTriggerMode && <p className="field-error mt-1">{fieldErrors.submissionTriggerMode}</p>}
-                  </div>
-
-                  {showTriggerSystemEvent && (
+                <h4 className="mb-3 text-sm font-semibold text-[var(--color-text)]">Submission Trigger & Approval Applicability</h4>
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <div className="space-y-4">
                     <div>
                       <InfoLabel
-                        label="System Event"
+                        label="Submission Trigger Mode"
                         required
-                        tooltip="Select the system event that should automatically start the approval process."
+                        tooltip={
+                          <TooltipPointerList
+                            items={[
+                              { label: 'User Submit', description: 'User clicks Submit for Approval.' },
+                              { label: 'System Event', description: 'Approval starts automatically on configured event.' },
+                              { label: 'API', description: 'Approval starts from integration or external system.' },
+                            ]}
+                          />
+                        }
                       />
                       <Select
-                        value={triggerData.systemEvent ?? ''}
-                        error={fieldErrors.systemEvent}
+                        value={triggerData.submissionTriggerMode}
+                        error={fieldErrors.submissionTriggerMode}
                         disabled={isReadOnly}
-                        onChange={(event) =>
+                        onChange={(event) => {
+                          const nextMode = event.target.value as SubmissionTriggerMode | '';
                           setDraft((current) => ({
                             ...current,
-                            dataApplicability: updateDataApplicabilitySetting(
-                              current.dataApplicability,
-                              'systemEvent',
-                              event.target.value
-                            ),
-                          }))
-                        }
-                        options={[
-                          { value: '', label: 'Select system event' },
-                          ...triggerSystemEventOptions.map((value) => ({ value, label: value })),
-                        ]}
-                      />
-                      {fieldErrors.systemEvent && <p className="field-error mt-1">{fieldErrors.systemEvent}</p>}
-                    </div>
-                  )}
-
-                  {showTriggerApiKey && (
-                    <div>
-                      <InfoLabel
-                        label="API Trigger Key"
-                        required
-                        tooltip="Unique key used by external systems to trigger this approval policy through API."
-                      />
-                      <Input
-                        value={triggerData.apiTriggerKey ?? ''}
-                        maxLength={100}
-                        readOnly={isReadOnly}
-                        error={fieldErrors.apiTriggerKey}
-                        placeholder="Example: JOB_CARD_APPROVAL_SUBMIT"
-                        onChange={(event) =>
-                          setDraft((current) => ({
-                            ...current,
-                            dataApplicability: updateDataApplicabilitySetting(
-                              current.dataApplicability,
-                              'apiTriggerKey',
-                              event.target.value.toUpperCase()
-                            ),
-                          }))
-                        }
-                      />
-                      {fieldErrors.apiTriggerKey && <p className="field-error mt-1">{fieldErrors.apiTriggerKey}</p>}
-                    </div>
-                  )}
-                </div>
-              </section>
-
-              <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-subtle)] p-4">
-                <h4 className="mb-3 text-sm font-semibold text-[var(--color-text)]">2.2 Approval Applicability</h4>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <InfoLabel
-                      label="Approval Granularity"
-                      required
-                      tooltip={
-                        <TooltipPointerList
-                          items={[
-                            { label: 'Header', description: 'Approval is based on main document fields.' },
-                            { label: 'Line', description: 'Approval is based on product, service, item, or labour lines.' },
-                            { label: 'Hybrid', description: 'Approval uses both header and line information.' },
-                          ]}
-                        />
-                      }
-                    />
-                    <Select
-                      value={draft.approvalGranularity}
-                      error={fieldErrors.approvalGranularity}
-                      disabled={isReadOnly}
-                      onChange={(event) => {
-                        const nextGranularity = event.target.value as ApprovalWorkflowDraft['approvalGranularity'];
-                        setDraft((current) => {
-                          const hadLineFields = current.dataApplicability.lineFieldsToCapture.length > 0;
-                          if (
-                            nextGranularity === 'Header' &&
-                            hadLineFields &&
-                            !window.confirm('Switching to Header will clear selected line fields. Continue?')
-                          ) {
-                            return current;
-                          }
-                          return {
-                            ...current,
-                            approvalGranularity: nextGranularity,
                             dataApplicability: {
                               ...current.dataApplicability,
-                              lineFieldsToCapture: nextGranularity === 'Header' ? [] : current.dataApplicability.lineFieldsToCapture,
+                              submissionTriggerMode: nextMode,
+                              systemEvent: nextMode === 'System Event' ? current.dataApplicability.systemEvent ?? '' : '',
+                              apiTriggerKey: nextMode === 'API' ? current.dataApplicability.apiTriggerKey ?? '' : '',
                             },
-                          };
-                        });
-                      }}
-                      options={[
-                        { value: '', label: 'Select approval granularity' },
-                        { value: 'Header', label: 'Header' },
-                        { value: 'Line', label: 'Line' },
-                        { value: 'Hybrid', label: 'Hybrid' },
-                      ]}
-                    />
-                    {fieldErrors.approvalGranularity && <p className="field-error mt-1">{fieldErrors.approvalGranularity}</p>}
+                          }));
+                        }}
+                        options={[
+                          { value: '', label: 'Select submission trigger mode' },
+                          ...submissionTriggerModeOptions.map((value) => ({ value, label: value })),
+                        ]}
+                      />
+                      {fieldErrors.submissionTriggerMode && <p className="field-error mt-1">{fieldErrors.submissionTriggerMode}</p>}
+                    </div>
+
+                    {showTriggerSystemEvent && (
+                      <div>
+                        <InfoLabel
+                          label="System Event"
+                          required
+                          tooltip="Select the system event that should automatically start the approval process."
+                        />
+                        <Select
+                          value={triggerData.systemEvent ?? ''}
+                          error={fieldErrors.systemEvent}
+                          disabled={isReadOnly}
+                          onChange={(event) =>
+                            setDraft((current) => ({
+                              ...current,
+                              dataApplicability: updateDataApplicabilitySetting(
+                                current.dataApplicability,
+                                'systemEvent',
+                                event.target.value
+                              ),
+                            }))
+                          }
+                          options={[
+                            { value: '', label: 'Select system event' },
+                            ...triggerSystemEventOptions.map((value) => ({ value, label: value })),
+                          ]}
+                        />
+                        {fieldErrors.systemEvent && <p className="field-error mt-1">{fieldErrors.systemEvent}</p>}
+                      </div>
+                    )}
+
+                    {showTriggerApiKey && (
+                      <div>
+                        <InfoLabel
+                          label="API Trigger Key"
+                          required
+                          tooltip="Unique key used by external systems to trigger this approval policy through API."
+                        />
+                        <Input
+                          value={triggerData.apiTriggerKey ?? ''}
+                          maxLength={100}
+                          readOnly={isReadOnly}
+                          error={fieldErrors.apiTriggerKey}
+                          placeholder="Example: JOB_CARD_APPROVAL_SUBMIT"
+                          onChange={(event) =>
+                            setDraft((current) => ({
+                              ...current,
+                              dataApplicability: updateDataApplicabilitySetting(
+                                current.dataApplicability,
+                                'apiTriggerKey',
+                                event.target.value.toUpperCase()
+                              ),
+                            }))
+                          }
+                        />
+                        {fieldErrors.apiTriggerKey && <p className="field-error mt-1">{fieldErrors.apiTriggerKey}</p>}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <InfoLabel
+                        label="Approval Granularity"
+                        required
+                        tooltip={
+                          <TooltipPointerList
+                            items={[
+                              { label: 'Header', description: 'Approval is based on main document fields.' },
+                              { label: 'Line', description: 'Approval is based on product, service, item, or labour lines.' },
+                              { label: 'Hybrid', description: 'Approval uses both header and line information.' },
+                            ]}
+                          />
+                        }
+                      />
+                      <Select
+                        value={draft.approvalGranularity}
+                        error={fieldErrors.approvalGranularity}
+                        disabled={isReadOnly}
+                        onChange={(event) => {
+                          const nextGranularity = event.target.value as ApprovalWorkflowDraft['approvalGranularity'];
+                          setDraft((current) => {
+                            const hadLineFields = current.dataApplicability.lineFieldsToCapture.length > 0;
+                            if (
+                              nextGranularity === 'Header' &&
+                              hadLineFields &&
+                              !window.confirm('Switching to Header will clear selected line fields. Continue?')
+                            ) {
+                              return current;
+                            }
+                            return {
+                              ...current,
+                              approvalGranularity: nextGranularity,
+                              dataApplicability: {
+                                ...current.dataApplicability,
+                                lineFieldsToCapture: nextGranularity === 'Header' ? [] : current.dataApplicability.lineFieldsToCapture,
+                              },
+                            };
+                          });
+                        }}
+                        options={[
+                          { value: '', label: 'Select approval granularity' },
+                          { value: 'Header', label: 'Header' },
+                          { value: 'Line', label: 'Line' },
+                          { value: 'Hybrid', label: 'Hybrid' },
+                        ]}
+                      />
+                      {fieldErrors.approvalGranularity && <p className="field-error mt-1">{fieldErrors.approvalGranularity}</p>}
+                    </div>
                   </div>
                 </div>
               </section>
 
               <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-subtle)] p-4">
-                <h4 className="mb-3 text-sm font-semibold text-[var(--color-text)]">2.3 Field Capture</h4>
+                <h4 className="mb-3 text-sm font-semibold text-[var(--color-text)]">Field Capture</h4>
                 <div className="grid gap-4">
                   <DualListboxField
                     label="Header Fields to Capture"
@@ -2671,7 +2721,7 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
               </section>
 
               <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-subtle)] p-4">
-                <h4 className="mb-3 text-sm font-semibold text-[var(--color-text)]">2.4 Snapshot Policy</h4>
+                <h4 className="mb-3 text-sm font-semibold text-[var(--color-text)]">Snapshot Policy</h4>
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
                     <InfoLabel
@@ -2754,90 +2804,81 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
               </section>
 
               <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-subtle)] p-4">
-                <h4 className="mb-3 text-sm font-semibold text-[var(--color-text)]">2.5 Entry Criteria Method</h4>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <InfoLabel
-                      label="Entry Criteria Type"
-                      required
-                      tooltip={
-                        <TooltipPointerList
-                          items={[
-                            { label: 'Condition', description: 'Use straightforward business conditions.' },
-                            { label: 'Formula', description: 'Use calculated logic for approval entry.' },
-                            {
-                              label: 'Approval Eligibility Matrix',
-                              description: 'Use matrix combinations like amount + branch + department.',
-                            },
-                            { label: 'Hybrid', description: 'Use multiple methods together.' },
-                          ]}
-                        />
-                      }
-                    />
-                    <Select
-                      value={triggerData.entryCriteriaType}
-                      error={fieldErrors.entryCriteriaType}
-                      disabled={isReadOnly}
-                      onChange={(event) =>
-                        setDraft((current) => ({
-                          ...current,
-                          dataApplicability: updateDataApplicabilitySetting(
-                            current.dataApplicability,
-                            'entryCriteriaType',
-                            event.target.value as EntryCriteriaType | ''
-                          ),
-                        }))
-                      }
-                      options={[
-                        { value: '', label: 'Select entry criteria type' },
-                        ...entryCriteriaTypeOptions.map((value) => ({ value, label: value })),
-                      ]}
-                    />
-                    {fieldErrors.entryCriteriaType && <p className="field-error mt-1">{fieldErrors.entryCriteriaType}</p>}
+                <div className="mb-3 flex items-center gap-2">
+                  <h4 className="text-sm font-semibold text-[var(--color-text)]">Entry Criteria Method</h4>
+                  <Tooltip
+                    title={
+                      <TooltipPointerList
+                        items={[
+                          { label: 'Condition', description: 'Use straightforward business conditions.' },
+                          { label: 'Formula', description: 'Use calculated logic for approval entry.' },
+                          {
+                            label: 'Approval Eligibility Matrix',
+                            description: 'Use matrix combinations like amount + branch + department.',
+                          },
+                          { label: 'Hybrid', description: 'Use multiple methods together.' },
+                        ]}
+                      />
+                    }
+                    arrow
+                    placement="top"
+                    classes={{ tooltip: 'approval-info-tooltip', arrow: 'approval-info-tooltip-arrow' }}
+                  >
+                    <span className="inline-flex cursor-help text-[var(--color-primary)]" aria-label="Entry criteria method info">
+                      <Info size={14} />
+                    </span>
+                  </Tooltip>
+                </div>
+                <div className="grid gap-4">
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {entryCriteriaTypeCards.map((criteriaType) => {
+                      const CriteriaIcon = criteriaType.icon;
+                      const isSelected = triggerData.entryCriteriaType === criteriaType.type;
+                      return (
+                        <button
+                          key={criteriaType.type}
+                          type="button"
+                          disabled={isReadOnly}
+                          onClick={() =>
+                            setDraft((current) => ({
+                              ...current,
+                              dataApplicability: updateDataApplicabilitySetting(
+                                current.dataApplicability,
+                                'entryCriteriaType',
+                                criteriaType.type
+                              ),
+                            }))
+                          }
+                          className={cn(
+                            'rounded-xl border p-4 text-left transition',
+                            isSelected
+                              ? 'border-[var(--color-primary)] bg-[var(--color-brand-surface)]'
+                              : 'border-[var(--color-border)] bg-[var(--color-surface)]'
+                          )}
+                        >
+                          <div className="mb-2 flex items-center justify-between gap-3">
+                            <div className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--color-border)] text-[var(--color-primary)]">
+                              <CriteriaIcon size={16} />
+                            </div>
+                            {isSelected && (
+                              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[var(--color-primary)] text-white">
+                                <Check size={14} />
+                              </span>
+                            )}
+                          </div>
+                          <h5 className="text-sm font-semibold text-[var(--color-text)]">{criteriaType.title}</h5>
+                          <p className="mt-1 text-xs text-[var(--color-text-muted)]">{criteriaType.description}</p>
+                          <p className="mt-2 text-xs font-medium text-[var(--color-brand-text)]">{criteriaType.useCase}</p>
+                        </button>
+                      );
+                    })}
                   </div>
-
-                  <div>
-                    <InfoLabel
-                      label="Rules Required Indicator"
-                      tooltip="Shows whether detailed rule setup is required in the Rules tab."
-                    />
-                    <div className={cn('brand-badge', triggerRulesRequired ? 'brand-badge--draft' : 'brand-badge--approved')}>
-                      {triggerRulesRequired ? 'Required' : 'Not Required'}
-                    </div>
-                    <p className="field-helper mt-1">Complete detailed rule setup in Tab 4: Rules.</p>
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <InfoLabel
-                      label="Trigger Description"
-                      tooltip="Write a short explanation for business users to understand this trigger setup."
-                    />
-                    <Textarea
-                      value={triggerData.triggerDescription ?? ''}
-                      onChange={(event) =>
-                        setDraft((current) => ({
-                          ...current,
-                          dataApplicability: updateDataApplicabilitySetting(
-                            current.dataApplicability,
-                            'triggerDescription',
-                            event.target.value
-                          ),
-                        }))
-                      }
-                      maxLength={255}
-                      rows={3}
-                      readOnly={isReadOnly}
-                      error={fieldErrors.triggerDescription}
-                      placeholder="Write short explanation of when this approval should start."
-                    />
-                    <div className="form-layout-field__counter">{(triggerData.triggerDescription ?? '').length}/255</div>
-                    {fieldErrors.triggerDescription && <p className="field-error mt-1">{fieldErrors.triggerDescription}</p>}
-                  </div>
+                  {fieldErrors.entryCriteriaType && <p className="field-error mt-1">{fieldErrors.entryCriteriaType}</p>}
                 </div>
               </section>
 
               <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-subtle)] p-4">
-                <h4 className="mb-3 text-sm font-semibold text-[var(--color-text)]">2.6 Trigger Preview & Validation</h4>
+                <h4 className="mb-3 text-sm font-semibold text-[var(--color-text)]">Trigger Preview & Validation</h4>
                 <div className="grid gap-4 lg:grid-cols-2">
                   <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-sm">
                     <h5 className="mb-2 font-semibold text-[var(--color-text)]">Trigger Summary Preview</h5>
@@ -2869,7 +2910,6 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
                         <div><strong>Snapshot Capture Point:</strong> {triggerData.snapshotCapturePoint || '-'}</div>
                       )}
                       <div><strong>Entry Criteria Type:</strong> {triggerData.entryCriteriaType || '-'}</div>
-                      <div><strong>Rules Required Indicator:</strong> {triggerRulesRequired ? 'Required' : 'Not Required'}</div>
                     </div>
                   </div>
 
@@ -3716,7 +3756,7 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
           {currentStep === 2 && (
             <div className="space-y-4">
               <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-subtle)] p-4">
-                <h4 className="mb-3 text-sm font-semibold text-[var(--color-text)]">3.1 Approval Flow</h4>
+                <h4 className="mb-3 text-sm font-semibold text-[var(--color-text)]">Approval Flow</h4>
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
                     <InfoLabel
@@ -3777,7 +3817,7 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
 
               <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-subtle)] p-4">
                 <div className="mb-3 flex items-center justify-between gap-3">
-                  <h4 className="text-sm font-semibold text-[var(--color-text)]">3.2 Stages &amp; Steps</h4>
+                  <h4 className="text-sm font-semibold text-[var(--color-text)]">Stages &amp; Steps</h4>
                   {!isReadOnly && (
                     <div className="flex flex-wrap gap-2">
                       <button
@@ -4081,7 +4121,7 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
               </section>
 
               <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-subtle)] p-4">
-                <h4 className="mb-3 text-sm font-semibold text-[var(--color-text)]">3.3 Approver Resolution</h4>
+                <h4 className="mb-3 text-sm font-semibold text-[var(--color-text)]">Approver Resolution</h4>
                 {draft.approvalSection.setupMode === 'Detailed Setup' && (
                   <label className="mb-3 inline-flex items-center gap-2 text-sm text-[var(--color-text)]">
                     <input
@@ -4311,7 +4351,7 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
               </section>
 
               <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-subtle)] p-4">
-                <h4 className="mb-3 text-sm font-semibold text-[var(--color-text)]">3.4 Fallback</h4>
+                <h4 className="mb-3 text-sm font-semibold text-[var(--color-text)]">Fallback</h4>
                 <div className="grid gap-3 md:grid-cols-2">
                   <div>
                     <InfoLabel label="Missing Approver Action" required tooltip="Select what system should do if approver is not found." />
@@ -4427,7 +4467,7 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
               </section>
 
               <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-subtle)] p-4">
-                <h4 className="mb-3 text-sm font-semibold text-[var(--color-text)]">3.5 Governance</h4>
+                <h4 className="mb-3 text-sm font-semibold text-[var(--color-text)]">Governance</h4>
                 <div className="grid gap-3 md:grid-cols-2">
                   <label className="inline-flex items-center gap-2 text-sm text-[var(--color-text)]">
                     <input
@@ -4570,7 +4610,7 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
               </section>
 
               <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-subtle)] p-4">
-                <h4 className="mb-3 text-sm font-semibold text-[var(--color-text)]">3.6 Preview &amp; Validation</h4>
+                <h4 className="mb-3 text-sm font-semibold text-[var(--color-text)]">Preview &amp; Validation</h4>
                 <div className="grid gap-4 lg:grid-cols-2">
                   <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-sm">
                     <div><strong>Approval Flow Type:</strong> {draft.approvalSection.flowType || '-'}</div>
@@ -4610,7 +4650,7 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
           {currentStep === 3 && (
             <div className="space-y-4">
               <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-subtle)] p-4">
-                <h4 className="mb-3 text-sm font-semibold text-[var(--color-text)]">4.1 Rule Method</h4>
+                <h4 className="mb-3 text-sm font-semibold text-[var(--color-text)]">Rule Method</h4>
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
                     <InfoLabel
@@ -4685,7 +4725,7 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
 
               <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-subtle)] p-4">
                 <div className="mb-3 flex items-center justify-between gap-3">
-                  <h4 className="text-sm font-semibold text-[var(--color-text)]">4.2 Rule Inputs</h4>
+                  <h4 className="text-sm font-semibold text-[var(--color-text)]">Rule Inputs</h4>
                   {!isReadOnly && (
                     <button
                       type="button"
@@ -4985,7 +5025,7 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
 
               {(showConditionRules || showFormulaRules) && (
                 <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-subtle)] p-4">
-                  <h4 className="mb-3 text-sm font-semibold text-[var(--color-text)]">4.3 Conditions &amp; Formula</h4>
+                  <h4 className="mb-3 text-sm font-semibold text-[var(--color-text)]">Conditions &amp; Formula</h4>
                   <div className="grid gap-4 md:grid-cols-2">
                     {showConditionRules && (
                       <div className="md:col-span-2">
@@ -4996,7 +5036,7 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
                               required
                               tooltip="Create approval conditions by selecting an input, operator, value, and result."
                             />
-                            {!isReadOnly && (
+                            {!isReadOnly && draft.rules.length > 0 && (
                               <button
                                 type="button"
                                 className="btn btn--outline btn--sm"
@@ -5032,15 +5072,21 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
                               )}
                             </div>
                           ) : (
-                            <div className="approval-condition-grid">
-                              <div className="approval-condition-grid__header">Input</div>
-                              <div className="approval-condition-grid__header">Operator</div>
-                              <div className="approval-condition-grid__header">Value</div>
-                              <div className="approval-condition-grid__header">When matched</div>
-                              <div className="approval-condition-grid__header" />
-                              {draft.rules.map((rule, index) => (
-                                <React.Fragment key={rule.id}>
-                                  <div className="approval-condition-grid__cell">
+                            <div className="approval-rule-builder__table-scroll">
+                              <div className="approval-condition-grid">
+                                <div className="approval-condition-grid__header">Input</div>
+                                <div className="approval-condition-grid__header">Operator</div>
+                                <div className="approval-condition-grid__header">Compare as</div>
+                                <div className="approval-condition-grid__header">Value</div>
+                                <div className="approval-condition-grid__header">Join</div>
+                                <div className="approval-condition-grid__header">Null handling</div>
+                                <div className="approval-condition-grid__header">Priority</div>
+                                <div className="approval-condition-grid__header">When matched</div>
+                                <div className="approval-condition-grid__header">Enabled</div>
+                                <div className="approval-condition-grid__header" />
+                                {draft.rules.map((rule, index) => (
+                                  <React.Fragment key={rule.id}>
+                                    <div className="approval-condition-grid__cell">
                                     <Select
                                       value={rule.field}
                                       disabled={isReadOnly}
@@ -5060,8 +5106,8 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
                                         })),
                                       ]}
                                     />
-                                  </div>
-                                  <div className="approval-condition-grid__cell">
+                                    </div>
+                                    <div className="approval-condition-grid__cell">
                                     <Select
                                       value={rule.operator}
                                       disabled={isReadOnly}
@@ -5078,12 +5124,37 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
                                         ...conditionOperatorOptions.map((option) => ({ value: option.value, label: option.label })),
                                       ]}
                                     />
-                                  </div>
-                                  <div className="approval-condition-grid__cell">
+                                    </div>
+                                    <div className="approval-condition-grid__cell">
+                                    <Select
+                                      value={rule.comparisonType ?? 'Literal'}
+                                      disabled={isReadOnly}
+                                      onChange={(event) =>
+                                        setDraft((current) => ({
+                                          ...current,
+                                          rules: current.rules.map((item) =>
+                                            item.id === rule.id
+                                              ? { ...item, comparisonType: event.target.value as ApprovalRule['comparisonType'] }
+                                              : item
+                                          ),
+                                        }))
+                                      }
+                                      options={conditionComparisonTypeOptions.map((option) => ({ value: option, label: option }))}
+                                    />
+                                    </div>
+                                    <div className="approval-condition-grid__cell">
                                     <Input
                                       value={rule.value}
                                       readOnly={isReadOnly}
-                                      placeholder={rule.operator === 'between' ? '50000 to 100000' : 'Example: 50000'}
+                                      placeholder={
+                                        rule.comparisonType === 'Field'
+                                          ? 'Example: OTHER_INPUT_CODE'
+                                          : rule.comparisonType === 'Expression'
+                                            ? 'Example: (A + B) > 1000'
+                                            : rule.operator === 'between'
+                                              ? '50000 to 100000'
+                                              : 'Example: 50000'
+                                      }
                                       onChange={(event) =>
                                         setDraft((current) => ({
                                           ...current,
@@ -5093,8 +5164,56 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
                                         }))
                                       }
                                     />
-                                  </div>
-                                  <div className="approval-condition-grid__cell">
+                                    </div>
+                                    <div className="approval-condition-grid__cell">
+                                    <Select
+                                      value={rule.joinLogic ?? 'AND'}
+                                      disabled={isReadOnly}
+                                      onChange={(event) =>
+                                        setDraft((current) => ({
+                                          ...current,
+                                          rules: current.rules.map((item) =>
+                                            item.id === rule.id ? { ...item, joinLogic: event.target.value as ApprovalRule['joinLogic'] } : item
+                                          ),
+                                        }))
+                                      }
+                                      options={conditionJoinOptions.map((option) => ({ value: option, label: option }))}
+                                    />
+                                    </div>
+                                    <div className="approval-condition-grid__cell">
+                                    <Select
+                                      value={rule.nullHandling ?? 'Fail'}
+                                      disabled={isReadOnly}
+                                      onChange={(event) =>
+                                        setDraft((current) => ({
+                                          ...current,
+                                          rules: current.rules.map((item) =>
+                                            item.id === rule.id
+                                              ? { ...item, nullHandling: event.target.value as ApprovalRule['nullHandling'] }
+                                              : item
+                                          ),
+                                        }))
+                                      }
+                                      options={conditionNullHandlingOptions.map((option) => ({ value: option, label: option }))}
+                                    />
+                                    </div>
+                                    <div className="approval-condition-grid__cell">
+                                    <Input
+                                      value={rule.priority ?? ''}
+                                      readOnly={isReadOnly}
+                                      inputMode="numeric"
+                                      placeholder="1"
+                                      onChange={(event) =>
+                                        setDraft((current) => ({
+                                          ...current,
+                                          rules: current.rules.map((item) =>
+                                            item.id === rule.id ? { ...item, priority: event.target.value } : item
+                                          ),
+                                        }))
+                                      }
+                                    />
+                                    </div>
+                                    <div className="approval-condition-grid__cell">
                                     <Select
                                       value={rule.action}
                                       disabled={isReadOnly}
@@ -5111,8 +5230,28 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
                                         ...ruleOutputWhenMatchedOptions.map((option) => ({ value: option, label: option })),
                                       ]}
                                     />
-                                  </div>
-                                  <div className="approval-condition-grid__cell approval-condition-grid__actions">
+                                    </div>
+                                    <div className="approval-condition-grid__cell">
+                                    <button
+                                      type="button"
+                                      className={cn(
+                                        'btn btn--ghost btn--sm',
+                                        (rule.enabled ?? true) ? 'text-emerald-700' : 'text-[var(--color-text-muted)]'
+                                      )}
+                                      disabled={isReadOnly}
+                                      onClick={() =>
+                                        setDraft((current) => ({
+                                          ...current,
+                                          rules: current.rules.map((item) =>
+                                            item.id === rule.id ? { ...item, enabled: !(item.enabled ?? true) } : item
+                                          ),
+                                        }))
+                                      }
+                                    >
+                                      {(rule.enabled ?? true) ? 'Yes' : 'No'}
+                                    </button>
+                                    </div>
+                                    <div className="approval-condition-grid__cell approval-condition-grid__actions">
                                     <span className="approval-condition-grid__index">#{index + 1}</span>
                                     {!isReadOnly && (
                                       <button
@@ -5128,9 +5267,10 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
                                         <Trash2 size={14} />
                                       </button>
                                     )}
-                                  </div>
-                                </React.Fragment>
-                              ))}
+                                    </div>
+                                  </React.Fragment>
+                                ))}
+                              </div>
                             </div>
                           )}
                           {fieldErrors.conditionBuilderRules && <p className="field-error mt-2">{fieldErrors.conditionBuilderRules}</p>}
@@ -5201,58 +5341,6 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
                       </>
                     )}
 
-                    <div>
-                      <InfoLabel
-                        label="Rule Output When Matched"
-                        required
-                        tooltip="Decide what should happen when this rule is matched."
-                      />
-                      <Select
-                        value={rulesData.ruleOutputWhenMatched ?? ''}
-                        disabled={isReadOnly}
-                        error={fieldErrors.ruleOutputWhenMatched}
-                        onChange={(event) =>
-                          setDraft((current) => ({
-                            ...current,
-                            dataApplicability: updateDataApplicabilitySetting(
-                              current.dataApplicability,
-                              'ruleOutputWhenMatched',
-                              event.target.value as ApprovalDataApplicabilitySettings['ruleOutputWhenMatched']
-                            ),
-                          }))
-                        }
-                        options={[
-                          { value: '', label: 'Select rule output' },
-                          ...ruleOutputWhenMatchedOptions.map((option) => ({ value: option, label: option })),
-                        ]}
-                      />
-                      {fieldErrors.ruleOutputWhenMatched && <p className="field-error mt-1">{fieldErrors.ruleOutputWhenMatched}</p>}
-                    </div>
-
-                    {isDetailedSetupMode && (
-                      <div>
-                        <InfoLabel
-                          label="Rule Priority"
-                          tooltip="Lower number means higher priority when multiple rules may match."
-                        />
-                        <Input
-                          value={rulesData.rulePriority ?? ''}
-                          inputMode="numeric"
-                          readOnly={isReadOnly}
-                          placeholder="Example: 1"
-                          onChange={(event) =>
-                            setDraft((current) => ({
-                              ...current,
-                              dataApplicability: updateDataApplicabilitySetting(
-                                current.dataApplicability,
-                                'rulePriority',
-                                event.target.value
-                              ),
-                            }))
-                          }
-                        />
-                      </div>
-                    )}
                   </div>
                 </section>
               )}
@@ -5260,7 +5348,7 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
               {(isDetailedSetupMode || showFormulaRules || isHybridRules || rulesData.ruleInputs.some((row) => row.sourceType === 'Derived')) && (
                 <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-subtle)] p-4">
                   <div className="mb-3 flex items-center justify-between gap-3">
-                    <h4 className="text-sm font-semibold text-[var(--color-text)]">4.4 Derivations</h4>
+                    <h4 className="text-sm font-semibold text-[var(--color-text)]">Derivations</h4>
                     {!isReadOnly && (
                       <button
                         type="button"
@@ -5367,7 +5455,7 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
 
               {showMatrixRules && (
                 <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-subtle)] p-4">
-                  <h4 className="mb-3 text-sm font-semibold text-[var(--color-text)]">4.5 Approval Eligibility Matrix</h4>
+                  <h4 className="mb-3 text-sm font-semibold text-[var(--color-text)]">Approval Eligibility Matrix</h4>
                   <div className="grid gap-4 md:grid-cols-2">
                     <div>
                       <InfoLabel
@@ -5713,7 +5801,7 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
                     {fieldErrors.noMatchHandling && <p className="field-error mt-1">{fieldErrors.noMatchHandling}</p>}
                   </div>
                 </div>
-                <h4 className="mb-3 text-sm font-semibold text-[var(--color-text)]">4.6 Rule Preview &amp; Validation</h4>
+                <h4 className="mb-3 text-sm font-semibold text-[var(--color-text)]">Rule Preview &amp; Validation</h4>
                 <div className="grid gap-4 lg:grid-cols-2">
                   <div className="space-y-3">
                     {isDetailedSetupMode && (
@@ -5750,7 +5838,7 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
                               ? current.rules
                                   .map(
                                     (rule, index) =>
-                                      `${index + 1}. ${rule.field || '[input]'} ${rule.operator || '[operator]'} ${rule.value || '[value]'} => ${rule.action || '[result]'}`
+                                      `${index + 1}. ${rule.field || '[input]'} ${rule.operator || '[operator]'} ${rule.value || '[value]'} [${rule.comparisonType || 'Literal'}] => ${rule.action || '[result]'} [${rule.joinLogic || 'AND'}]`
                                   )
                                   .join(' | ')
                               : current.dataApplicability.conditionBuilderRules || '-';
@@ -5760,12 +5848,13 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
                                 : showFormulaRules
                                   ? 'True'
                                   : '';
+                            const firstRuleOutput = current.rules.find((rule) => rule.action)?.action;
                             const nextResult: ApprovalDataApplicabilitySettings['ruleResultPreview'] =
                               current.dataApplicability.noMatchHandling === 'Block Submission'
                                 ? 'Block Submission'
-                                : current.dataApplicability.ruleOutputWhenMatched === 'Approval Not Required'
+                                : firstRuleOutput === 'Approval Not Required'
                                   ? 'Approval Not Required'
-                                  : current.dataApplicability.ruleOutputWhenMatched === 'Route to Matrix'
+                                  : firstRuleOutput === 'Route to Matrix'
                                     ? 'Manual Review'
                                     : 'Approval Required';
                             return {
@@ -5826,7 +5915,7 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
           {currentStep === 4 && (
             <div className="space-y-4">
               <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
-                <h4 className="text-sm font-semibold text-[var(--color-text)]">5.1 Status & record actions</h4>
+                <h4 className="text-sm font-semibold text-[var(--color-text)]">Status & record actions</h4>
                 <p className="mt-1 text-xs text-[var(--color-text-muted)]">Control document lock/edit behavior and configure runtime system actions.</p>
                 <div className="mt-3 grid gap-4 md:grid-cols-3">
                   <ActionFormField
@@ -6215,7 +6304,7 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
               </div>
 
               <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
-                <h4 className="text-sm font-semibold text-[var(--color-text)]">5.2 Decision remarks & attachments</h4>
+                <h4 className="text-sm font-semibold text-[var(--color-text)]">Decision remarks & attachments</h4>
                 <p className="mt-1 text-xs text-[var(--color-text-muted)]">Define mandatory remarks and supporting files for decisions.</p>
                 <div className="mt-3 grid gap-3 md:grid-cols-2">
                   {[
@@ -6338,7 +6427,7 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
               </div>
 
               <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
-                <h4 className="text-sm font-semibold text-[var(--color-text)]">5.3 Notifications</h4>
+                <h4 className="text-sm font-semibold text-[var(--color-text)]">Notifications</h4>
                 <p className="mt-1 text-xs text-[var(--color-text-muted)]">Select channels, recipients, events, and template mappings.</p>
                 <div className="mt-3 grid gap-3 md:grid-cols-4">
                   {[
@@ -6507,24 +6596,20 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
 
               {isDetailedSetupMode && (
                 <>
-                  <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
-                    <h4 className="text-sm font-semibold text-[var(--color-text)]">5.4 SLA & escalation</h4>
-                    <p className="mt-1 text-xs text-[var(--color-text-muted)]">Configure due time, reminders, escalation chain, and timeout behavior.</p>
+                  <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+                    <SectionHeaderToggle
+                      title="SLA & escalation"
+                      description="Configure due time, reminders, escalation chain, and timeout behavior."
+                      enabled={draft.actions.slaEnabled}
+                      disabled={isReadOnly}
+                      onChange={(nextValue) =>
+                        setDraft((current) => ({
+                          ...current,
+                          actions: updateActionSetting(current.actions, 'slaEnabled', nextValue),
+                        }))
+                      }
+                    />
                     <div className="mt-3 grid gap-3 md:grid-cols-3">
-                      <label className="inline-flex items-center gap-2 text-sm text-[var(--color-text)]">
-                        <input
-                          type="checkbox"
-                          checked={draft.actions.slaEnabled}
-                          disabled={isReadOnly}
-                          onChange={(event) =>
-                            setDraft((current) => ({
-                              ...current,
-                              actions: updateActionSetting(current.actions, 'slaEnabled', event.target.checked),
-                            }))
-                          }
-                        />
-                        SLA Enabled
-                      </label>
                       {draft.actions.slaEnabled && (
                         <>
                           <ActionFormField label="SLA Duration" required tooltip="Enter how much time approver has to act before escalation or timeout.">
@@ -6658,25 +6743,20 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
-                    <h4 className="text-sm font-semibold text-[var(--color-text)]">5.5 External / link approval</h4>
-                    <p className="mt-1 text-xs text-[var(--color-text-muted)]">Set secure link access and OTP controls for external approvers.</p>
+                  <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+                    <SectionHeaderToggle
+                      title="External / link approval"
+                      description="Set secure link access and OTP controls for external approvers."
+                      enabled={draft.actions.externalApprovalEnabled}
+                      disabled={isReadOnly}
+                      onChange={(nextValue) =>
+                        setDraft((current) => ({
+                          ...current,
+                          actions: updateActionSetting(current.actions, 'externalApprovalEnabled', nextValue),
+                        }))
+                      }
+                    />
                     <div className="mt-3 grid gap-3 md:grid-cols-3">
-                      <label className="inline-flex items-center gap-2 text-sm text-[var(--color-text)]">
-                        <input
-                          type="checkbox"
-                          checked={draft.actions.externalApprovalEnabled}
-                          disabled={isReadOnly}
-                          onChange={(event) =>
-                            setDraft((current) => ({
-                              ...current,
-                              actions: updateActionSetting(current.actions, 'externalApprovalEnabled', event.target.checked),
-                            }))
-                          }
-                        />
-                        External Approval Enabled
-                      </label>
-
                       {draft.actions.externalApprovalEnabled && (
                         <>
                           <ActionFormField label="External Approval Mode" required tooltip="Select how external approver will access approval request.">
@@ -6806,24 +6886,20 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
-                    <h4 className="text-sm font-semibold text-[var(--color-text)]">5.6 Invalidation & resubmission</h4>
-                    <p className="mt-1 text-xs text-[var(--color-text-muted)]">Define invalidation triggers and automatic resubmission behavior.</p>
+                  <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+                    <SectionHeaderToggle
+                      title="Invalidation & resubmission"
+                      description="Define invalidation triggers and automatic resubmission behavior."
+                      enabled={draft.actions.invalidationEnabled}
+                      disabled={isReadOnly}
+                      onChange={(nextValue) =>
+                        setDraft((current) => ({
+                          ...current,
+                          actions: updateActionSetting(current.actions, 'invalidationEnabled', nextValue),
+                        }))
+                      }
+                    />
                     <div className="mt-3 grid gap-3 md:grid-cols-3">
-                      <label className="inline-flex items-center gap-2 text-sm text-[var(--color-text)]">
-                        <input
-                          type="checkbox"
-                          checked={draft.actions.invalidationEnabled}
-                          disabled={isReadOnly}
-                          onChange={(event) =>
-                            setDraft((current) => ({
-                              ...current,
-                              actions: updateActionSetting(current.actions, 'invalidationEnabled', event.target.checked),
-                            }))
-                          }
-                        />
-                        Invalidation Enabled
-                      </label>
                       {draft.actions.invalidationEnabled && (
                         <>
                           <ActionFormField label="Invalidation Triggers" required tooltip="Select fields or events that should invalidate approval.">
@@ -6903,7 +6979,7 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
               )}
 
               <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
-                <h4 className="text-sm font-semibold text-[var(--color-text)]">5.7 Partial & rejection handling</h4>
+                <h4 className="text-sm font-semibold text-[var(--color-text)]">Partial & rejection handling</h4>
                 <p className="mt-1 text-xs text-[var(--color-text-muted)]">Manage partial outcomes, recall limits, and rejection paths.</p>
                 <div className="mt-3 grid gap-3 md:grid-cols-3">
                   {isDetailedSetupMode && isLineOrHybridGranularity && (
@@ -7017,7 +7093,7 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
               </div>
 
               <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
-                <h4 className="text-sm font-semibold text-[var(--color-text)]">5.8 Action preview & validation</h4>
+                <h4 className="text-sm font-semibold text-[var(--color-text)]">Action preview & validation</h4>
                 <p className="mt-1 text-xs text-[var(--color-text-muted)]">Review current action setup and readiness checks at a glance.</p>
                 <div className="mt-3 grid gap-4 md:grid-cols-2">
                   <div className="rounded-lg border border-[var(--color-border)] p-3 text-sm">
@@ -7059,7 +7135,7 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
             <div className="space-y-4">
               <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-semibold text-[var(--color-text)]">6.1 Review Summary</h4>
+                  <h4 className="text-sm font-semibold text-[var(--color-text)]">Review Summary</h4>
                   <span
                     className={cn(
                       'rounded-full border px-2 py-1 text-xs font-semibold',
@@ -7078,7 +7154,6 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
                       <button type="button" className="btn btn--ghost btn--sm" onClick={() => setCurrentStep(0)}>Edit Basic Details</button>
                     </div>
                     <div><strong>Policy Name:</strong> {draft.name || '-'}</div>
-                    <div><strong>Policy Code:</strong> {draft.policyCode || '-'}</div>
                     <div><strong>Setup Mode:</strong> {draft.setupMode}</div>
                     <div><strong>Module:</strong> {draft.businessDomain || '-'}</div>
                     <div><strong>Entity / Document:</strong> {draft.documentType || draft.entity || '-'}</div>
@@ -7152,7 +7227,7 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
               </div>
 
               <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
-                <h4 className="text-sm font-semibold text-[var(--color-text)]">6.2 Configuration Validation</h4>
+                <h4 className="text-sm font-semibold text-[var(--color-text)]">Configuration Validation</h4>
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <button type="button" className="btn btn--outline btn--sm" onClick={handleValidateConfiguration} disabled={isReadOnly}>
                     Validate Configuration
@@ -7205,7 +7280,7 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
 
               {isDetailedSetupMode && (
                 <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
-                  <h4 className="text-sm font-semibold text-[var(--color-text)]">6.3 Simulation</h4>
+                  <h4 className="text-sm font-semibold text-[var(--color-text)]">Simulation</h4>
                   <div className="mt-3 grid gap-3 md:grid-cols-2">
                     <label className="inline-flex items-center gap-2 text-sm text-[var(--color-text)]">
                       <input
@@ -7261,7 +7336,7 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
               )}
 
               <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
-                <h4 className="text-sm font-semibold text-[var(--color-text)]">6.4 Activation Details</h4>
+                <h4 className="text-sm font-semibold text-[var(--color-text)]">Activation Details</h4>
                 <div className="mt-3 grid gap-3 md:grid-cols-3">
                   <ActionFormField label="Effective From" required tooltip="Select when this approval policy should start working.">
                     <Input type="datetime-local" value={effectiveFrom} readOnly={isReadOnly} onChange={(event) => setEffectiveFrom(event.target.value)} />
@@ -7318,7 +7393,7 @@ const CreateApprovalWorkflow: React.FC<CreateApprovalWorkflowProps> = ({
               </div>
 
               <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
-                <h4 className="text-sm font-semibold text-[var(--color-text)]">6.5 Publish Confirmation</h4>
+                <h4 className="text-sm font-semibold text-[var(--color-text)]">Publish Confirmation</h4>
                 <div className="mt-3 rounded-lg border border-[var(--color-border)] p-3">
                   <h5 className="text-xs font-semibold text-[var(--color-text)]">Pre-Publish Checklist</h5>
                   <ul className="mt-2 space-y-1 text-xs text-[var(--color-text)]">

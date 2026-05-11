@@ -7,6 +7,7 @@ import { ThemeProvider } from './theme/ThemeProvider.tsx'
 import { MenuBuilderProvider } from './theme/MenuBuilderContext.tsx'
 import { initializeTheme } from './theme/themeRegistry.ts'
 import { initializeMenuBuilder } from './utils/menuInitialization.ts'
+import { LocalizationProvider } from './localization'
 
 initializeTheme()
 initializeMenuBuilder()
@@ -14,11 +15,13 @@ initializeMenuBuilder()
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <HashRouter>
-      <ThemeProvider>
-        <MenuBuilderProvider>
-          <App />
-        </MenuBuilderProvider>
-      </ThemeProvider>
+      <LocalizationProvider>
+        <ThemeProvider>
+          <MenuBuilderProvider>
+            <App />
+          </MenuBuilderProvider>
+        </ThemeProvider>
+      </LocalizationProvider>
     </HashRouter>
   </StrictMode>,
 )
