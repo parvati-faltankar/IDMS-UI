@@ -29,6 +29,8 @@ export const paths = {
   saleInvoiceCreate: '/sale-invoice/new',
   deliveryList: '/delivery',
   deliveryCreate: '/delivery/new',
+  adminHome: '/admin',
+  adminMaster: '/admin/master',
 } as const;
 
 export type LegacyRedirect = {

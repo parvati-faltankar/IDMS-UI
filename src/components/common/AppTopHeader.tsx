@@ -1,18 +1,20 @@
 import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   Bell,
   ChevronDown,
   Grip,
   HelpCircle,
+  Layers,
   LayoutDashboard,
   LogOut,
   Mic,
   MicOff,
   Palette,
   Printer,
+  Settings,
   Sparkles,
   Search,
-  Settings,
   UserCircle2,
   X,
 } from 'lucide-react';
@@ -577,6 +579,7 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
         />
         <span className="app-topbar__divider app-topbar__divider--wide" aria-hidden="true" />
         <div className="app-topbar__module-label">{moduleLabel}</div>
+        <AdminModeToggle />
       </div>
 
       <div className="app-topbar__center">
@@ -1023,6 +1026,80 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
         </React.Suspense>
       )}
     </header>
+  );
+};
+
+// ─── Admin Mode Toggle ────────────────────────────────────────────────────────
+
+const AdminModeToggle: React.FC = () => {
+  const location = useLocation();
+  const isAdminMode = location.pathname.startsWith('/admin');
+
+  const handleTransaction = () => navigateToHash('#/purchase-requisition');
+  const handleAdmin = () => navigateToHash('#/admin');
+
+  const containerStyle: React.CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    background: 'rgba(255,255,255,0.09)',
+    borderRadius: '10px',
+    padding: '3px',
+    gap: '2px',
+    marginLeft: '8px',
+    flexShrink: 0,
+  };
+
+  const baseButtonStyle: React.CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '5px',
+    padding: '4px 10px',
+    borderRadius: '7px',
+    fontSize: '12px',
+    fontWeight: 500,
+    cursor: 'pointer',
+    border: 'none',
+    transition: 'all 0.18s ease',
+    whiteSpace: 'nowrap' as const,
+    lineHeight: 1.4,
+  };
+
+  const activeStyle: React.CSSProperties = {
+    ...baseButtonStyle,
+    background: 'rgba(255,255,255,0.18)',
+    color: 'rgba(255,255,255,0.97)',
+    boxShadow: '0 1px 4px rgba(0,0,0,0.25)',
+  };
+
+  const inactiveStyle: React.CSSProperties = {
+    ...baseButtonStyle,
+    background: 'transparent',
+    color: 'rgba(255,255,255,0.60)',
+  };
+
+  return (
+    <div style={containerStyle} role="group" aria-label="Application mode">
+      <button
+        type="button"
+        style={!isAdminMode ? activeStyle : inactiveStyle}
+        onClick={handleTransaction}
+        aria-pressed={!isAdminMode}
+        title="Switch to Transaction mode"
+      >
+        <Layers size={12} />
+        <span>Transaction</span>
+      </button>
+      <button
+        type="button"
+        style={isAdminMode ? { ...activeStyle, background: 'rgba(99,102,241,0.45)' } : inactiveStyle}
+        onClick={handleAdmin}
+        aria-pressed={isAdminMode}
+        title="Switch to Admin / Master setup mode"
+      >
+        <Settings size={12} />
+        <span>Admin</span>
+      </button>
+    </div>
   );
 };
 

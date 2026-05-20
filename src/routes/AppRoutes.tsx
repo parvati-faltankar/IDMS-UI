@@ -3,6 +3,7 @@ import { renderCreateRoutes } from './createRoutes';
 import { renderListRoutes } from './listRoutes';
 import { renderProfileRoutes } from './profileRoutes';
 import { renderRedirectRoutes } from './redirectRoutes';
+import { renderAdminRoutes } from './adminRoutes';
 import type { CatalogueFilters, CatalogueFiltersSetter, NavigateTo } from './routeTypes';
 
 export type AppRoutesProps = {
@@ -38,6 +39,7 @@ export function AppRoutes({
 }: AppRoutesProps) {
   return (
     <Routes>
+      {renderAdminRoutes()}
       {renderProfileRoutes({ locationSearch, navigateTo, routeQuery })}
       {renderCreateRoutes({ editingDocumentId, isLayoutConfigurationMode, locationSearch, navigateTo, routeQuery })}
       {renderListRoutes({
