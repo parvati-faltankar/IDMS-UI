@@ -36,7 +36,7 @@ const AdminShell: React.FC<AdminShellProps> = ({ children, contentClassName }) =
   }, []);
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
       <AppTopHeader
         activeLeaf={null}
         isSidebarCollapsed={isSidebarCollapsed}
