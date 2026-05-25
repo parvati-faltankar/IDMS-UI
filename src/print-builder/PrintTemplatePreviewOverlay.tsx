@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Printer, X } from 'lucide-react';
 import { cn } from '../utils/classNames';
 import {

@@ -1,7 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import AppTopHeader from '../components/common/AppTopHeader';
 import AdminSidebar from './AdminSidebar';
 import { cn } from '../utils/classNames';
+import { CommandPalette } from '../experience/components/CommandPalette';
+import { HelpDrawer } from '../experience/components/HelpDrawer';
+import { commandRegistry } from '../experience/navigation/commandRegistry';
+import { getHelpTopic } from '../experience/help/helpTopics';
+import { loadRecentAdminMasters } from './adminStorage';
+import type { CommandItem } from '../experience/navigation/navigationTypes';
 
 interface AdminShellProps {
   children: React.ReactNode;
@@ -11,6 +18,26 @@ interface AdminShellProps {
 const AdminShell: React.FC<AdminShellProps> = ({ children, contentClassName }) => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [globalHelpOpen, setGlobalHelpOpen] = useState(false);
+  const [globalHelpTopicId, setGlobalHelpTopicId] = useState('admin-dashboard');
+  const navigate = useNavigate();
+
+  // Merge recent-master "Continue" commands when palette opens (fresh from localStorage)
+  const paletteCommands = useMemo<CommandItem[]>(() => {
+    const recents = loadRecentAdminMasters().slice(0, 3);
+    const continueCmds: CommandItem[] = recents.map((r) => ({
+      id: `continue-${r.key}`,
+      label: `Continue: ${r.label}`,
+      description: `${r.groupLabel} · resume recent work`,
+      actionType: 'navigate' as const,
+      path: r.path,
+      keywords: ['continue', 'recent', 'resume', r.key],
+    }));
+    return continueCmds.length > 0 ? [...continueCmds, ...commandRegistry] : commandRegistry;
+  // Re-evaluate each time the palette opens so recent list is fresh
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [commandPaletteOpen]);
 
   const handleToggleNavigation = () => {
     if (window.innerWidth > 1024) {
@@ -27,11 +54,19 @@ const AdminShell: React.FC<AdminShellProps> = ({ children, contentClassName }) =
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setIsMobileNavOpen(false);
     };
+    const handleCtrlK = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        setCommandPaletteOpen((prev) => !prev);
+      }
+    };
     window.addEventListener('resize', handleResize);
     window.addEventListener('keydown', handleEscape);
+    window.addEventListener('keydown', handleCtrlK);
     return () => {
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('keydown', handleEscape);
+      window.removeEventListener('keydown', handleCtrlK);
     };
   }, []);
 
@@ -63,6 +98,26 @@ const AdminShell: React.FC<AdminShellProps> = ({ children, contentClassName }) =
           </div>
         </div>
       </div>
+      <CommandPalette
+        open={commandPaletteOpen}
+        commands={paletteCommands}
+        onClose={() => setCommandPaletteOpen(false)}
+        onExecute={(cmd: CommandItem) => {
+          if (cmd.actionType === 'navigate' && cmd.path) {
+            navigate(cmd.path);
+          } else if (cmd.actionType === 'open-help' && cmd.helpTopicId) {
+            setGlobalHelpTopicId(cmd.helpTopicId);
+            setGlobalHelpOpen(true);
+          }
+        }}
+      />
+      <HelpDrawer
+        open={globalHelpOpen}
+        topic={getHelpTopic(globalHelpTopicId)}
+        onClose={() => setGlobalHelpOpen(false)}
+        onTopicChange={(id) => setGlobalHelpTopicId(id)}
+        titleFallback="Admin Help & Guidance"
+      />
     </div>
   );
 };

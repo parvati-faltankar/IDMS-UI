@@ -5,24 +5,24 @@ import {
   ChevronLeft,
   ChevronRight,
   Copy,
-  Download,
   Edit2,
   Eye,
-  FileDown,
   Filter,
   History,
   MoreHorizontal,
   Plus,
   Search,
-  SlidersHorizontal,
   Trash2,
-  Upload,
   X,
 } from 'lucide-react';
 import AdminShell from './AdminShell';
 import { findGroupForMasterKey, findMasterByKey } from './adminNavConfig';
 import { recordRecentAdminMaster } from './adminStorage';
 import { cn } from '../utils/classNames';
+import { AdminListPageShell } from '../experience/components/AdminListPageShell';
+import { HelpDrawer } from '../experience/components/HelpDrawer';
+import { SmartPreviewDrawer } from '../experience/components/SmartPreviewDrawer';
+import { getHelpTopic } from '../experience/help/helpTopics';
 
 // ─── Mock data generation ────────────────────────────────────────────────────
 
@@ -93,15 +93,50 @@ const MasterListPage: React.FC = () => {
 
   const allRecords = useMemo(() => generateMockRecords(masterKey), [masterKey]);
 
+  const summaryItems = useMemo(() => {
+    const active   = allRecords.filter((r) => r.status === 'Active').length;
+    const inactive = allRecords.filter((r) => r.status === 'Inactive').length;
+    const draft    = allRecords.filter((r) => r.status === 'Draft').length;
+    return [
+      { label: 'Total',    value: allRecords.length                                },
+      { label: 'Active',   value: active,   tone: 'success' as const              },
+      { label: 'Inactive', value: inactive, tone: 'danger'  as const              },
+      ...(draft > 0 ? [{ label: 'Draft', value: draft, tone: 'warning' as const }] : []),
+    ];
+  }, [allRecords]);
+
+  const quickFilterItems = useMemo(() => {
+    const active   = allRecords.filter((r) => r.status === 'Active').length;
+    const inactive = allRecords.filter((r) => r.status === 'Inactive').length;
+    const draft    = allRecords.filter((r) => r.status === 'Draft').length;
+    return [
+      { key: '',         label: 'All',      count: allRecords.length },
+      { key: 'Active',   label: 'Active',   count: active            },
+      { key: 'Inactive', label: 'Inactive', count: inactive          },
+      ...(draft > 0 ? [{ key: 'Draft', label: 'Draft', count: draft }] : []),
+    ];
+  }, [allRecords]);
+
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'Active' | 'Inactive'>('all');
+  const [statusFilter, setStatusFilter] = useState('');
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [sortField, setSortField] = useState<'id' | 'name' | 'status' | 'createdDate'>('id');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
-  const [showFilters, setShowFilters] = useState(false);
   const [openRowMenu, setOpenRowMenu] = useState<string | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [helpTopicId, setHelpTopicId] = useState('generic-master-list');
+
+  // ── Preview drawer ──────────────────────────────────────────────
+  const [previewRecord, setPreviewRecord] = useState<(typeof allRecords)[0] | null>(null);
+  const previewOpen = previewRecord !== null;
+
+  const openPreview = (record: (typeof allRecords)[0]) => {
+    setOpenRowMenu(null);
+    setPreviewRecord(record);
+  };
+  const closePreview = () => setPreviewRecord(null);
 
   const filteredRecords = useMemo(() => {
     let records = [...allRecords];
@@ -109,7 +144,7 @@ const MasterListPage: React.FC = () => {
     if (q) {
       records = records.filter((r) => r.id.toLowerCase().includes(q) || r.name.toLowerCase().includes(q));
     }
-    if (statusFilter !== 'all') {
+    if (statusFilter) {
       records = records.filter((r) => r.status === statusFilter);
     }
     records.sort((a, b) => {
@@ -160,144 +195,44 @@ const MasterListPage: React.FC = () => {
     );
   }
 
-  const GroupIcon = group.icon;
-
   return (
     <AdminShell>
-      <div className="flex flex-col min-h-full" style={{ background: 'var(--color-surface-subtle)' }}>
-
-        {/* ── Page Header ──────────────────────────────────────────── */}
-        <div
-          className="sticky top-0 z-10 px-6 py-3 border-b"
-          style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
-        >
-          {/* Title row */}
-          <div className="flex items-center gap-2.5">
-            <span className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: group.iconBg }}>
-              <GroupIcon size={14} style={{ color: group.iconColor }} />
-            </span>
-            <div className="flex-1 min-w-0">
-              <div role="heading" aria-level={1} className="font-semibold leading-tight" style={{ color: 'var(--color-text)', fontSize: '20px' }}>{master.label}</div>
-              <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>{master.description}</p>
-            </div>
-
-            {/* Primary actions */}
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <button
-                type="button"
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-medium transition-all hover:bg-gray-50"
-                style={{ borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
-                title="Download import template"
-              >
-                <FileDown size={13} />
-                <span className="hidden sm:inline">Template</span>
-              </button>
-              <button
-                type="button"
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-medium transition-all hover:bg-gray-50"
-                style={{ borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
-              >
-                <Upload size={13} />
-                <span className="hidden sm:inline">Import</span>
-              </button>
-              <button
-                type="button"
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-medium transition-all hover:bg-gray-50"
-                style={{ borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
-              >
-                <Download size={13} />
-                <span className="hidden sm:inline">Export</span>
-              </button>
-              <button
-                type="button"
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all"
-                style={{ background: 'var(--color-primary)', color: 'white' }}
-                onClick={() => navigate(`/admin/master/${masterKey}/new`)}
-              >
-                <Plus size={13} />
-                Add New
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Toolbar ───────────────────────────────────────────────── */}
-        <div
-          className="px-6 py-3 border-b flex flex-wrap items-center gap-2"
-          style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
-        >
-          {/* Search */}
-          <div
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border flex-1 min-w-[180px] max-w-xs"
-            style={{ background: 'var(--color-surface-subtle)', borderColor: 'var(--color-border)' }}
-          >
-            <Search size={13} style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-              placeholder={`Search ${master.label}…`}
-              className="flex-1 bg-transparent outline-none text-sm"
-              style={{ color: 'var(--color-text)' }}
-            />
-            {searchQuery && (
-              <button type="button" onClick={() => setSearchQuery('')} className="opacity-60 hover:opacity-100"><X size={12} /></button>
-            )}
-          </div>
-
-          {/* Status filter */}
-          <div className="relative">
-            <select
-              value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value as typeof statusFilter); setCurrentPage(1); }}
-              className="appearance-none pl-3 pr-8 py-1.5 rounded-lg border text-sm cursor-pointer"
-              style={{ background: 'var(--color-surface-subtle)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
-            >
-              <option value="all">All Status</option>
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
-            </select>
-            <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--color-text-muted)' }} />
-          </div>
-
-          {/* Filter toggle */}
-          <button
-            type="button"
-            onClick={() => setShowFilters((p) => !p)}
-            className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all', showFilters && 'bg-orange-50')}
-            style={{
-              borderColor: showFilters ? 'var(--color-primary)' : 'var(--color-border)',
-              color: showFilters ? 'var(--color-primary)' : 'var(--color-text)',
-            }}
-          >
-            <SlidersHorizontal size={13} />
-            Filters
-          </button>
-
-          <div className="flex-1" />
-
-          {/* Page size */}
-          <div className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+      <AdminListPageShell
+        title={master.label}
+        description={master.description}
+        breadcrumbs={['Admin', group.label]}
+        primaryAction={{ label: 'Add New', tone: 'primary', onClick: () => navigate(`/admin/master/${masterKey}/new`) }}
+        secondaryActions={[
+          { label: 'How this works', onClick: () => { setHelpTopicId('generic-master-list'); setHelpOpen(true); } },
+        ]}
+        helpTopicId="generic-master-list"
+        onHelpClick={(id) => { setHelpTopicId(id); setHelpOpen(true); }}
+        summaryItems={summaryItems}
+        searchValue={searchQuery}
+        searchPlaceholder={`Search ${master.label}…`}
+        onSearchChange={(q) => { setSearchQuery(q); setCurrentPage(1); }}
+        quickFilterItems={quickFilterItems}
+        activeQuickFilter={statusFilter}
+        onQuickFilterChange={(key) => { setStatusFilter(key); setCurrentPage(1); }}
+        toolbarActions={
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--color-text-muted)' }}>
+            <span>{filteredRecords.length} record{filteredRecords.length !== 1 ? 's' : ''}</span>
+            <span style={{ margin: '0 2px', opacity: 0.4, userSelect: 'none' }}>|</span>
             <span>Show</span>
             <select
               value={pageSize}
               onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
-              className="appearance-none px-2 py-1 rounded border text-sm cursor-pointer"
-              style={{ background: 'var(--color-surface-subtle)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+              style={{ appearance: 'none', WebkitAppearance: 'none', padding: '3px 8px', borderRadius: '6px', border: '1px solid var(--color-border)', background: 'var(--color-surface-subtle)', color: 'var(--color-text)', fontSize: '12px', cursor: 'pointer' }}
             >
               {PAGE_SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
-
-          <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-            {filteredRecords.length} record{filteredRecords.length !== 1 ? 's' : ''}
-          </span>
-        </div>
-
+        }
+      >
         {/* Bulk action bar */}
         {selectedRows.size > 0 && (
           <div
-            className="px-6 py-2 flex items-center gap-3 border-b"
+            className="flex items-center gap-3 py-2 border-b mb-3"
             style={{ background: '#EFF6FF', borderColor: '#BFDBFE' }}
           >
             <span className="text-sm font-medium text-blue-700">{selectedRows.size} selected</span>
@@ -308,7 +243,11 @@ const MasterListPage: React.FC = () => {
               <button type="button" className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-colors">
                 <X size={12} /> Deactivate
               </button>
-              <button type="button" className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 transition-colors">
+              <button
+                type="button"
+                onClick={() => { if (window.confirm(`Delete ${selectedRows.size} selected record${selectedRows.size !== 1 ? 's' : ''}? This cannot be undone.`)) setSelectedRows(new Set()); }}
+                className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 transition-colors"
+              >
                 <Trash2 size={12} /> Delete
               </button>
             </div>
@@ -318,124 +257,166 @@ const MasterListPage: React.FC = () => {
           </div>
         )}
 
-        {/* ── Table ─────────────────────────────────────────────────── */}
-        <div className="flex-1 overflow-auto px-6 py-4">
-          <div
-            className="rounded-xl border overflow-hidden"
-            style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
-          >
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr style={{ background: 'var(--color-table-header)', borderBottom: '1px solid var(--color-border)' }}>
-                  <th className="w-10 px-4 py-3 text-left">
+        {/* ── Data Grid ────────────────────────────────────────────── */}
+        {paginatedRecords.length === 0 ? (
+          <div style={{ padding: '56px 28px', textAlign: 'center', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px' }}>
+            {allRecords.length === 0 ? (
+              <>
+                <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'var(--color-surface-subtle)', border: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                  <Plus size={20} style={{ color: 'var(--color-text-muted)' }} />
+                </div>
+                <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text)', marginBottom: '6px' }}>No {master.label} records yet</div>
+                <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', maxWidth: '320px', margin: '0 auto 20px', lineHeight: 1.6 }}>
+                  Get started by adding your first {master.label.toLowerCase()} record.
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/admin/master/${masterKey}/new`)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '8px', background: 'var(--color-primary)', color: 'white', fontSize: '13px', fontWeight: 600, border: 'none', cursor: 'pointer' }}
+                >
+                  <Plus size={14} /> Add First {master.label}
+                </button>
+              </>
+            ) : (
+              <>
+                <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'var(--color-surface-subtle)', border: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                  <Search size={20} style={{ color: 'var(--color-text-muted)' }} />
+                </div>
+                <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text)', marginBottom: '6px' }}>No records match your filters</div>
+                <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Try adjusting your search or status filter.</div>
+              </>
+            )}
+          </div>
+        ) : (
+          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px', overflow: 'hidden' }}>
+            {/* Column headers */}
+            <div style={{ display: 'grid', gridTemplateColumns: '36px 88px minmax(200px, 1fr) 80px 100px 56px', alignItems: 'center', height: '36px', padding: '0 12px 0 8px', background: 'var(--color-surface-subtle)', borderBottom: '1.5px solid var(--color-border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <input
+                  type="checkbox"
+                  checked={paginatedRecords.length > 0 && selectedRows.size === paginatedRecords.length}
+                  onChange={handleSelectAll}
+                  style={{ cursor: 'pointer', width: '14px', height: '14px' }}
+                  aria-label="Select all"
+                />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('id')}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Code</span>
+                {sortField === 'id' && <ChevronDown size={11} style={{ color: 'var(--color-text-muted)', transform: sortDir === 'asc' ? 'rotate(180deg)' : 'none' }} />}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('name')}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Name</span>
+                {sortField === 'name' && <ChevronDown size={11} style={{ color: 'var(--color-text-muted)', transform: sortDir === 'asc' ? 'rotate(180deg)' : 'none' }} />}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('status')}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</span>
+                {sortField === 'status' && <ChevronDown size={11} style={{ color: 'var(--color-text-muted)', transform: sortDir === 'asc' ? 'rotate(180deg)' : 'none' }} />}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('createdDate')}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Created</span>
+                {sortField === 'createdDate' && <ChevronDown size={11} style={{ color: 'var(--color-text-muted)', transform: sortDir === 'asc' ? 'rotate(180deg)' : 'none' }} />}
+              </div>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Actions</div>
+            </div>
+
+            {/* Data rows */}
+            {paginatedRecords.map((record, idx) => {
+              const isLast = idx === paginatedRecords.length - 1;
+              return (
+                <div
+                  key={record.id}
+                  style={{ display: 'grid', gridTemplateColumns: '36px 88px minmax(200px, 1fr) 80px 100px 56px', alignItems: 'center', height: '44px', padding: '0 12px 0 8px', borderBottom: isLast ? 'none' : '1px solid var(--color-border)', background: selectedRows.has(record.id) ? '#EFF6FF' : 'transparent', transition: 'background 0.1s', cursor: 'pointer' }}
+                  onClick={() => openPreview(record)}
+                  onMouseEnter={e => { if (!selectedRows.has(record.id)) e.currentTarget.style.background = '#F8FAFC'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = selectedRows.has(record.id) ? '#EFF6FF' : 'transparent'; }}
+                >
+                  {/* Checkbox */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={e => e.stopPropagation()}>
                     <input
                       type="checkbox"
-                      checked={paginatedRecords.length > 0 && selectedRows.size === paginatedRecords.length}
-                      onChange={handleSelectAll}
-                      className="rounded cursor-pointer"
-                      aria-label="Select all"
+                      checked={selectedRows.has(record.id)}
+                      onChange={() => handleSelectRow(record.id)}
+                      style={{ cursor: 'pointer', width: '14px', height: '14px' }}
+                      aria-label={`Select ${record.name}`}
                     />
-                  </th>
-                  <SortableHeader field="id" label="Code" currentSort={sortField} direction={sortDir} onSort={handleSort} />
-                  <SortableHeader field="name" label="Name" currentSort={sortField} direction={sortDir} onSort={handleSort} />
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>
-                    Description
-                  </th>
-                  <SortableHeader field="status" label="Status" currentSort={sortField} direction={sortDir} onSort={handleSort} />
-                  <SortableHeader field="createdDate" label="Created" currentSort={sortField} direction={sortDir} onSort={handleSort} />
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedRecords.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="px-4 py-12 text-center">
-                      <Search size={32} className="mx-auto mb-3 opacity-30" />
-                      <div className="font-medium" style={{ color: 'var(--color-text)' }}>No records found</div>
-                      <div className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
-                        Try adjusting your search or filters
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  paginatedRecords.map((record, idx) => (
-                    <tr
-                      key={record.id}
-                      className={cn('border-b transition-colors hover:bg-gray-50', selectedRows.has(record.id) && 'bg-blue-50 hover:bg-blue-50')}
-                      style={{ borderColor: 'var(--color-border)' }}
+                  </div>
+
+                  {/* Code */}
+                  <div style={{ paddingRight: '8px' }}>
+                    <span style={{ fontFamily: 'monospace', fontSize: '11px', fontWeight: 600, padding: '2px 6px', borderRadius: '4px', background: 'var(--color-surface-subtle)', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
+                      {record.id}
+                    </span>
+                  </div>
+
+                  {/* Name */}
+                  <div style={{ minWidth: 0, paddingRight: '8px', overflow: 'hidden' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {record.name}
+                    </span>
+                  </div>
+
+                  {/* Status */}
+                  <div style={{ paddingRight: '8px' }}>
+                    <StatusChip status={record.status} />
+                  </div>
+
+                  {/* Created */}
+                  <div style={{ paddingRight: '8px' }}>
+                    <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>{record.createdDate}</span>
+                  </div>
+
+                  {/* Actions */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '2px', justifyContent: 'flex-end' }} onClick={e => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      title="View record"
+                      aria-label="View record"
+                      onClick={() => openPreview(record)}
+                      style={{ width: '28px', height: '28px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-muted)' }}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-subtle)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
                     >
-                      <td className="px-4 py-3">
-                        <input
-                          type="checkbox"
-                          checked={selectedRows.has(record.id)}
-                          onChange={() => handleSelectRow(record.id)}
-                          className="rounded cursor-pointer"
-                          aria-label={`Select ${record.name}`}
-                        />
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="font-mono text-xs font-medium px-2 py-0.5 rounded" style={{ background: 'var(--color-surface-subtle)', color: 'var(--color-text-muted)' }}>
-                          {record.id}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="font-medium" style={{ color: 'var(--color-text)' }}>{record.name}</span>
-                      </td>
-                      <td className="px-4 py-3 max-w-xs">
-                        <span className="text-xs truncate block" style={{ color: 'var(--color-text-muted)' }}>{record.description}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <StatusChip status={record.status} />
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{record.createdDate}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-end gap-1">
-                          <ActionButton icon={<Eye size={13} />} label="View" onClick={() => navigate(`/admin/master/${masterKey}/${record.id}`)} />
-                          <ActionButton icon={<Edit2 size={13} />} label="Edit" onClick={() => navigate(`/admin/master/${masterKey}/${record.id}?mode=edit`)} />
-                          <ActionButton icon={<Copy size={13} />} label="Duplicate" onClick={() => {}} />
-                          <div className="relative">
-                            <ActionButton
-                              icon={<MoreHorizontal size={13} />}
-                              label="More actions"
-                              onClick={() => setOpenRowMenu(openRowMenu === record.id ? null : record.id)}
+                      <Eye size={13} />
+                    </button>
+                    <div style={{ position: 'relative' }}>
+                      <button
+                        type="button"
+                        title="More actions"
+                        aria-label="More actions"
+                        onClick={() => setOpenRowMenu(openRowMenu === record.id ? null : record.id)}
+                        style={{ width: '28px', height: '28px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-muted)' }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-subtle)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                      >
+                        <MoreHorizontal size={13} />
+                      </button>
+                      {openRowMenu === record.id && (
+                        <>
+                          <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setOpenRowMenu(null)} />
+                          <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 4px)', zIndex: 100, minWidth: '160px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.1)', padding: '4px', overflow: 'hidden' }}>
+                            <MasterMoreMenuItem icon={<Eye size={13} />} label="View details" onClick={() => { openPreview(record); setOpenRowMenu(null); }} />
+                            <MasterMoreMenuItem icon={<Edit2 size={13} />} label="Edit" onClick={() => { navigate(`/admin/master/${masterKey}/${record.id}?mode=edit`); setOpenRowMenu(null); }} />
+                            <MasterMoreMenuItem icon={<Copy size={13} />} label="Duplicate" onClick={() => setOpenRowMenu(null)} />
+                            <MasterMoreMenuItem icon={<History size={13} />} label="Audit history" onClick={() => setOpenRowMenu(null)} />
+                            <div style={{ height: '1px', background: 'var(--color-border)', margin: '3px 0' }} />
+                            <MasterMoreMenuItem icon={<Filter size={13} />} label={record.status === 'Active' ? 'Deactivate' : 'Activate'} onClick={() => setOpenRowMenu(null)} />
+                            <div style={{ height: '1px', background: 'var(--color-border)', margin: '3px 0' }} />
+                            <MasterMoreMenuItem
+                              icon={<Trash2 size={13} />}
+                              label="Delete"
+                              danger
+                              onClick={() => { if (window.confirm(`Delete "${record.name}"? This cannot be undone.`)) setOpenRowMenu(null); }}
                             />
-                            {openRowMenu === record.id && (
-                              <div
-                                className="absolute right-0 top-full mt-1 w-44 rounded-xl shadow-xl border z-50 py-1 overflow-hidden"
-                                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
-                              >
-                                {[
-                                  { label: 'View details', icon: <Eye size={13} /> },
-                                  { label: 'Audit history', icon: <History size={13} /> },
-                                  { label: record.status === 'Active' ? 'Deactivate' : 'Activate', icon: <Filter size={13} /> },
-                                  { label: 'Delete', icon: <Trash2 size={13} />, danger: true },
-                                ].map((action) => (
-                                  <button
-                                    key={action.label}
-                                    type="button"
-                                    className="flex items-center gap-2.5 w-full px-3 py-2 text-sm hover:bg-gray-50 transition-colors"
-                                    style={{ color: action.danger ? 'var(--color-danger)' : 'var(--color-text)' }}
-                                    onClick={() => setOpenRowMenu(null)}
-                                  >
-                                    {action.icon}
-                                    {action.label}
-                                  </button>
-                                ))}
-                              </div>
-                            )}
                           </div>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
+        )}
 
           {/* ── Pagination ─────────────────────────────────────────── */}
           {filteredRecords.length > pageSize && (
@@ -473,35 +454,66 @@ const MasterListPage: React.FC = () => {
               </div>
             </div>
           )}
-        </div>
-      </div>
+      </AdminListPageShell>
+      <HelpDrawer
+        open={helpOpen}
+        topic={getHelpTopic(helpTopicId)}
+        onClose={() => setHelpOpen(false)}
+        onTopicChange={(id) => setHelpTopicId(id)}
+      />
+      {/* ── Preview drawer ──────────────────────────────────────── */}
+      <SmartPreviewDrawer
+        open={previewOpen}
+        onClose={closePreview}
+        title={previewRecord?.name ?? ''}
+        subtitle={`${previewRecord?.id ?? ''} — ${master?.label ?? ''}`}
+        statusLabel={previewRecord?.status}
+        statusTone={
+          previewRecord?.status === 'Active'   ? 'active'   :
+          previewRecord?.status === 'Draft'    ? 'draft'    :
+          previewRecord?.status === 'Inactive' ? 'inactive' : undefined
+        }
+        summaryFields={previewRecord ? [
+          { label: 'Code',        value: previewRecord.id,                mono: true },
+          { label: 'Status',      value: previewRecord.status },
+          { label: 'Created',     value: previewRecord.createdDate },
+          { label: 'Updated',     value: previewRecord.updatedDate },
+        ] : []}
+        sections={previewRecord ? [
+          {
+            title: 'Basic Information',
+            fields: [
+              { label: 'Name',        value: previewRecord.name,        span: 2 },
+              { label: 'Description', value: previewRecord.description, span: 2, muted: true },
+            ],
+          },
+          {
+            title: 'Group & Master',
+            fields: [
+              { label: 'Group',        value: group?.label ?? '—' },
+              { label: 'Master Type',  value: master?.label ?? '—' },
+            ],
+          },
+        ] : []}
+        primaryAction={{
+          label: 'Edit',
+          tone: 'primary',
+          onClick: () => { closePreview(); navigate(`/admin/master/${masterKey}/${previewRecord!.id}?mode=edit`); },
+        }}
+        secondaryActions={[
+          { label: 'Duplicate', tone: 'outline', onClick: closePreview },
+        ]}
+        dangerAction={
+          previewRecord?.status === 'Active'
+            ? { label: 'Deactivate', tone: 'danger', onClick: closePreview }
+            : undefined
+        }
+      />
     </AdminShell>
   );
 };
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
-
-interface SortableHeaderProps {
-  field: string;
-  label: string;
-  currentSort: string;
-  direction: 'asc' | 'desc';
-  onSort: (field: any) => void;
-}
-
-const SortableHeader: React.FC<SortableHeaderProps> = ({ field, label, currentSort, direction, onSort }) => (
-  <th
-    className="px-4 py-3 text-left cursor-pointer select-none"
-    onClick={() => onSort(field)}
-  >
-    <div className="flex items-center gap-1">
-      <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>{label}</span>
-      {currentSort === field && (
-        <ChevronDown size={12} className={cn('transition-transform', direction === 'asc' ? 'rotate-180' : '')} style={{ color: 'var(--color-text-muted)' }} />
-      )}
-    </div>
-  </th>
-);
 
 interface StatusChipProps { status: string; }
 const StatusChip: React.FC<StatusChipProps> = ({ status }) => {
@@ -519,17 +531,16 @@ const StatusChip: React.FC<StatusChipProps> = ({ status }) => {
   );
 };
 
-interface ActionButtonProps { icon: React.ReactNode; label: string; onClick: () => void; }
-const ActionButton: React.FC<ActionButtonProps> = ({ icon, label, onClick }) => (
+interface MasterMoreMenuItemProps { icon: React.ReactNode; label: string; danger?: boolean; onClick: () => void; }
+const MasterMoreMenuItem: React.FC<MasterMoreMenuItemProps> = ({ icon, label, danger, onClick }) => (
   <button
     type="button"
-    title={label}
-    aria-label={label}
     onClick={onClick}
-    className="w-7 h-7 rounded-lg flex items-center justify-center transition-all hover:bg-gray-100"
-    style={{ color: 'var(--color-text-muted)' }}
+    style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '7px 10px', fontSize: '12px', fontWeight: 500, color: danger ? '#DC2626' : 'var(--color-text)', background: 'transparent', border: 'none', cursor: 'pointer', borderRadius: '6px', textAlign: 'left' }}
+    onMouseEnter={e => { e.currentTarget.style.background = danger ? '#FEF2F2' : 'var(--color-surface-subtle)'; }}
+    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
   >
-    {icon}
+    {icon}{label}
   </button>
 );
 

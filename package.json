@@ -8,7 +8,16 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build",
+    "ui:empty-check": "node scripts/check-empty-files.js",
+    "ui:help-check": "node scripts/check-help-topics.js",
+    "ui:stories-check": "node scripts/check-stories.js",
+    "ui:contracts-check": "node scripts/check-component-contracts.js",
+    "ui:future-check": "node scripts/check-future-feature-standard.js",
+    "ui:audit": "node scripts/ui-audit.js",
+    "ui:governance": "node scripts/ui-audit.js"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -39,6 +48,11 @@
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.58.0",
     "vite": "^8.0.4",
-    "vitest": "^4.1.5"
+    "vitest": "^4.1.5",
+    "storybook": "^8.6.0",
+    "@storybook/react-vite": "^8.6.0",
+    "@storybook/addon-essentials": "^8.6.0",
+    "@storybook/addon-interactions": "^8.6.0",
+    "@storybook/test": "^8.6.0"
   }
 }

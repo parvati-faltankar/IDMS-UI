@@ -199,7 +199,7 @@ export const adminNavGroups: AdminNavGroup[] = [
     iconColor: '#475569',
     masters: [
       m('numbering-code-setup', 'Numbering & Code Setup', 'Configure document numbering and auto-code generation'),
-      m('prefix-template', 'Prefix Template', 'Define prefix patterns for codes'),
+      m('code-generation-policy', 'Code Generation Policy', 'Define how codes and numbers are generated for each entity'),
       m('print-engine', 'Print Engine', 'Configure print layouts and document templates'),
     ],
   },

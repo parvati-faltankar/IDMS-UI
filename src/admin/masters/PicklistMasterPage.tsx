@@ -1,8 +1,18 @@
-import React, { useEffect, useState } from 'react';
-import { ArrowLeft, ChevronRight, Edit2, Plus, Save, Trash2, X } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  AlertCircle, CheckCircle2, ChevronDown, Circle, ClipboardCheck,
+  Edit2, Eye, GitMerge, Layers, List, Plus, Save, Trash2,
+} from 'lucide-react';
 import AdminShell from '../AdminShell';
 import { findGroupForMasterKey, findMasterByKey } from '../adminNavConfig';
 import { recordRecentAdminMaster } from '../adminStorage';
+import { AdminListPageShell } from '../../experience/components/AdminListPageShell';
+import { SmartPreviewDrawer } from '../../experience/components/SmartPreviewDrawer';
+import { SmartFormDrawer } from '../../experience/components/SmartFormDrawer';
+import { SmartReviewDrawer } from '../../experience/components/SmartReviewDrawer';
+import { HelpDrawer } from '../../experience/components/HelpDrawer';
+import { getHelpTopic } from '../../experience/help/helpTopics';
+import type { PreviewSection } from '../../experience/components/SmartPreviewDrawer';
 
 const MASTER_KEY = 'picklist-master';
 
@@ -56,16 +66,23 @@ interface DependencyMapping {
   isActive: boolean;
 }
 
-type SectionKey = 'config' | 'levels' | 'values' | 'mapping';
+type SectionKey = 'config' | 'levels' | 'values' | 'mapping' | 'review';
+type SectionState = 'complete' | 'inprogress' | 'notstarted' | 'warning';
 
-// ─── Section config ───────────────────────────────────────────────────────────
+// ─── Section definitions (static — outside component) ─────────────────────────
 
-const SECTIONS: Array<{ key: SectionKey; label: string; description: string }> = [
-  { key: 'config',  label: 'Picklist Configuration', description: 'Define picklist types and settings'      },
-  { key: 'levels',  label: 'Picklist Levels',         description: 'Configure hierarchy levels'              },
-  { key: 'values',  label: 'Picklist Values',         description: 'Add and manage picklist values'          },
-  { key: 'mapping', label: 'Dependency Mapping',      description: 'Map parent and child value dependencies' },
+const SECTION_ORDER: SectionKey[] = ['config', 'levels', 'values', 'mapping', 'review'];
+
+const SECTION_DEFS: Array<{ key: SectionKey; label: string; icon: React.ReactNode }> = [
+  { key: 'config',  label: 'Configuration', icon: <List size={13} /> },
+  { key: 'levels',  label: 'Levels',         icon: <Layers size={13} /> },
+  { key: 'values',  label: 'Values',         icon: <ClipboardCheck size={13} /> },
+  { key: 'mapping', label: 'Mapping',        icon: <GitMerge size={13} /> },
+  { key: 'review',  label: 'Review',         icon: <CheckCircle2 size={13} /> },
 ];
+
+// Satisfy linter — SECTION_ORDER is used at runtime, not just in types
+void SECTION_ORDER;
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
@@ -126,10 +143,22 @@ const EMPTY_VALUE: Omit<PicklistValue, 'id'> = {
 
 function getConfigTypeColor(type: string): { bg: string; text: string } {
   switch (type) {
-    case 'Independent':           return { bg: '#F0FDF4', text: '#15803D' };
-    case 'Dependent':             return { bg: '#EFF6FF', text: '#1D4ED8' };
-    case 'Multi-Level Dependent': return { bg: '#F5F3FF', text: '#6D28D9' };
-    default:                      return { bg: '#F1F5F9', text: '#64748B' };
+    case 'Independent':           return {
+      bg: 'color-mix(in srgb, #10b981 12%, var(--color-surface))',
+      text: 'color-mix(in srgb, #10b981 85%, var(--color-text))'
+    };
+    case 'Dependent':             return {
+      bg: 'color-mix(in srgb, #3b82f6 10%, var(--color-surface))',
+      text: 'color-mix(in srgb, #3b82f6 85%, var(--color-text))'
+    };
+    case 'Multi-Level Dependent': return {
+      bg: 'color-mix(in srgb, #8b5cf6 10%, var(--color-surface))',
+      text: 'color-mix(in srgb, #8b5cf6 85%, var(--color-text))'
+    };
+    default: return {
+      bg: 'var(--color-surface-subtle)',
+      text: 'var(--color-text-muted)'
+    };
   }
 }
 
@@ -140,30 +169,35 @@ const PicklistMasterPage: React.FC = () => {
   const group  = findGroupForMasterKey(MASTER_KEY);
 
   const [activeSection, setActiveSection] = useState<SectionKey>('config');
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [helpTopicId, setHelpTopicId] = useState('picklist-master');
 
   // ── Config state ──────────────────────────────────────────────────
-  const [configs, setConfigs]                         = useState<PicklistConfig[]>(INITIAL_CONFIGS);
-  const [configDrawerOpen, setConfigDrawerOpen]       = useState(false);
-  const [configDrawerVisible, setConfigDrawerVisible] = useState(false);
-  const [editingConfig, setEditingConfig]             = useState<PicklistConfig | null>(null);
-  const [configForm, setConfigForm]                   = useState<Omit<PicklistConfig, 'id'>>(EMPTY_CONFIG);
+  const [configs, setConfigs]                     = useState<PicklistConfig[]>(INITIAL_CONFIGS);
+  const [configFormOpen, setConfigFormOpen]       = useState(false);
+  const [editingConfig, setEditingConfig]         = useState<PicklistConfig | null>(null);
+  const [configForm, setConfigForm]               = useState<Omit<PicklistConfig, 'id'>>(EMPTY_CONFIG);
+  const [configPreviewOpen, setConfigPreviewOpen] = useState(false);
+  const [previewConfig, setPreviewConfig]         = useState<PicklistConfig | null>(null);
 
   // ── Levels state ──────────────────────────────────────────────────
-  const [levels, setLevels]                             = useState<PicklistLevel[]>(INITIAL_LEVELS);
-  const [levelConfigFilter, setLevelConfigFilter]       = useState('');
-  const [levelDrawerOpen, setLevelDrawerOpen]           = useState(false);
-  const [levelDrawerVisible, setLevelDrawerVisible]     = useState(false);
-  const [editingLevel, setEditingLevel]                 = useState<PicklistLevel | null>(null);
-  const [levelForm, setLevelForm]                       = useState<Omit<PicklistLevel, 'id'>>(EMPTY_LEVEL);
+  const [levels, setLevels]                         = useState<PicklistLevel[]>(INITIAL_LEVELS);
+  const [levelConfigFilter, setLevelConfigFilter]   = useState('');
+  const [levelFormOpen, setLevelFormOpen]           = useState(false);
+  const [editingLevel, setEditingLevel]             = useState<PicklistLevel | null>(null);
+  const [levelForm, setLevelForm]                   = useState<Omit<PicklistLevel, 'id'>>(EMPTY_LEVEL);
+  const [levelPreviewOpen, setLevelPreviewOpen]     = useState(false);
+  const [previewLevel, setPreviewLevel]             = useState<PicklistLevel | null>(null);
 
   // ── Values state ──────────────────────────────────────────────────
-  const [values, setValues]                             = useState<PicklistValue[]>(INITIAL_VALUES);
-  const [valueConfigFilter, setValueConfigFilter]       = useState('');
-  const [valueLevelFilter, setValueLevelFilter]         = useState('');
-  const [valueDrawerOpen, setValueDrawerOpen]           = useState(false);
-  const [valueDrawerVisible, setValueDrawerVisible]     = useState(false);
-  const [editingValue, setEditingValue]                 = useState<PicklistValue | null>(null);
-  const [valueForm, setValueForm]                       = useState<Omit<PicklistValue, 'id'>>(EMPTY_VALUE);
+  const [values, setValues]                         = useState<PicklistValue[]>(INITIAL_VALUES);
+  const [valueConfigFilter, setValueConfigFilter]   = useState('');
+  const [valueLevelFilter, setValueLevelFilter]     = useState('');
+  const [valueFormOpen, setValueFormOpen]           = useState(false);
+  const [editingValue, setEditingValue]             = useState<PicklistValue | null>(null);
+  const [valueForm, setValueForm]                   = useState<Omit<PicklistValue, 'id'>>(EMPTY_VALUE);
+  const [valuePreviewOpen, setValuePreviewOpen]     = useState(false);
+  const [previewValue, setPreviewValue]             = useState<PicklistValue | null>(null);
 
   // ── Mapping state ─────────────────────────────────────────────────
   const [mappings, setMappings]                             = useState<DependencyMapping[]>(INITIAL_MAPPINGS);
@@ -171,6 +205,9 @@ const PicklistMasterPage: React.FC = () => {
   const [mappingParentLevelId, setMappingParentLevelId]     = useState('');
   const [mappingParentValueId, setMappingParentValueId]     = useState('');
   const [checkedChildValueIds, setCheckedChildValueIds]     = useState<Set<string>>(new Set());
+
+  // ── Review state ──────────────────────────────────────────────────
+  const [reviewDrawerOpen, setReviewDrawerOpen] = useState(false);
 
   useEffect(() => {
     if (master && group) {
@@ -185,19 +222,13 @@ const PicklistMasterPage: React.FC = () => {
   const openConfigForCreate = () => {
     setEditingConfig(null);
     setConfigForm({ ...EMPTY_CONFIG });
-    setConfigDrawerOpen(true);
-    requestAnimationFrame(() => requestAnimationFrame(() => setConfigDrawerVisible(true)));
+    setConfigFormOpen(true);
   };
   const openConfigForEdit = (entry: PicklistConfig) => {
     setEditingConfig(entry);
     const { id: _id, ...rest } = entry;
     setConfigForm({ ...rest });
-    setConfigDrawerOpen(true);
-    requestAnimationFrame(() => requestAnimationFrame(() => setConfigDrawerVisible(true)));
-  };
-  const closeConfigDrawer = () => {
-    setConfigDrawerVisible(false);
-    window.setTimeout(() => setConfigDrawerOpen(false), 250);
+    setConfigFormOpen(true);
   };
   const saveConfig = () => {
     if (!configForm.name || !configForm.configurationType) return;
@@ -207,7 +238,7 @@ const PicklistMasterPage: React.FC = () => {
       const newCode = `PCK-${String(configs.length + 1).padStart(3, '0')}`;
       setConfigs((prev) => [...prev, { ...configForm, code: newCode, id: Date.now().toString() }]);
     }
-    closeConfigDrawer();
+    setConfigFormOpen(false);
   };
   const deleteConfig = (id: string) => setConfigs((prev) => prev.filter((e) => e.id !== id));
 
@@ -215,19 +246,13 @@ const PicklistMasterPage: React.FC = () => {
   const openLevelForCreate = () => {
     setEditingLevel(null);
     setLevelForm({ ...EMPTY_LEVEL, configId: levelConfigFilter });
-    setLevelDrawerOpen(true);
-    requestAnimationFrame(() => requestAnimationFrame(() => setLevelDrawerVisible(true)));
+    setLevelFormOpen(true);
   };
   const openLevelForEdit = (entry: PicklistLevel) => {
     setEditingLevel(entry);
     const { id: _id, ...rest } = entry;
     setLevelForm({ ...rest });
-    setLevelDrawerOpen(true);
-    requestAnimationFrame(() => requestAnimationFrame(() => setLevelDrawerVisible(true)));
-  };
-  const closeLevelDrawer = () => {
-    setLevelDrawerVisible(false);
-    window.setTimeout(() => setLevelDrawerOpen(false), 250);
+    setLevelFormOpen(true);
   };
   const saveLevel = () => {
     if (!levelForm.picklistName || !levelForm.levelSequence || !levelForm.configId) return;
@@ -236,7 +261,7 @@ const PicklistMasterPage: React.FC = () => {
     } else {
       setLevels((prev) => [...prev, { ...levelForm, id: `LVL-${Date.now()}` }]);
     }
-    closeLevelDrawer();
+    setLevelFormOpen(false);
   };
   const deleteLevel = (id: string) => setLevels((prev) => prev.filter((e) => e.id !== id));
 
@@ -246,19 +271,13 @@ const PicklistMasterPage: React.FC = () => {
     const selCfg = configs.find((c) => c.id === valueConfigFilter);
     const autoLevel = selCfg?.configurationType === 'Independent' ? 'DEFAULT' : valueLevelFilter;
     setValueForm({ ...EMPTY_VALUE, configId: valueConfigFilter, levelId: autoLevel });
-    setValueDrawerOpen(true);
-    requestAnimationFrame(() => requestAnimationFrame(() => setValueDrawerVisible(true)));
+    setValueFormOpen(true);
   };
   const openValueForEdit = (entry: PicklistValue) => {
     setEditingValue(entry);
     const { id: _id, ...rest } = entry;
     setValueForm({ ...rest });
-    setValueDrawerOpen(true);
-    requestAnimationFrame(() => requestAnimationFrame(() => setValueDrawerVisible(true)));
-  };
-  const closeValueDrawer = () => {
-    setValueDrawerVisible(false);
-    window.setTimeout(() => setValueDrawerOpen(false), 250);
+    setValueFormOpen(true);
   };
   const saveValue = () => {
     if (!valueForm.configId || !valueForm.code || !valueForm.name || !valueForm.displayName) return;
@@ -267,7 +286,7 @@ const PicklistMasterPage: React.FC = () => {
     } else {
       setValues((prev) => [...prev, { ...valueForm, id: `VAL-${Date.now()}` }]);
     }
-    closeValueDrawer();
+    setValueFormOpen(false);
   };
   const deleteValue = (id: string) => setValues((prev) => prev.filter((e) => e.id !== id));
 
@@ -332,345 +351,345 @@ const PicklistMasterPage: React.FC = () => {
     setMappings([...filtered, ...newMaps]);
   };
 
-  // ── Filtered lists ────────────────────────────────────────────────
-  const filteredLevels = [...levels]
-    .filter((l) => !levelConfigFilter || l.configId === levelConfigFilter)
-    .sort((a, b) => parseInt(a.levelSequence) - parseInt(b.levelSequence));
+  // ── Computed / derived state ─────────────────────────────────────
+  const filteredLevels = useMemo(() =>
+    [...levels]
+      .filter((l) => !levelConfigFilter || l.configId === levelConfigFilter)
+      .sort((a, b) => parseInt(a.levelSequence) - parseInt(b.levelSequence)),
+    [levels, levelConfigFilter],
+  );
 
-  const filteredValues = values
-    .filter((v) => !valueConfigFilter || v.configId === valueConfigFilter)
-    .filter((v) => !valueLevelFilter || v.levelId === valueLevelFilter);
+  const filteredValues = useMemo(() =>
+    values
+      .filter((v) => !valueConfigFilter || v.configId === valueConfigFilter)
+      .filter((v) => !valueLevelFilter  || v.levelId   === valueLevelFilter),
+    [values, valueConfigFilter, valueLevelFilter],
+  );
+
+  const sectionStates = useMemo((): Record<SectionKey, SectionState> => {
+    const configDone   = configs.length > 0;
+    const levelsDone   = levels.length > 0;
+    const valuesDone   = values.length > 0;
+    const mappingsDone = mappings.length > 0;
+    return {
+      config:  configDone   ? 'complete' : activeSection === 'config'  ? 'inprogress' : 'notstarted',
+      levels:  levelsDone   ? 'complete' : activeSection === 'levels'  ? 'inprogress' : 'notstarted',
+      values:  valuesDone   ? 'complete' : activeSection === 'values'  ? 'inprogress' : 'notstarted',
+      mapping: mappingsDone ? 'complete' : activeSection === 'mapping' ? 'inprogress' : 'notstarted',
+      review:  (configDone && levelsDone && valuesDone)
+        ? 'complete'
+        : activeSection === 'review' ? 'inprogress' : 'notstarted',
+    };
+  }, [configs, levels, values, mappings, activeSection]);
+
+  const reviewChecklist = useMemo(() => [
+    { id: 'c1', label: 'At least one picklist config defined',  passed: configs.length > 0,             detail: `${configs.length} config(s)` },
+    { id: 'c2', label: 'All configs have a configuration type', passed: configs.every((c) => !!c.configurationType), detail: configs.filter((c) => !c.configurationType).length === 0 ? 'All valid' : 'Some missing' },
+    { id: 'c3', label: 'At least one level defined',            passed: levels.length > 0,              detail: `${levels.length} level(s)` },
+    { id: 'c4', label: 'At least one active value defined',     passed: values.some((v) => v.isActive), detail: `${values.filter((v) => v.isActive).length} active` },
+    { id: 'c5', label: 'No level without values',               passed: levels.every((l) => values.some((v) => v.levelId === l.id)), detail: 'All levels covered' },
+    { id: 'c6', label: 'Dependency mappings configured',        passed: mappings.length > 0,            detail: `${mappings.length} mapping(s)` },
+  ], [configs, levels, values, mappings]);
+
+  const summaryItems = useMemo(() => [
+    { label: 'Configs',  value: configs.length  },
+    { label: 'Levels',   value: levels.length   },
+    { label: 'Values',   value: values.length   },
+    { label: 'Mappings', value: mappings.length },
+  ], [configs, levels, values, mappings]);
+
+  const primaryAction = activeSection === 'config'  ? { label: 'Add Config',         onClick: openConfigForCreate        } :
+                        activeSection === 'levels'  ? { label: 'Add Level',          onClick: openLevelForCreate         } :
+                        activeSection === 'values'  ? { label: 'Add Value',          onClick: openValueForCreate         } :
+                        activeSection === 'review'  ? { label: 'Review & Activate',  onClick: () => setReviewDrawerOpen(true) } :
+                        undefined;
+
+  const configPreviewSections = useMemo((): PreviewSection[] => {
+    if (!previewConfig) return [];
+    const cfg = previewConfig;
+    return [{ title: 'Configuration Details', fields: [
+      { label: 'Code',         value: cfg.code },
+      { label: 'Name',         value: cfg.name },
+      { label: 'Display Name', value: cfg.displayName },
+      { label: 'Type',         value: cfg.configurationType },
+      { label: 'Description',  value: cfg.description || '—' },
+      { label: 'Is Active',    value: cfg.isActive ? 'Active' : 'Inactive' },
+    ]}];
+  }, [previewConfig]);
+
+  const levelPreviewSections = useMemo((): PreviewSection[] => {
+    if (!previewLevel) return [];
+    const lv = previewLevel;
+    const parentConfig = configs.find((c) => c.id === lv.configId);
+    return [{ title: 'Level Details', fields: [
+      { label: 'Picklist Name',        value: lv.picklistName },
+      { label: 'Display Name',         value: lv.displayName  },
+      { label: 'Level Sequence',       value: lv.levelSequence },
+      { label: 'Config',               value: parentConfig?.name || lv.configId },
+      { label: 'Multi-Parent Mapping', value: lv.allowMultipleParentMapping ? 'Yes' : 'No' },
+      { label: 'Value Reuse',          value: lv.allowValueReuse ? 'Yes' : 'No' },
+    ]}];
+  }, [previewLevel, configs]);
+
+  const valuePreviewSections = useMemo((): PreviewSection[] => {
+    if (!previewValue) return [];
+    const vl = previewValue;
+    const parentConfig = configs.find((c) => c.id === vl.configId);
+    const parentLevel  = levels.find((l) => l.id === vl.levelId);
+    return [{ title: 'Value Details', fields: [
+      { label: 'Code',             value: vl.code },
+      { label: 'Name',             value: vl.name },
+      { label: 'Display Name',     value: vl.displayName },
+      { label: 'Config',           value: parentConfig?.name || vl.configId },
+      { label: 'Level',            value: parentLevel?.picklistName || vl.levelId },
+      { label: 'Display Sequence', value: vl.displaySequence },
+      { label: 'Is Active',        value: vl.isActive  ? 'Active'  : 'Inactive' },
+      { label: 'Is Default',       value: vl.isDefault ? 'Yes'     : 'No'       },
+    ]}];
+  }, [previewValue, configs, levels]);
 
   if (!master || !group) return null;
-  const GroupIcon = group.icon;
+
+  const picklistHelpTopic = getHelpTopic(helpTopicId);
+
+  // ── Section nav ────────────────────────────────────────────────────
+  const navBar = (
+    <div style={{ display: 'flex', gap: '2px', background: 'var(--color-surface-subtle)', borderRadius: '10px', padding: '3px' }}>
+      {SECTION_DEFS.map(({ key, label, icon }) => {
+        const state = sectionStates[key];
+        const isActive = activeSection === key;
+        const StateIcon = state === 'complete' ? CheckCircle2 : state === 'warning' ? AlertCircle : state === 'inprogress' ? ChevronDown : Circle;
+        const iconColor = state === 'complete' ? '#16a34a' : state === 'warning' ? '#D97706' : state === 'inprogress' ? 'var(--color-primary)' : 'var(--color-text-muted)';
+        return (
+          <button key={key} type="button" onClick={() => setActiveSection(key)}
+            style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 10px', borderRadius: '7px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: isActive ? 600 : 400, background: isActive ? 'var(--color-surface)' : 'transparent', color: isActive ? 'var(--color-text)' : 'var(--color-text-muted)', boxShadow: isActive ? '0 1px 3px rgba(0,0,0,0.08)' : 'none', transition: 'all 0.15s' }}>
+            <span style={{ color: iconColor }}><StateIcon size={11} /></span>
+            {icon}
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const toolbarFilters: React.ReactNode = (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      {navBar}
+      {activeSection === 'levels' && (
+        <select value={levelConfigFilter} onChange={(e) => setLevelConfigFilter(e.target.value)} style={filterSelectStyle}>
+          <option value="">All Configs</option>
+          {configs.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      )}
+      {activeSection === 'values' && (<>
+        <select value={valueConfigFilter} onChange={(e) => { setValueConfigFilter(e.target.value); setValueLevelFilter(''); }} style={filterSelectStyle}>
+          <option value="">All Configs</option>
+          {configs.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+        <select value={valueLevelFilter} onChange={(e) => setValueLevelFilter(e.target.value)} style={filterSelectStyle}>
+          <option value="">All Levels</option>
+          {levels.filter((l) => !valueConfigFilter || l.configId === valueConfigFilter).map((l) => <option key={l.id} value={l.id}>{l.picklistName}</option>)}
+        </select>
+      </>)}
+      {activeSection === 'mapping' && (
+        <select value={mappingConfigFilter} onChange={(e) => { setMappingConfigFilter(e.target.value); setMappingParentLevelId(''); setMappingParentValueId(''); }} style={filterSelectStyle}>
+          <option value="">All Configs</option>
+          {dependentConfigs.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      )}
+    </div>
+  );
 
   return (
     <AdminShell>
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--color-surface-subtle)' }}>
+      <AdminListPageShell
+        title={master.label}
+        description={master.description}
+        breadcrumbs={['Admin', group.label]}
+        helpTopicId={helpTopicId}
+        onHelpClick={(id) => { setHelpTopicId(id); setHelpOpen(true); }}
+        primaryAction={primaryAction}
+        summaryItems={summaryItems}
+        toolbarActions={toolbarFilters}
+      >
 
-        {/* ── Page Header ── */}
-        <div style={{ flexShrink: 0, padding: '10px 24px 12px', background: 'var(--color-surface)', borderBottom: '1px solid var(--color-border)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', borderRadius: '8px', background: group.iconBg, flexShrink: 0 }}>
-              <GroupIcon size={14} style={{ color: group.iconColor }} />
-            </span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: '20px', fontWeight: 600, color: 'var(--color-text)', lineHeight: 1.2 }}>{master.label}</div>
-              <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '1px' }}>{master.description}</div>
+
+        {/* ── Config section ─────────────────────────────────────────── */}
+        {activeSection === 'config' && (
+          <div>
+            {configs.length === 0 ? (
+              <div style={{ padding: '48px', textAlign: 'center' }}>
+                <List size={32} color="var(--color-text-muted)" style={{ margin: '0 auto 12px' }} />
+                <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '6px' }}>No configurations yet</div>
+                <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '20px' }}>Create a picklist configuration to define its type and structure.</div>
+                <button type="button" onClick={openConfigForCreate} style={btnPrimary}><Plus size={13} />Add Config</button>
+              </div>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: 'var(--color-surface-subtle)' }}>
+                    {['Code', 'Name', 'Display Name', 'Type', 'Status', ''].map((h) => (
+                      <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', borderBottom: '1px solid var(--color-border)' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {configs.map((cfg) => {
+                    const tc = getConfigTypeColor(cfg.configurationType);
+                    return (
+                      <tr key={cfg.id} onClick={() => { setPreviewConfig(cfg); setConfigPreviewOpen(true); }}
+                        style={{ cursor: 'pointer', borderBottom: '1px solid var(--color-border)', transition: 'background 0.12s' }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-surface-subtle)')}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = '')}>
+                        <td style={{ padding: '9px 12px', fontSize: '12px', fontFamily: 'monospace', color: 'var(--color-primary)', fontWeight: 700 }}>{cfg.code}</td>
+                        <td style={{ padding: '9px 12px', fontSize: '13px', fontWeight: 600 }}>{cfg.name}</td>
+                        <td style={{ padding: '9px 12px', fontSize: '12px', color: 'var(--color-text-muted)' }}>{cfg.displayName}</td>
+                        <td style={{ padding: '9px 12px' }}>
+                          <span style={{ display: 'inline-block', fontSize: '11px', fontWeight: 700, padding: '3px 8px', borderRadius: '5px', background: tc.bg, color: tc.text }}>{cfg.configurationType}</span>
+                        </td>
+                        <td style={{ padding: '9px 12px' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: 500, color: cfg.isActive ? '#15803D' : 'var(--color-text-muted)' }}>
+                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: cfg.isActive ? '#16A34A' : '#94A3B8' }} />
+                            {cfg.isActive ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '9px 12px', textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
+                          <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
+                            <ActionBtn onClick={() => { setPreviewConfig(cfg); setConfigPreviewOpen(true); }} title="Preview"><Eye size={13} /></ActionBtn>
+                            <ActionBtn onClick={() => openConfigForEdit(cfg)} title="Edit"><Edit2 size={13} /></ActionBtn>
+                            <ActionBtn onClick={() => deleteConfig(cfg.id)} title="Delete" danger><Trash2 size={13} /></ActionBtn>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+            <div style={{ padding: '8px 12px', borderTop: '1px solid var(--color-border)', background: 'var(--color-surface-subtle)', fontSize: '11px', color: 'var(--color-text-muted)', textAlign: 'right' }}>
+              {configs.length} configuration(s)
             </div>
           </div>
-        </div>
+        )}
 
-        {/* ── Body ── */}
-        <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
-
-          {/* Left nav */}
-          <aside style={{ width: '240px', flexShrink: 0, display: 'flex', flexDirection: 'column', background: 'var(--color-surface)', borderRight: '1px solid var(--color-border)', overflowY: 'auto' }}>
-            <div style={{ flex: 1 }}>
-              {SECTIONS.map((section, idx) => {
-                const isActive = activeSection === section.key;
-                const isLast = idx === SECTIONS.length - 1;
-                return (
-                  <button
-                    key={section.key}
-                    type="button"
-                    onClick={() => setActiveSection(section.key)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '12px',
-                      width: '100%', padding: '14px 16px 14px 14px',
-                      background: isActive ? 'rgba(59,130,246,0.06)' : 'transparent',
-                      borderWidth: '0 0 0 3px', borderStyle: 'solid',
-                      borderColor: `transparent transparent transparent ${isActive ? 'var(--color-primary)' : 'transparent'}`,
-                      borderBottom: isLast ? 'none' : '1px solid var(--color-border)',
-                      cursor: 'pointer', textAlign: 'left', transition: 'background 0.15s', outline: 'none',
-                    }}
-                  >
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '14px', fontWeight: isActive ? 700 : 600, color: isActive ? 'var(--color-primary)' : 'var(--color-text)', lineHeight: 1.4 }}>
-                        {section.label}
-                      </div>
-                      <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {section.description}
-                      </div>
-                    </div>
-                    <ChevronRight size={16} style={{ flexShrink: 0, color: isActive ? 'var(--color-primary)' : 'var(--color-border)', strokeWidth: isActive ? 2.5 : 1.5 }} />
-                  </button>
-                );
-              })}
+        {/* ── Levels section ─────────────────────────────────────────── */}
+        {activeSection === 'levels' && (
+          <div>
+            {filteredLevels.length === 0 ? (
+              <div style={{ padding: '48px', textAlign: 'center' }}>
+                <Layers size={32} color="var(--color-text-muted)" style={{ margin: '0 auto 12px' }} />
+                <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '6px' }}>No levels found</div>
+                <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '20px' }}>Add a level to define the hierarchy for your picklists.</div>
+                <button type="button" onClick={openLevelForCreate} style={btnPrimary}><Plus size={13} />Add Level</button>
+              </div>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: 'var(--color-surface-subtle)' }}>
+                    {['Seq', 'Picklist Name', 'Display Name', 'Config', 'Multi-Parent', 'Value Reuse', ''].map((h) => (
+                      <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', borderBottom: '1px solid var(--color-border)' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredLevels.map((lv) => {
+                    const cfg = configs.find((c) => c.id === lv.configId);
+                    return (
+                      <tr key={lv.id} onClick={() => { setPreviewLevel(lv); setLevelPreviewOpen(true); }}
+                        style={{ cursor: 'pointer', borderBottom: '1px solid var(--color-border)', transition: 'background 0.12s' }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-surface-subtle)')}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = '')}>
+                        <td style={{ padding: '9px 12px', textAlign: 'center' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '24px', height: '24px', borderRadius: '6px', background: '#EFF6FF', color: '#1D4ED8', fontSize: '12px', fontWeight: 700 }}>{lv.levelSequence}</span>
+                        </td>
+                        <td style={{ padding: '9px 12px', fontSize: '13px', fontWeight: 600 }}>{lv.picklistName}</td>
+                        <td style={{ padding: '9px 12px', fontSize: '12px', color: 'var(--color-text-muted)' }}>{lv.displayName}</td>
+                        <td style={{ padding: '9px 12px', fontSize: '12px', color: 'var(--color-text-muted)' }}>{cfg?.name || lv.configId}</td>
+                        <td style={{ padding: '9px 12px' }}><FlagPill on={lv.allowMultipleParentMapping} /></td>
+                        <td style={{ padding: '9px 12px' }}><FlagPill on={lv.allowValueReuse} /></td>
+                        <td style={{ padding: '9px 12px', textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
+                          <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
+                            <ActionBtn onClick={() => { setPreviewLevel(lv); setLevelPreviewOpen(true); }} title="Preview"><Eye size={13} /></ActionBtn>
+                            <ActionBtn onClick={() => openLevelForEdit(lv)} title="Edit"><Edit2 size={13} /></ActionBtn>
+                            <ActionBtn onClick={() => deleteLevel(lv.id)} title="Delete" danger><Trash2 size={13} /></ActionBtn>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+            <div style={{ padding: '8px 12px', borderTop: '1px solid var(--color-border)', background: 'var(--color-surface-subtle)', fontSize: '11px', color: 'var(--color-text-muted)', textAlign: 'right' }}>
+              {filteredLevels.length} level(s)
             </div>
-          </aside>
+          </div>
+        )}
 
-          {/* Right content */}
-          <main style={{ flex: 1, overflowY: 'auto' }}>
-
-            {/* ──────── SECTION 1: Picklist Configuration ──────── */}
-            {activeSection === 'config' && (
-              <div>
-                <div style={{ background: 'var(--color-surface)', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-                  <div>
-                    <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text)', letterSpacing: '-0.01em' }}>Picklist Configuration</div>
-                    <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Define picklist types and their configuration rules.</div>
-                  </div>
-                  <button type="button" onClick={openConfigForCreate} style={{ ...btnPrimary, flexShrink: 0 }}>
-                    <Plus size={13} />New Configuration
-                  </button>
-                </div>
-
-                {configs.length === 0 ? (
-                  <div style={{ padding: '64px 28px', textAlign: 'center' }}>
-                    <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text)', marginBottom: '6px' }}>No configurations yet</div>
-                    <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', maxWidth: '300px', margin: '0 auto 24px', lineHeight: 1.6 }}>
-                      Create a picklist configuration to define its type and structure.
-                    </div>
-                    <button type="button" onClick={openConfigForCreate} style={btnPrimary}>
-                      <Plus size={13} />Create First Configuration
-                    </button>
-                  </div>
-                ) : (
-                  <div style={{ background: 'var(--color-surface)', margin: '20px 24px', border: '1px solid var(--color-border)', borderRadius: '12px', overflow: 'hidden' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 210px 90px 80px', alignItems: 'center', padding: '10px 20px', background: 'var(--color-surface-subtle)', borderBottom: '1.5px solid var(--color-border)' }}>
-                      {(['Code', 'Configuration Name', 'Type', 'Status', 'Actions'] as const).map((label, i) => (
-                        <div key={label} style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text)', textAlign: i === 4 ? 'right' : 'left' }}>{label}</div>
-                      ))}
-                    </div>
-                    {configs.map((entry, idx) => {
-                      const tc = getConfigTypeColor(entry.configurationType);
-                      return (
-                        <div
-                          key={entry.id}
-                          style={{ display: 'grid', gridTemplateColumns: '110px 1fr 210px 90px 80px', alignItems: 'center', padding: '14px 20px', borderBottom: idx < configs.length - 1 ? '1px solid var(--color-border)' : 'none', transition: 'background 0.1s', cursor: 'default' }}
-                          onMouseEnter={(e) => { e.currentTarget.style.background = '#F8FAFC'; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-                        >
-                          <div>
-                            <span style={{ fontFamily: 'monospace', fontSize: '13px', fontWeight: 700, color: 'var(--color-primary)' }}>{entry.code}</span>
-                          </div>
-                          <div style={{ minWidth: 0, paddingRight: '16px' }}>
-                            <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.name}</div>
-                            {entry.displayName !== entry.name && (
-                              <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.displayName}</div>
-                            )}
-                          </div>
-                          <div>
-                            <span style={{ display: 'inline-block', fontSize: '11px', fontWeight: 700, padding: '4px 10px', borderRadius: '6px', background: tc.bg, color: tc.text, letterSpacing: '0.02em', whiteSpace: 'nowrap' }}>
-                              {entry.configurationType.toUpperCase()}
-                            </span>
-                          </div>
-                          <div>
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, padding: '4px 12px', borderRadius: '9999px', background: entry.isActive ? '#DCFCE7' : '#F1F5F9', color: entry.isActive ? '#15803D' : '#64748B' }}>
-                              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: entry.isActive ? '#16A34A' : '#94A3B8', flexShrink: 0 }} />
-                              {entry.isActive ? 'Active' : 'Inactive'}
-                            </span>
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '2px', justifyContent: 'flex-end' }}>
-                            <ActionBtn onClick={() => openConfigForEdit(entry)} title="Edit"><Edit2 size={14} /></ActionBtn>
-                            <ActionBtn onClick={() => deleteConfig(entry.id)} title="Delete" danger><Trash2 size={14} /></ActionBtn>
-                          </div>
-                        </div>
-                      );
-                    })}
-                    <div style={{ padding: '10px 20px', borderTop: '1px solid var(--color-border)', background: 'var(--color-surface-subtle)', display: 'flex', justifyContent: 'flex-end' }}>
-                      <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                        Showing <strong style={{ color: 'var(--color-text)', fontWeight: 600 }}>1–{configs.length}</strong> of <strong style={{ color: 'var(--color-text)', fontWeight: 600 }}>{configs.length}</strong> {configs.length === 1 ? 'record' : 'records'}
-                      </span>
-                    </div>
-                  </div>
-                )}
+        {/* ── Values section ─────────────────────────────────────────── */}
+        {activeSection === 'values' && (
+          <div>
+            {filteredValues.length === 0 ? (
+              <div style={{ padding: '48px', textAlign: 'center' }}>
+                <ClipboardCheck size={32} color="var(--color-text-muted)" style={{ margin: '0 auto 12px' }} />
+                <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '6px' }}>No values found</div>
+                <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '20px' }}>Add values to populate your picklist levels.</div>
+                <button type="button" onClick={openValueForCreate} style={btnPrimary}><Plus size={13} />Add Value</button>
               </div>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: 'var(--color-surface-subtle)' }}>
+                    {['Code', 'Name', 'Display Name', 'Config', 'Level', 'Seq', 'Default', 'Status', ''].map((h) => (
+                      <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', borderBottom: '1px solid var(--color-border)' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredValues.map((vl) => {
+                    const cfg = configs.find((c) => c.id === vl.configId);
+                    const lvl = levels.find((l) => l.id === vl.levelId);
+                    return (
+                      <tr key={vl.id} onClick={() => { setPreviewValue(vl); setValuePreviewOpen(true); }}
+                        style={{ cursor: 'pointer', borderBottom: '1px solid var(--color-border)', transition: 'background 0.12s' }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-surface-subtle)')}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = '')}>
+                        <td style={{ padding: '9px 12px', fontSize: '12px', fontFamily: 'monospace', color: 'var(--color-primary)', fontWeight: 700 }}>{vl.code}</td>
+                        <td style={{ padding: '9px 12px', fontSize: '13px', fontWeight: 600 }}>{vl.name}</td>
+                        <td style={{ padding: '9px 12px', fontSize: '12px', color: 'var(--color-text-muted)' }}>{vl.displayName}</td>
+                        <td style={{ padding: '9px 12px', fontSize: '12px', color: 'var(--color-text-muted)' }}>{cfg?.name || vl.configId}</td>
+                        <td style={{ padding: '9px 12px', fontSize: '12px', color: 'var(--color-text-muted)' }}>{lvl?.picklistName || vl.levelId}</td>
+                        <td style={{ padding: '9px 12px', fontSize: '12px', textAlign: 'center' }}>{vl.displaySequence || '—'}</td>
+                        <td style={{ padding: '9px 12px', fontSize: '12px', color: vl.isDefault ? '#D97706' : 'var(--color-text-muted)' }}>{vl.isDefault ? 'Yes' : 'No'}</td>
+                        <td style={{ padding: '9px 12px' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: 500, color: vl.isActive ? '#15803D' : 'var(--color-text-muted)' }}>
+                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: vl.isActive ? '#16A34A' : '#94A3B8' }} />
+                            {vl.isActive ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '9px 12px', textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
+                          <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
+                            <ActionBtn onClick={() => { setPreviewValue(vl); setValuePreviewOpen(true); }} title="Preview"><Eye size={13} /></ActionBtn>
+                            <ActionBtn onClick={() => openValueForEdit(vl)} title="Edit"><Edit2 size={13} /></ActionBtn>
+                            <ActionBtn onClick={() => deleteValue(vl.id)} title="Delete" danger><Trash2 size={13} /></ActionBtn>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             )}
+            <div style={{ padding: '8px 12px', borderTop: '1px solid var(--color-border)', background: 'var(--color-surface-subtle)', fontSize: '11px', color: 'var(--color-text-muted)', textAlign: 'right' }}>
+              {filteredValues.length} value(s)
+            </div>
+          </div>
+        )}
 
-            {/* ──────── SECTION 2: Picklist Levels ──────── */}
-            {activeSection === 'levels' && (
-              <div>
-                <div style={{ background: 'var(--color-surface)', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-                  <div>
-                    <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text)', letterSpacing: '-0.01em' }}>Picklist Levels</div>
-                    <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Configure hierarchy levels for dependent picklists.</div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <select value={levelConfigFilter} onChange={(e) => setLevelConfigFilter(e.target.value)} style={filterSelectStyle}>
-                      <option value="">All Configurations</option>
-                      {dependentConfigs.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
-                    <button type="button" onClick={openLevelForCreate} style={{ ...btnPrimary, flexShrink: 0 }}>
-                      <Plus size={13} />Add Level
-                    </button>
-                  </div>
-                </div>
 
-                {dependentConfigs.length === 0 && (
-                  <div style={{ margin: '20px 24px', padding: '16px 20px', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '12px', display: 'flex', gap: '10px' }}>
-                    <span style={{ fontSize: '18px', lineHeight: 1, flexShrink: 0 }}>ℹ️</span>
-                    <div>
-                      <div style={{ fontSize: '13px', fontWeight: 600, color: '#92400E', marginBottom: '2px' }}>No dependent configurations</div>
-                      <div style={{ fontSize: '12px', color: '#78350F', lineHeight: 1.5 }}>Levels apply only to Dependent and Multi-Level Dependent picklists. Add a configuration of those types first.</div>
-                    </div>
-                  </div>
-                )}
-
-                {filteredLevels.length === 0 && dependentConfigs.length > 0 ? (
-                  <div style={{ padding: '64px 28px', textAlign: 'center' }}>
-                    <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text)', marginBottom: '6px' }}>No levels configured yet</div>
-                    <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', maxWidth: '300px', margin: '0 auto 24px', lineHeight: 1.6 }}>
-                      Add levels to define the hierarchy structure of your dependent picklist.
-                    </div>
-                    <button type="button" onClick={openLevelForCreate} style={btnPrimary}><Plus size={13} />Add First Level</button>
-                  </div>
-                ) : filteredLevels.length > 0 ? (
-                  <div style={{ background: 'var(--color-surface)', margin: '20px 24px', border: '1px solid var(--color-border)', borderRadius: '12px', overflow: 'hidden' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '52px 1fr 1fr 70px 120px 110px 70px', alignItems: 'center', padding: '10px 20px', background: 'var(--color-surface-subtle)', borderBottom: '1.5px solid var(--color-border)' }}>
-                      {(['Seq', 'Picklist Name', 'Display Name', 'Root', 'Multi-Parent', 'Value Reuse', 'Actions'] as const).map((label, i) => (
-                        <div key={label} style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text)', textAlign: i === 6 ? 'right' : 'left' }}>{label}</div>
-                      ))}
-                    </div>
-                    {filteredLevels.map((level, idx) => {
-                      const isRoot = level.levelSequence === '1' || level.parentLevelId === '';
-                      const parentLvl = levels.find((l) => l.id === level.parentLevelId);
-                      const cfgObj = configs.find((c) => c.id === level.configId);
-                      return (
-                        <div
-                          key={level.id}
-                          style={{ display: 'grid', gridTemplateColumns: '52px 1fr 1fr 70px 120px 110px 70px', alignItems: 'center', padding: '14px 20px', borderBottom: idx < filteredLevels.length - 1 ? '1px solid var(--color-border)' : 'none', transition: 'background 0.1s', cursor: 'default' }}
-                          onMouseEnter={(e) => { e.currentTarget.style.background = '#F8FAFC'; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-                        >
-                          <div>
-                            <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', borderRadius: '8px', background: '#EFF6FF', color: '#1D4ED8', fontSize: '13px', fontWeight: 700 }}>{level.levelSequence}</span>
-                          </div>
-                          <div style={{ minWidth: 0, paddingRight: '12px' }}>
-                            <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{level.picklistName}</div>
-                            {cfgObj && <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>{cfgObj.name}</div>}
-                          </div>
-                          <div style={{ fontSize: '13px', color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '8px' }}>{level.displayName || '—'}</div>
-                          <div>
-                            {isRoot
-                              ? <span style={{ display: 'inline-block', fontSize: '10px', fontWeight: 700, padding: '3px 8px', borderRadius: '5px', background: '#F0FDF4', color: '#15803D' }}>ROOT</span>
-                              : <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>↳ {parentLvl?.picklistName ?? '—'}</span>}
-                          </div>
-                          <div><FlagPill on={level.allowMultipleParentMapping} /></div>
-                          <div><FlagPill on={level.allowValueReuse} /></div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '2px', justifyContent: 'flex-end' }}>
-                            <ActionBtn onClick={() => openLevelForEdit(level)} title="Edit"><Edit2 size={14} /></ActionBtn>
-                            <ActionBtn onClick={() => deleteLevel(level.id)} title="Delete" danger><Trash2 size={14} /></ActionBtn>
-                          </div>
-                        </div>
-                      );
-                    })}
-                    <div style={{ padding: '10px 20px', borderTop: '1px solid var(--color-border)', background: 'var(--color-surface-subtle)', display: 'flex', justifyContent: 'flex-end' }}>
-                      <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                        Showing <strong style={{ color: 'var(--color-text)', fontWeight: 600 }}>1–{filteredLevels.length}</strong> of <strong style={{ color: 'var(--color-text)', fontWeight: 600 }}>{filteredLevels.length}</strong> {filteredLevels.length === 1 ? 'record' : 'records'}
-                      </span>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            )}
-
-            {/* ──────── SECTION 3: Picklist Values ──────── */}
-            {activeSection === 'values' && (
-              <div>
-                <div style={{ background: 'var(--color-surface)', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-                  <div>
-                    <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text)', letterSpacing: '-0.01em' }}>Picklist Values</div>
-                    <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Add and manage dropdown values for each picklist level.</div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <select value={valueConfigFilter} onChange={(e) => { setValueConfigFilter(e.target.value); setValueLevelFilter(''); }} style={filterSelectStyle}>
-                      <option value="">All Configurations</option>
-                      {configs.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
-                    {valueConfigFilter && configs.find((c) => c.id === valueConfigFilter)?.configurationType !== 'Independent' && (
-                      <select value={valueLevelFilter} onChange={(e) => setValueLevelFilter(e.target.value)} style={filterSelectStyle}>
-                        <option value="">All Levels</option>
-                        {levels
-                          .filter((l) => l.configId === valueConfigFilter)
-                          .sort((a, b) => parseInt(a.levelSequence) - parseInt(b.levelSequence))
-                          .map((l) => <option key={l.id} value={l.id}>{l.picklistName}</option>)}
-                      </select>
-                    )}
-                    <button type="button" onClick={openValueForCreate} style={{ ...btnPrimary, flexShrink: 0 }}>
-                      <Plus size={13} />Add Value
-                    </button>
-                  </div>
-                </div>
-
-                {filteredValues.length === 0 ? (
-                  <div style={{ padding: '64px 28px', textAlign: 'center' }}>
-                    <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text)', marginBottom: '6px' }}>No values added yet</div>
-                    <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', maxWidth: '300px', margin: '0 auto 24px', lineHeight: 1.6 }}>
-                      Add values for your picklist to use in dropdown fields across the system.
-                    </div>
-                    <button type="button" onClick={openValueForCreate} style={btnPrimary}><Plus size={13} />Add First Value</button>
-                  </div>
-                ) : (
-                  <div style={{ background: 'var(--color-surface)', margin: '20px 24px', border: '1px solid var(--color-border)', borderRadius: '12px', overflow: 'hidden' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 1fr 60px 80px 90px 70px', alignItems: 'center', padding: '10px 20px', background: 'var(--color-surface-subtle)', borderBottom: '1.5px solid var(--color-border)' }}>
-                      {(['Code', 'Name', 'Display Name', 'Seq', 'Default', 'Status', 'Actions'] as const).map((label, i) => (
-                        <div key={label} style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text)', textAlign: i === 6 ? 'right' : 'left' }}>{label}</div>
-                      ))}
-                    </div>
-                    {filteredValues.map((val, idx) => {
-                      const lvlObj = val.levelId !== 'DEFAULT' ? levels.find((l) => l.id === val.levelId) : null;
-                      const cfgObj = configs.find((c) => c.id === val.configId);
-                      return (
-                        <div
-                          key={val.id}
-                          style={{ display: 'grid', gridTemplateColumns: '110px 1fr 1fr 60px 80px 90px 70px', alignItems: 'center', padding: '14px 20px', borderBottom: idx < filteredValues.length - 1 ? '1px solid var(--color-border)' : 'none', transition: 'background 0.1s', cursor: 'default' }}
-                          onMouseEnter={(e) => { e.currentTarget.style.background = '#F8FAFC'; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-                        >
-                          <div>
-                            <span style={{ fontFamily: 'monospace', fontSize: '12px', fontWeight: 700, color: 'var(--color-primary)' }}>{val.code}</span>
-                            <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', marginTop: '1px' }}>{lvlObj?.picklistName ?? cfgObj?.name ?? ''}</div>
-                          </div>
-                          <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '8px' }}>{val.name}</div>
-                          <div style={{ fontSize: '13px', color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '8px' }}>{val.displayName}</div>
-                          <div style={{ fontSize: '13px', color: 'var(--color-text)' }}>{val.displaySequence || '—'}</div>
-                          <div>
-                            {val.isDefault
-                              ? <span style={{ display: 'inline-block', fontSize: '10px', fontWeight: 700, padding: '3px 8px', borderRadius: '5px', background: '#FEF9C3', color: '#A16207' }}>DEFAULT</span>
-                              : <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>—</span>}
-                          </div>
-                          <div>
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: 600, padding: '3px 10px', borderRadius: '9999px', background: val.isActive ? '#DCFCE7' : '#F1F5F9', color: val.isActive ? '#15803D' : '#64748B' }}>
-                              <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: val.isActive ? '#16A34A' : '#94A3B8', flexShrink: 0 }} />
-                              {val.isActive ? 'Active' : 'Inactive'}
-                            </span>
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '2px', justifyContent: 'flex-end' }}>
-                            <ActionBtn onClick={() => openValueForEdit(val)} title="Edit"><Edit2 size={14} /></ActionBtn>
-                            <ActionBtn onClick={() => deleteValue(val.id)} title="Delete" danger><Trash2 size={14} /></ActionBtn>
-                          </div>
-                        </div>
-                      );
-                    })}
-                    <div style={{ padding: '10px 20px', borderTop: '1px solid var(--color-border)', background: 'var(--color-surface-subtle)', display: 'flex', justifyContent: 'flex-end' }}>
-                      <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                        Showing <strong style={{ color: 'var(--color-text)', fontWeight: 600 }}>1–{filteredValues.length}</strong> of <strong style={{ color: 'var(--color-text)', fontWeight: 600 }}>{filteredValues.length}</strong> {filteredValues.length === 1 ? 'record' : 'records'}
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* ──────── SECTION 4: Dependency Mapping ──────── */}
-            {activeSection === 'mapping' && (
-              <div>
-                <div style={{ background: 'var(--color-surface)', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-                  <div>
-                    <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text)', letterSpacing: '-0.01em' }}>Dependency Mapping</div>
-                    <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Map parent values to their corresponding child values.</div>
-                  </div>
-                  <select
-                    value={mappingConfigFilter}
-                    onChange={(e) => { setMappingConfigFilter(e.target.value); setMappingParentLevelId(''); setMappingParentValueId(''); }}
-                    style={filterSelectStyle}
-                  >
-                    <option value="">Select Configuration</option>
-                    {dependentConfigs.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                </div>
+        {/* ── Mapping section ─────────────────────────────────────────── */}
+        {activeSection === 'mapping' && (
+          <div>
 
                 {!mappingConfigFilter && (
                   <div style={{ margin: '20px 24px', padding: '24px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px', textAlign: 'center' }}>
@@ -839,53 +858,198 @@ const PicklistMasterPage: React.FC = () => {
 
                   </div>
                 )}
+          </div>
+        )}
+
+        {/* ── Review section ─────────────────────────────────────────── */}
+        {activeSection === 'review' && (
+          <div style={{ padding: '8px 0' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '20px' }}>
+              {summaryItems.map((s) => (
+                <div key={s.label} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '10px', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--color-primary)' }}>{s.value}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '10px', padding: '16px', marginBottom: '16px' }}>
+              <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '12px' }}>Readiness Checklist</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {reviewChecklist.map((item) => (
+                  <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {item.passed ? <CheckCircle2 size={14} color="#16a34a" /> : <AlertCircle size={14} color="#D97706" />}
+                    <span style={{ fontSize: '13px' }}>{item.label}</span>
+                    <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginLeft: 'auto' }}>{item.detail}</span>
+                  </div>
+                ))}
               </div>
-            )}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button type="button" style={btnPrimary} onClick={() => setReviewDrawerOpen(true)}>
+                <ClipboardCheck size={13} />Review &amp; Activate
+              </button>
+            </div>
+          </div>
+        )}
 
-          </main>
-        </div>
-      </div>
+        {/* ── SmartPreviewDrawer — Config ──────────────────────────────── */}
+        <SmartPreviewDrawer
+          open={configPreviewOpen}
+          onClose={() => setConfigPreviewOpen(false)}
+          title={previewConfig?.name ?? ''}
+          subtitle={previewConfig?.code}
+          statusLabel={previewConfig?.isActive ? 'Active' : 'Inactive'}
+          statusTone={previewConfig?.isActive ? 'active' : 'inactive'}
+          sections={configPreviewSections}
+          primaryAction={{ label: 'Edit', onClick: () => { setConfigPreviewOpen(false); if (previewConfig) openConfigForEdit(previewConfig); } }}
+          dangerAction={{ label: 'Delete', onClick: () => { if (previewConfig) { deleteConfig(previewConfig.id); setConfigPreviewOpen(false); } } }}
+        />
 
-      {/* ── Config Drawer ── */}
-      {configDrawerOpen && (
-        <ConfigDrawer
-          visible={configDrawerVisible}
-          isEdit={!!editingConfig}
-          formData={configForm}
-          onClose={closeConfigDrawer}
-          onChangeField={(f, v) => setConfigForm((prev) => ({ ...prev, [f]: v } as Omit<PicklistConfig, 'id'>))}
+        {/* ── SmartPreviewDrawer — Level ───────────────────────────────── */}
+        <SmartPreviewDrawer
+          open={levelPreviewOpen}
+          onClose={() => setLevelPreviewOpen(false)}
+          title={previewLevel?.picklistName ?? ''}
+          subtitle={`Sequence: ${previewLevel?.levelSequence ?? ''}`}
+          sections={levelPreviewSections}
+          primaryAction={{ label: 'Edit', onClick: () => { setLevelPreviewOpen(false); if (previewLevel) openLevelForEdit(previewLevel); } }}
+          dangerAction={{ label: 'Delete', onClick: () => { if (previewLevel) { deleteLevel(previewLevel.id); setLevelPreviewOpen(false); } } }}
+        />
+
+        {/* ── SmartPreviewDrawer — Value ───────────────────────────────── */}
+        <SmartPreviewDrawer
+          open={valuePreviewOpen}
+          onClose={() => setValuePreviewOpen(false)}
+          title={previewValue?.name ?? ''}
+          subtitle={previewValue?.code}
+          statusLabel={previewValue?.isActive ? 'Active' : 'Inactive'}
+          statusTone={previewValue?.isActive ? 'active' : 'inactive'}
+          sections={valuePreviewSections}
+          primaryAction={{ label: 'Edit', onClick: () => { setValuePreviewOpen(false); if (previewValue) openValueForEdit(previewValue); } }}
+          dangerAction={{ label: 'Delete', onClick: () => { if (previewValue) { deleteValue(previewValue.id); setValuePreviewOpen(false); } } }}
+        />
+
+        {/* ── SmartFormDrawer — Config ─────────────────────────────────── */}
+        <SmartFormDrawer
+          open={configFormOpen}
+          onClose={() => setConfigFormOpen(false)}
+          title={editingConfig ? 'Edit Configuration' : 'Add Configuration'}
+          subtitle="Define a picklist type and its settings"
           onSave={saveConfig}
-        />
-      )}
+          saveDisabled={!configForm.name || !configForm.configurationType}
+        >
+          <DField label="Name" required>
+            <DrawerInput value={configForm.name} onChange={(v) => setConfigForm((f) => ({ ...f, name: v }))} placeholder="e.g. Region Type" />
+          </DField>
+          <DField label="Display Name" required mt>
+            <DrawerInput value={configForm.displayName} onChange={(v) => setConfigForm((f) => ({ ...f, displayName: v }))} placeholder="e.g. Region / Type" />
+          </DField>
+          <DField label="Configuration Type" required mt>
+            <select value={configForm.configurationType} onChange={(e) => setConfigForm((f) => ({ ...f, configurationType: e.target.value as PicklistConfig['configurationType'] }))} style={{ ...drawerInputBase, cursor: 'pointer' }}>
+              <option value="">— Select —</option>
+              {(['Independent', 'Dependent', 'Multi-Level Dependent'] as const).map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </DField>
+          <DField label="Description" mt>
+            <DrawerInput value={configForm.description} onChange={(v) => setConfigForm((f) => ({ ...f, description: v }))} placeholder="Optional description" />
+          </DField>
+          <DField label="Active" mt>
+            <Toggle checked={configForm.isActive} onChange={(v) => setConfigForm((f) => ({ ...f, isActive: v }))} />
+          </DField>
+        </SmartFormDrawer>
 
-      {/* ── Level Drawer ── */}
-      {levelDrawerOpen && (
-        <LevelDrawer
-          visible={levelDrawerVisible}
-          isEdit={!!editingLevel}
-          formData={levelForm}
-          configs={dependentConfigs}
-          levels={levels}
-          onClose={closeLevelDrawer}
-          onChangeField={(f, v) => setLevelForm((prev) => ({ ...prev, [f]: v } as Omit<PicklistLevel, 'id'>))}
+        {/* ── SmartFormDrawer — Level ──────────────────────────────────── */}
+        <SmartFormDrawer
+          open={levelFormOpen}
+          onClose={() => setLevelFormOpen(false)}
+          title={editingLevel ? 'Edit Level' : 'Add Level'}
+          subtitle="Define a hierarchy level for a picklist"
           onSave={saveLevel}
-        />
-      )}
+          saveDisabled={!levelForm.picklistName || !levelForm.levelSequence || !levelForm.configId}
+        >
+          <DField label="Picklist Name" required>
+            <DrawerInput value={levelForm.picklistName} onChange={(v) => setLevelForm((f) => ({ ...f, picklistName: v }))} placeholder="e.g. Country" />
+          </DField>
+          <DField label="Display Name" mt>
+            <DrawerInput value={levelForm.displayName} onChange={(v) => setLevelForm((f) => ({ ...f, displayName: v }))} placeholder="e.g. Country" />
+          </DField>
+          <DField label="Config" required mt>
+            <select value={levelForm.configId} onChange={(e) => setLevelForm((f) => ({ ...f, configId: e.target.value }))} style={{ ...drawerInputBase, cursor: 'pointer' }}>
+              <option value="">— Select —</option>
+              {configs.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </DField>
+          <DField label="Level Sequence" required mt>
+            <DrawerInput value={levelForm.levelSequence} onChange={(v) => setLevelForm((f) => ({ ...f, levelSequence: v }))} placeholder="1" />
+          </DField>
+          <DField label="Allow Multi-Parent Mapping" mt>
+            <Toggle checked={levelForm.allowMultipleParentMapping} onChange={(v) => setLevelForm((f) => ({ ...f, allowMultipleParentMapping: v }))} />
+          </DField>
+          <DField label="Allow Value Reuse" mt>
+            <Toggle checked={levelForm.allowValueReuse} onChange={(v) => setLevelForm((f) => ({ ...f, allowValueReuse: v }))} />
+          </DField>
+        </SmartFormDrawer>
 
-      {/* ── Value Drawer ── */}
-      {valueDrawerOpen && (
-        <ValueDrawer
-          visible={valueDrawerVisible}
-          isEdit={!!editingValue}
-          formData={valueForm}
-          configs={configs}
-          levels={levels}
-          onClose={closeValueDrawer}
-          onChangeField={(f, v) => setValueForm((prev) => ({ ...prev, [f]: v } as Omit<PicklistValue, 'id'>))}
+        {/* ── SmartFormDrawer — Value ──────────────────────────────────── */}
+        <SmartFormDrawer
+          open={valueFormOpen}
+          onClose={() => setValueFormOpen(false)}
+          title={editingValue ? 'Edit Value' : 'Add Value'}
+          subtitle="Add a selectable value to a picklist level"
           onSave={saveValue}
-        />
-      )}
+          saveDisabled={!valueForm.configId || !valueForm.code || !valueForm.name || !valueForm.displayName}
+        >
+          <DField label="Code" required>
+            <DrawerInput value={valueForm.code} onChange={(v) => setValueForm((f) => ({ ...f, code: v }))} placeholder="e.g. IN" />
+          </DField>
+          <DField label="Name" required mt>
+            <DrawerInput value={valueForm.name} onChange={(v) => setValueForm((f) => ({ ...f, name: v }))} placeholder="e.g. India" />
+          </DField>
+          <DField label="Display Name" required mt>
+            <DrawerInput value={valueForm.displayName} onChange={(v) => setValueForm((f) => ({ ...f, displayName: v }))} placeholder="e.g. India" />
+          </DField>
+          <DField label="Config" required mt>
+            <select value={valueForm.configId} onChange={(e) => setValueForm((f) => ({ ...f, configId: e.target.value }))} style={{ ...drawerInputBase, cursor: 'pointer' }}>
+              <option value="">— Select —</option>
+              {configs.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </DField>
+          <DField label="Display Sequence" mt>
+            <DrawerInput value={valueForm.displaySequence} onChange={(v) => setValueForm((f) => ({ ...f, displaySequence: v }))} placeholder="1" />
+          </DField>
+          <DField label="Active" mt>
+            <Toggle checked={valueForm.isActive} onChange={(v) => setValueForm((f) => ({ ...f, isActive: v }))} />
+          </DField>
+          <DField label="Default" mt>
+            <Toggle checked={valueForm.isDefault} onChange={(v) => setValueForm((f) => ({ ...f, isDefault: v }))} />
+          </DField>
+        </SmartFormDrawer>
 
+        {/* ── SmartReviewDrawer ─────────────────────────────────────────── */}
+        <SmartReviewDrawer
+          open={reviewDrawerOpen}
+          onClose={() => setReviewDrawerOpen(false)}
+          title="Activate Picklist"
+          subtitle="Review configuration before activating"
+          description="Once activated, the picklist will be available across all modules that reference it."
+          summaryFields={[
+            { label: 'Configs',  value: String(configs.length)  },
+            { label: 'Levels',   value: String(levels.length)   },
+            { label: 'Values',   value: String(values.length)   },
+            { label: 'Mappings', value: String(mappings.length) },
+          ]}
+          checklist={reviewChecklist}
+          warningText="Activating this picklist will make it visible in all dependent modules."
+          confirmLabel="Activate Picklist"
+          confirmDisabled={reviewChecklist.some((c) => !c.passed)}
+          onConfirm={() => { setReviewDrawerOpen(false); }}
+        />
+
+        {/* ── Help Drawer ───────────────────────────────────────────────── */}
+        {picklistHelpTopic && (
+          <HelpDrawer open={helpOpen} topic={picklistHelpTopic} onClose={() => setHelpOpen(false)} onTopicChange={(id) => setHelpTopicId(id)} />
+        )}
+      </AdminListPageShell>
     </AdminShell>
   );
 };
@@ -925,17 +1089,6 @@ const drawerInputBase: React.CSSProperties = {
 interface DrawerInputProps { value: string; onChange: (v: string) => void; placeholder?: string; }
 const DrawerInput: React.FC<DrawerInputProps> = ({ value, onChange, placeholder }) => (
   <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} style={drawerInputBase} />
-);
-
-interface DrawerSelectProps { value: string; onChange: (v: string) => void; options: string[]; }
-const DrawerSelect: React.FC<DrawerSelectProps> = ({ value, onChange, options }) => (
-  <div style={{ position: 'relative' }}>
-    <select value={value} onChange={(e) => onChange(e.target.value)} style={{ ...drawerInputBase, cursor: 'pointer', appearance: 'none', WebkitAppearance: 'none', paddingRight: '38px' }}>
-      <option value="">— Select —</option>
-      {options.map((o) => <option key={o} value={o}>{o}</option>)}
-    </select>
-    <ChevronSvg />
-  </div>
 );
 
 // Reusable SVG chevron for selects
@@ -992,323 +1145,3 @@ const ActionBtn: React.FC<ActionBtnProps> = ({ onClick, title, danger, children 
   </button>
 );
 
-// ─── ConfigDrawer ─────────────────────────────────────────────────────────────
-
-interface ConfigDrawerProps {
-  visible: boolean; isEdit: boolean; formData: Omit<PicklistConfig, 'id'>;
-  onClose: () => void;
-  onChangeField: (f: keyof Omit<PicklistConfig, 'id'>, v: string | boolean) => void;
-  onSave: () => void;
-}
-const ConfigDrawer: React.FC<ConfigDrawerProps> = ({ visible, isEdit, formData, onClose, onChangeField, onSave }) => {
-  const canSave = !!formData.name && !!formData.configurationType;
-  const subHead: React.CSSProperties = { fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '14px' };
-  return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 1200 }}>
-      <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: `rgba(0,0,0,${visible ? 0.35 : 0})`, transition: 'background 0.25s ease' }} />
-      <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '500px', background: 'var(--color-surface-subtle)', borderLeft: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', transform: visible ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.25s ease', boxShadow: '-4px 0 24px rgba(0,0,0,0.12)' }}>
-        <div style={{ flexShrink: 0, background: 'var(--color-surface)', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', height: '52px', padding: '0 4px' }}>
-          <button type="button" onClick={onClose} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-text)', flexShrink: 0, borderRadius: '8px' }}><ArrowLeft size={20} strokeWidth={2} /></button>
-          <span style={{ flex: 1, fontSize: '15px', fontWeight: 600, color: 'var(--color-text)', paddingLeft: '4px' }}>{isEdit ? 'Edit Picklist Configuration' : 'New Picklist Configuration'}</span>
-          <button type="button" onClick={onClose} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-muted)', flexShrink: 0, borderRadius: '8px' }}><X size={16} /></button>
-        </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
-
-          {/* Identity Card */}
-          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px', padding: '20px', marginBottom: '12px' }}>
-            <div style={subHead}>Identity</div>
-            <DField label="Configuration Code">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', background: 'var(--color-surface-subtle)', border: '1px solid var(--color-border)', borderRadius: '10px' }}>
-                <span style={{ fontSize: '11px', padding: '1px 7px', borderRadius: '4px', background: '#EFF6FF', color: '#1D4ED8', fontWeight: 600, flexShrink: 0 }}>AUTO</span>
-                <span style={{ fontSize: '13px', color: formData.code ? 'var(--color-text)' : 'var(--color-text-muted)', fontFamily: formData.code ? 'monospace' : undefined }}>{formData.code || 'System generated'}</span>
-              </div>
-            </DField>
-            <DField label="Name" required mt>
-              <DrawerInput value={formData.name} onChange={(v) => onChangeField('name', v)} placeholder="e.g. Country, Region District" />
-            </DField>
-            <DField label="Display Name" required mt>
-              <DrawerInput value={formData.displayName} onChange={(v) => onChangeField('displayName', v)} placeholder="e.g. Country / Region" />
-            </DField>
-            <DField label="Description" mt>
-              <textarea value={formData.description} onChange={(e) => onChangeField('description', e.target.value)} placeholder="Briefly describe this picklist configuration…" rows={2} style={{ ...drawerInputBase, resize: 'none', lineHeight: 1.5 }} />
-            </DField>
-          </div>
-
-          {/* Configuration Card */}
-          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px', padding: '20px', marginBottom: '12px' }}>
-            <div style={subHead}>Configuration</div>
-            <DField label="Configuration Type" required>
-              <DrawerSelect
-                value={formData.configurationType}
-                onChange={(v) => onChangeField('configurationType', v as PicklistConfig['configurationType'])}
-                options={['Independent', 'Dependent', 'Multi-Level Dependent']}
-              />
-            </DField>
-            <div style={{ marginTop: '14px', padding: '12px 14px', background: 'var(--color-surface-subtle)', borderRadius: '10px', border: '1px solid var(--color-border)' }}>
-              <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text)', marginBottom: '4px' }}>
-                {formData.configurationType === 'Independent' && 'Independent — No hierarchy, simple flat list'}
-                {formData.configurationType === 'Dependent' && 'Dependent — Two-level parent → child hierarchy'}
-                {formData.configurationType === 'Multi-Level Dependent' && 'Multi-Level — Three or more levels of hierarchy'}
-              </div>
-              <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
-                {formData.configurationType === 'Independent' && 'Values are standalone with no parent-child dependency. Levels and Dependency Mapping are not applicable.'}
-                {formData.configurationType === 'Dependent' && 'Child values depend on parent selection. Configure Levels and Dependency Mapping after saving.'}
-                {formData.configurationType === 'Multi-Level Dependent' && 'Supports three or more hierarchy levels, e.g. Country → State → City. Configure all levels and mappings after saving.'}
-              </div>
-            </div>
-          </div>
-
-          {/* Status Card */}
-          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px', padding: '20px', marginBottom: isEdit ? '12px' : '0' }}>
-            <div style={subHead}>Status</div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div>
-                <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-text)' }}>Is Active</div>
-                <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Active configurations can be used in forms and dropdowns</div>
-              </div>
-              <Toggle checked={formData.isActive} onChange={(v) => onChangeField('isActive', v)} activeColor="#16a34a" />
-            </div>
-          </div>
-
-          {/* System Info (edit only) */}
-          {isEdit && (
-            <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px', padding: '20px' }}>
-              <div style={subHead}>System Information</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                <DField label="Created By"><div style={roStyle}>{formData.createdBy || '—'}</div></DField>
-                <DField label="Created Date"><div style={roStyle}>{formData.createdDate || '—'}</div></DField>
-                <DField label="Last Modified By"><div style={roStyle}>{formData.lastModifiedBy || '—'}</div></DField>
-                <DField label="Last Modified Date"><div style={roStyle}>{formData.lastModifiedDate || '—'}</div></DField>
-              </div>
-            </div>
-          )}
-        </div>
-        <div style={{ flexShrink: 0, background: 'var(--color-surface)', borderTop: '1px solid var(--color-border)', padding: '12px 16px' }}>
-          <button type="button" onClick={onSave} disabled={!canSave} style={{ ...btnPrimary, width: '100%', justifyContent: 'center', opacity: canSave ? 1 : 0.5, cursor: canSave ? 'pointer' : 'not-allowed' }}>
-            <Save size={13} />Save
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ─── LevelDrawer ─────────────────────────────────────────────────────────────
-
-interface LevelDrawerProps {
-  visible: boolean; isEdit: boolean; formData: Omit<PicklistLevel, 'id'>;
-  configs: PicklistConfig[]; levels: PicklistLevel[];
-  onClose: () => void;
-  onChangeField: (f: keyof Omit<PicklistLevel, 'id'>, v: string | boolean) => void;
-  onSave: () => void;
-}
-const LevelDrawer: React.FC<LevelDrawerProps> = ({ visible, isEdit, formData, configs, levels, onClose, onChangeField, onSave }) => {
-  const canSave = !!formData.configId && !!formData.picklistName && !!formData.levelSequence;
-  const seq = parseInt(formData.levelSequence || '0', 10);
-  const isRoot = seq <= 1;
-  const existingLevels = levels.filter((l) => l.configId === formData.configId);
-  const subHead: React.CSSProperties = { fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '14px' };
-  return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 1200 }}>
-      <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: `rgba(0,0,0,${visible ? 0.35 : 0})`, transition: 'background 0.25s ease' }} />
-      <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '480px', background: 'var(--color-surface-subtle)', borderLeft: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', transform: visible ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.25s ease', boxShadow: '-4px 0 24px rgba(0,0,0,0.12)' }}>
-        <div style={{ flexShrink: 0, background: 'var(--color-surface)', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', height: '52px', padding: '0 4px' }}>
-          <button type="button" onClick={onClose} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-text)', flexShrink: 0, borderRadius: '8px' }}><ArrowLeft size={20} strokeWidth={2} /></button>
-          <span style={{ flex: 1, fontSize: '15px', fontWeight: 600, color: 'var(--color-text)', paddingLeft: '4px' }}>{isEdit ? 'Edit Picklist Level' : 'New Picklist Level'}</span>
-          <button type="button" onClick={onClose} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-muted)', flexShrink: 0, borderRadius: '8px' }}><X size={16} /></button>
-        </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
-
-          {/* Scope Card */}
-          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px', padding: '20px', marginBottom: '12px' }}>
-            <div style={subHead}>Scope</div>
-            <DField label="Configuration" required>
-              <div style={{ position: 'relative' }}>
-                <select value={formData.configId} onChange={(e) => onChangeField('configId', e.target.value)} style={{ ...drawerInputBase, cursor: 'pointer', appearance: 'none', WebkitAppearance: 'none', paddingRight: '38px' }}>
-                  <option value="">— Select configuration —</option>
-                  {configs.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-                <ChevronSvg />
-              </div>
-            </DField>
-          </div>
-
-          {/* Level Details Card */}
-          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px', padding: '20px', marginBottom: '12px' }}>
-            <div style={subHead}>Level Details</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-              <DField label="Level Sequence" required>
-                <DrawerInput value={formData.levelSequence} onChange={(v) => onChangeField('levelSequence', v)} placeholder="1" />
-              </DField>
-              <DField label="Is Root Level">
-                <div style={roStyle}>
-                  {isRoot
-                    ? <span style={{ fontWeight: 700, color: '#15803D' }}>✓ Root Level</span>
-                    : <span style={{ color: 'var(--color-text-muted)' }}>Not root</span>}
-                </div>
-              </DField>
-            </div>
-
-            {!isRoot && (
-              <DField label="Parent Level" required mt>
-                <div style={{ position: 'relative' }}>
-                  <select value={formData.parentLevelId} onChange={(e) => onChangeField('parentLevelId', e.target.value)} style={{ ...drawerInputBase, cursor: 'pointer', appearance: 'none', WebkitAppearance: 'none', paddingRight: '38px' }}>
-                    <option value="">— Select parent level —</option>
-                    {existingLevels.filter((l) => parseInt(l.levelSequence) < seq).map((l) => (
-                      <option key={l.id} value={l.id}>{l.picklistName} (Seq {l.levelSequence})</option>
-                    ))}
-                  </select>
-                  <ChevronSvg />
-                </div>
-              </DField>
-            )}
-
-            <DField label="Picklist Name" required mt>
-              <DrawerInput value={formData.picklistName} onChange={(v) => onChangeField('picklistName', v)} placeholder="e.g. Region, State, City" />
-            </DField>
-            <DField label="Display Name" mt>
-              <DrawerInput value={formData.displayName} onChange={(v) => onChangeField('displayName', v)} placeholder="e.g. Geographic Region" />
-            </DField>
-          </div>
-
-          {/* Settings Card */}
-          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px', padding: '20px' }}>
-            <div style={subHead}>Settings</div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '16px', borderBottom: '1px solid var(--color-border)', marginBottom: '16px' }}>
-              <div>
-                <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-text)' }}>Allow Multiple Parent Mapping</div>
-                <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>One child value can map to multiple parent values</div>
-              </div>
-              <Toggle checked={formData.allowMultipleParentMapping} onChange={(v) => onChangeField('allowMultipleParentMapping', v)} />
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div>
-                <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-text)' }}>Allow Value Reuse</div>
-                <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Allow duplicate value names within this level</div>
-              </div>
-              <Toggle checked={formData.allowValueReuse} onChange={(v) => onChangeField('allowValueReuse', v)} />
-            </div>
-          </div>
-        </div>
-        <div style={{ flexShrink: 0, background: 'var(--color-surface)', borderTop: '1px solid var(--color-border)', padding: '12px 16px' }}>
-          <button type="button" onClick={onSave} disabled={!canSave} style={{ ...btnPrimary, width: '100%', justifyContent: 'center', opacity: canSave ? 1 : 0.5, cursor: canSave ? 'pointer' : 'not-allowed' }}>
-            <Save size={13} />Save Level
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ─── ValueDrawer ──────────────────────────────────────────────────────────────
-
-interface ValueDrawerProps {
-  visible: boolean; isEdit: boolean; formData: Omit<PicklistValue, 'id'>;
-  configs: PicklistConfig[]; levels: PicklistLevel[];
-  onClose: () => void;
-  onChangeField: (f: keyof Omit<PicklistValue, 'id'>, v: string | boolean) => void;
-  onSave: () => void;
-}
-const ValueDrawer: React.FC<ValueDrawerProps> = ({ visible, isEdit, formData, configs, levels, onClose, onChangeField, onSave }) => {
-  const canSave = !!formData.configId && !!formData.code && !!formData.name && !!formData.displayName;
-  const selectedConfig = configs.find((c) => c.id === formData.configId);
-  const isIndependent = selectedConfig?.configurationType === 'Independent';
-  const configLevels = levels
-    .filter((l) => l.configId === formData.configId)
-    .sort((a, b) => parseInt(a.levelSequence) - parseInt(b.levelSequence));
-  const subHead: React.CSSProperties = { fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '14px' };
-  return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 1200 }}>
-      <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: `rgba(0,0,0,${visible ? 0.35 : 0})`, transition: 'background 0.25s ease' }} />
-      <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '500px', background: 'var(--color-surface-subtle)', borderLeft: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', transform: visible ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.25s ease', boxShadow: '-4px 0 24px rgba(0,0,0,0.12)' }}>
-        <div style={{ flexShrink: 0, background: 'var(--color-surface)', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', height: '52px', padding: '0 4px' }}>
-          <button type="button" onClick={onClose} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-text)', flexShrink: 0, borderRadius: '8px' }}><ArrowLeft size={20} strokeWidth={2} /></button>
-          <span style={{ flex: 1, fontSize: '15px', fontWeight: 600, color: 'var(--color-text)', paddingLeft: '4px' }}>{isEdit ? 'Edit Picklist Value' : 'New Picklist Value'}</span>
-          <button type="button" onClick={onClose} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-muted)', flexShrink: 0, borderRadius: '8px' }}><X size={16} /></button>
-        </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
-
-          {/* Scope Card */}
-          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px', padding: '20px', marginBottom: '12px' }}>
-            <div style={subHead}>Scope</div>
-            <DField label="Configuration" required>
-              <div style={{ position: 'relative' }}>
-                <select
-                  value={formData.configId}
-                  onChange={(e) => { onChangeField('configId', e.target.value); onChangeField('levelId', ''); }}
-                  style={{ ...drawerInputBase, cursor: 'pointer', appearance: 'none', WebkitAppearance: 'none', paddingRight: '38px' }}
-                >
-                  <option value="">— Select configuration —</option>
-                  {configs.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-                <ChevronSvg />
-              </div>
-            </DField>
-            {formData.configId && (
-              <DField label="Picklist Level" required={!isIndependent} mt>
-                {isIndependent ? (
-                  <div style={roStyle}>
-                    <span style={{ fontWeight: 600 }}>{selectedConfig?.name ?? 'Default'}</span>
-                    <span style={{ marginLeft: '8px', fontSize: '11px', color: 'var(--color-text-muted)' }}>(auto-assigned)</span>
-                  </div>
-                ) : (
-                  <div style={{ position: 'relative' }}>
-                    <select value={formData.levelId} onChange={(e) => onChangeField('levelId', e.target.value)} style={{ ...drawerInputBase, cursor: 'pointer', appearance: 'none', WebkitAppearance: 'none', paddingRight: '38px' }}>
-                      <option value="">— Select level —</option>
-                      {configLevels.map((l) => <option key={l.id} value={l.id}>{l.picklistName} (Level {l.levelSequence})</option>)}
-                    </select>
-                    <ChevronSvg />
-                  </div>
-                )}
-              </DField>
-            )}
-          </div>
-
-          {/* Value Details Card */}
-          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px', padding: '20px', marginBottom: '12px' }}>
-            <div style={subHead}>Value Details</div>
-            <DField label="Code" required>
-              <DrawerInput value={formData.code} onChange={(v) => onChangeField('code', v)} placeholder="e.g. INDIA, NORTH, DEL" />
-            </DField>
-            <DField label="Name" required mt>
-              <DrawerInput value={formData.name} onChange={(v) => onChangeField('name', v)} placeholder="e.g. India, North, Delhi" />
-            </DField>
-            <DField label="Display Name" required mt>
-              <DrawerInput value={formData.displayName} onChange={(v) => onChangeField('displayName', v)} placeholder="e.g. India (IN)" />
-            </DField>
-            <DField label="Description" mt>
-              <textarea value={formData.description} onChange={(e) => onChangeField('description', e.target.value)} placeholder="Optional description…" rows={2} style={{ ...drawerInputBase, resize: 'none', lineHeight: 1.5 }} />
-            </DField>
-            <DField label="Display Sequence" mt>
-              <DrawerInput value={formData.displaySequence} onChange={(v) => onChangeField('displaySequence', v)} placeholder="e.g. 1, 2, 3" />
-            </DField>
-          </div>
-
-          {/* Status Card */}
-          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px', padding: '20px' }}>
-            <div style={subHead}>Status & Defaults</div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '16px', borderBottom: '1px solid var(--color-border)', marginBottom: '16px' }}>
-              <div>
-                <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-text)' }}>Is Active</div>
-                <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Inactive values cannot be used in active mappings</div>
-              </div>
-              <Toggle checked={formData.isActive} onChange={(v) => onChangeField('isActive', v)} activeColor="#16a34a" />
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div>
-                <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-text)' }}>Is Default</div>
-                <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Only one default value allowed per level</div>
-              </div>
-              <Toggle checked={formData.isDefault} onChange={(v) => onChangeField('isDefault', v)} activeColor="#D97706" />
-            </div>
-          </div>
-        </div>
-        <div style={{ flexShrink: 0, background: 'var(--color-surface)', borderTop: '1px solid var(--color-border)', padding: '12px 16px' }}>
-          <button type="button" onClick={onSave} disabled={!canSave} style={{ ...btnPrimary, width: '100%', justifyContent: 'center', opacity: canSave ? 1 : 0.5, cursor: canSave ? 'pointer' : 'not-allowed' }}>
-            <Save size={13} />Save Value
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};

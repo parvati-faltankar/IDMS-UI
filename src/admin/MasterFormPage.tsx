@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
-  ChevronRight,
   Save,
   X,
 } from 'lucide-react';
 import AdminShell from './AdminShell';
 import { findGroupForMasterKey, findMasterByKey } from './adminNavConfig';
 import { cn } from '../utils/classNames';
+import { AdminPageShell } from '../experience/components/AdminPageShell';
+import { HelpDrawer } from '../experience/components/HelpDrawer';
+import { getHelpTopic } from '../experience/help/helpTopics';
 
 // ─── Form tabs config ─────────────────────────────────────────────────────────
 
@@ -26,12 +28,13 @@ const MasterFormPage: React.FC = () => {
   const isView = searchParams.get('mode') === 'view';
   const isEdit = recordId !== undefined && recordId !== 'new' && searchParams.get('mode') !== 'view';
   const isCreate = recordId === 'new' || recordId === undefined;
-  const mode = isView ? 'view' : isEdit ? 'edit' : 'create';
 
   const [activeTab, setActiveTab] = useState(0);
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [helpTopicId, setHelpTopicId] = useState('generic-master-form');
 
   // Generic form state
   const [formData, setFormData] = useState({
@@ -87,8 +90,6 @@ const MasterFormPage: React.FC = () => {
     );
   }
 
-  const GroupIcon = group.icon;
-
   const pageTitle = isView
     ? `View ${master.label}`
     : isEdit
@@ -97,97 +98,23 @@ const MasterFormPage: React.FC = () => {
 
   return (
     <AdminShell>
-      <div className="flex flex-col min-h-full" style={{ background: 'var(--color-surface-subtle)' }}>
-
-        {/* ── Header ───────────────────────────────────────────────── */}
-        <div
-          className="sticky top-0 z-10 px-6 py-4 border-b"
-          style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
-        >
-          {/* Title + actions row */}
-          <div className="flex items-center gap-3">
-            <span className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: group.iconBg }}>
-              <GroupIcon size={17} style={{ color: group.iconColor }} />
-            </span>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <div role="heading" aria-level={1} className="font-semibold" style={{ color: 'var(--color-text)', fontSize: '20px' }}>{pageTitle}</div>
-                {isDirty && (
-                  <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: '#FEF3C7', color: '#92400E' }}>
-                    Unsaved changes
-                  </span>
-                )}
-                {showSaveSuccess && (
-                  <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: '#D1FAE5', color: '#065F46' }}>
-                    ✓ Saved successfully
-                  </span>
-                )}
-              </div>
-              <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                {isCreate ? `Create a new ${master.label} record` : master.description}
-              </p>
-            </div>
-
-            {/* Actions */}
-            {!isView && (
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <button
-                  type="button"
-                  onClick={handleCancel}
-                  className="px-3 py-1.5 rounded-lg border text-sm font-medium transition-all hover:bg-gray-50"
-                  style={{ borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSave(false, false)}
-                  className="px-3 py-1.5 rounded-lg border text-sm font-medium transition-all hover:bg-orange-50"
-                  style={{ borderColor: 'var(--color-primary)', color: 'var(--color-primary)' }}
-                >
-                  Save Draft
-                </button>
-                {isCreate && (
-                  <button
-                    type="button"
-                    onClick={() => handleSave(true, false)}
-                    className="px-3 py-1.5 rounded-lg border text-sm font-medium transition-all hover:bg-orange-50"
-                    style={{ borderColor: 'var(--color-primary)', color: 'var(--color-primary)' }}
-                  >
-                    Save & New
-                  </button>
-                )}
-                <button
-                  type="button"
-                  disabled={isSaving}
-                  onClick={() => handleSave(false, true)}
-                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold transition-all disabled:opacity-70"
-                  style={{ background: 'var(--color-primary)', color: 'white' }}
-                >
-                  <Save size={13} />
-                  {isSaving ? 'Saving…' : 'Save & Close'}
-                </button>
-              </div>
-            )}
-            {isView && (
-              <button
-                type="button"
-                onClick={() => navigate(`/admin/master/${masterKey}/${recordId}?mode=edit`)}
-                className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold transition-all"
-                style={{ background: 'var(--color-primary)', color: 'white' }}
-              >
-                Edit
-              </button>
-            )}
-          </div>
-        </div>
-
+      <AdminPageShell
+        title={pageTitle}
+        description={isCreate ? `Create a new ${master.label} record` : master.description}
+        breadcrumbs={['Admin', group.label, master.label]}
+        statusLabel={isDirty ? 'Unsaved changes' : showSaveSuccess ? 'Saved' : undefined}
+        statusTone={isDirty ? 'warning' : 'active'}
+        primaryAction={isView ? { label: 'Edit', tone: 'primary', onClick: () => navigate(`/admin/master/${masterKey}/${recordId}?mode=edit`) } : undefined}
+        secondaryActions={!isView ? [{ label: 'Cancel', tone: 'ghost', onClick: handleCancel }] : []}
+        helpTopicId="generic-master-form"
+        onHelpClick={(id) => { setHelpTopicId(id); setHelpOpen(true); }}
+      >
         {/* ── Tabs ─────────────────────────────────────────────────── */}
         <div
-          className="border-b px-6"
-          style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
+          className="border-b overflow-x-auto mb-6"
+          style={{ borderColor: 'var(--color-border)', background: 'var(--color-surface)', margin: '0 -24px 24px', padding: '0 24px' }}
         >
-          <div className="flex gap-0 overflow-x-auto">
+          <div className="flex gap-0">
             {FORM_TABS.map((tab, idx) => (
               <button
                 key={tab}
@@ -210,8 +137,7 @@ const MasterFormPage: React.FC = () => {
         </div>
 
         {/* ── Form Body ─────────────────────────────────────────────── */}
-        <div className="flex-1 overflow-auto px-6 py-6">
-          <div className="max-w-3xl mx-auto">
+        <div className="max-w-3xl mx-auto">
 
             {activeTab === 0 && (
               <FormSection title="Basic Information" description="Enter the core details for this master record.">
@@ -334,7 +260,7 @@ const MasterFormPage: React.FC = () => {
               </FormSection>
             )}
 
-            {/* Bottom action bar (visible in form area) */}
+            {/* Bottom action bar */}
             {!isView && (
               <div className="flex items-center justify-end gap-2 pt-6 mt-6 border-t" style={{ borderColor: 'var(--color-border)' }}>
                 <button
@@ -345,6 +271,14 @@ const MasterFormPage: React.FC = () => {
                 >
                   <X size={14} />
                   Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSave(false, false)}
+                  className="px-4 py-2 rounded-lg border text-sm font-medium transition-all"
+                  style={{ borderColor: 'var(--color-primary)', color: 'var(--color-primary)' }}
+                >
+                  Save Draft
                 </button>
                 {isCreate && (
                   <button
@@ -369,8 +303,13 @@ const MasterFormPage: React.FC = () => {
               </div>
             )}
           </div>
-        </div>
-      </div>
+      </AdminPageShell>
+      <HelpDrawer
+        open={helpOpen}
+        topic={getHelpTopic(helpTopicId)}
+        onClose={() => setHelpOpen(false)}
+        onTopicChange={(id) => setHelpTopicId(id)}
+      />
     </AdminShell>
   );
 };

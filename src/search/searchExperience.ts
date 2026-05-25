@@ -300,7 +300,7 @@ export function getScopeEntities(scopeId: SearchScopeId): GlobalSearchEntity[] |
     return undefined;
   }
 
-  if (scopeId === 'form-layout' || scopeId === 'approval-studio') {
+  if (scopeId === 'form-layout' || scopeId === 'approval-studio' || scopeId === 'print-builder') {
     return [];
   }
 

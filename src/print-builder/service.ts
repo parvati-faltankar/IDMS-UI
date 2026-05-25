@@ -1,4 +1,4 @@
-import { getPrintEntityRegistryItem, printEntityRegistry } from './entityRegistry';
+import { getPrintEntityRegistryItem } from './entityRegistry';
 import type {
   PrintBlockConfig,
   PrintCopyConfig,
@@ -559,11 +559,11 @@ export function loadSampleDocumentForEntity(entityType: PrintEntityType, documen
   }
 
   if (documentId) {
-    const matchedDocument = registryItem.sampleDocuments.find((document) => safeString((document as Record<string, unknown>).id) === documentId);
+    const matchedDocument = registryItem.sampleDocuments.find((document) => safeString((document as unknown as Record<string, unknown>).id) === documentId);
     if (matchedDocument) {
-      return matchedDocument as Record<string, unknown>;
+      return matchedDocument as unknown as Record<string, unknown>;
     }
   }
 
-  return (registryItem.sampleDocuments[0] ?? null) as Record<string, unknown> | null;
+  return (registryItem.sampleDocuments[0] as unknown ?? null) as Record<string, unknown> | null;
 }

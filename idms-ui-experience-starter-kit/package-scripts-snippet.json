@@ -1,0 +1,19 @@
+{
+  "scripts": {
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build",
+    "ui:audit": "node scripts/ui-audit.js",
+    "ui:empty-check": "node scripts/check-empty-files.js",
+    "ui:help-check": "node scripts/check-help-topics.js",
+    "ui:stories-check": "node scripts/check-stories.js",
+    "ui:contracts-check": "node scripts/check-component-contracts.js",
+    "ui:future-check": "node scripts/check-future-feature-standard.js",
+    "ui:governance": "npm run ui:audit"
+  },
+  "devDependenciesToConsider": {
+    "@storybook/react-vite": "latest",
+    "@storybook/addon-essentials": "latest",
+    "@storybook/addon-interactions": "latest",
+    "@playwright/test": "latest"
+  }
+}

@@ -158,7 +158,7 @@ export const printEntityRegistry = [
   buildItem('sale-allocation', 'Sale Allocation', '#/sale-allocation', extendedSaleAllocationDocuments),
   buildItem('sale-invoice', 'Sale Invoice', '#/sale-invoice', extendedSaleInvoiceDocuments),
   buildItem('delivery', 'Delivery', '#/delivery', extendedDeliveryDocuments),
-] satisfies PrintEntityRegistryItem[];
+] satisfies PrintEntityRegistryItem<object>[];
 
 export function getPrintEntityRegistryItem(entityType: PrintEntityType) {
   return printEntityRegistry.find((item) => item.id === entityType) ?? null;

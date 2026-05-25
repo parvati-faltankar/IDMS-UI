@@ -227,6 +227,10 @@ export const aiDocumentService = {
         shippingMethod: '',
         shippingInstructions: '',
         totalAmount,
+        insuranceProvider: '',
+        policyNumber: '',
+        policyDate: '',
+        insuranceRemarks: '',
         lines: draft.lines.map((line) => {
           const base = parseDecimal(line.quantity) * parseDecimal(line.rate);
           const discount = parseDecimal(line.discountAmount);

@@ -141,6 +141,10 @@ function normalizeSaleOrder(document: Partial<SaleOrderDocument>): SaleOrderDocu
     shippingMethod: safeString(document.shippingMethod),
     shippingInstructions: safeString(document.shippingInstructions),
     totalAmount: safeString(document.totalAmount, '0.00'),
+    insuranceProvider: safeString(document.insuranceProvider),
+    policyNumber: safeString(document.policyNumber),
+    policyDate: safeString(document.policyDate),
+    insuranceRemarks: safeString(document.insuranceRemarks),
     lines: Array.isArray(document.lines) ? document.lines.map((line) => normalizeSaleOrderLine(line)) : [],
   };
 }
