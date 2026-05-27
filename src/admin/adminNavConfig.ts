@@ -77,7 +77,7 @@ export const adminNavGroups: AdminNavGroup[] = [
     iconBg: '#F0FDF4',
     iconColor: '#16A34A',
     masters: [
-      m('area-master', 'Area Master', 'Define geographic areas and regions'),
+      { key: 'area-master', label: 'Area Master', description: 'Define geographic areas and regions', path: '/admin/area-dashboard' },
       m('territory', 'Territory', 'Configure sales and service territories'),
       m('beat-route', 'Beat Route', 'Set up field service routes and schedules'),
       m('slot-master', 'Slot Master', 'Configure time slots for scheduling'),
@@ -91,10 +91,7 @@ export const adminNavGroups: AdminNavGroup[] = [
     iconBg: '#FFFBEB',
     iconColor: '#D97706',
     masters: [
-      m('supplier-master', 'Supplier Master', 'Manage vendor and supplier profiles'),
-      m('transporter-master', 'Transporter Master', 'Configure logistics and transport partners'),
-      m('insurance-provider', 'Insurance Provider Master', 'Manage insurance company records'),
-      m('financier-master', 'Financier Master', 'Configure financing partners and banks'),
+      { key: 'supplier-master', label: 'Supplier Master', description: 'Manage vendor and supplier profiles', path: '/admin/supplier-master' },
       m('customer-master', 'Customer Master', 'Manage customer profiles and preferences'),
     ],
   },

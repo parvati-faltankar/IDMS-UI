@@ -11,6 +11,23 @@ const PicklistMasterPage       = React.lazy(() => import('../admin/masters/Pickl
 const CodeGenerationPolicyPage = React.lazy(() => import('../admin/masters/CodeGenerationPolicyPage'));
 const KycSetupPage             = React.lazy(() => import('../admin/masters/KycSetupPage'));
 
+// ─── Area Master (Phase 1) ────────────────────────────────────────────────────
+const AreaDashboardPage  = React.lazy(() => import('../admin/masters/area-master/pages/AreaDashboardPage'));
+const AreaLevelListPage  = React.lazy(() => import('../admin/masters/area-master/pages/AreaLevelListPage'));
+const AreaLevelFormPage  = React.lazy(() => import('../admin/masters/area-master/pages/AreaLevelFormPage'));
+const AreaListPage       = React.lazy(() => import('../admin/masters/area-master/pages/AreaListPage'));
+const AreaFormPage       = React.lazy(() => import('../admin/masters/area-master/pages/AreaFormPage'));
+const AreaTreePage       = React.lazy(() => import('../admin/masters/area-master/pages/AreaTreePage'));
+const AreaImportPage     = React.lazy(() => import('../admin/masters/area-master/pages/AreaImportPage'));
+
+// ─── Supplier Master (Business Partner) ──────────────────────────────────────
+const SupplierListPage = React.lazy(() => import('../admin/masters/supplier-master/pages/SupplierListPage'));
+const SupplierFormPage = React.lazy(() => import('../admin/masters/supplier-master/pages/SupplierFormPage'));
+
+// ─── Customer Master ──────────────────────────────────────────────────────────
+const CustomerListPage = React.lazy(() => import('../admin/masters/customer-master/pages/CustomerListPage'));
+const CustomerFormPage = React.lazy(() => import('../admin/masters/customer-master/pages/CustomerFormPage'));
+
 export function renderAdminRoutes() {
   return (
     <>
@@ -28,6 +45,24 @@ export function renderAdminRoutes() {
       {/* KYC Setup — full CRUD with country-grouped proof grid */}
       <Route path="/admin/master/kyc-setup" element={<KycSetupPage />} />
 
+      {/* ── Area Master ─────────────────────────────────────────────────────── */}
+      <Route path="/admin/area-dashboard"    element={<AreaDashboardPage />} />
+      <Route path="/admin/area-levels"       element={<AreaLevelListPage />} />
+      <Route path="/admin/area-levels/new"   element={<AreaLevelFormPage />} />
+      <Route path="/admin/area-levels/:id"   element={<AreaLevelFormPage />} />
+      <Route path="/admin/areas"             element={<AreaListPage />} />
+      <Route path="/admin/areas/new"         element={<AreaFormPage />} />
+      <Route path="/admin/areas/:id"         element={<AreaFormPage />} />
+      <Route path="/admin/area-tree"         element={<AreaTreePage />} />
+      <Route path="/admin/area-import"       element={<AreaImportPage />} />
+      {/* ── Supplier Master ─────────────────────────────────────────────── */}
+      <Route path="/admin/supplier-master"        element={<SupplierListPage />} />
+      <Route path="/admin/supplier-master/new"    element={<SupplierFormPage />} />
+      <Route path="/admin/supplier-master/:id"    element={<SupplierFormPage />} />
+      {/* ── Customer Master ─────────────────────────────────────────────── */}
+      <Route path="/admin/master/customer-master"        element={<CustomerListPage />} />
+      <Route path="/admin/master/customer-master/new"    element={<CustomerFormPage />} />
+      <Route path="/admin/master/customer-master/:id"    element={<CustomerFormPage />} />
       <Route path="/admin/master/:masterKey" element={<MasterListPage />} />
 
       {/* Organisation Master — dedicated section-based form */}

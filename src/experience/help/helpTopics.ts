@@ -383,6 +383,184 @@ export const helpTopics: HelpTopic[] = [
     ],
     relatedTopics: ['generic-master-list', 'admin-dashboard'],
   },
+
+  {
+    id: 'area-master',
+    title: 'How Area Master Works',
+    summary:
+      'Area Master lets you define geographic areas such as countries, states, cities, and zones. Each area belongs to an area level that determines its position in the hierarchy. Areas can carry usage tags, geo-coordinates, postal codes, and alternate name aliases.',
+    steps: [
+      {
+        title: 'Set up area levels first',
+        description:
+          'Before creating areas, define your hierarchy levels in Area Level Configuration — for example, Country, State, City, and Area. Assign a level sequence and role to each level.',
+      },
+      {
+        title: 'Create a new area',
+        description:
+          'Click New Area to open the area form. Fill in the area name and select its area level. The area code is generated automatically.',
+      },
+      {
+        title: 'Assign a parent area',
+        description:
+          'If the area level requires a parent, select the parent from the allowed parent areas. The hierarchy path is calculated automatically.',
+      },
+      {
+        title: 'Configure usage tags',
+        description:
+          'Usage tags control where an area can be selected — for shipping, billing, service zones, or other purposes. Mandatory tags are pre-selected and cannot be removed.',
+      },
+      {
+        title: 'Add geo and postal details',
+        description:
+          'Optionally enter a postal code, geo-coordinates, or boundary type. These are used for location-based matching and mapping integrations.',
+      },
+      {
+        title: 'Add alternate name aliases',
+        description:
+          'Use the Aliases section to add local-language names, short names, or legacy names. Aliases with Search Enabled are included in search results.',
+      },
+      {
+        title: 'Activate the area',
+        description:
+          'Once the form is complete, activate the area to make it available in transactions and downstream lookups.',
+      },
+    ],
+    tips: [
+      'Activate area levels before creating areas that depend on them.',
+      'Use the hierarchy tree view to verify that parent-child relationships are correctly set up.',
+      'Usage tags on the area level restrict which tags are selectable on individual areas.',
+      'Areas in Draft status are not visible in transaction dropdowns.',
+    ],
+    commonMistakes: [
+      'Creating areas before the corresponding area level is activated.',
+      'Leaving parent area blank when the level requires a parent — activation will fail.',
+      'Assigning incorrect usage tags — areas may not appear in the expected form dropdowns.',
+      'Duplicating an area name within the same parent — use different names or add a distinguishing alias.',
+    ],
+    relatedTopics: ['area-level-setup', 'admin-dashboard'],
+  },
+
+  {
+    id: 'area-level-setup',
+    title: 'How Area Level Configuration Works',
+    summary:
+      'Area Level Configuration defines the tiers in your geographic hierarchy — for example, Country, State, City, and Area. Each level has a sequence number, a role (Root, Branch, or Leaf), and rules for which parent levels are allowed.',
+    steps: [
+      {
+        title: 'Define your hierarchy levels',
+        description:
+          'Plan the levels before creating them. A typical hierarchy has 3–5 levels: a root level such as Country, mid-levels such as State and City, and a leaf level such as Pincode or Zone.',
+      },
+      {
+        title: 'Set the level sequence',
+        description:
+          'Assign a level sequence number (1 = topmost). Sequences must be unique across all levels. Lower numbers represent higher levels in the hierarchy.',
+      },
+      {
+        title: 'Choose the level role',
+        description:
+          'Root levels have no parent. Branch levels sit in the middle and can have both parents and children. Leaf levels are at the bottom and cannot have child areas.',
+      },
+      {
+        title: 'Configure parent rules',
+        description:
+          'Enable Parent Required if all areas at this level must have a parent. Select the Allowed Parent Level IDs to restrict which levels can be parents for this level.',
+      },
+      {
+        title: 'Set usage tag applicability',
+        description:
+          'Assign allowed, default, and mandatory usage tags. Mandatory tags will always be applied to areas at this level. Default tags are pre-selected but can be changed.',
+      },
+      {
+        title: 'Activate the level',
+        description:
+          'Resolve the validation checklist and activate. Activated levels are available for use when creating area records.',
+      },
+    ],
+    tips: [
+      'Activate area levels in top-down order — activate Country before State before City.',
+      'Use meaningful short codes — they appear in hierarchical path displays and reports.',
+      'Level sequence determines visual depth in the hierarchy tree view.',
+      'You cannot change the level sequence once areas exist that use this level.',
+    ],
+    commonMistakes: [
+      'Using duplicate level sequences — each level must have a unique sequence.',
+      'Setting a Leaf role but also enabling Parent Required — leaf levels should not require a parent in a well-designed hierarchy.',
+      'Forgetting to set allowed parent levels — areas cannot be created without a valid parent if Parent Required is on.',
+      'Activating area levels after areas have already been created in draft — always activate levels first.',
+    ],
+    relatedTopics: ['area-master', 'admin-dashboard'],
+  },
+
+  {
+    id: 'supplier-master',
+    title: 'How Business Partner Master Works',
+    summary:
+      'Business Partner Master lets you configure all external parties your organisation works with — suppliers, transporters, financiers, insurance providers, and customers. Each record captures identity, contacts, addresses, compliance documents, bank details, and item mappings in a single place.',
+    steps: [
+      {
+        title: 'Select the business partner type',
+        description:
+          'Start by selecting the Business Partner Type in General Details — Supplier, Transporter, Insurance Provider, Financier, or Customer. The type highlights which tabs are most relevant for that partner category.',
+      },
+      {
+        title: 'Complete general details',
+        description:
+          'Fill in the legal name, marketing name, display name, category, and business registration details. The BP Code is auto-generated but can be overridden. Set the effective date range and description.',
+      },
+      {
+        title: 'Add contacts',
+        description:
+          'Go to the Contacts tab and add at least one Primary contact. Include department, designation, phone, and email. Multiple contacts of different types can be added per partner.',
+      },
+      {
+        title: 'Add addresses',
+        description:
+          'Add at least one address and mark it as the default. Multiple address types (Registered, Billing, Shipping, Warehouse) can be added for the same partner.',
+      },
+      {
+        title: 'Configure organisation mapping',
+        description:
+          'Map the partner to specific organisation units or enable Apply to All for global access. Set effective and expiry dates to control time-bound access.',
+      },
+      {
+        title: 'Add compliance documents',
+        description:
+          'On the Tax & Compliance tab, toggle Tax Registered if applicable and add compliance documents like GST certificates, PAN, or trade licences. Set expiry dates and whether transactions are allowed after expiry.',
+      },
+      {
+        title: 'Add bank and payment details',
+        description:
+          'Add bank accounts on the Bank & Payment tab. Mark one as the default account. Configure payment terms — credit days, credit limit, payment mode, and settlement type.',
+      },
+      {
+        title: 'Map items (for suppliers)',
+        description:
+          'On the Item Mapping tab, link the items that this supplier can supply. Set order quantities, lead times, and returnable policy per item.',
+      },
+      {
+        title: 'Activate the partner',
+        description:
+          'Once all required sections are complete, activate the partner to make it available in transactions such as purchase orders, invoices, and logistics.',
+      },
+    ],
+    tips: [
+      'A Primary contact is mandatory for activation — add it in the Contacts tab before activating.',
+      'Mark at least one address as default — this is used as the billing/shipping address in transactions.',
+      'The BP Type you select highlights the most relevant tabs, but all tabs remain accessible.',
+      'Use the Draft status while setting up a partner — it will not appear in transaction dropdowns until activated.',
+      'Item mappings define the vendor catalogue — use them to control which items can be ordered from each supplier.',
+    ],
+    commonMistakes: [
+      'Activating without adding a Primary contact — activation will fail the validation checklist.',
+      'Forgetting to mark an address as default — required for transaction auto-population.',
+      'Leaving bank details empty for a financier partner — payment integration requires at least one bank account.',
+      'Setting Max Order Qty lower than Min Order Qty in item mapping — validation will block the save.',
+      'Adding duplicate item codes in item mapping — each item can only be mapped once per partner.',
+    ],
+    relatedTopics: ['admin-dashboard'],
+  },
 ];
 
 export function getHelpTopic(topicId?: string): HelpTopic | undefined {
