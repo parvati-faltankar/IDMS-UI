@@ -1,6 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Edit2, Eye, Hash, MoreHorizontal, Plus, Trash2 } from 'lucide-react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
+import { Edit2, Eye, Hash, MoreHorizontal, Plus, Trash2 } from 'lucide-react';
 import AdminShell from '../AdminShell';
 import { findGroupForMasterKey, findMasterByKey } from '../adminNavConfig';
 import { recordRecentAdminMaster } from '../adminStorage';
@@ -34,50 +33,6 @@ interface PrefixEntry {
   lastModifiedDate: string;
 }
 
-interface CodeGenEntry {
-  id: string;
-  // Identity
-  settingCode: string;
-  settingName: string;
-  displayName: string;
-  description: string;
-  applicableFor: string;
-  module: string;
-  entity: string;
-  entityType: string;
-  prefix: string;
-  // Series
-  seriesType: string;
-  seriesYearBasis: string;
-  seriesYearLength: string;
-  // Number
-  numberLength: string;
-  startingNumber: string;
-  currentNumber: string;
-  nextNumber: string;
-  incrementBy: string;
-  // Formatting
-  paddingRequired: boolean;
-  paddingCharacter: string;
-  alignmentType: string;
-  concatenationCharacter: string;
-  // Reset
-  resetRequired: boolean;
-  resetFrequency: string;
-  resetNumberTo: string;
-  numberConsumptionEvent: string;
-  // Validity
-  activeStatus: boolean;
-  effectiveFrom: string;
-  effectiveTo: string;
-  // System
-  createdBy: string;
-  createdDate: string;
-  lastModifiedBy: string;
-  lastModifiedDate: string;
-}
-
-type SectionKey  = 'numbering' | 'codegen';
 type QuickFilter = 'all' | 'active' | 'inactive';
 
 // ─── Mock initial data ─────────────────────────────────────────────────────────
@@ -127,50 +82,19 @@ function buildPreview(entry: Omit<PrefixEntry, 'id'>): string {
   return `${entry.prefixValue || 'PREFIX'}-001`;
 }
 
-// ─── Code-gen initial data ────────────────────────────────────────────────────
-
-const INITIAL_CODEGEN_ENTRIES: CodeGenEntry[] = [
-  { id: '1', settingCode: 'CGS-001', settingName: 'Customer Code', displayName: 'Customer Code', description: 'Auto-generated code for customer records', applicableFor: 'Master', module: 'CRM', entity: 'Customer', entityType: 'Standard', prefix: 'CUST', seriesType: 'Sequential', seriesYearBasis: 'None', seriesYearLength: '4', numberLength: '4', startingNumber: '1', currentNumber: '3', nextNumber: '4', incrementBy: '1', paddingRequired: true, paddingCharacter: '0', alignmentType: 'Right', concatenationCharacter: '-', resetRequired: false, resetFrequency: '', resetNumberTo: '', numberConsumptionEvent: 'On Save', activeStatus: true, effectiveFrom: '2026-01-01', effectiveTo: '', createdBy: 'Admin', createdDate: '2026-01-10 09:00', lastModifiedBy: 'Admin', lastModifiedDate: '2026-01-10 09:00' },
-  { id: '2', settingCode: 'CGS-002', settingName: 'Sales Order Number', displayName: 'Sales Order', description: 'Sequential numbering with annual reset', applicableFor: 'Transaction', module: 'Sales', entity: 'Sales Order', entityType: 'Standard', prefix: 'SO', seriesType: 'Sequential', seriesYearBasis: 'Calendar Year', seriesYearLength: '4', numberLength: '4', startingNumber: '1', currentNumber: '12', nextNumber: '13', incrementBy: '1', paddingRequired: true, paddingCharacter: '0', alignmentType: 'Right', concatenationCharacter: '-', resetRequired: true, resetFrequency: 'Yearly', resetNumberTo: '1', numberConsumptionEvent: 'On Submit', activeStatus: true, effectiveFrom: '2026-01-01', effectiveTo: '', createdBy: 'Admin', createdDate: '2026-01-10 09:05', lastModifiedBy: 'Admin', lastModifiedDate: '2026-01-10 09:05' },
-  { id: '3', settingCode: 'CGS-003', settingName: 'Product Code', displayName: 'Product Code', description: 'Code generation for product catalogue', applicableFor: 'Master', module: 'Inventory', entity: 'Product', entityType: 'Standard', prefix: 'PROD', seriesType: 'Sequential', seriesYearBasis: 'None', seriesYearLength: '4', numberLength: '3', startingNumber: '1', currentNumber: '45', nextNumber: '46', incrementBy: '1', paddingRequired: true, paddingCharacter: '0', alignmentType: 'Right', concatenationCharacter: '-', resetRequired: false, resetFrequency: '', resetNumberTo: '', numberConsumptionEvent: 'On Save', activeStatus: true, effectiveFrom: '2026-01-01', effectiveTo: '', createdBy: 'Admin', createdDate: '2026-01-10 09:10', lastModifiedBy: 'Admin', lastModifiedDate: '2026-01-10 09:10' },
-];
-
-function buildCodePreview(entry: Omit<CodeGenEntry, 'id'>): string {
-  const parts: string[] = [];
-  if (entry.prefix) parts.push(entry.prefix);
-  if (entry.seriesYearBasis && entry.seriesYearBasis !== 'None') {
-    const year = new Date().getFullYear();
-    parts.push(entry.seriesYearLength === '2' ? String(year).slice(-2) : String(year));
-  }
-  const num = parseInt(entry.nextNumber || entry.startingNumber || '1', 10);
-  const numLen = parseInt(entry.numberLength || '3', 10);
-  const numStr = entry.paddingRequired
-    ? String(num).padStart(numLen, entry.paddingCharacter || '0')
-    : String(num);
-  parts.push(numStr);
-  const sep = entry.concatenationCharacter === 'Space' ? ' ' : (entry.concatenationCharacter || '-');
-  return parts.join(sep) || 'CODE-001';
-}
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 const NumberingSettingsPage: React.FC = () => {
-  const navigate = useNavigate();
   const master = findMasterByKey(MASTER_KEY);
   const group  = findGroupForMasterKey(MASTER_KEY);
 
-  // ── Section ──────────────────────────────────────────────────────
-  const [activeSection, setActiveSection] = useState<SectionKey>('numbering');
-
-  // ── Search / filter (prefix section) ────────────────────────────
+  // ── Search / filter ────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('all');
 
   // ── Prefix entries ───────────────────────────────────────────────
   const [entries, setEntries] = useState<PrefixEntry[]>(INITIAL_ENTRIES);
-
-  // ── Code gen entries (read-only — managed by CodeGenerationPolicyPage) ──
-  const [codeGenEntries] = useState<CodeGenEntry[]>(INITIAL_CODEGEN_ENTRIES);
 
   // ── Preview drawer ───────────────────────────────────────────────
   const [previewEntry, setPreviewEntry] = useState<PrefixEntry | null>(null);
@@ -217,20 +141,14 @@ const NumberingSettingsPage: React.FC = () => {
   }, [entries, searchQuery, quickFilter]);
 
   const summaryItems = useMemo(() => {
-    if (activeSection === 'numbering') {
-      const activeCount   = entries.filter(e => e.activeStatus).length;
-      const inactiveCount = entries.filter(e => !e.activeStatus).length;
-      return [
-        { label: 'Total',    value: entries.length },
-        { label: 'Active',   value: activeCount,   tone: 'success'  as const },
-        ...(inactiveCount > 0 ? [{ label: 'Inactive', value: inactiveCount, tone: 'danger' as const }] : []),
-      ];
-    }
+    const activeCount   = entries.filter(e => e.activeStatus).length;
+    const inactiveCount = entries.filter(e => !e.activeStatus).length;
     return [
-      { label: 'Policies', value: codeGenEntries.length },
-      { label: 'Active',   value: codeGenEntries.filter(e => e.activeStatus).length, tone: 'success' as const },
+      { label: 'Total',    value: entries.length },
+      { label: 'Active',   value: activeCount,   tone: 'success' as const },
+      ...(inactiveCount > 0 ? [{ label: 'Inactive', value: inactiveCount, tone: 'danger' as const }] : []),
     ];
-  }, [activeSection, entries, codeGenEntries]);
+  }, [entries]);
 
   const helpTopic   = useMemo(() => getHelpTopic(helpTopicId), [helpTopicId]);
   const canSaveForm = !!formData.prefixName && !!formData.prefixValue && !!formData.applicableFor;
@@ -242,7 +160,8 @@ const NumberingSettingsPage: React.FC = () => {
   const openFormDrawer = (entry?: PrefixEntry) => {
     if (entry) {
       setEditingEntry(entry);
-      const { id: _id, ...rest } = entry;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { id: _discardId, ...rest } = entry;
       setFormData({ ...rest });
     } else {
       setEditingEntry(null);
@@ -275,28 +194,6 @@ const NumberingSettingsPage: React.FC = () => {
     setFormDirty(true);
   };
 
-  // ── Section switcher ─────────────────────────────────────────────
-  const sectionSwitcher = (
-    <div style={{ display: 'flex', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
-      {(['numbering', 'codegen'] as SectionKey[]).map((key, i) => {
-        const label    = key === 'numbering' ? 'Code Prefix Master' : 'Code Generation Policy';
-        const isActive = activeSection === key;
-        return (
-          <button key={key} type="button" onClick={() => setActiveSection(key)}
-            style={{
-              padding: '5px 14px', fontSize: '12px', fontWeight: isActive ? 600 : 400,
-              border: 'none', borderRight: i === 0 ? '1px solid var(--color-border)' : 'none',
-              background: isActive ? 'var(--color-primary)' : 'transparent',
-              color: isActive ? 'white' : 'var(--color-text)',
-              cursor: 'pointer', transition: 'all 0.15s', whiteSpace: 'nowrap',
-            }}>
-            {label}
-          </button>
-        );
-      })}
-    </div>
-  );
-
   if (!master || !group) return null;
 
   return (
@@ -305,30 +202,23 @@ const NumberingSettingsPage: React.FC = () => {
         title={master.label}
         description={master.description ?? 'Configure document prefixes and auto-numbering rules.'}
         breadcrumbs={['Admin', group.label]}
-        primaryAction={
-          activeSection === 'numbering'
-            ? { label: 'New Prefix',       tone: 'primary', onClick: () => openFormDrawer() }
-            : { label: 'Open Policy List', tone: 'primary', onClick: () => navigate('/admin/master/code-generation-policy') }
-        }
+        primaryAction={{ label: 'New Prefix', tone: 'primary', onClick: () => openFormDrawer() }}
         secondaryActions={[{ label: 'How this works', tone: 'secondary', onClick: () => { setHelpTopicId('numbering-code-setup'); setHelpOpen(true); } }]}
         helpTopicId="numbering-code-setup"
         onHelpClick={(id) => { setHelpTopicId(id); setHelpOpen(true); }}
         summaryItems={summaryItems}
-        searchValue={activeSection === 'numbering' ? searchQuery : undefined}
+        searchValue={searchQuery}
         searchPlaceholder="Search prefixes…"
-        onSearchChange={activeSection === 'numbering' ? setSearchQuery : undefined}
-        quickFilterItems={activeSection === 'numbering' ? [
+        onSearchChange={setSearchQuery}
+        quickFilterItems={[
           { key: 'all',      label: 'All',      count: entries.length },
           { key: 'active',   label: 'Active',   count: entries.filter(e => e.activeStatus).length },
           { key: 'inactive', label: 'Inactive', count: entries.filter(e => !e.activeStatus).length },
-        ] : undefined}
-        activeQuickFilter={activeSection === 'numbering' ? quickFilter : undefined}
-        onQuickFilterChange={activeSection === 'numbering' ? (k) => setQuickFilter(k as QuickFilter) : undefined}
-        toolbarActions={sectionSwitcher}
+        ]}
+        activeQuickFilter={quickFilter}
+        onQuickFilterChange={(k) => setQuickFilter(k as QuickFilter)}
       >
-        {/* ── Code Prefix Master ────────────────────────────────────── */}
-        {activeSection === 'numbering' && (
-          filteredEntries.length === 0 ? (
+        {filteredEntries.length === 0 ? (
             <div style={{ padding: '64px 28px', textAlign: 'center', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px' }}>
               <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--color-surface-subtle)', border: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
                 <Hash size={22} style={{ color: 'var(--color-text-muted)' }} />
@@ -351,17 +241,17 @@ const NumberingSettingsPage: React.FC = () => {
           ) : (
             <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px', overflow: 'hidden' }}>
               {/* Column headers */}
-              <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr 140px 140px 80px 100px 88px', alignItems: 'center', padding: '10px 20px', background: 'var(--color-surface-subtle)', borderBottom: '1.5px solid var(--color-border)' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr 140px 140px 80px 100px 88px', alignItems: 'center', height: '36px', padding: '0 16px', background: 'var(--color-surface-subtle)', borderBottom: '1.5px solid var(--color-border)', position: 'sticky', top: 0, zIndex: 10 }}>
                 {[
                   { label: 'Format Preview', align: 'left'  },
                   { label: 'Prefix Name',    align: 'left'  },
                   { label: 'Type / Module',  align: 'left'  },
                   { label: 'Entity',         align: 'left'  },
-                  { label: 'Default',        align: 'left'  },
+                  { label: 'Default',        align: 'center'},
                   { label: 'Status',         align: 'left'  },
                   { label: 'Actions',        align: 'right' },
-                ].map(({ label, align }) => (
-                  <div key={label} style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text)', textAlign: align as React.CSSProperties['textAlign'] }}>{label}</div>
+                ].map(({ label, align }, i, arr) => (
+                  <div key={label} style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: align as React.CSSProperties['textAlign'], paddingRight: i < arr.length - 1 ? '8px' : '0' }}>{label}</div>
                 ))}
               </div>
               {/* Data rows */}
@@ -371,10 +261,10 @@ const NumberingSettingsPage: React.FC = () => {
                 return (
                   <div
                     key={entry.id}
-                    style={{ display: 'grid', gridTemplateColumns: '130px 1fr 140px 140px 80px 100px 88px', alignItems: 'center', padding: '14px 20px', borderBottom: isLast ? 'none' : '1px solid var(--color-border)', transition: 'background 0.1s', cursor: 'pointer' }}
+                    style={{ display: 'grid', gridTemplateColumns: '130px 1fr 140px 140px 80px 100px 88px', alignItems: 'center', height: '56px', padding: '0 16px', borderBottom: isLast ? 'none' : '1px solid var(--color-border)', transition: 'background 0.1s', cursor: 'pointer' }}
                     onClick={() => openPreview(entry)}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = '#F8FAFC'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-surface-subtle)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = ''; }}
                   >
                     {/* Format Preview */}
                     <div>
@@ -410,7 +300,7 @@ const NumberingSettingsPage: React.FC = () => {
                       {entry.entity || '—'}
                     </div>
                     {/* Default */}
-                    <div>
+                    <div style={{ textAlign: 'center' }}>
                       {entry.defaultPrefix ? (
                         <span style={{ display: 'inline-block', fontSize: '11px', fontWeight: 700, padding: '3px 9px', borderRadius: '6px', background: '#EFF6FF', color: '#1D4ED8' }}>Yes</span>
                       ) : (
@@ -475,69 +365,7 @@ const NumberingSettingsPage: React.FC = () => {
                 );
               })}
             </div>
-          )
-        )}
-
-        {/* ── Code Generation Policy (summary) ─────────────────────── */}
-        {activeSection === 'codegen' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {/* Description card */}
-            <div style={{ background: 'color-mix(in srgb, var(--color-primary) 6%, var(--color-surface))', border: '1px solid color-mix(in srgb, var(--color-primary) 20%, var(--color-border))', borderRadius: '12px', padding: '20px 24px' }}>
-              <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-text)', marginBottom: '6px' }}>
-                Code Generation Policies are managed separately
-              </div>
-              <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', lineHeight: 1.6, marginBottom: '16px' }}>
-                While <strong>Code Prefix Master</strong> controls the prefix segment of a document number (e.g.{' '}
-                <code style={{ fontFamily: 'monospace', fontSize: '12px', background: 'var(--color-surface-subtle)', padding: '1px 5px', borderRadius: '4px' }}>SO-</code>),
-                the <strong>Code Generation Policy</strong> controls the full numbering sequence — including series type, year basis, padding, and reset rules.
-                Policies are configured and managed on the dedicated Code Generation Policy page.
-              </div>
-              <button
-                type="button"
-                onClick={() => navigate('/admin/master/code-generation-policy')}
-                style={{ ...btnPrimary, border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                Open Code Generation Policy
-                <ArrowRight size={13} />
-              </button>
-            </div>
-            {/* Compact summary table */}
-            <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px', overflow: 'hidden' }}>
-              <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-text)' }}>Configured Policies</span>
-                <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{codeGenEntries.length} {codeGenEntries.length === 1 ? 'policy' : 'policies'}</span>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr 120px 100px', alignItems: 'center', padding: '8px 20px', background: 'var(--color-surface-subtle)', borderBottom: '1px solid var(--color-border)' }}>
-                {[
-                  { label: 'Sample Code',    align: 'left' },
-                  { label: 'Setting Name',   align: 'left' },
-                  { label: 'Applicable For', align: 'left' },
-                  { label: 'Status',         align: 'left' },
-                ].map(({ label, align }) => (
-                  <div key={label} style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: align as React.CSSProperties['textAlign'] }}>{label}</div>
-                ))}
-              </div>
-              {codeGenEntries.map((entry, idx) => {
-                const appColor = getApplicableColor(entry.applicableFor);
-                const isLast   = idx === codeGenEntries.length - 1;
-                return (
-                  <div key={entry.id} style={{ display: 'grid', gridTemplateColumns: '150px 1fr 120px 100px', alignItems: 'center', padding: '12px 20px', borderBottom: isLast ? 'none' : '1px solid var(--color-border)' }}>
-                    <div style={{ fontFamily: 'monospace', fontSize: '14px', fontWeight: 700, color: 'var(--color-primary)' }}>{buildCodePreview(entry)}</div>
-                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.settingName}</div>
-                    <div>
-                      <span style={{ display: 'inline-block', fontSize: '11px', fontWeight: 700, padding: '3px 9px', borderRadius: '6px', background: appColor.bg, color: appColor.text }}>{(entry.applicableFor || '—').toUpperCase()}</span>
-                    </div>
-                    <div>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: 600, padding: '3px 10px', borderRadius: '9999px', background: entry.activeStatus ? 'color-mix(in srgb, #10b981 15%, var(--color-surface))' : 'var(--color-surface-subtle)', color: entry.activeStatus ? 'color-mix(in srgb, #10b981 85%, var(--color-text))' : 'var(--color-text-muted)' }}>
-                        <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: entry.activeStatus ? '#10b981' : 'var(--color-border)' }} />
-                        {entry.activeStatus ? 'Active' : 'Inactive'}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+          )}
       </AdminListPageShell>
 
       {/* ── Preview Drawer ────────────────────────────────────────── */}

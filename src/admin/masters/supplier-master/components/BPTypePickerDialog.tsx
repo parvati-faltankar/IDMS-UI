@@ -1,14 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ArrowLeftRight,
   Banknote,
   Package,
   Shield,
   Truck,
-  UserCheck,
-  Users,
-  Wrench,
 } from 'lucide-react';
 import AppDialog from '../../../../components/app/AppDialog';
 import type { BPType } from '../types/supplierMaster.types';
@@ -28,10 +24,6 @@ const ALL_TYPES: BPType[] = [
   'Transporter',
   'Insurance Provider',
   'Financier',
-  'Customer',
-  'Broker',
-  'Agent',
-  'Contractor',
 ];
 
 const TYPE_ICONS: Record<BPType, React.ReactNode> = {
@@ -39,10 +31,10 @@ const TYPE_ICONS: Record<BPType, React.ReactNode> = {
   'Transporter':        <Truck size={20} />,
   'Insurance Provider': <Shield size={20} />,
   'Financier':          <Banknote size={20} />,
-  'Customer':           <Users size={20} />,
-  'Broker':             <ArrowLeftRight size={20} />,
-  'Agent':              <UserCheck size={20} />,
-  'Contractor':         <Wrench size={20} />,
+  'Customer':           null,
+  'Broker':             null,
+  'Agent':              null,
+  'Contractor':         null,
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────

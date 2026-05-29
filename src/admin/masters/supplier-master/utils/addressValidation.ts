@@ -11,6 +11,7 @@ export interface AddressFieldErrors {
   latitude?: string;
   longitude?: string;
   isDefault?: string;
+  areaLocality?: string;
 }
 
 export function validateAddress(
@@ -19,12 +20,21 @@ export function validateAddress(
   editingId?: string,
 ): AddressFieldErrors {
   const errors: AddressFieldErrors = {};
+  const isMasterLinked = !!address.areaId && !address.isManualEntry;
 
   if (!address.addressType) errors.addressType = 'Address type is required.';
   if (!address.addressLine1?.trim()) errors.addressLine1 = 'Address line 1 is required.';
-  if (!address.country) errors.country = 'Country is required.';
-  if (!address.state?.trim()) errors.state = 'State is required.';
-  if (!address.city?.trim()) errors.city = 'City is required.';
+
+  if (!isMasterLinked) {
+    // Manual-entry path: validate free-text fields
+    if (!address.country) errors.country = 'Country is required.';
+    if (!address.state?.trim()) errors.state = 'State is required.';
+    if (!address.city?.trim()) errors.city = 'City is required.';
+  } else {
+    // Master-linked path: hierarchy is auto-filled; just confirm values exist
+    if (!address.country) errors.country = 'Country could not be resolved from Area Master.';
+    if (!address.state?.trim()) errors.state = 'State could not be resolved from Area Master.';
+  }
 
   if (address.latitude) {
     const lat = parseFloat(address.latitude);

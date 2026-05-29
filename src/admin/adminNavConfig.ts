@@ -136,7 +136,7 @@ export const adminNavGroups: AdminNavGroup[] = [
     iconBg: '#EEF2FF',
     iconColor: '#4F46E5',
     masters: [
-      m('service-type', 'Service Type', 'Define categories of services offered'),
+      m('service-type-master', 'Service Type', 'Define categories of services offered'),
       m('service-package', 'Service Package', 'Configure bundled service packages'),
       m('service-labour', 'Service Labour', 'Define labour tasks and standard rates'),
       m('service-contract', 'Service Contract', 'Manage service agreements and AMCs'),

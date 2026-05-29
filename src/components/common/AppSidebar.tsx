@@ -29,6 +29,7 @@ const AppSidebar: React.FC<SidebarComponentProps> = ({
     activeLeaf === 'sale-invoice' ||
     activeLeaf === 'delivery';
   const [expandedLevel1, setExpandedLevel1] = useState<Record<string, boolean>>({
+    'UI Studio': activeLeaf === 'ui-studio',
     'Approval Studio': activeLeaf === 'approval-studio',
     Procurement: !isSalesLeaf,
     Sales: isSalesLeaf,
@@ -36,6 +37,7 @@ const AppSidebar: React.FC<SidebarComponentProps> = ({
     Services: false,
   });
   const [expandedLevel2, setExpandedLevel2] = useState<Record<string, boolean>>({
+    'UI Studio_Pages': activeLeaf === 'ui-studio',
     'Approval Studio_Pages': activeLeaf === 'approval-studio',
     Procurement_Pages: !isSalesLeaf,
     Sales_Pages: isSalesLeaf,
@@ -48,6 +50,20 @@ const AppSidebar: React.FC<SidebarComponentProps> = ({
       ...prev,
       [label]: !prev[label],
     }));
+  };
+
+  const handleLevel1Click = (label: string) => {
+    if (label === 'UI Studio') {
+      navigateToHash('#/ui-studio/builder');
+      if (isMobileOpen) {
+        onCloseMobile();
+      }
+      return;
+    }
+
+    if (!sidebarCollapsed) {
+      toggleLevel1(label);
+    }
   };
 
   const toggleLevel2 = (level1: string, level2: string) => {
@@ -186,13 +202,12 @@ const AppSidebar: React.FC<SidebarComponentProps> = ({
             <div key={level1.label} className="app-sidebar__group">
               <button
                 type="button"
-                onClick={() => !sidebarCollapsed && toggleLevel1(level1.label)}
+                onClick={() => handleLevel1Click(level1.label)}
                 className={cn(
                   'app-sidebar__level1',
                   sidebarCollapsed && 'app-sidebar__level1--collapsed',
                   isLevel1Expanded && !sidebarCollapsed && 'app-sidebar__level1--expanded'
                 )}
-                disabled={sidebarCollapsed}
                 aria-expanded={sidebarCollapsed ? undefined : isLevel1Expanded}
                 title={sidebarCollapsed ? getSectionLabel(level1.label) : undefined}
               >

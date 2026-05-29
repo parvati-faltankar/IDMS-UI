@@ -28,6 +28,17 @@ const SupplierFormPage = React.lazy(() => import('../admin/masters/supplier-mast
 const CustomerListPage = React.lazy(() => import('../admin/masters/customer-master/pages/CustomerListPage'));
 const CustomerFormPage = React.lazy(() => import('../admin/masters/customer-master/pages/CustomerFormPage'));
 
+// ─── UOM Master ───────────────────────────────────────────────────────────────
+const UomListPage = React.lazy(() => import('../admin/masters/uom-master/pages/UomListPage'));
+const UomFormPage = React.lazy(() => import('../admin/masters/uom-master/pages/UomFormPage'));
+
+// ─── Slot Master ──────────────────────────────────────────────────────────────
+const SlotListPage = React.lazy(() => import('../admin/masters/slot-master/pages/SlotListPage'));
+const SlotFormPage = React.lazy(() => import('../admin/masters/slot-master/pages/SlotFormPage'));
+// ─── Service Type Master ───────────────────────────────────────────────────────
+const ServiceTypeListPage = React.lazy(() => import('../admin/masters/service-type-master/pages/ServiceTypeListPage'));
+const ServiceTypeFormPage = React.lazy(() => import('../admin/masters/service-type-master/pages/ServiceTypeFormPage'));
+
 export function renderAdminRoutes() {
   return (
     <>
@@ -62,7 +73,18 @@ export function renderAdminRoutes() {
       {/* ── Customer Master ─────────────────────────────────────────────── */}
       <Route path="/admin/master/customer-master"        element={<CustomerListPage />} />
       <Route path="/admin/master/customer-master/new"    element={<CustomerFormPage />} />
-      <Route path="/admin/master/customer-master/:id"    element={<CustomerFormPage />} />
+      <Route path="/admin/master/customer-master/:id"    element={<CustomerFormPage />} />      {/* ── UOM Master ──────────────────────────────────────────────── */}
+      <Route path="/admin/master/unit-of-measurement"           element={<UomListPage />} />
+      <Route path="/admin/master/unit-of-measurement/new"       element={<UomFormPage />} />
+      <Route path="/admin/master/unit-of-measurement/:recordId" element={<UomFormPage />} />
+      {/* ── Slot Master ─────────────────────────────────────────────── */}
+      <Route path="/admin/master/slot-master"           element={<SlotListPage />} />
+      <Route path="/admin/master/slot-master/new"       element={<SlotFormPage />} />
+      <Route path="/admin/master/slot-master/:recordId" element={<SlotFormPage />} />
+      {/* ── Service Type Master ─────────────────────────────────────── */}
+      <Route path="/admin/master/service-type-master"           element={<ServiceTypeListPage />} />
+      <Route path="/admin/master/service-type-master/new"       element={<ServiceTypeFormPage />} />
+      <Route path="/admin/master/service-type-master/:recordId" element={<ServiceTypeFormPage />} />
       <Route path="/admin/master/:masterKey" element={<MasterListPage />} />
 
       {/* Organisation Master — dedicated section-based form */}

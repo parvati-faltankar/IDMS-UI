@@ -93,50 +93,9 @@ const KYC_SECTIONS: Array<{ key: KycSectionKey; label: string; icon: React.Eleme
 
 const SECTION_ORDER: KycSectionKey[] = ['overview', 'proofs', 'review'];
 
-// ─── Interfaces ───────────────────────────────────────────────────────────────
-
-interface KycProofRow {
-  id: string;
-  country: string;
-  proofCategory: string;
-  proofType: string;
-  documentNumberRequired: boolean;
-  tooltip: string;
-  placeholderText: string;
-  isCharAllowed: boolean;
-  isNumberAllowed: boolean;
-  isSpecialCharAllowed: boolean;
-  allowedSpecialCharacters: string;
-  minLength: string;
-  maxLength: string;
-  mustMatchRegex: boolean;
-  regexPattern: string;
-  regexErrorMessage: string;
-  isAttachmentEnabled: boolean;
-  isAttachmentMandatory: boolean;
-  allowedFileTypes: string[];
-  maxFileSize: string;
-  minFileSize: string;
-  maximumFileCount: string;
-  isMandatory: boolean;
-  isActive: boolean;
-}
-
-interface KycFormData {
-  name: string;
-  displayName: string;
-  entity: string;
-  entityType: string;
-  description: string;
-  isActive: boolean;
-  proofRows: KycProofRow[];
-}
-
-interface KycConfig extends KycFormData {
-  id: string;
-  code: string;
-  status: 'Draft' | 'Active' | 'Inactive';
-}
+// ─── Shared KYC types (imported from shared module) ──────────────────────────
+import type { KycProofRow, KycFormData, KycConfig } from './kycConfig';
+import { MOCK_CONFIGS } from './kycConfig';
 
 type FormMode = 'add' | 'edit' | 'view';
 type ViewMode = 'list' | 'form';
@@ -181,17 +140,7 @@ function getStatusDot(status: KycConfig['status']) {
   return 'color-mix(in srgb, #f59e0b 80%, var(--color-text))';
 }
 
-const MOCK_CONFIGS: KycConfig[] = [
-  {
-    id: '1', code: 'KYC-001', name: 'Individual Customer KYC', displayName: 'Individual Customer KYC',
-    entity: 'Customer', entityType: 'Individual', description: 'KYC for individual customers',
-    isActive: true, status: 'Active',
-    proofRows: [
-      { id: 'r1', country: 'India', proofCategory: 'Identity Proof', proofType: 'Aadhaar Card', documentNumberRequired: true, tooltip: 'Enter 12-digit Aadhaar number', placeholderText: 'XXXX XXXX XXXX', isCharAllowed: false, isNumberAllowed: true, isSpecialCharAllowed: false, allowedSpecialCharacters: '', minLength: '12', maxLength: '12', mustMatchRegex: true, regexPattern: '^[0-9]{12}$', regexErrorMessage: 'Must be a 12-digit number', isAttachmentEnabled: true, isAttachmentMandatory: true, allowedFileTypes: ['PDF', 'JPG', 'PNG'], maxFileSize: '2048', minFileSize: '10', maximumFileCount: '2', isMandatory: true, isActive: true },
-      { id: 'r2', country: 'India', proofCategory: 'Address Proof', proofType: 'Electricity Bill', documentNumberRequired: false, tooltip: '', placeholderText: '', isCharAllowed: true, isNumberAllowed: true, isSpecialCharAllowed: false, allowedSpecialCharacters: '', minLength: '', maxLength: '', mustMatchRegex: false, regexPattern: '', regexErrorMessage: '', isAttachmentEnabled: true, isAttachmentMandatory: false, allowedFileTypes: ['PDF', 'JPG'], maxFileSize: '5120', minFileSize: '10', maximumFileCount: '3', isMandatory: false, isActive: true },
-    ],
-  },
-];
+// MOCK_CONFIGS is now imported from ./kycConfig
 
 // ─── Section completion ───────────────────────────────────────────────────────
 

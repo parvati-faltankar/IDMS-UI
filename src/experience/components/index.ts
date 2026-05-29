@@ -1,3 +1,4 @@
+export * from './AddressPickerDrawer/AddressPickerDrawer';
 export * from './AdminConfigShell';
 export * from './AdminListPageShell';
 export * from './AdminPageShell';

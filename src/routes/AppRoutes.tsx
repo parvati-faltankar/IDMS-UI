@@ -4,7 +4,9 @@ import { renderListRoutes } from './listRoutes';
 import { renderProfileRoutes } from './profileRoutes';
 import { renderRedirectRoutes } from './redirectRoutes';
 import { renderAdminRoutes } from './adminRoutes';
+import { renderUiStudioRoutes } from './uiStudioRoutes';
 import type { CatalogueFilters, CatalogueFiltersSetter, NavigateTo } from './routeTypes';
+import { isUiStudioEnabled } from '../ui-studio/integration/featureFlag';
 
 export type AppRoutesProps = {
   editingDocumentId: string | null;
@@ -37,8 +39,11 @@ export function AppRoutes({
   setPurchaseReceiptCatalogueFilters,
   setRequisitionCatalogueFilters,
 }: AppRoutesProps) {
+  const uiStudioEnabled = isUiStudioEnabled();
+
   return (
     <Routes>
+      {renderUiStudioRoutes(uiStudioEnabled)}
       {renderAdminRoutes()}
       {renderProfileRoutes({ locationSearch, navigateTo, routeQuery })}
       {renderCreateRoutes({ editingDocumentId, isLayoutConfigurationMode, locationSearch, navigateTo, routeQuery })}

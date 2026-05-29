@@ -136,6 +136,10 @@ export interface CustomerAddress {
   workLocation: string;
   isDefault: boolean;
   status: SubEntityStatus;
+  /** Id of the Area Master record that backs this address. Present when area was selected from master. */
+  areaId?: string;
+  /** True when the user chose to enter address manually (not from Area Master). */
+  isManualEntry?: boolean;
 }
 
 // ─── Sub-entity: Contact Person ───────────────────────────────────────────────

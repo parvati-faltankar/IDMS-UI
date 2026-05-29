@@ -17,6 +17,7 @@ import type { ReactNode, RefObject, UIEvent } from 'react';
 
 export type ActiveLeaf =
   | 'approval-studio'
+  | 'ui-studio'
   | 'purchase-requisition'
   | 'purchase-order'
   | 'purchase-receipt'
@@ -113,6 +114,24 @@ export interface BrowserSpeechRecognition {
 export type BrowserSpeechRecognitionConstructor = new () => BrowserSpeechRecognition;
 
 export const menuStructure: Level1Item[] = [
+  {
+    label: 'UI Studio',
+    icon: FolderKanban,
+    level2: [
+      {
+        label: 'Pages',
+        hideLabel: true,
+        level3: [
+          {
+            key: 'ui-studio',
+            label: 'UI Studio',
+            icon: FolderKanban,
+            route: '/ui-studio/builder',
+          },
+        ],
+      },
+    ],
+  },
   {
     label: 'Approval Studio',
     icon: FolderKanban,

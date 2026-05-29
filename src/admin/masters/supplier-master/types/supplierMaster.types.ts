@@ -147,6 +147,10 @@ export interface BPAddress {
   longitude: string;
   isDefault: boolean;
   status: SubEntityStatus;
+  /** Id of the Area Master record that backs this address. Present when area was selected from master. */
+  areaId?: string;
+  /** True when the user chose to enter address manually (not from Area Master). */
+  isManualEntry?: boolean;
 }
 
 export interface BPOrgMapping {
@@ -161,12 +165,15 @@ export interface BPOrgMapping {
 
 export interface BPComplianceDocument {
   id: string;
-  documentType: ComplianceDocType;
+  documentType: string;           // string (not strict union) — driven by KYC proof types
   documentNumber: string;
   issueDate: string;
   expiryDate: string;
   allowTransactionAfterExpiry: boolean;
-  attachmentName: string;
+  attachmentName: string;         // first file name (backward-compat)
+  attachmentFiles?: string[];     // all uploaded file names
+  proofCategory?: string;         // KYC proof category (e.g. 'Business Proof')
+  kycProofRowId?: string;         // KYC proof row id for validation rule lookup
   status: SubEntityStatus;
 }
 

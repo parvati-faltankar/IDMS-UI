@@ -1,5 +1,8 @@
 export const paths = {
   home: '/purchase-requisition',
+  uiStudioRoot: '/ui-studio',
+  uiStudioWildcard: '/ui-studio/*',
+  uiStudioBuilder: '/ui-studio/builder',
   approvalStudioList: '/approval-studio',
   approvalStudioCreate: '/approval-studio/new',
   brandGuidelines: '/brand-guidelines',

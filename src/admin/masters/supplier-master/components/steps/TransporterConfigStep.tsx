@@ -85,7 +85,7 @@ function ChipToggle({
   );
 }
 
-// Tag-select: selected chips + native dropdown for adding items (for larger lists)
+// Tag-select: inline tag-input — chips + dropdown unified in one control
 function TagSelect({
   options, selected, onChange, disabled, placeholder,
 }: {
@@ -96,37 +96,39 @@ function TagSelect({
   placeholder?: string;
 }) {
   return (
-    <div>
-      {selected.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '8px' }}>
-          {selected.map((v) => (
-            <span
-              key={v}
+    <div style={{
+      display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '5px',
+      padding: '5px 8px', minHeight: '38px',
+      border: '1px solid var(--color-border)', borderRadius: '8px',
+      background: disabled ? 'var(--color-surface-subtle)' : 'var(--color-surface)',
+      boxSizing: 'border-box',
+    }}>
+      {selected.map((v) => (
+        <span
+          key={v}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: '4px',
+            padding: '2px 8px', borderRadius: '9999px', flexShrink: 0,
+            background: '#EFF6FF', color: '#1D4ED8', fontSize: '12px', fontWeight: 500,
+          }}
+        >
+          {v}
+          {!disabled && (
+            <button
+              type="button"
+              onClick={() => onChange(selected.filter((s) => s !== v))}
               style={{
-                display: 'inline-flex', alignItems: 'center', gap: '4px',
-                padding: '2px 8px', borderRadius: '9999px',
-                background: '#EFF6FF', color: '#1D4ED8', fontSize: '12px', fontWeight: 500,
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                width: '14px', height: '14px', borderRadius: '50%',
+                border: 'none', background: 'transparent', cursor: 'pointer',
+                color: '#1D4ED8', fontSize: '14px', padding: 0, lineHeight: 1,
               }}
             >
-              {v}
-              {!disabled && (
-                <button
-                  type="button"
-                  onClick={() => onChange(selected.filter((s) => s !== v))}
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                    width: '14px', height: '14px', borderRadius: '50%',
-                    border: 'none', background: 'transparent', cursor: 'pointer',
-                    color: '#1D4ED8', fontSize: '14px', padding: 0, lineHeight: 1,
-                  }}
-                >
-                  ×
-                </button>
-              )}
-            </span>
-          ))}
-        </div>
-      )}
+              ×
+            </button>
+          )}
+        </span>
+      ))}
       {!disabled && (
         <select
           value=""
@@ -134,7 +136,12 @@ function TagSelect({
             const val = e.target.value;
             if (val && !selected.includes(val)) onChange([...selected, val]);
           }}
-          style={inputBase}
+          style={{
+            flex: '1 1 140px', minWidth: '120px',
+            border: 'none', outline: 'none', background: 'transparent',
+            color: selected.length === 0 ? 'var(--color-text-muted)' : 'var(--color-text)',
+            fontSize: '13px', cursor: 'pointer', padding: '2px 0',
+          }}
         >
           <option value="">{placeholder ?? 'Select to add…'}</option>
           {options.filter((o) => !selected.includes(o)).map((o) => (
