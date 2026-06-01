@@ -4,6 +4,7 @@ import { getPurchaseOrderById } from '../pages/purchase-order/purchaseOrderData'
 import { getPurchaseOrderById as getPurchaseReceiptById } from '../pages/purchase-receipt/purchaseReceiptData';
 import { getPurchaseOrderById as getPurchaseInvoiceById } from '../pages/purchase-invoice/purchaseInvoiceData';
 import { getSaleOrderById } from '../pages/sale-order/saleOrderData';
+import { findSaleOrderV2Document } from '../pages/sale-order-v2/saleOrderV2Data';
 import { getSaleAllocationRequisitionById } from '../pages/sale-allocation-requisition/saleAllocationRequisitionData';
 import { getSaleAllocationById } from '../pages/sale-allocation/saleAllocationData';
 import { getSaleInvoiceById } from '../pages/sale-invoice/saleInvoiceData';
@@ -21,6 +22,7 @@ import {
   CreateSaleAllocationRequisition,
   CreateSaleInvoice,
   CreateSaleOrder,
+  CreateSaleOrderV2,
 } from './routeScreens';
 import type { CreateRouteContext } from './routeTypes';
 
@@ -114,6 +116,18 @@ export function renderCreateRoutes({
             editingDocument={getSaleOrderByIdFromStore(editingDocumentId) ?? getSaleOrderById(editingDocumentId)}
             onBack={() => navigateTo(paths.saleOrderList)}
             onNavigateToSaleOrderList={() => navigateTo(paths.saleOrderList)}
+          />
+        }
+      />
+
+      <Route
+        path={paths.saleOrderV2Create}
+        element={
+          <CreateSaleOrderV2
+            key={editingDocumentId ?? 'new-sale-order-v2'}
+            editingDocument={getSaleOrderByIdFromStore(editingDocumentId) ?? findSaleOrderV2Document(editingDocumentId)}
+            onBack={() => navigateTo(paths.saleOrderV2List)}
+            onNavigateToSaleOrderList={() => navigateTo(paths.saleOrderV2List)}
           />
         }
       />

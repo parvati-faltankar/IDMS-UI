@@ -24,6 +24,8 @@ export const paths = {
   purchaseInvoiceCreate: '/purchase-invoice/new',
   saleOrderList: '/sale-order',
   saleOrderCreate: '/sale-order/new',
+  saleOrderV2List: '/sale-order-v2',
+  saleOrderV2Create: '/sale-order-v2/new',
   saleAllocationRequisitionList: '/sale-allocation-requisition',
   saleAllocationRequisitionCreate: '/sale-allocation-requisition/new',
   saleAllocationList: '/sale-allocation',

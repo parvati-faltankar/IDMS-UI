@@ -39,6 +39,16 @@ const SlotFormPage = React.lazy(() => import('../admin/masters/slot-master/pages
 const ServiceTypeListPage = React.lazy(() => import('../admin/masters/service-type-master/pages/ServiceTypeListPage'));
 const ServiceTypeFormPage = React.lazy(() => import('../admin/masters/service-type-master/pages/ServiceTypeFormPage'));
 
+// ─── Engine Configuration ─────────────────────────────────────────────────────
+const RuleEngineConfigList    = React.lazy(() => import('../admin/masters/engine-config/rule-sets/pages/RuleEngineConfigList'));
+const RuleSetEditor           = React.lazy(() => import('../admin/masters/engine-config/rule-sets/pages/RuleSetEditor'));
+const WorkflowConfigList      = React.lazy(() => import('../admin/masters/engine-config/workflows/pages/WorkflowConfigList'));
+const WorkflowStepEditor      = React.lazy(() => import('../admin/masters/engine-config/workflows/pages/WorkflowStepEditor'));
+const ServiceRegistryList     = React.lazy(() => import('../admin/masters/engine-config/service-registry/pages/ServiceRegistryList'));
+const ServiceDefinitionEditor = React.lazy(() => import('../admin/masters/engine-config/service-registry/pages/ServiceDefinitionEditor'));
+const ApprovalMatrixList      = React.lazy(() => import('../admin/masters/engine-config/approval-matrix/pages/ApprovalMatrixList'));
+const ApprovalMatrixEditor    = React.lazy(() => import('../admin/masters/engine-config/approval-matrix/pages/ApprovalMatrixEditor'));
+
 export function renderAdminRoutes() {
   return (
     <>
@@ -94,6 +104,20 @@ export function renderAdminRoutes() {
       {/* Generic form for all other masters */}
       <Route path="/admin/master/:masterKey/new" element={<MasterFormPage />} />
       <Route path="/admin/master/:masterKey/:recordId" element={<MasterFormPage />} />
+
+      {/* ── Engine Configuration ─────────────────────────────────────── */}
+      <Route path="/admin/engine-config/rule-sets"                    element={<RuleEngineConfigList />} />
+      <Route path="/admin/engine-config/rule-sets/new"                element={<RuleSetEditor />} />
+      <Route path="/admin/engine-config/rule-sets/:ruleSetCode"       element={<RuleSetEditor />} />
+      <Route path="/admin/engine-config/workflows"                    element={<WorkflowConfigList />} />
+      <Route path="/admin/engine-config/workflows/new"                element={<WorkflowStepEditor />} />
+      <Route path="/admin/engine-config/workflows/:workflowCode"      element={<WorkflowStepEditor />} />
+      <Route path="/admin/engine-config/services"                     element={<ServiceRegistryList />} />
+      <Route path="/admin/engine-config/services/new"                 element={<ServiceDefinitionEditor />} />
+      <Route path="/admin/engine-config/services/:serviceCode"        element={<ServiceDefinitionEditor />} />
+      <Route path="/admin/engine-config/approval-matrix"             element={<ApprovalMatrixList />} />
+      <Route path="/admin/engine-config/approval-matrix/new"         element={<ApprovalMatrixEditor />} />
+      <Route path="/admin/engine-config/approval-matrix/:entryId"    element={<ApprovalMatrixEditor />} />
     </>
   );
 }

@@ -16,6 +16,8 @@ export const CreateSaleAllocation = lazy(() => import('../pages/sale-allocation/
 export const CreateSaleAllocationRequisition = lazy(() => import('../pages/sale-allocation-requisition/CreateSaleAllocationRequisition'));
 export const CreateSaleInvoice = lazy(() => import('../pages/sale-invoice/CreateSaleInvoice'));
 export const CreateSaleOrder = lazy(() => import('../pages/sale-order/CreateSaleOrder'));
+export const CreateSaleOrderV2 = lazy(() => import('../pages/sale-order-v2/CreateSaleOrderV2'));
+export const SaleOrderV2List = lazy(() => import('../pages/sale-order-v2/SaleOrderV2List'));
 export const DeliveryList = lazy(() => import('../pages/delivery/deliverylist'));
 export const ExcellonBrandGuidelinesPreview = lazy(() => import('../pages/profile/ExcellonBrandGuidelinesPreview'));
 export const FormLayoutEditor = lazy(() => import('../pages/form-layout/FormLayoutEditor'));

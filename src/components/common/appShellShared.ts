@@ -23,6 +23,7 @@ export type ActiveLeaf =
   | 'purchase-receipt'
   | 'purchase-invoice'
   | 'sale-order'
+  | 'sale-order-v2'
   | 'sale-allocation-requisition'
   | 'sale-allocation'
   | 'sale-invoice'
@@ -181,6 +182,7 @@ export const menuStructure: Level1Item[] = [
         hideLabel: true,
         level3: [
           { key: 'sale-order', label: 'Sale Order', icon: ShoppingBag },
+          { key: 'sale-order-v2', label: 'Sale Order (V2)', icon: ShoppingBag },
           { key: 'sale-allocation-requisition', label: 'Sale Allocation Requisition', icon: FilePlus2 },
           { key: 'sale-allocation', label: 'Sale Allocation', icon: ClipboardCheck },
           { key: 'sale-invoice', label: 'Sale Invoice', icon: ReceiptText },

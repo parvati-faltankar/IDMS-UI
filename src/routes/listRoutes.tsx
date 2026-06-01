@@ -11,6 +11,7 @@ import {
   SaleAllocationRequisitionList,
   SaleInvoiceList,
   SaleOrderList,
+  SaleOrderV2List,
 } from './routeScreens';
 import type { ListRouteContext } from './routeTypes';
 
@@ -91,6 +92,17 @@ export function renderListRoutes({
             onNew={() => navigateTo(paths.saleOrderCreate)}
             onEdit={(documentId) => navigateTo(paths.saleOrderCreate, { id: documentId, mode: 'edit' })}
             onNavigateToSaleOrderList={() => navigateTo(paths.saleOrderList)}
+          />
+        }
+      />
+
+      <Route
+        path={paths.saleOrderV2List}
+        element={
+          <SaleOrderV2List
+            onNew={() => navigateTo(paths.saleOrderV2Create)}
+            onEdit={(documentId) => navigateTo(paths.saleOrderV2Create, { id: documentId, mode: 'edit' })}
+            onNavigateToSaleOrderList={() => navigateTo(paths.saleOrderV2List)}
           />
         }
       />

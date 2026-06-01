@@ -73,6 +73,7 @@ export const defaultMenuItemRouteByKey: Record<string, string> = {
   'purchase-receipt': paths.purchaseReceiptList,
   'purchase-invoice': paths.purchaseInvoiceList,
   'sale-order': paths.saleOrderList,
+  'sale-order-v2': paths.saleOrderV2List,
   'sale-allocation-requisition': paths.saleAllocationRequisitionList,
   'sale-allocation': paths.saleAllocationList,
   'sale-invoice': paths.saleInvoiceList,

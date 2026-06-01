@@ -7,6 +7,7 @@ import {
   FileCode2,
   MapPin,
   Package,
+  Settings2,
   Shield,
   Users2,
   Warehouse,
@@ -224,6 +225,20 @@ export const adminNavGroups: AdminNavGroup[] = [
     iconColor: '#E11D48',
     masters: [
       m('bay-master', 'Bay Master', 'Configure workshop bays and service stations'),
+    ],
+  },
+  {
+    key: 'engine-config',
+    label: 'Engine Configuration',
+    description: 'Configure rule sets, workflows, service registry, and approval matrix',
+    icon: Settings2,
+    iconBg: '#F0F9FF',
+    iconColor: '#0284C7',
+    masters: [
+      { key: 'rule-engine-config', label: 'Rule Engine', description: 'Manage rule sets and business validation logic', path: '/admin/engine-config/rule-sets' },
+      { key: 'workflow-config', label: 'Workflow Configuration', description: 'Define workflow orchestration steps and transitions', path: '/admin/engine-config/workflows' },
+      { key: 'service-registry', label: 'Service Registry', description: 'Configure service endpoints, retries, and action codes', path: '/admin/engine-config/services' },
+      { key: 'approval-matrix', label: 'Approval Matrix', description: 'Set up approval levels and escalation rules', path: '/admin/engine-config/approval-matrix' },
     ],
   },
 ];
