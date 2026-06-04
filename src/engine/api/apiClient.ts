@@ -82,7 +82,25 @@ export async function engineRequest<T>(
     };
   }
 
-  const data = (await response.json()) as ServiceResponse<T>;
+  let data: ServiceResponse<T>;
+  try {
+    data = (await response.json()) as ServiceResponse<T>;
+  } catch {
+    // Vite SPA fallback (or a non-JSON backend response) returned HTML instead of JSON
+    return {
+      success: false,
+      status: 'Failed',
+      errors: [{
+        code: 'INVALID_JSON_RESPONSE',
+        message: 'Backend returned a non-JSON response. The API endpoint may not be configured.',
+      }],
+      warnings: [],
+      data: {} as T,
+      nextAction: 'Stop',
+      requiresUserIntervention: false,
+      retryable: false,
+    };
+  }
   return data;
 }
 

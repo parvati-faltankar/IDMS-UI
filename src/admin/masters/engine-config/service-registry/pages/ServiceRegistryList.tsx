@@ -73,8 +73,12 @@ const ServiceRegistryList: React.FC = () => {
 
   const fetchRecords = useCallback(async () => {
     setIsLoading(true);
-    const { data, isOffline: offline } = await loadServices();
-    setRecords(data); setIsOffline(offline); setIsLoading(false);
+    try {
+      const { data, isOffline: offline } = await loadServices();
+      setRecords(data); setIsOffline(offline);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
   useEffect(() => { void fetchRecords(); }, [fetchRecords]);

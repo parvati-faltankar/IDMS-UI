@@ -104,7 +104,7 @@ export const adminNavGroups: AdminNavGroup[] = [
     iconBg: '#FFF7ED',
     iconColor: '#EA580C',
     masters: [
-      m('product-master', 'Product Master', 'Define product catalog and specifications'),
+      { key: 'product-master', label: 'Product Master', description: 'Define product catalog and specifications', path: '/admin/product-master' },
       m('category-catalogue', 'Category / Catalogue', 'Set up product categories and catalogues'),
       m('sub-category', 'Sub Category', 'Configure product sub-categories'),
       m('product-group', 'Product Group', 'Group related products together'),

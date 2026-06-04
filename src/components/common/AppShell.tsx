@@ -19,6 +19,7 @@ const AppShell: React.FC<AppShellProps> = ({
   onPurchaseInvoiceClick,
   onPurchaseRequisitionClick,
   onSaleOrderClick,
+  onSaleOrderV2Click,
   onSaleAllocationRequisitionClick,
   onSaleAllocationClick,
   onSaleInvoiceClick,
@@ -79,6 +80,7 @@ const AppShell: React.FC<AppShellProps> = ({
           onPurchaseInvoiceClick={onPurchaseInvoiceClick}
           onPurchaseRequisitionClick={onPurchaseRequisitionClick}
           onSaleOrderClick={onSaleOrderClick}
+          onSaleOrderV2Click={onSaleOrderV2Click}
           onSaleAllocationRequisitionClick={onSaleAllocationRequisitionClick}
           onSaleAllocationClick={onSaleAllocationClick}
           onSaleInvoiceClick={onSaleInvoiceClick}

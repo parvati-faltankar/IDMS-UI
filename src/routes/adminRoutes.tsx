@@ -24,6 +24,10 @@ const AreaImportPage     = React.lazy(() => import('../admin/masters/area-master
 const SupplierListPage = React.lazy(() => import('../admin/masters/supplier-master/pages/SupplierListPage'));
 const SupplierFormPage = React.lazy(() => import('../admin/masters/supplier-master/pages/SupplierFormPage'));
 
+// ─── Product Master ───────────────────────────────────────────────────────────
+const ProductListPage = React.lazy(() => import('../admin/masters/product-master/pages/ProductListPage'));
+const ProductFormPage = React.lazy(() => import('../admin/masters/product-master/pages/ProductFormPage'));
+
 // ─── Customer Master ──────────────────────────────────────────────────────────
 const CustomerListPage = React.lazy(() => import('../admin/masters/customer-master/pages/CustomerListPage'));
 const CustomerFormPage = React.lazy(() => import('../admin/masters/customer-master/pages/CustomerFormPage'));
@@ -79,8 +83,10 @@ export function renderAdminRoutes() {
       {/* ── Supplier Master ─────────────────────────────────────────────── */}
       <Route path="/admin/supplier-master"        element={<SupplierListPage />} />
       <Route path="/admin/supplier-master/new"    element={<SupplierFormPage />} />
-      <Route path="/admin/supplier-master/:id"    element={<SupplierFormPage />} />
-      {/* ── Customer Master ─────────────────────────────────────────────── */}
+      <Route path="/admin/supplier-master/:id"    element={<SupplierFormPage />} />      {/* ── Product Master ──────────────────────────────────────────── */}
+      <Route path="/admin/product-master"        element={<ProductListPage />} />
+      <Route path="/admin/product-master/new"    element={<ProductFormPage />} />
+      <Route path="/admin/product-master/:id"    element={<ProductFormPage />} />      {/* ── Customer Master ─────────────────────────────────────────────── */}
       <Route path="/admin/master/customer-master"        element={<CustomerListPage />} />
       <Route path="/admin/master/customer-master/new"    element={<CustomerFormPage />} />
       <Route path="/admin/master/customer-master/:id"    element={<CustomerFormPage />} />      {/* ── UOM Master ──────────────────────────────────────────────── */}

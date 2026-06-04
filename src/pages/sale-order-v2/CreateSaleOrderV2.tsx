@@ -1658,10 +1658,10 @@ const CreateSaleOrderV2: React.FC<CreateSaleOrderProps> = ({
       )}
 
       <div className="create-pr-page mx-auto w-full max-w-[1800px] px-6 py-6 space-y-6">
-        {(ruleEngine.state.errors.length > 0 || ruleEngine.state.warnings.length > 0) && (
+        {((ruleEngine.state.response?.errors.length ?? 0) > 0 || (ruleEngine.state.response?.warnings.length ?? 0) > 0) && (
           <RuleEngineErrorSummary
-            errors={ruleEngine.state.errors}
-            warnings={ruleEngine.state.warnings}
+            errors={ruleEngine.state.response?.errors ?? []}
+            warnings={ruleEngine.state.response?.warnings ?? []}
           />
         )}
         <div className="create-pr-tabs">

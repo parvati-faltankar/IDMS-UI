@@ -1744,7 +1744,7 @@ const SaleOrderV2List: React.FC<SaleOrderListProps> = ({
   ];
 
   return (
-    <AppShell activeLeaf="sale-order" onSaleOrderClick={onNavigateToSaleOrderList}>
+    <AppShell activeLeaf="sale-order-v2" onSaleOrderV2Click={onNavigateToSaleOrderList}>
       <div className="catalogue-toolbar">
         <div className="catalogue-toolbar__inner catalogue-toolbar__inner--stacked">
           <div className="catalogue-toolbar__top">

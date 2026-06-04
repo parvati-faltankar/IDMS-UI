@@ -90,10 +90,13 @@ const RuleEngineConfigList: React.FC = () => {
 
   const fetchRecords = useCallback(async () => {
     setIsLoading(true);
-    const { data, isOffline: offline } = await loadRuleSets();
-    setRecords(data);
-    setIsOffline(offline);
-    setIsLoading(false);
+    try {
+      const { data, isOffline: offline } = await loadRuleSets();
+      setRecords(data);
+      setIsOffline(offline);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
   useEffect(() => { void fetchRecords(); }, [fetchRecords]);

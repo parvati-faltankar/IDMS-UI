@@ -12,6 +12,7 @@ const AppSidebar: React.FC<SidebarComponentProps> = ({
   onPurchaseReceiptClick,
   onPurchaseInvoiceClick,
   onSaleOrderClick,
+  onSaleOrderV2Click,
   onSaleAllocationRequisitionClick,
   onSaleAllocationClick,
   onSaleInvoiceClick,
@@ -24,6 +25,7 @@ const AppSidebar: React.FC<SidebarComponentProps> = ({
   const currentMenuStructure = usePublishedMenu();
   const isSalesLeaf =
     activeLeaf === 'sale-order' ||
+    activeLeaf === 'sale-order-v2' ||
     activeLeaf === 'sale-allocation-requisition' ||
     activeLeaf === 'sale-allocation' ||
     activeLeaf === 'sale-invoice' ||
@@ -136,6 +138,14 @@ const AppSidebar: React.FC<SidebarComponentProps> = ({
         onSaleOrderClick();
       } else {
         navigateToHash('#/sale-order');
+      }
+    }
+
+    if (item.key === 'sale-order-v2') {
+      if (onSaleOrderV2Click) {
+        onSaleOrderV2Click();
+      } else {
+        navigateToHash('#/sale-order-v2');
       }
     }
 

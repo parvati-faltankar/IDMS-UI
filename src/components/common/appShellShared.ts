@@ -36,6 +36,7 @@ export interface SidebarProps {
   onPurchaseReceiptClick?: () => void;
   onPurchaseInvoiceClick?: () => void;
   onSaleOrderClick?: () => void;
+  onSaleOrderV2Click?: () => void;
   onSaleAllocationRequisitionClick?: () => void;
   onSaleAllocationClick?: () => void;
   onSaleInvoiceClick?: () => void;
