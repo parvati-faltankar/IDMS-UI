@@ -11,6 +11,11 @@ const PicklistMasterPage       = React.lazy(() => import('../admin/masters/Pickl
 const CodeGenerationPolicyPage = React.lazy(() => import('../admin/masters/CodeGenerationPolicyPage'));
 const KycSetupPage             = React.lazy(() => import('../admin/masters/KycSetupPage'));
 
+// ─── Warehouse Master ─────────────────────────────────────────────────────────
+const WarehouseListPage        = React.lazy(() => import('../admin/masters/warehouse-master/pages/WarehouseListPage'));
+const WarehouseCreateWorkspace  = React.lazy(() => import('../admin/masters/warehouse-master/pages/WarehouseCreateWorkspace'));
+const WarehouseConfigurationPage = React.lazy(() => import('../admin/masters/warehouse-master/pages/WarehouseConfigurationPage'));
+
 // ─── Area Master (Phase 1) ────────────────────────────────────────────────────
 const AreaDashboardPage  = React.lazy(() => import('../admin/masters/area-master/pages/AreaDashboardPage'));
 const AreaLevelListPage  = React.lazy(() => import('../admin/masters/area-master/pages/AreaLevelListPage'));
@@ -69,7 +74,10 @@ export function renderAdminRoutes() {
 
       {/* KYC Setup — full CRUD with country-grouped proof grid */}
       <Route path="/admin/master/kyc-setup" element={<KycSetupPage />} />
-
+      {/* ── Warehouse Master ──────────────────────────────────────────── */}
+      <Route path="/admin/master/warehouse-master/new" element={<WarehouseCreateWorkspace />} />
+      <Route path="/admin/master/warehouse-master/:warehouseId/configuration" element={<WarehouseConfigurationPage />} />
+      <Route path="/admin/master/warehouse-master" element={<WarehouseListPage />} />
       {/* ── Area Master ─────────────────────────────────────────────────────── */}
       <Route path="/admin/area-dashboard"    element={<AreaDashboardPage />} />
       <Route path="/admin/area-levels"       element={<AreaLevelListPage />} />

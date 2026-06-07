@@ -561,6 +561,61 @@ export const helpTopics: HelpTopic[] = [
     ],
     relatedTopics: ['admin-dashboard'],
   },
+
+  // ─── Warehouse Master ──────────────────────────────────────────────────────
+  {
+    id: 'warehouse-master-overview',
+    title: 'How Warehouse Master Works',
+    summary:
+      'Warehouse Master lets you define physical and virtual warehouses, configure inventory control mode (Warehouse-Level or Location/BIN-Level), assign branches, and set up operational policies including putaway, picking, eligibility, and cycle count.',
+    steps: [
+      {
+        title: 'Create a warehouse record',
+        description:
+          'Click New Warehouse to open the warehouse form. Enter the warehouse code, name, and select the ownership scope. Organisation-scope warehouses are shared across all branches; Branch-scope warehouses are scoped to a single branch.',
+      },
+      {
+        title: 'Choose an inventory control mode',
+        description:
+          'Warehouse-Level tracks stock at the warehouse level without individual bin locations. Location/BIN-Level enables granular BIN-managed tracking. This choice cannot be changed once the warehouse has open stock.',
+      },
+      {
+        title: 'Set up the hierarchy template (BIN-Level only)',
+        description:
+          'For Location/BIN-Level warehouses, create a hierarchy template that defines the levels of your storage structure — for example, Zone > Aisle > Rack > Shelf > BIN. Activate the template before activating the warehouse.',
+      },
+      {
+        title: 'Create and activate locations',
+        description:
+          'Add at least one inventory-allowed active location before activating the warehouse. Locations can be created individually or via bulk import.',
+      },
+      {
+        title: 'Configure branch assignments',
+        description:
+          'Assign branches that should have access to this warehouse. Set a default warehouse per branch to auto-populate transactions.',
+      },
+      {
+        title: 'Activate the warehouse',
+        description:
+          'Resolve all setup issues shown in the Setup Health indicator, then activate. Once active, the warehouse is available for inventory transactions.',
+      },
+    ],
+    tips: [
+      'BIN-Level warehouses require an active hierarchy template and at least one active inventory-allowed BIN before activation.',
+      'Warehouse-Level warehouses cannot use auto-putaway or auto-picking — these are disabled automatically.',
+      'BIN-to-BIN transfer is only available in Location/BIN-Level mode.',
+      'The Setup Health indicator shows any blocking issues that must be resolved before activation.',
+      'You can block a warehouse temporarily without losing any data — unblock it to resume operations.',
+    ],
+    commonMistakes: [
+      'Trying to activate a BIN-Level warehouse without an active hierarchy template.',
+      'Enabling auto-putaway in Warehouse-Level mode — this is automatically prevented.',
+      'Forgetting to assign at least one branch to a Branch-scope warehouse.',
+      'Attempting to change the inventory control mode after stock exists in the warehouse.',
+      'Leaving the warehouse in Draft status without resolving Setup Health issues.',
+    ],
+    relatedTopics: ['admin-dashboard'],
+  },
 ];
 
 export function getHelpTopic(topicId?: string): HelpTopic | undefined {

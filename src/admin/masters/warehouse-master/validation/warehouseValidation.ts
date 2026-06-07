@@ -1,0 +1,128 @@
+// ─── Warehouse Master — Core Warehouse Validation ────────────────────────────
+
+import type { CreateWarehouseInput, UpdateWarehouseInput } from '../types/warehouse.dto';
+import type { Warehouse } from '../types/warehouse.types';
+import type { ValidationIssue } from '../types/warehouse.types';
+
+// ─── Field-level save validation ──────────────────────────────────────────────
+
+export interface WarehouseFieldErrors {
+  warehouseCode?: string;
+  warehouseName?: string;
+  ownershipScope?: string;
+  owningOrgCode?: string;
+  owningBranchCode?: string;
+  warehouseType?: string;
+  inventoryControlMode?: string;
+  autoPutaway?: string;
+  autoPicking?: string;
+  version?: string;
+}
+
+const WAREHOUSE_CODE_PATTERN = /^[A-Z0-9][A-Z0-9_-]{1,19}$/;
+
+export function validateWarehouseForSave(
+  input: CreateWarehouseInput,
+  existingWarehouses: Warehouse[],
+  editingId?: string,
+): WarehouseFieldErrors {
+  const errors: WarehouseFieldErrors = {};
+
+  // Code
+  if (!input.warehouseCode?.trim()) {
+    errors.warehouseCode = 'Warehouse Code is required.';
+  } else if (!WAREHOUSE_CODE_PATTERN.test(input.warehouseCode.trim())) {
+    errors.warehouseCode =
+      'Warehouse Code must be 2–20 uppercase letters, digits, hyphens, or underscores, starting with a letter or digit.';
+  } else {
+    const duplicate = existingWarehouses.find(
+      (w) =>
+        w.warehouseCode.trim().toUpperCase() === input.warehouseCode.trim().toUpperCase() &&
+        w.id !== editingId,
+    );
+    if (duplicate) {
+      errors.warehouseCode = 'A warehouse with this code already exists.';
+    }
+  }
+
+  // Name
+  if (!input.warehouseName?.trim()) {
+    errors.warehouseName = 'Warehouse Name is required.';
+  } else if (input.warehouseName.trim().length > 120) {
+    errors.warehouseName = 'Warehouse Name must be 120 characters or fewer.';
+  }
+
+  // Ownership scope
+  if (!input.ownershipScope) {
+    errors.ownershipScope = 'Ownership Scope is required.';
+  } else if (input.ownershipScope === 'Organization' && !input.owningOrgCode?.trim()) {
+    errors.owningOrgCode = 'Owning Organisation is required for Org-level warehouses.';
+  } else if (input.ownershipScope === 'Branch' && !input.owningBranchCode?.trim()) {
+    errors.owningBranchCode = 'Owning Branch is required for Branch-level warehouses.';
+  }
+
+  // Type
+  if (!input.warehouseType) {
+    errors.warehouseType = 'Warehouse Type is required.';
+  }
+
+  // Inventory control mode
+  if (!input.inventoryControlMode) {
+    errors.inventoryControlMode = 'Inventory Control Mode is required.';
+  }
+
+  // Auto Putaway / Picking only valid in BIN-Level mode
+  if (input.inventoryControlMode === 'Warehouse-Level') {
+    if (input.autoPutaway?.enabled) {
+      errors.autoPutaway =
+        'Auto Putaway is not supported in Warehouse-Level mode. Disable it or switch to Location/BIN-Level mode.';
+    }
+    if (input.autoPicking?.enabled) {
+      errors.autoPicking =
+        'Auto Picking is not supported in Warehouse-Level mode. Disable it or switch to Location/BIN-Level mode.';
+    }
+  }
+
+  return errors;
+}
+
+export function hasWarehouseFieldErrors(errors: WarehouseFieldErrors): boolean {
+  return Object.values(errors).some(Boolean);
+}
+
+// ─── Full validation result (for ValidationResult type) ─────────────────────
+
+export function validateWarehouseInput(
+  input: CreateWarehouseInput,
+  existingWarehouses: Warehouse[],
+  editingId?: string,
+): ValidationIssue[] {
+  const fieldErrors = validateWarehouseForSave(input, existingWarehouses, editingId);
+  const issues: ValidationIssue[] = [];
+
+  for (const [field, message] of Object.entries(fieldErrors)) {
+    if (message) {
+      issues.push({
+        field,
+        section: fieldToSection(field),
+        severity: 'error',
+        category: message.includes('exists') ? 'DuplicateCode' : 'FieldRequired',
+        message,
+      });
+    }
+  }
+
+  return issues;
+}
+
+function fieldToSection(field: string): import('../types/warehouse.enums').ConfigurationSectionKey {
+  if (['warehouseCode', 'warehouseName', 'ownershipScope', 'owningOrgCode', 'owningBranchCode'].includes(field)) {
+    return 'identity';
+  }
+  if (['warehouseType', 'inventoryControlMode', 'wmsEnabled'].includes(field)) {
+    return 'classification';
+  }
+  if (field.startsWith('autoPutaway')) return 'autoPutaway';
+  if (field.startsWith('autoPicking')) return 'autoPicking';
+  return 'identity';
+}

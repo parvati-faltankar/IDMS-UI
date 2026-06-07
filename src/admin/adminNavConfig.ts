@@ -124,7 +124,7 @@ export const adminNavGroups: AdminNavGroup[] = [
     iconBg: '#ECFEFF',
     iconColor: '#0891B2',
     masters: [
-      m('warehouse-master', 'Warehouse Master', 'Define warehouse locations and zones'),
+      m('warehouse-master', 'Warehouse Master', 'Manage warehouse ownership, branch access, hierarchy, inventory control, and operational policies'),
       m('barcode-qr-process', 'Barcode / QR Code Process', 'Configure barcode and QR code workflows'),
       m('item-return-policy', 'Item Return Policy', 'Set up return and refund rules'),
     ],
