@@ -19,13 +19,17 @@
 //   validateStep(step, state)               — per-step field validation
 //   applyPreset(preset, state)              — preview-only preset merge
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, CheckCircle2, Save, Warehouse, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle2, ChevronRight, HelpCircle, Save, AlertTriangle } from 'lucide-react';
+import AdminShell from '../../../AdminShell';
 import { findMasterByKey, findGroupForMasterKey } from '../../../adminNavConfig';
 import { recordRecentAdminMaster } from '../../../adminStorage';
+import { HelpDrawer } from '../../../../experience/components/HelpDrawer';
+import { getHelpTopic } from '../../../../experience/help/helpTopics';
+import { getFieldHelp } from '../../../../experience/help/fieldHelp';
+import { FieldHelpPopover } from '../../../../experience/components/FieldHelpPopover/FieldHelpPopover';
 import { warehouseMockAdapter } from '../services/warehouseMockAdapter';
-import { deriveBinManaged, deriveInventoryControlRules } from '../utils/warehouseDerivations';
 import { WAREHOUSE_ROUTES } from '../utils/routeUtils';
 import type {
   InventoryControlMode,
@@ -61,22 +65,26 @@ const STEPS = [
   { index: 5, label: 'Review & Activate' },
 ];
 
-export const WAREHOUSE_TYPES: WarehouseType[] = [
-  'Physical', 'Virtual', 'Transit', 'Consignment', 'Bonded', 'Cold-Chain', 'Hazardous',
+const STEP_DESCRIPTIONS = [
+  'Name, code, type, and facility reference for this warehouse.',
+  'Define who owns this warehouse and which branches can access it.',
+  'Choose whether inventory is controlled at warehouse level or at location and BIN level.',
+  'Set up hierarchy expectations and location structure requirements for this warehouse.',
+  'Configure putaway, picking, reservation, and storage policies.',
+  'Review setup health, resolve blockers, and save or activate with confidence.',
 ];
 
-export const TIMEZONES = [
-  'Asia/Kolkata',
-  'Asia/Dubai',
-  'Asia/Singapore',
-  'Asia/Tokyo',
-  'Europe/London',
-  'Europe/Berlin',
-  'America/New_York',
-  'America/Los_Angeles',
-  'America/Chicago',
-  'Australia/Sydney',
-  'UTC',
+const STEP_HELP_TOPICS = [
+  'warehouse-create',
+  'warehouse-ownership',
+  'warehouse-inventory-control',
+  'warehouse-hierarchy',
+  'warehouse-defaults',
+  'warehouse-activation',
+] as const;
+
+export const WAREHOUSE_TYPES: WarehouseType[] = [
+  'Physical', 'Virtual', 'Transit', 'Consignment', 'Bonded', 'Cold-Chain', 'Hazardous',
 ];
 
 export const MOCK_ORG_CODES = ['ORG-001', 'ORG-002', 'ORG-003'];
@@ -85,6 +93,7 @@ export const MOCK_COMPANY_CODES = ['EXCL-001', 'EXCL-002'];
 export const MOCK_BU_CODES = ['BU-SALES', 'BU-MFG', 'BU-DIST'];
 export const MOCK_LEGAL_ENTITIES = ['LE-INDIA-001', 'LE-INDIA-002'];
 export const MOCK_INV_OWNER_CODES = ['OWN-001', 'OWN-002', 'OWN-003'];
+export const TIMEZONES = ['Asia/Kolkata', 'UTC'];
 
 const PUTAWAY_STRATEGIES: PutawayStrategy[] = [
   'FIFO', 'LIFO', 'FEFO', 'Nearest-Empty', 'Fixed-BIN', 'Random', 'Zone-Directed', 'Capacity-Optimised',
@@ -131,6 +140,13 @@ export type OperationalPreset =
   | 'cold-storage'
   | 'hazard-controlled';
 
+export interface BranchOwnershipRow {
+  branchCode: string;
+  businessUnit: string;
+  legalEntityCode: string;
+  inventoryOwnerCode: string;
+}
+
 // ─── Form state ───────────────────────────────────────────────────────────────
 
 export interface CreateFormState {
@@ -151,6 +167,8 @@ export interface CreateFormState {
   businessUnit: string;
   legalEntityCode: string;
   inventoryOwnerCode: string;
+  owningBranchCodes: string[];
+  branchOwnershipRows: BranchOwnershipRow[];
   sharedWithAllBranches: boolean;
   sharedBranchCodes: string[];
 
@@ -198,6 +216,8 @@ const EMPTY_STATE: CreateFormState = {
   businessUnit: '',
   legalEntityCode: '',
   inventoryOwnerCode: '',
+  owningBranchCodes: [],
+  branchOwnershipRows: [],
   sharedWithAllBranches: false,
   sharedBranchCodes: [],
 
@@ -251,20 +271,36 @@ export function validateStep(
 ): Record<string, string> {
   const errs: Record<string, string> = {};
   if (step === 0) {
-    if (!state.warehouseName.trim()) errs.warehouseName = 'Warehouse Name is required.';
-    if (!state.warehouseCode.trim()) errs.warehouseCode = 'Warehouse Code is required.';
-    if (!state.warehouseType) errs.warehouseType = 'Warehouse Type is required.';
-    if (!state.timezone) errs.timezone = 'Operational Time Zone is required.';
+    if (!state.warehouseName.trim()) errs.warehouseName = 'Enter the warehouse name used by operations and reporting.';
+    if (!state.warehouseCode.trim()) errs.warehouseCode = 'Enter a warehouse code before moving to ownership and inventory setup.';
+    if (!state.warehouseType) errs.warehouseType = 'Select the warehouse type so downstream rules and reporting can classify this site correctly.';
   }
   if (step === 1) {
-    if (!state.ownershipScope) errs.ownershipScope = 'Ownership Scope is required.';
+    if (!state.ownershipScope) errs.ownershipScope = 'Choose whether this warehouse is governed at organisation scope or branch scope.';
     if (state.ownershipScope === 'Organization' && !state.owningOrgCode)
-      errs.owningOrgCode = 'Owning Organization is required.';
-    if (state.ownershipScope === 'Branch' && !state.owningBranchCode)
-      errs.owningBranchCode = 'Owning Branch is required.';
+      errs.owningOrgCode = 'Select the owning organisation for this shared warehouse.';
+    if (state.ownershipScope === 'Organization' && !state.businessUnit)
+      errs.businessUnit = 'Select the business unit that governs this warehouse.';
+    if (state.ownershipScope === 'Organization' && !state.legalEntityCode)
+      errs.legalEntityCode = 'Select the legal entity for organisation-level ownership.';
+    if (state.ownershipScope === 'Organization' && !state.inventoryOwnerCode)
+      errs.inventoryOwnerCode = 'Select the inventory owner for this warehouse.';
+    if (state.ownershipScope === 'Branch' && state.owningBranchCodes.length === 0)
+      errs.owningBranchCodes = 'Select at least one owning branch before continuing.';
+    if (state.ownershipScope === 'Branch') {
+      const incompleteRow = state.branchOwnershipRows.find(
+        (row) =>
+          !row.businessUnit.trim() ||
+          !row.legalEntityCode.trim() ||
+          !row.inventoryOwnerCode.trim(),
+      );
+      if (incompleteRow) {
+        errs.branchOwnershipRows = `Complete Business Unit, Legal Entity, and Inventory Owner for ${incompleteRow.branchCode}.`;
+      }
+    }
   }
   if (step === 2) {
-    if (!state.inventoryControlMode) errs.inventoryControlMode = 'Inventory Control Mode is required.';
+    if (!state.inventoryControlMode) errs.inventoryControlMode = 'Select an inventory control mode. This choice determines whether hierarchy and BIN-level rules are required later.';
   }
   return errs;
 }
@@ -421,7 +457,7 @@ const sHead: React.CSSProperties = {
   justifyContent: 'space-between',
 };
 const sBody: React.CSSProperties = { padding: '20px 24px', background: 'var(--color-surface)' };
-const twoCol: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' };
+const twoCol: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px' };
 const fw: React.CSSProperties = { marginBottom: '14px' };
 const btnPrimary: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: '6px',
@@ -441,6 +477,25 @@ const btnGhost: React.CSSProperties = {
   borderRadius: '8px', border: 'none',
   background: 'transparent', color: 'var(--color-text-muted)', cursor: 'pointer',
 };
+
+function labelWithHelp(label: string, helpKey?: string, required = false) {
+  const help = helpKey ? getFieldHelp(helpKey) : undefined;
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+      <span>
+        {label}
+        {required ? ' *' : ''}
+      </span>
+      {help && (
+        <FieldHelpPopover
+          title={help.title}
+          description={help.description}
+          example={help.example}
+        />
+      )}
+    </span>
+  );
+}
 
 // ─── Step indicator ───────────────────────────────────────────────────────────
 
@@ -545,6 +600,8 @@ function StepIndicator({
   );
 }
 
+void StepIndicator;
+
 // ─── WarehouseCreateWorkspace ─────────────────────────────────────────────────
 
 const WarehouseCreateWorkspace: React.FC = () => {
@@ -560,14 +617,18 @@ const WarehouseCreateWorkspace: React.FC = () => {
   const [activating, setActivating] = useState(false);
   const [codeIsUnique, setCodeIsUnique] = useState(true);
   const [codeCheckPending, setCodeCheckPending] = useState(false);
-  const [previousMode, setPreviousMode] = useState<InventoryControlMode | ''>('');
+  const [, setPreviousMode] = useState<InventoryControlMode | ''>('');
   const [showModeWarning, setShowModeWarning] = useState(false);
+  const [modeChangeHint, setModeChangeHint] = useState<string | null>(null);
   const [presetPreview, setPresetPreview] = useState<{
     preset: OperationalPreset;
     delta: Partial<CreateFormState>;
   } | null>(null);
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [isNarrow, setIsNarrow] = useState(() => window.innerWidth < 1024);
   const codeCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const branchRowCache = useRef<Record<string, BranchOwnershipRow>>({});
 
   // ── Dirty-state navigation blocker ─────────────────────────────────────────
   // useBlocker requires a data router (createBrowserRouter / createHashRouter).
@@ -585,6 +646,12 @@ const WarehouseCreateWorkspace: React.FC = () => {
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [isDirty]);
+
+  useEffect(() => {
+    const handleResize = () => setIsNarrow(window.innerWidth < 1024);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   function navigateSafe(path: string) {
     if (isDirty) {
@@ -620,6 +687,116 @@ const WarehouseCreateWorkspace: React.FC = () => {
   function setField<K extends keyof CreateFormState>(key: K, value: CreateFormState[K]) {
     setState((s) => ({ ...s, [key]: value }));
     setFieldErrors((e) => ({ ...e, [key]: undefined as unknown as string }));
+    setIsDirty(true);
+  }
+
+  function buildBranchOwnershipRow(
+    branchCode: string,
+    currentState: CreateFormState,
+  ): BranchOwnershipRow {
+    const cachedRow = branchRowCache.current[branchCode];
+    if (cachedRow) return cachedRow;
+
+    const previousRow =
+      currentState.branchOwnershipRows[currentState.branchOwnershipRows.length - 1];
+
+    return {
+      branchCode,
+      businessUnit: previousRow?.businessUnit || '',
+      legalEntityCode: previousRow?.legalEntityCode || '',
+      inventoryOwnerCode: previousRow?.inventoryOwnerCode || '',
+    };
+  }
+
+  function toggleOwningBranch(branchCode: string) {
+    setState((currentState) => {
+      const selected = currentState.owningBranchCodes.includes(branchCode);
+      const nextCodes = selected
+        ? currentState.owningBranchCodes.filter((code) => code !== branchCode)
+        : [...currentState.owningBranchCodes, branchCode];
+
+      const nextRows = selected
+        ? currentState.branchOwnershipRows.filter((row) => {
+            if (row.branchCode === branchCode) {
+              branchRowCache.current[branchCode] = row;
+              return false;
+            }
+            return true;
+          })
+        : [
+            ...currentState.branchOwnershipRows,
+            buildBranchOwnershipRow(branchCode, currentState),
+          ];
+
+      return {
+        ...currentState,
+        owningBranchCodes: nextCodes,
+        branchOwnershipRows: nextRows,
+      };
+    });
+
+    setFieldErrors((currentErrors) => ({
+      ...currentErrors,
+      owningBranchCodes: undefined as unknown as string,
+      branchOwnershipRows: undefined as unknown as string,
+    }));
+    setIsDirty(true);
+  }
+
+  function setBranchOwnershipRowField(
+    branchCode: string,
+    field: keyof Omit<BranchOwnershipRow, 'branchCode'>,
+    value: string,
+  ) {
+    setState((currentState) => {
+      const nextRows = currentState.branchOwnershipRows.map((row) =>
+        row.branchCode === branchCode ? { ...row, [field]: value } : row,
+      );
+      const updatedRow = nextRows.find((row) => row.branchCode === branchCode);
+      if (updatedRow) {
+        branchRowCache.current[branchCode] = updatedRow;
+      }
+      return { ...currentState, branchOwnershipRows: nextRows };
+    });
+
+    setFieldErrors((currentErrors) => ({
+      ...currentErrors,
+      branchOwnershipRows: undefined as unknown as string,
+    }));
+    setIsDirty(true);
+  }
+
+  function selectInventoryMode(mode: InventoryControlMode) {
+    setState((currentState) => {
+      if (currentState.inventoryControlMode === mode) return currentState;
+
+      if (mode === 'Warehouse-Level') {
+        setModeChangeHint('Switched to Warehouse-Level. Structure-specific setup and BIN-only automation defaults were reset.');
+        return {
+          ...currentState,
+          inventoryControlMode: mode,
+          hierarchyChoice: '',
+          copyFromWarehouseId: '',
+          autoPutawayEnabled: false,
+          putawayStrategySequence: [],
+          autoPickingEnabled: false,
+          pickingStrategySequence: [],
+          reservationLevel: 'Warehouse',
+          allocationLevel: 'Warehouse',
+        };
+      }
+
+      setModeChangeHint('Switched to Location/BIN-Level. Hierarchy setup and warehouse automation options are now available.');
+      return {
+        ...currentState,
+        inventoryControlMode: mode,
+      };
+    });
+
+    setFieldErrors((currentErrors) => ({
+      ...currentErrors,
+      inventoryControlMode: undefined as unknown as string,
+    }));
     setIsDirty(true);
   }
 
@@ -673,7 +850,7 @@ const WarehouseCreateWorkspace: React.FC = () => {
     const errs = validateStep(step, state);
     if (Object.keys(errs).length > 0) {
       setFieldErrors(errs);
-      showToast('Please fix the highlighted fields before continuing.', 'error');
+      showToast('Complete the required fields in this step before continuing. Each highlighted field explains what is missing.', 'error');
       return;
     }
     setCompletedSteps((prev) => new Set(prev).add(step));
@@ -692,9 +869,14 @@ const WarehouseCreateWorkspace: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
+  function getStepIssueCount(targetStep: number): number {
+    return Object.keys(validateStep(targetStep, state)).length;
+  }
+
   // ── Build input ─────────────────────────────────────────────────────────────
   function buildInput(): CreateWarehouseInput {
     const mode = state.inventoryControlMode as InventoryControlMode;
+    const primaryBranchRow = state.branchOwnershipRows[0];
     const autoPutaway = mode === 'Location-BIN-Level'
       ? {
           enabled: state.autoPutawayEnabled,
@@ -718,11 +900,33 @@ const WarehouseCreateWorkspace: React.FC = () => {
       description: state.description.trim() || undefined,
       ownershipScope: (state.ownershipScope || 'Organization') as WarehouseOwnershipScope,
       owningOrgCode: state.ownershipScope === 'Organization' ? state.owningOrgCode : undefined,
-      owningBranchCode: state.ownershipScope === 'Branch' ? state.owningBranchCode : undefined,
+      owningBranchCode:
+        state.ownershipScope === 'Branch' ? state.owningBranchCodes[0] : undefined,
+      owningBranchCodes:
+        state.ownershipScope === 'Branch' ? state.owningBranchCodes : undefined,
+      branchOwnershipRows:
+        state.ownershipScope === 'Branch' ? state.branchOwnershipRows : undefined,
+      businessUnit:
+        state.ownershipScope === 'Organization'
+          ? state.businessUnit || undefined
+          : primaryBranchRow?.businessUnit || undefined,
+      legalEntityCode:
+        state.ownershipScope === 'Organization'
+          ? state.legalEntityCode || undefined
+          : primaryBranchRow?.legalEntityCode || undefined,
+      inventoryOwnerCode:
+        state.ownershipScope === 'Organization'
+          ? state.inventoryOwnerCode || undefined
+          : primaryBranchRow?.inventoryOwnerCode || undefined,
+      sharedWithAllBranches:
+        state.ownershipScope === 'Organization' ? state.sharedWithAllBranches : false,
+      sharedBranchCodes:
+        state.ownershipScope === 'Organization' && !state.sharedWithAllBranches
+          ? state.sharedBranchCodes
+          : [],
       warehouseType: (state.warehouseType || 'Physical') as WarehouseType,
       wmsEnabled: state.wmsEnabled,
       inventoryControlMode: mode,
-      operatingCalendar: state.timezone ? { timezone: state.timezone } : undefined,
       autoPutaway,
       autoPicking,
       capacityPolicy: {
@@ -816,8 +1020,18 @@ const WarehouseCreateWorkspace: React.FC = () => {
     warehouseType: state.warehouseType,
     ownershipScope: state.ownershipScope,
     owningOrgCode: state.owningOrgCode,
-    owningBranchCode: state.owningBranchCode,
-    timezone: state.timezone,
+    businessUnit: state.businessUnit,
+    legalEntityCode: state.legalEntityCode,
+    inventoryOwnerCode: state.inventoryOwnerCode,
+    owningBranchCodes: state.owningBranchCodes,
+    branchOwnershipRowsComplete:
+      state.branchOwnershipRows.length > 0 &&
+      state.branchOwnershipRows.every(
+        (row) =>
+          row.businessUnit.trim().length > 0 &&
+          row.legalEntityCode.trim().length > 0 &&
+          row.inventoryOwnerCode.trim().length > 0,
+      ),
     inventoryControlMode: state.inventoryControlMode,
     // For new warehouse creation, there are no templates or locations yet.
     // Warehouse-Level skips these checks; BIN-Level warns user (cannot be truly validated
@@ -865,9 +1079,7 @@ const WarehouseCreateWorkspace: React.FC = () => {
             {/* Name + Code */}
             <div style={{ ...twoCol, ...fw }}>
               <div>
-                <label style={labelBase}>
-                  Warehouse Name <span style={{ color: '#DC2626' }}>*</span>
-                </label>
+                <label style={labelBase}>{labelWithHelp('Warehouse Name', undefined, true)}</label>
                 <input
                   type="text"
                   value={state.warehouseName}
@@ -878,9 +1090,7 @@ const WarehouseCreateWorkspace: React.FC = () => {
                 {fieldErrors.warehouseName && <p style={errTxt}>{fieldErrors.warehouseName}</p>}
               </div>
               <div>
-                <label style={labelBase}>
-                  Warehouse Code <span style={{ color: '#DC2626' }}>*</span>
-                </label>
+                <label style={labelBase}>{labelWithHelp('Warehouse Code', undefined, true)}</label>
                 <input
                   type="text"
                   value={state.warehouseCode}
@@ -900,7 +1110,7 @@ const WarehouseCreateWorkspace: React.FC = () => {
                 />
                 {fieldErrors.warehouseCode && <p style={errTxt}>{fieldErrors.warehouseCode}</p>}
                 {!fieldErrors.warehouseCode && !codeIsUnique && (
-                  <p style={errTxt}>This code is already in use.</p>
+                  <p style={errTxt}>This warehouse code already exists. Enter a unique code before saving or activating.</p>
                 )}
                 {!fieldErrors.warehouseCode && codeIsUnique && state.warehouseCode && (
                   <p style={{ ...hintTxt, color: '#16A34A' }}>
@@ -1024,7 +1234,7 @@ const WarehouseCreateWorkspace: React.FC = () => {
         {/* Scope selector */}
         <div style={sCard}>
           <div style={sHead}>
-            <span style={{ fontSize: '13px', fontWeight: 600 }}>Ownership Scope</span>
+            <span style={{ fontSize: '13px', fontWeight: 600 }}>{labelWithHelp('Ownership Scope')}</span>
             <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
               Choose scope first — it controls which fields are required
             </span>
@@ -1308,7 +1518,7 @@ const WarehouseCreateWorkspace: React.FC = () => {
 
         <div style={sCard}>
           <div style={sHead}>
-            <span style={{ fontSize: '13px', fontWeight: 600 }}>Inventory Control Mode</span>
+            <span style={{ fontSize: '13px', fontWeight: 600 }}>{labelWithHelp('Inventory Control Mode', 'warehouseInventoryControlMode')}</span>
             <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
               This choice permanently affects BIN management and location requirements
             </span>
@@ -1457,7 +1667,7 @@ const WarehouseCreateWorkspace: React.FC = () => {
       <div>
         <div style={sCard}>
           <div style={sHead}>
-            <span style={{ fontSize: '13px', fontWeight: 600 }}>Hierarchy Setup</span>
+            <span style={{ fontSize: '13px', fontWeight: 600 }}>{labelWithHelp('Hierarchy Setup', 'warehouseHierarchyChoice')}</span>
             <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
               Choose how to define the location structure for this warehouse
             </span>
@@ -1777,7 +1987,7 @@ const WarehouseCreateWorkspace: React.FC = () => {
           <div style={sBody}>
             <div style={twoCol}>
               <div>
-                <label style={labelBase}>Reservation Level</label>
+                <label style={labelBase}>{labelWithHelp('Reservation Level', 'warehouseReservationLevel')}</label>
                 <select
                   value={state.reservationLevel}
                   onChange={(e) => setField('reservationLevel', e.target.value as ReservationLevel)}
@@ -1794,7 +2004,7 @@ const WarehouseCreateWorkspace: React.FC = () => {
                 )}
               </div>
               <div>
-                <label style={labelBase}>Allocation Level</label>
+                <label style={labelBase}>{labelWithHelp('Allocation Level', 'warehouseAllocationLevel')}</label>
                 <select
                   value={state.allocationLevel}
                   onChange={(e) => setField('allocationLevel', e.target.value as AllocationLevel)}
@@ -1812,7 +2022,7 @@ const WarehouseCreateWorkspace: React.FC = () => {
         {/* Mixing & storage policies */}
         <div style={sCard}>
           <div style={sHead}>
-            <span style={{ fontSize: '13px', fontWeight: 600 }}>Storage Policies</span>
+            <span style={{ fontSize: '13px', fontWeight: 600 }}>{labelWithHelp('Storage Policies', 'warehouseStorageMixing')}</span>
           </div>
           <div style={sBody}>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '16px' }}>
@@ -1925,6 +2135,446 @@ const WarehouseCreateWorkspace: React.FC = () => {
   }
 
   // ── Step 5: Review & Activate ─────────────────────────────────────────────
+  function renderStep0Modern() {
+    return (
+      <div>
+        <div style={sCard}>
+          <div style={sHead}>
+            <span style={{ fontSize: '13px', fontWeight: 600 }}>Warehouse Identity</span>
+            <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+              Core identity fields that anchor downstream setup
+            </span>
+          </div>
+          <div style={sBody}>
+            <div style={{ ...twoCol, ...fw }}>
+              <div>
+                <label style={labelBase}>{labelWithHelp('Warehouse Name', undefined, true)}</label>
+                <input
+                  type="text"
+                  value={state.warehouseName}
+                  onChange={(e) => setField('warehouseName', e.target.value)}
+                  style={fieldErrors.warehouseName ? inputErr : inputBase}
+                  placeholder="e.g. Pune Main Distribution Centre"
+                />
+                {fieldErrors.warehouseName && <p style={errTxt}>{fieldErrors.warehouseName}</p>}
+              </div>
+              <div>
+                <label style={labelBase}>{labelWithHelp('Warehouse Code', undefined, true)}</label>
+                <input
+                  type="text"
+                  value={state.warehouseCode}
+                  onChange={(e) => {
+                    setField('warehouseCode', e.target.value.toUpperCase());
+                    setField('codeManuallyEdited', true);
+                  }}
+                  style={fieldErrors.warehouseCode || !codeIsUnique ? inputErr : inputBase}
+                  placeholder="e.g. WH-PUNE"
+                  maxLength={20}
+                />
+                {fieldErrors.warehouseCode && <p style={errTxt}>{fieldErrors.warehouseCode}</p>}
+                {!fieldErrors.warehouseCode && !codeIsUnique && (
+                  <p style={errTxt}>This warehouse code already exists. Enter a unique code before saving or activating.</p>
+                )}
+                {!fieldErrors.warehouseCode && codeIsUnique && state.warehouseCode && (
+                  <p style={{ ...hintTxt, color: '#16A34A' }}>
+                    {codeCheckPending ? 'Checking...' : 'Code is available'}
+                  </p>
+                )}
+                {!state.codeManuallyEdited && state.warehouseName && (
+                  <p style={hintTxt}>Auto-suggested from the warehouse name. Switch to manual only if operations needs a custom code.</p>
+                )}
+                <p style={hintTxt}>Code becomes read-only after activation.</p>
+              </div>
+            </div>
+
+            <div style={fw}>
+              <label style={labelBase}>Description</label>
+              <textarea
+                value={state.description}
+                onChange={(e) => setField('description', e.target.value)}
+                style={{ ...inputBase, resize: 'vertical', minHeight: '64px' }}
+                placeholder="Optional: purpose, special handling notes..."
+              />
+            </div>
+
+            <div style={twoCol}>
+              <div>
+                <label style={labelBase}>
+                  Warehouse Type <span style={{ color: '#DC2626' }}>*</span>
+                </label>
+                <select
+                  value={state.warehouseType}
+                  onChange={(e) => setField('warehouseType', e.target.value as WarehouseType)}
+                  style={fieldErrors.warehouseType ? inputErr : inputBase}
+                >
+                  <option value="">Select type...</option>
+                  {WAREHOUSE_TYPES.map((type) => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+                {fieldErrors.warehouseType && <p style={errTxt}>{fieldErrors.warehouseType}</p>}
+              </div>
+              <div>
+                <label style={labelBase}>Physical Facility Reference</label>
+                <input
+                  type="text"
+                  value={state.facilityReference}
+                  onChange={(e) => setField('facilityReference', e.target.value)}
+                  style={inputBase}
+                  placeholder="e.g. FAC-PUNE-01 (optional)"
+                />
+                <p style={hintTxt}>Link the warehouse to a facility record when one already exists.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderStep1Modern() {
+    const showOrgFields = state.ownershipScope === 'Organization';
+    const showBranchFields = state.ownershipScope === 'Branch';
+
+    return (
+      <div>
+        <div style={sCard}>
+          <div style={sHead}>
+            <span style={{ fontSize: '13px', fontWeight: 600 }}>Ownership Scope</span>
+            <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+              Choose whether ownership is shared across the organisation or defined branch by branch
+            </span>
+          </div>
+          <div style={sBody}>
+            <div style={{ display: 'grid', gridTemplateColumns: isNarrow ? '1fr' : 'repeat(2, minmax(0, 1fr))', gap: '12px' }}>
+              {(['Organization', 'Branch'] as WarehouseOwnershipScope[]).map((scope) => (
+                <label
+                  key={scope}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '10px',
+                    padding: '14px 16px',
+                    border: `2px solid ${state.ownershipScope === scope ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                    borderRadius: '12px',
+                    background: state.ownershipScope === scope ? 'color-mix(in srgb, var(--color-primary) 6%, white)' : 'var(--color-surface)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="ownershipScopeModern"
+                    checked={state.ownershipScope === scope}
+                    onChange={() => setField('ownershipScope', scope)}
+                    style={{ marginTop: '2px', accentColor: 'var(--color-primary)' }}
+                  />
+                  <div>
+                    <p style={{ margin: 0, fontSize: '13px', fontWeight: 700 }}>{scope} Level</p>
+                    <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--color-text-muted)', lineHeight: 1.45 }}>
+                      {scope === 'Organization'
+                        ? 'Use one shared ownership set and optionally share warehouse access across branches.'
+                        : 'Select multiple owning branches and capture BU, legal entity, and inventory owner per branch row.'}
+                    </p>
+                  </div>
+                </label>
+              ))}
+            </div>
+            {fieldErrors.ownershipScope && <p style={errTxt}>{fieldErrors.ownershipScope}</p>}
+          </div>
+        </div>
+
+        {showOrgFields && (
+          <div style={sCard}>
+            <div style={sHead}>
+              <span style={{ fontSize: '13px', fontWeight: 600 }}>Organisation Ownership</span>
+            </div>
+            <div style={sBody}>
+              <div style={{ ...twoCol, ...fw }}>
+                <div>
+                  <label style={labelBase}>Owning Organization <span style={{ color: '#DC2626' }}>*</span></label>
+                  <select value={state.owningOrgCode} onChange={(e) => setField('owningOrgCode', e.target.value)} style={fieldErrors.owningOrgCode ? inputErr : inputBase}>
+                    <option value="">Select organization...</option>
+                    {MOCK_ORG_CODES.map((code) => <option key={code} value={code}>{code}</option>)}
+                  </select>
+                  {fieldErrors.owningOrgCode && <p style={errTxt}>{fieldErrors.owningOrgCode}</p>}
+                </div>
+                <div>
+                  <label style={labelBase}>Business Unit <span style={{ color: '#DC2626' }}>*</span></label>
+                  <select value={state.businessUnit} onChange={(e) => setField('businessUnit', e.target.value)} style={fieldErrors.businessUnit ? inputErr : inputBase}>
+                    <option value="">Select BU...</option>
+                    {MOCK_BU_CODES.map((code) => <option key={code} value={code}>{code}</option>)}
+                  </select>
+                  {fieldErrors.businessUnit && <p style={errTxt}>{fieldErrors.businessUnit}</p>}
+                </div>
+              </div>
+              <div style={twoCol}>
+                <div>
+                  <label style={labelBase}>Legal Entity <span style={{ color: '#DC2626' }}>*</span></label>
+                  <select value={state.legalEntityCode} onChange={(e) => setField('legalEntityCode', e.target.value)} style={fieldErrors.legalEntityCode ? inputErr : inputBase}>
+                    <option value="">Select legal entity...</option>
+                    {MOCK_LEGAL_ENTITIES.map((code) => <option key={code} value={code}>{code}</option>)}
+                  </select>
+                  {fieldErrors.legalEntityCode && <p style={errTxt}>{fieldErrors.legalEntityCode}</p>}
+                </div>
+                <div>
+                  <label style={labelBase}>Inventory Owner <span style={{ color: '#DC2626' }}>*</span></label>
+                  <select value={state.inventoryOwnerCode} onChange={(e) => setField('inventoryOwnerCode', e.target.value)} style={fieldErrors.inventoryOwnerCode ? inputErr : inputBase}>
+                    <option value="">Select inventory owner...</option>
+                    {MOCK_INV_OWNER_CODES.map((code) => <option key={code} value={code}>{code}</option>)}
+                  </select>
+                  {fieldErrors.inventoryOwnerCode && <p style={errTxt}>{fieldErrors.inventoryOwnerCode}</p>}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showOrgFields && (
+          <div style={sCard}>
+            <div style={sHead}>
+              <span style={{ fontSize: '13px', fontWeight: 600 }}>Branch Access</span>
+            </div>
+            <div style={sBody}>
+              <div style={{ padding: '12px 14px', background: 'var(--color-surface-subtle)', border: '1px solid var(--color-border)', borderRadius: '10px', marginBottom: '14px' }}>
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={state.sharedWithAllBranches} onChange={(e) => setField('sharedWithAllBranches', e.target.checked)} style={{ marginTop: '3px', accentColor: 'var(--color-primary)' }} />
+                  <div>
+                    <p style={{ margin: 0, fontSize: '12px', fontWeight: 600 }}>Share with all branches</p>
+                    <p style={{ margin: '4px 0 0', fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                      Turn this on for universal access. Leave it off to choose only the branches that should transact in this warehouse.
+                    </p>
+                  </div>
+                </label>
+              </div>
+              {!state.sharedWithAllBranches && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px' }}>
+                  {MOCK_BRANCH_CODES.map((branchCode) => {
+                    const selected = state.sharedBranchCodes.includes(branchCode);
+                    return (
+                      <button
+                        key={branchCode}
+                        type="button"
+                        onClick={() => setField('sharedBranchCodes', selected ? state.sharedBranchCodes.filter((code) => code !== branchCode) : [...state.sharedBranchCodes, branchCode])}
+                        style={{
+                          minHeight: '40px',
+                          padding: '8px 12px',
+                          borderRadius: '10px',
+                          border: `1px solid ${selected ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                          background: selected ? 'color-mix(in srgb, var(--color-primary) 7%, white)' : 'var(--color-surface)',
+                          color: selected ? 'var(--color-primary)' : 'var(--color-text)',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {branchCode}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {showBranchFields && (
+          <div style={sCard}>
+            <div style={sHead}>
+              <span style={{ fontSize: '13px', fontWeight: 600 }}>Branch Ownership Grid</span>
+              <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                Selected branches appear here immediately so each row can carry its own ownership context
+              </span>
+            </div>
+            <div style={sBody}>
+              <div style={{ ...fw }}>
+                <label style={labelBase}>Owning Branches <span style={{ color: '#DC2626' }}>*</span></label>
+                <div style={{ ...inputBase, minHeight: '44px', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px', padding: '8px 10px' }}>
+                  {state.owningBranchCodes.length === 0 ? (
+                    <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Choose one or more branches below. Selected branches will be shown here as chips.</span>
+                  ) : (
+                    state.owningBranchCodes.map((branchCode) => (
+                      <span key={branchCode} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 10px', borderRadius: '999px', background: 'color-mix(in srgb, var(--color-primary) 9%, white)', color: 'var(--color-primary)', fontSize: '12px', fontWeight: 600 }}>
+                        {branchCode}
+                        <button type="button" onClick={() => toggleOwningBranch(branchCode)} style={{ border: 'none', background: 'transparent', color: 'inherit', cursor: 'pointer', padding: 0, lineHeight: 1 }} aria-label={`Remove ${branchCode}`}>×</button>
+                      </span>
+                    ))
+                  )}
+                </div>
+                {fieldErrors.owningBranchCodes && <p style={errTxt}>{fieldErrors.owningBranchCodes}</p>}
+                <p style={hintTxt}>Smart defaulting: each new branch row starts from the last completed row.</p>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', marginBottom: '18px' }}>
+                {MOCK_BRANCH_CODES.map((branchCode) => {
+                  const selected = state.owningBranchCodes.includes(branchCode);
+                  return (
+                    <button
+                      key={branchCode}
+                      type="button"
+                      onClick={() => toggleOwningBranch(branchCode)}
+                      style={{
+                        minHeight: '40px',
+                        padding: '8px 12px',
+                        borderRadius: '10px',
+                        border: `1px solid ${selected ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                        background: selected ? 'color-mix(in srgb, var(--color-primary) 7%, white)' : 'var(--color-surface)',
+                        color: selected ? 'var(--color-primary)' : 'var(--color-text)',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                      }}
+                    >
+                      {selected ? 'Selected: ' : 'Add: '}{branchCode}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div style={{ overflowX: 'auto' }}>
+                <div style={{ minWidth: '760px', border: '1px solid var(--color-border)', borderRadius: '12px', overflow: 'hidden' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'minmax(120px, 1fr) repeat(3, minmax(180px, 1fr))', background: 'var(--color-surface-subtle)', borderBottom: '1px solid var(--color-border)' }}>
+                    {['Branch', 'Business Unit', 'Legal Entity', 'Inventory Owner'].map((header) => (
+                      <div key={header} style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--color-text-muted)' }}>{header}</div>
+                    ))}
+                  </div>
+                  {state.branchOwnershipRows.length === 0 ? (
+                    <div style={{ padding: '18px 16px', fontSize: '12px', color: 'var(--color-text-muted)' }}>Select at least one owning branch to open the branch ownership grid.</div>
+                  ) : (
+                    state.branchOwnershipRows.map((row, index) => (
+                      <div key={row.branchCode} style={{ display: 'grid', gridTemplateColumns: 'minmax(120px, 1fr) repeat(3, minmax(180px, 1fr))', borderBottom: index === state.branchOwnershipRows.length - 1 ? 'none' : '1px solid var(--color-border)' }}>
+                        <div style={{ padding: '12px', fontSize: '12px', fontWeight: 700 }}>{row.branchCode}</div>
+                        <div style={{ padding: '8px 10px' }}>
+                          <select value={row.businessUnit} onChange={(e) => setBranchOwnershipRowField(row.branchCode, 'businessUnit', e.target.value)} style={inputBase}>
+                            <option value="">Select BU...</option>
+                            {MOCK_BU_CODES.map((code) => <option key={code} value={code}>{code}</option>)}
+                          </select>
+                        </div>
+                        <div style={{ padding: '8px 10px' }}>
+                          <select value={row.legalEntityCode} onChange={(e) => setBranchOwnershipRowField(row.branchCode, 'legalEntityCode', e.target.value)} style={inputBase}>
+                            <option value="">Select legal entity...</option>
+                            {MOCK_LEGAL_ENTITIES.map((code) => <option key={code} value={code}>{code}</option>)}
+                          </select>
+                        </div>
+                        <div style={{ padding: '8px 10px' }}>
+                          <select value={row.inventoryOwnerCode} onChange={(e) => setBranchOwnershipRowField(row.branchCode, 'inventoryOwnerCode', e.target.value)} style={inputBase}>
+                            <option value="">Select owner...</option>
+                            {MOCK_INV_OWNER_CODES.map((code) => <option key={code} value={code}>{code}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+              {fieldErrors.branchOwnershipRows && <p style={errTxt}>{fieldErrors.branchOwnershipRows}</p>}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function renderStep2Modern() {
+    const modes: { value: InventoryControlMode; label: string; description: string; recommended?: boolean }[] = [
+      { value: 'Warehouse-Level', label: 'Warehouse-Level Inventory', description: 'Track stock at warehouse level only. No hierarchy or BIN is required for basic receipts and issues.' },
+      { value: 'Location-BIN-Level', label: 'Location / BIN-Level Inventory', description: 'Track stock at location or BIN level. Hierarchy, directed flows, and location automation become available.', recommended: true },
+    ];
+
+    return (
+      <div>
+        <div style={sCard}>
+          <div style={sHead}>
+            <span style={{ fontSize: '13px', fontWeight: 600 }}>Inventory Control Mode</span>
+            <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Choose the stock-granularity model now. BIN Managed stays derived.</span>
+          </div>
+          <div style={sBody}>
+            <div style={{ display: 'grid', gridTemplateColumns: isNarrow ? '1fr' : 'repeat(2, minmax(0, 1fr))', gap: '12px', marginBottom: '16px' }}>
+              {modes.map((mode) => (
+                <label key={mode.value} style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '16px 18px', border: `2px solid ${state.inventoryControlMode === mode.value ? 'var(--color-primary)' : 'var(--color-border)'}`, borderRadius: '12px', background: state.inventoryControlMode === mode.value ? 'color-mix(in srgb, var(--color-primary) 5%, white)' : 'var(--color-surface)', cursor: 'pointer' }}>
+                  <input type="radio" name="inventoryModeModern" checked={state.inventoryControlMode === mode.value} onChange={() => selectInventoryMode(mode.value)} style={{ marginTop: '2px', accentColor: 'var(--color-primary)' }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <p style={{ margin: 0, fontSize: '13px', fontWeight: 700 }}>{mode.label}</p>
+                      {mode.recommended && <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 7px', borderRadius: '999px', background: '#DCFCE7', color: '#15803D' }}>Recommended</span>}
+                    </div>
+                    <p style={{ margin: '6px 0 0', fontSize: '12px', color: 'var(--color-text-muted)', lineHeight: 1.5 }}>{mode.description}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+            {fieldErrors.inventoryControlMode && <p style={errTxt}>{fieldErrors.inventoryControlMode}</p>}
+            {modeChangeHint && <div style={{ padding: '10px 12px', borderRadius: '8px', background: '#EFF6FF', border: '1px solid #BFDBFE', color: '#1D4ED8', fontSize: '12px' }}>{modeChangeHint}</div>}
+          </div>
+        </div>
+        {binManaged !== null && (
+          <div style={{ marginBottom: '16px' }}>
+            <DerivedValueDisplay
+              label="BIN Managed"
+              value={binManaged ? 'Yes' : 'No'}
+              derivedFrom={`Derived from Inventory Control Mode = "${state.inventoryControlMode}"`}
+              lockReason="Cannot be edited directly. Change the Inventory Control Mode to update this value."
+              testId="derived-bin-managed"
+            />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function renderStep3Modern() {
+    if (isWhLevel) {
+      return renderStep3();
+    }
+
+    return (
+      <div>
+        <div style={sCard}>
+          <div style={sHead}>
+            <span style={{ fontSize: '13px', fontWeight: 600 }}>Structure</span>
+            <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Choose the quickest safe starting point for hierarchy setup.</span>
+          </div>
+          <div style={sBody}>
+            <div style={{ display: 'grid', gridTemplateColumns: isNarrow ? '1fr' : 'repeat(2, minmax(0, 1fr))', gap: '12px', marginBottom: '20px' }}>
+              {HIERARCHY_OPTIONS.map((option) => (
+                <label key={option.key} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '14px 16px', border: `2px solid ${state.hierarchyChoice === option.key ? 'var(--color-primary)' : 'var(--color-border)'}`, borderRadius: '12px', background: state.hierarchyChoice === option.key ? 'color-mix(in srgb, var(--color-primary) 5%, white)' : 'var(--color-surface)', cursor: 'pointer' }}>
+                  <input type="radio" name="hierarchyChoiceModern" checked={state.hierarchyChoice === option.key} onChange={() => setField('hierarchyChoice', option.key)} style={{ marginTop: '2px', accentColor: 'var(--color-primary)' }} />
+                  <div>
+                    <p style={{ margin: 0, fontSize: '13px', fontWeight: 700 }}>{option.label}</p>
+                    <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--color-text-muted)', lineHeight: 1.45 }}>{option.description}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+
+            {state.hierarchyChoice === 'copy' && (
+              <div style={{ marginBottom: '16px' }}>
+                <label style={labelBase}>Copy from Warehouse</label>
+                <select value={state.copyFromWarehouseId} onChange={(e) => setField('copyFromWarehouseId', e.target.value)} style={inputBase}>
+                  <option value="">Select a warehouse to copy from...</option>
+                  <option value="WH-0002">WH-PUNE-01 - Pune Manufacturing Store</option>
+                  <option value="WH-0003">WH-HYD-02 - Hyderabad Secondary</option>
+                </select>
+                <p style={hintTxt}>Only the hierarchy model is copied. Live locations and stock are not copied.</p>
+              </div>
+            )}
+
+            {state.hierarchyChoice === 'later' && (
+              <div style={{ padding: '10px 14px', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '8px', fontSize: '12px', color: '#92400E' }}>
+                Draft-only path: activation stays blocked until a valid hierarchy template and inventory-allowed location exist.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  void renderStep0;
+  void renderStep1;
+  void renderStep2;
+  void renderStep3;
+  void STEP_DESCRIPTIONS;
+
   function renderStep5() {
     const summaryFields = [
       { label: 'Warehouse Name', value: state.warehouseName || '—' },
@@ -1935,12 +2585,13 @@ const WarehouseCreateWorkspace: React.FC = () => {
         value:
           state.ownershipScope === 'Organization'
             ? state.owningOrgCode || '—'
-            : state.owningBranchCode || '—',
+            : state.owningBranchCodes.length > 0
+              ? `${state.owningBranchCodes.length} branch${state.owningBranchCodes.length > 1 ? 'es' : ''}: ${state.owningBranchCodes.join(', ')}`
+              : '—',
       },
       { label: 'Warehouse Type', value: state.warehouseType || '—' },
       { label: 'Inventory Mode', value: state.inventoryControlMode || '—' },
       { label: 'BIN Managed', value: binManaged === null ? '—' : binManaged ? 'Yes' : 'No' },
-      { label: 'Time Zone', value: state.timezone || '—' },
     ];
 
     return (
@@ -2020,15 +2671,17 @@ const WarehouseCreateWorkspace: React.FC = () => {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100vh',
-        background: 'var(--color-bg)',
-        overflow: 'hidden',
-      }}
-    >
+    <AdminShell>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100%',
+          minHeight: '100%',
+          background: 'var(--color-bg)',
+          overflow: 'hidden',
+        }}
+      >
       {/* ── Leave-without-saving modal ── */}
       {showLeaveModal && (
         <div
@@ -2080,87 +2733,173 @@ const WarehouseCreateWorkspace: React.FC = () => {
         style={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '0 20px',
-          height: '56px',
+          gap: '16px',
+          padding: '10px 24px',
+          minHeight: '64px',
           background: 'var(--color-surface)',
           borderBottom: '1px solid var(--color-border)',
           flexShrink: 0,
-          gap: '16px',
         }}
       >
-        {/* Left: back + title */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginBottom: '2px', userSelect: 'none' }}>
+            Admin / Warehouse & Inventory / Warehouse Master
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text)', lineHeight: 1.25 }}>
+              New Warehouse
+            </span>
+            {isDirty && (
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  padding: '2px 9px',
+                  borderRadius: '9999px',
+                  border: '1px solid #FDE68A',
+                  background: '#FEF3C7',
+                  color: '#92400E',
+                }}
+              >
+                Unsaved changes
+              </span>
+            )}
+          </div>
+          <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px', lineHeight: 1.35 }}>
+            Configure warehouse identity, ownership, inventory control, structure, and activation readiness.
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+          <div
+            style={{
+              fontSize: '12px',
+              color: 'var(--color-text-muted)',
+              padding: '0 4px',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Step {step + 1} / {STEPS.length}
+          </div>
           <button
             type="button"
             onClick={() => navigateSafe(WAREHOUSE_ROUTES.list)}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '32px',
-              height: '32px',
-              borderRadius: '8px',
-              border: '1px solid var(--color-border)',
-              background: 'transparent',
-              cursor: 'pointer',
-              color: 'var(--color-text-muted)',
-            }}
-            title="Back to Warehouse List"
+            style={btnOutline}
           >
-            <ArrowLeft size={15} />
+            <ArrowLeft size={14} /> Back to List
           </button>
-          <Warehouse size={18} style={{ color: 'var(--color-primary)' }} />
-          <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--color-text)' }}>
-            New Warehouse
-          </span>
-          {isDirty && (
-            <span
-              style={{
-                fontSize: '10px',
-                fontWeight: 600,
-                padding: '2px 7px',
-                borderRadius: '4px',
-                background: '#FEF3C7',
-                color: '#92400E',
-              }}
-            >
-              unsaved
-            </span>
-          )}
-        </div>
-
-        {/* Centre: step indicator */}
-        <div style={{ flex: 1, display: 'flex', justifyContent: 'center', overflow: 'hidden' }}>
-          <StepIndicator
-            steps={STEPS}
-            active={step}
-            completed={completedSteps}
-            onClick={jumpToStep}
-          />
-        </div>
-
-        {/* Right: step counter */}
-        <div style={{ flexShrink: 0, fontSize: '12px', color: 'var(--color-text-muted)' }}>
-          Step {step + 1} / {STEPS.length}
+          <button type="button" onClick={() => setHelpOpen(true)} style={btnOutline}>
+            <HelpCircle size={14} /> How this works
+          </button>
         </div>
       </div>
+
+      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+        {!isNarrow && (
+          <nav
+            aria-label="Warehouse creation steps"
+            style={{
+              width: '188px',
+              flexShrink: 0,
+              background: 'var(--color-surface)',
+              borderRight: '1px solid var(--color-border)',
+              overflowY: 'auto',
+              paddingTop: '8px',
+            }}
+          >
+            {STEPS.map((stepItem) => {
+              const isActive = stepItem.index === step;
+              const isDone = completedSteps.has(stepItem.index);
+              const issueCount = getStepIssueCount(stepItem.index);
+              const dotColor = isActive ? 'var(--color-primary)' : isDone ? '#16A34A' : issueCount > 0 ? '#D97706' : '#CBD5E1';
+
+              return (
+                <button
+                  key={stepItem.index}
+                  type="button"
+                  onClick={() => jumpToStep(stepItem.index)}
+                  aria-current={isActive ? 'step' : undefined}
+                  style={{
+                    position: 'relative',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    width: '100%',
+                    padding: '10px 10px 10px 16px',
+                    border: 'none',
+                    borderBottom: '1px solid var(--color-border)',
+                    background: isActive ? 'color-mix(in srgb, var(--color-primary) 6%, white)' : 'transparent',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  {isActive && (
+                    <span style={{ position: 'absolute', left: 0, top: '8px', bottom: '8px', width: '3px', borderRadius: '0 3px 3px 0', background: 'var(--color-primary)' }} />
+                  )}
+                  <span style={{ width: '10px', height: '10px', borderRadius: '999px', flexShrink: 0, background: dotColor }} />
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: 'block', fontSize: '12px', fontWeight: isActive ? 700 : 500, color: isActive ? 'var(--color-primary)' : 'var(--color-text)' }}>
+                      {stepItem.label}
+                    </span>
+                    {(issueCount > 0 || isDone) && (
+                      <span style={{ display: 'block', fontSize: '10px', color: issueCount > 0 ? '#B45309' : 'var(--color-text-muted)', marginTop: '2px' }}>
+                        {issueCount > 0 ? `${issueCount} issue${issueCount > 1 ? 's' : ''}` : 'Ready'}
+                      </span>
+                    )}
+                  </span>
+                  {issueCount > 0 ? (
+                    <span style={{ fontSize: '10px', fontWeight: 700, minWidth: '18px', height: '18px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '999px', padding: '0 4px', background: '#FEF3C7', color: '#92400E', flexShrink: 0 }}>
+                      {issueCount}
+                    </span>
+                  ) : (
+                    <ChevronRight size={12} style={{ color: isActive ? 'var(--color-primary)' : 'var(--color-text-muted)', flexShrink: 0, opacity: 0.7 }} />
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+        )}
 
       {/* ── Scrollable body ── */}
       <div
         style={{
           flex: 1,
           overflowY: 'auto',
-          padding: 'clamp(16px, 3vw, 28px) clamp(16px, 4vw, 36px)',
+          overflowX: 'hidden',
+          padding: '20px 24px',
+          background: 'var(--color-bg)',
         }}
       >
+        {isNarrow && (
+          <div style={{ marginBottom: '18px', maxWidth: '340px' }}>
+            <label htmlFor="warehouse-create-step-selector" style={labelBase}>Step</label>
+            <select
+              id="warehouse-create-step-selector"
+              value={String(step)}
+              onChange={(event) => jumpToStep(Number(event.target.value))}
+              style={inputBase}
+            >
+              {STEPS.map((stepItem) => {
+                const issueCount = getStepIssueCount(stepItem.index);
+                return (
+                  <option key={stepItem.index} value={stepItem.index}>
+                    {stepItem.index + 1}. {stepItem.label}{issueCount > 0 ? ` (${issueCount})` : ''}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+        )}
+
         {/* Step heading */}
         <div style={{ marginBottom: '20px' }}>
           <h2 style={{ margin: '0 0 4px', fontSize: '18px', fontWeight: 700, color: 'var(--color-text)' }}>
             {STEPS[step].label}
           </h2>
           <p style={{ margin: 0, fontSize: '13px', color: 'var(--color-text-muted)' }}>
-            {step === 0 && 'Name, code, type, and timezone for this warehouse.'}
+            {step === 0 && 'Name, code, type, and facility reference for this warehouse.'}
             {step === 1 && 'Define who owns this warehouse and which branches can access it.'}
             {step === 2 && 'Choose how inventory will be tracked — warehouse-level or at individual locations/BINs.'}
             {step === 3 &&
@@ -2173,12 +2912,13 @@ const WarehouseCreateWorkspace: React.FC = () => {
         </div>
 
         {/* Step content */}
-        {step === 0 && renderStep0()}
-        {step === 1 && renderStep1()}
-        {step === 2 && renderStep2()}
-        {step === 3 && renderStep3()}
+        {step === 0 && renderStep0Modern()}
+        {step === 1 && renderStep1Modern()}
+        {step === 2 && renderStep2Modern()}
+        {step === 3 && renderStep3Modern()}
         {step === 4 && renderStep4()}
         {step === 5 && renderStep5()}
+      </div>
       </div>
 
       {/* ── Fixed footer ── */}
@@ -2204,7 +2944,13 @@ const WarehouseCreateWorkspace: React.FC = () => {
           {toast.message}
         </div>
       )}
-    </div>
+      <HelpDrawer
+        open={helpOpen}
+        topic={getHelpTopic(STEP_HELP_TOPICS[step])}
+        onClose={() => setHelpOpen(false)}
+      />
+      </div>
+    </AdminShell>
   );
 };
 

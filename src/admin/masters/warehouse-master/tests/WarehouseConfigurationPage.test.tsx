@@ -33,9 +33,11 @@ function makeWarehouse(overrides: Partial<Warehouse> = {}): Warehouse {
     wmsEnabled: false,
     inventoryControlMode: 'Warehouse-Level',
     inventoryControlRules: {
+      allowWarehouseLevelPosting: true,
       requireLocationForGRN: false,
       requireLocationForIssue: false,
       allowBinToBinTransfer: false,
+      binManaged: false,
     },
     status: 'Draft',
     creationSource: 'Manual',
@@ -60,7 +62,7 @@ function makeTemplate(status: HierarchyTemplate['status'] = 'Active'): Hierarchy
     status,
     flexiblePathEnabled: false,
     levels: [],
-    currentVersion: 1,
+    currentVersion: { versionNumber: 1 },
     versionHistory: [],
     effectiveFrom: '2024-01-01',
     createdAt: '2024-01-01T00:00:00.000Z',
@@ -82,9 +84,14 @@ function makeLocation(overrides: Partial<WarehouseLocation> = {}): WarehouseLoca
       level: 1,
       locationType: 'BIN',
       binType: 'Standard',
+      fullCode: 'WH-TEST-LOC-001',
       inventoryAllowed: true,
       isLeafEndpoint: true,
     },
+    pickingBlocked: false,
+    movementState: 'Idle',
+    commitmentState: 'Uncommitted',
+    stockStatuses: [],
     createdAt: '2024-01-01T00:00:00.000Z',
     updatedAt: '2024-01-01T00:00:00.000Z',
     version: 1,
@@ -199,7 +206,7 @@ describe('computeSectionStatuses — Location-BIN-Level', () => {
   it('putaway is complete when autoPutaway is set', () => {
     const wWithPutaway = makeWarehouse({
       inventoryControlMode: 'Location-BIN-Level',
-      autoPutaway: { enabled: true, strategy: 'FIFO', strategySequence: 1, overrideAllowed: true },
+      autoPutaway: { enabled: true, strategy: 'FIFO', strategySequence: ['FIFO'], overrideAllowed: true },
     });
     const s = computeSectionStatuses(wWithPutaway, [], []);
     expect(s.putaway).toBe('complete');
@@ -213,7 +220,7 @@ describe('computeSectionStatuses — Location-BIN-Level', () => {
   it('picking is complete when autoPicking is set', () => {
     const wWithPicking = makeWarehouse({
       inventoryControlMode: 'Location-BIN-Level',
-      autoPicking: { enabled: true, strategy: 'FIFO', strategySequence: 1, overrideAllowed: true },
+      autoPicking: { enabled: true, strategy: 'FIFO', strategySequence: ['FIFO'], overrideAllowed: true },
     });
     const s = computeSectionStatuses(wWithPicking, [], []);
     expect(s.picking).toBe('complete');
@@ -380,7 +387,7 @@ describe('computeSectionStatuses — cycleCount', () => {
     const wh = makeWarehouse({
       cycleCountPolicy: {
         enabled: false, scope: 'Full', frequency: 'Monthly',
-        freezeEnabled: false, varianceTolerance: 0, varianceUnit: 'Quantity',
+        freezeEnabled: false, varianceTolerance: 0, varianceUnit: 'Units',
       },
     });
     const s = computeSectionStatuses(wh, [], []);
@@ -391,7 +398,7 @@ describe('computeSectionStatuses — cycleCount', () => {
     const wh = makeWarehouse({
       cycleCountPolicy: {
         enabled: true, scope: 'Full', frequency: 'Monthly',
-        freezeEnabled: false, varianceTolerance: 0, varianceUnit: 'Quantity',
+        freezeEnabled: false, varianceTolerance: 0, varianceUnit: 'Units',
       },
     });
     const s = computeSectionStatuses(wh, [], []);
@@ -410,7 +417,7 @@ describe('computeSectionStatuses — locationDefaults', () => {
 
   it('is partial when at least one default is set', () => {
     const wh = makeWarehouse({
-      defaultLocations: { putaway: { locationId: 'LOC-001', locationCode: 'LOC-001' } },
+      defaultLocations: { putaway: { purpose: 'Putaway', locationId: 'LOC-001', locationCode: 'LOC-001' } },
     });
     const s = computeSectionStatuses(wh, [], []);
     expect(s.locationDefaults).toBe('partial');
@@ -672,13 +679,13 @@ describe('computeSectionStatuses — valid status values only', () => {
     const wh = makeWarehouse({
       status: 'Active',
       inventoryControlMode: 'Location-BIN-Level',
-      autoPutaway: { enabled: true, strategy: 'FIFO', strategySequence: 1, overrideAllowed: true },
-      autoPicking: { enabled: true, strategy: 'FIFO', strategySequence: 1, overrideAllowed: true },
+      autoPutaway: { enabled: true, strategy: 'FIFO', strategySequence: ['FIFO'], overrideAllowed: true },
+      autoPicking: { enabled: true, strategy: 'FIFO', strategySequence: ['FIFO'], overrideAllowed: true },
       reservationPolicy: { reservationLevel: 'BIN', eligibleLocationTypes: [], allowPartialReservation: true },
       allocationPolicy: { allocationLevel: 'BIN', eligibleLocationTypes: [], allowPartialAllocation: true },
-      cycleCountPolicy: { enabled: true, scope: 'Full', frequency: 'Monthly', freezeEnabled: false, varianceTolerance: 0, varianceUnit: 'Quantity' },
+      cycleCountPolicy: { enabled: true, scope: 'Full', frequency: 'Monthly', freezeEnabled: false, varianceTolerance: 0, varianceUnit: 'Units' },
       eligibilityPolicy: { mode: 'Open', rules: [], defaultFallback: 'Allow' },
-      defaultLocations: { putaway: { locationId: 'LOC-001', locationCode: 'LOC-001' } },
+      defaultLocations: { putaway: { purpose: 'Putaway', locationId: 'LOC-001', locationCode: 'LOC-001' } },
       capacityPolicy: { trackingEnabled: true, temperatureControlled: true, hazardousStorage: false },
       assignmentProfile: { assignments: [], sharedWithAllBranches: true },
     });

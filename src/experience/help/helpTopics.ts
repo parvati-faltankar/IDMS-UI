@@ -616,6 +616,329 @@ export const helpTopics: HelpTopic[] = [
     ],
     relatedTopics: ['admin-dashboard'],
   },
+  {
+    id: 'warehouse-create',
+    title: 'How Warehouse Creation Works',
+    summary:
+      'Warehouse creation is a staged setup flow. Complete the left-side steps in order, save Draft when information is still pending, and use the activation review to resolve every blocking issue before go-live.',
+    steps: [
+      { title: 'Start with identity', description: 'Capture warehouse name, code, type, facility reference, and operating timezone first.' },
+      { title: 'Confirm ownership and scope', description: 'Choose Organisation or Branch scope, then fill the owning entity and access context correctly.' },
+      { title: 'Select inventory control mode carefully', description: 'Warehouse-Level is simpler, while Location/BIN-Level requires hierarchy, leaf locations, and operational rules before activation.' },
+      { title: 'Decide structure and defaults', description: 'For BIN-level warehouses, define hierarchy intent now so downstream location and policy setup is aligned.' },
+      { title: 'Use activation review as the final gate', description: 'Activation stays blocked until every required check passes with a clear, actionable reason.' },
+    ],
+    tips: [
+      'Save Draft whenever dependent data such as hierarchy or access assignments will be completed later.',
+      'Do not activate until ownership, mode, hierarchy, and at least one valid inventory endpoint are aligned.',
+    ],
+    commonMistakes: [
+      'Choosing Location/BIN-Level without planning the hierarchy and inventory-allowed leaf structure.',
+      'Using a warehouse code that does not match the naming convention expected by operations teams.',
+    ],
+    relatedTopics: ['warehouse-master-overview', 'warehouse-activation'],
+  },
+  {
+    id: 'warehouse-ownership',
+    title: 'Warehouse Ownership and Scope',
+    summary:
+      'Ownership determines who governs the warehouse and who can transact through it. Scope affects whether the warehouse is organisation-wide or tied to a single branch.',
+    steps: [
+      { title: 'Choose the ownership scope', description: 'Organisation scope supports shared warehouse usage. Branch scope ties the warehouse to one owning branch.' },
+      { title: 'Set the owning entity', description: 'Provide the owning organisation or branch code that is operationally responsible for the warehouse.' },
+      { title: 'Review access implications', description: 'Shared warehouses need branch-access review before activation so transactions route correctly.' },
+    ],
+    tips: [
+      'Organisation-scope warehouses usually need shared branch access or explicit branch assignments before activation.',
+      'Branch-scope warehouses should clearly identify the operational owner to avoid approval ambiguity later.',
+    ],
+    commonMistakes: [
+      'Selecting Branch scope without an owning branch.',
+      'Treating organisation ownership as open access without setting branch-level access rules.',
+    ],
+    relatedTopics: ['warehouse-branch-access', 'warehouse-create'],
+  },
+  {
+    id: 'warehouse-branch-access',
+    title: 'Warehouse Branch Access',
+    summary:
+      'Branch access controls which branches can use a warehouse and whether the warehouse is globally shared or selectively assigned.',
+    steps: [
+      { title: 'Review sharing mode', description: 'Decide whether all branches can access the warehouse or only explicitly assigned branches.' },
+      { title: 'Assign active branches', description: 'Create or confirm active branch assignments before operations begin.' },
+      { title: 'Validate defaults', description: 'Check default warehouse behavior for the branches that should auto-route transactions here.' },
+    ],
+    tips: [
+      'Use explicit assignments for controlled warehouses where not every branch should transact.',
+      'Review access again before inactivating or revoking assignments because open work may depend on them.',
+    ],
+    commonMistakes: [
+      'Leaving an organisation-scope warehouse with no active sharing or branch assignment.',
+      'Removing branch access without checking open dependency or approval requirements.',
+    ],
+    relatedTopics: ['warehouse-ownership'],
+  },
+  {
+    id: 'warehouse-inventory-control',
+    title: 'Warehouse Inventory Control',
+    summary:
+      'Inventory Control Mode drives how stock is posted, how locations behave, and which advanced warehouse policies are available.',
+    steps: [
+      { title: 'Choose Warehouse-Level or Location/BIN-Level', description: 'Warehouse-Level keeps stock at warehouse scope. Location/BIN-Level requires valid hierarchy and location endpoints.' },
+      { title: 'Review downstream impacts', description: 'Auto putaway, auto picking, detailed capacity, and inventory endpoint rules depend on BIN-level control.' },
+      { title: 'Treat the mode as a governance choice', description: 'Changing mode later can be blocked by stock, history, approvals, and operational dependencies.' },
+    ],
+    tips: [
+      'Use Warehouse-Level only when detailed location control is intentionally out of scope.',
+      'Choose BIN-level early if the warehouse needs directed movement, slotting, or stock segregation.',
+    ],
+    commonMistakes: [
+      'Expecting directed putaway or BIN allocation in Warehouse-Level mode.',
+      'Trying to switch mode after the warehouse has started operational use.',
+    ],
+    relatedTopics: ['warehouse-hierarchy', 'warehouse-putaway', 'warehouse-picking'],
+  },
+  {
+    id: 'warehouse-hierarchy',
+    title: 'Warehouse Hierarchy Workspace',
+    summary:
+      'The hierarchy workspace is where you build and govern the tree of storage nodes used by Location/BIN-Level warehouses.',
+    steps: [
+      { title: 'Use the tree to inspect structure', description: 'Search, expand, collapse, and select nodes to review path, status, capacity, and child-node detail.' },
+      { title: 'Create only valid parent-child combinations', description: 'Hierarchy validation prevents invalid node types, cycles, and duplicate full paths.' },
+      { title: 'Resolve issues before activation', description: 'Blocked, non-leaf, or inventory-disallowed endpoints will stop BIN-level activation and posting.' },
+    ],
+    tips: [
+      'Use the issue filter to focus on nodes that need action first.',
+      'Inventory posting is allowed only at valid leaf endpoints where Inventory Allowed = Yes.',
+    ],
+    commonMistakes: [
+      'Adding child nodes under blocked or inactive parents.',
+      'Assuming every node can receive stock even when it is not a leaf endpoint.',
+    ],
+    relatedTopics: ['warehouse-locations', 'warehouse-activation'],
+  },
+  {
+    id: 'warehouse-locations',
+    title: 'Warehouse Locations and BINs',
+    summary:
+      'The locations workspace provides the operational list view for storage nodes, filters, status review, and bulk creation.',
+    steps: [
+      { title: 'Filter to the operational slice you need', description: 'Use level, parent, type, status, capacity, and issue filters to isolate the right records.' },
+      { title: 'Check derived operational fields', description: 'Review full path, inventory allowed, effective status, and stock dependency indicators before editing.' },
+      { title: 'Use bulk creation carefully', description: 'Preview, validate, and commit in an all-or-nothing flow so duplicates and conflicts are caught early.' },
+    ],
+    tips: [
+      'Preview is read-only and becomes stale when source inputs change.',
+      'Capacity warnings and blocked movement flags are better triaged from the filtered list before editing individual nodes.',
+    ],
+    commonMistakes: [
+      'Committing a bulk batch without regenerating a stale preview.',
+      'Treating derived fields such as inventory-allowed or full path as directly editable.',
+    ],
+    relatedTopics: ['warehouse-hierarchy', 'warehouse-import'],
+  },
+  {
+    id: 'warehouse-capacity',
+    title: 'Warehouse Capacity and Constraints',
+    summary:
+      'Capacity and constraint rules control soft warehouse limits, hard BIN/location limits, and operational restrictions such as hazard, temperature, and compliance locks.',
+    steps: [
+      { title: 'Configure warehouse and location expectations separately', description: 'Warehouse-level capacity is informational, while location/BIN hard limits can block storage decisions when enabled.' },
+      { title: 'Set storage restrictions clearly', description: 'Hazard, temperature, mixed item, mixed lot, mixed owner, and compliance rules should match real operational policy.' },
+      { title: 'Review downstream validation', description: 'Putaway, eligibility, and manual overrides should all respect the same restrictions.' },
+    ],
+    tips: [
+      'Use hard enforcement only where the business is ready for operational blocking behavior.',
+      'Explain compliance lock usage clearly so approval reviewers understand why restricted storage is required.',
+    ],
+    commonMistakes: [
+      'Enabling hard limits at BIN level without usable override governance.',
+      'Allowing mixed storage rules that conflict with temperature or owner segregation policy.',
+    ],
+    relatedTopics: ['warehouse-putaway', 'warehouse-stock-governance'],
+  },
+  {
+    id: 'warehouse-item-eligibility',
+    title: 'Warehouse Item Eligibility',
+    summary:
+      'Eligibility rules determine which items are allowed or blocked in specific storage endpoints and which rule wins when conditions overlap.',
+    steps: [
+      { title: 'Choose the eligibility mode', description: 'Open, Restricted, Hybrid, Category, and Advanced modes support increasing levels of control.' },
+      { title: 'Define allow and deny behavior intentionally', description: 'Deny rules are evaluated before allow rules and should describe the strongest operational restriction.' },
+      { title: 'Apply eligibility only to valid endpoints', description: 'Eligibility setup is meaningful only on active, inventory-allowed leaf nodes.' },
+    ],
+    tips: [
+      'Use restricted or hybrid mode when operational segregation matters more than broad storage flexibility.',
+      'Write rule descriptions so auditors can understand why a category or item is blocked.',
+    ],
+    commonMistakes: [
+      'Expecting allow rules to override deny rules.',
+      'Configuring eligibility on blocked, non-leaf, or inventory-disallowed locations.',
+    ],
+    relatedTopics: ['warehouse-locations', 'warehouse-stock-governance'],
+  },
+  {
+    id: 'warehouse-putaway',
+    title: 'Warehouse Putaway Policy',
+    summary:
+      'Putaway strategy is an ordered decision flow. Candidate locations are filtered first, then sorted according to strategy priority, with simulation available for configuration review.',
+    steps: [
+      { title: 'Build the strategy in order', description: 'Use move up and move down controls to place the most important strategy criteria first.' },
+      { title: 'Validate restrictions before ranking', description: 'Eligibility, capacity, hazard, owner, and other filters should narrow the candidate list before sorting is applied.' },
+      { title: 'Use simulation as configuration preview', description: 'The test result explains filters, exclusions, tie-breakers, and warnings, but it is not a production stock decision.' },
+    ],
+    tips: [
+      'Restore recommended order when experimentation leaves the strategy sequence unclear.',
+      'Prefer a shorter, explainable sequence over a long chain that is hard to audit.',
+    ],
+    commonMistakes: [
+      'Treating strategy configuration as an unordered multi-select.',
+      'Assuming the simulation output is an actual production allocation result.',
+    ],
+    relatedTopics: ['warehouse-capacity', 'warehouse-picking'],
+  },
+  {
+    id: 'warehouse-picking',
+    title: 'Warehouse Picking Policy',
+    summary:
+      'Picking strategy is also an ordered decision flow. Stock candidates are filtered first, then sorted according to the configured picking priority.',
+    steps: [
+      { title: 'Order the picking rules intentionally', description: 'Strategy order changes which source stock wins when multiple candidates remain after filtering.' },
+      { title: 'Keep stock state concepts separate', description: 'Availability, movement state, and commitment state should not be mixed together as one status.' },
+      { title: 'Use simulation to explain the decision path', description: 'Review candidates, exclusions, selected result, and warnings before approving the policy.' },
+    ],
+    tips: [
+      'Use a stable first strategy that the operations team can explain and trust.',
+      'Check how allocation scope and commitment state affect source availability before adjusting strategy order.',
+    ],
+    commonMistakes: [
+      'Using picking sequence as if it were a set instead of a priority list.',
+      'Treating reserved or allocated as stock availability statuses.',
+    ],
+    relatedTopics: ['warehouse-stock-governance', 'warehouse-putaway'],
+  },
+  {
+    id: 'warehouse-defaults',
+    title: 'Warehouse Default Locations',
+    summary:
+      'Default locations route common operational purposes such as putaway, picking, returns, QC, staging, and scrap to the right endpoints.',
+    steps: [
+      { title: 'Map each purpose to an eligible location', description: 'Defaults should point to active locations whose purpose and operational profile match the intended use.' },
+      { title: 'Prefer purpose-specific endpoints', description: 'Avoid broad catch-all defaults when dedicated returns, QC, or staging locations exist.' },
+      { title: 'Review downstream routing behavior', description: 'Defaults influence where work starts when a transaction or warehouse action does not specify a location explicitly.' },
+    ],
+    tips: [
+      'Keep default routing simple and operationally predictable.',
+      'Review defaults again after changing hierarchy or location purpose design.',
+    ],
+    commonMistakes: [
+      'Assigning a default to an inactive or inventory-disallowed location.',
+      'Using one location for every purpose without checking process separation needs.',
+    ],
+    relatedTopics: ['warehouse-locations'],
+  },
+  {
+    id: 'warehouse-stock-governance',
+    title: 'Warehouse Stock Governance',
+    summary:
+      'Stock governance defines how reservation, allocation, availability, movement, and commitment states are interpreted and validated.',
+    steps: [
+      { title: 'Keep state concepts separate', description: 'Stock Availability Status, Movement State, and Commitment State represent different meanings and should not be merged.' },
+      { title: 'Set reservation and allocation rules deliberately', description: 'Reservation protects quantity, while allocation locks source scope.' },
+      { title: 'Validate operational consequences', description: 'Picking, overrides, and source selection should all respect reservation and allocation constraints.' },
+    ],
+    tips: [
+      'Use governance text that operations teams can explain back during issue review.',
+      'Check how blocked picking or putaway states interact with commitment and movement states.',
+    ],
+    commonMistakes: [
+      'Using Reserved, Allocated, Picked, or Packed as if they were stock availability values.',
+      'Assuming allocation and reservation mean the same thing.',
+    ],
+    relatedTopics: ['warehouse-picking', 'warehouse-item-eligibility'],
+  },
+  {
+    id: 'warehouse-cycle-count',
+    title: 'Warehouse Cycle Count Policy',
+    summary:
+      'Cycle count policy controls whether the warehouse participates in periodic counting, how often counting happens, and the tolerance used for variance governance.',
+    steps: [
+      { title: 'Enable counting only where operations are ready', description: 'Cycle count policy should reflect real counting cadence and resourcing.' },
+      { title: 'Choose the right frequency and tolerance', description: 'Set cadence and tolerance values that are strict enough for control but realistic for execution.' },
+      { title: 'Review impact on audit and exceptions', description: 'Variance handling and count review should align with governance expectations.' },
+    ],
+    tips: [
+      'Start with a practical tolerance and tighten it after process maturity improves.',
+      'Frequency should match stock criticality, movement volume, and audit expectation.',
+    ],
+    commonMistakes: [
+      'Enabling cycle count without agreeing on operational ownership.',
+      'Using an unrealistically low tolerance that floods the team with exceptions.',
+    ],
+    relatedTopics: ['warehouse-stock-governance'],
+  },
+  {
+    id: 'warehouse-import',
+    title: 'Warehouse Import Workflow',
+    summary:
+      'Warehouse import is a governed workflow with validation, change review, duplicate-submission protection, controlled approval, and final result tracking.',
+    steps: [
+      { title: 'Select the entity type and template version', description: 'Always validate against the intended template version before reviewing records.' },
+      { title: 'Upload and validate before commit', description: 'Validate Only does not mutate data. Derived fields are rejected and commit always revalidates.' },
+      { title: 'Review errors, warnings, and change counts', description: 'Check create, update, unchanged, valid, warning, and error counts before submitting.' },
+      { title: 'Capture reason and approval where required', description: 'Controlled changes require reason capture and may route for approval instead of direct mutation.' },
+    ],
+    tips: [
+      'Use idempotency and file-hash review to avoid duplicate submissions.',
+      'Download the error file when available so record-level issues can be corrected offline.',
+    ],
+    commonMistakes: [
+      'Trying to import derived fields such as computed path or derived inventory flags.',
+      'Submitting without regenerating validation after the source file changes.',
+    ],
+    relatedTopics: ['warehouse-audit', 'warehouse-locations'],
+  },
+  {
+    id: 'warehouse-activation',
+    title: 'Warehouse Activation Review',
+    summary:
+      'Activation is blocked until every required identity, ownership, inventory model, structure, and permission check passes with an actionable reason.',
+    steps: [
+      { title: 'Use the review step as the final blocker list', description: 'Every failed check should explain what is missing and where to fix it.' },
+      { title: 'Follow section links instead of guessing', description: 'Use the fix action to jump directly to the step or configuration area that needs attention.' },
+      { title: 'Activate only when the warehouse is truly ready', description: 'Do not treat Draft save as a successful go-live substitute.' },
+    ],
+    tips: [
+      'Warehouse-Level activation is simpler because hierarchy and BIN endpoints are not required.',
+      'BIN-level activation usually fails on hierarchy or inventory endpoint readiness first, so clear those early.',
+    ],
+    commonMistakes: [
+      'Trying to activate with no active hierarchy template in BIN-level mode.',
+      'Ignoring permission or ownership blockers and focusing only on form completeness.',
+    ],
+    relatedTopics: ['warehouse-create', 'warehouse-master-overview'],
+  },
+  {
+    id: 'warehouse-audit',
+    title: 'Warehouse Audit Trail',
+    summary:
+      'The audit page shows field-level changes, controlled actions, approvals, imports, correlation IDs, and version information so warehouse governance can be reconstructed end to end.',
+    steps: [
+      { title: 'Filter by action, entity, or search text', description: 'Use action and entity filters to narrow the audit trail to the exact governance event you need.' },
+      { title: 'Review correlation and version context', description: 'Correlation IDs, reference IDs, and record versions help connect a change to its upstream workflow.' },
+      { title: 'Inspect field-level changes and reason capture', description: 'Use the event detail to understand what changed, who changed it, and why the action was approved or submitted.' },
+    ],
+    tips: [
+      'Audit becomes more useful when controlled actions always capture a clear explanation, not just a code.',
+      'Import and bulk events are easier to trace when the same correlation or reference ID is reused consistently.',
+    ],
+    commonMistakes: [
+      'Reading only status changes and missing the underlying field-level differences.',
+      'Ignoring approval route and effective date context when reviewing governance actions.',
+    ],
+    relatedTopics: ['warehouse-import', 'warehouse-stock-governance'],
+  },
 ];
 
 export function getHelpTopic(topicId?: string): HelpTopic | undefined {

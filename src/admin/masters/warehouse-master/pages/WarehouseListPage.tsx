@@ -8,8 +8,8 @@ import { useNavigate } from 'react-router-dom';
 import { Check, ChevronDown, Edit2, Filter, MoreVertical, Plus, X } from 'lucide-react';
 import AdminShell from '../../../AdminShell';
 import { AdminListPageShell } from '../../../../experience/components/AdminListPageShell';
-import { SmartReviewDrawer } from '../../../../experience/components/SmartReviewDrawer';
 import { HelpDrawer } from '../../../../experience/components/HelpDrawer';
+import { SmartReviewDrawer } from '../../../../experience/components/SmartReviewDrawer';
 import { getHelpTopic } from '../../../../experience/help/helpTopics';
 import { findGroupForMasterKey, findMasterByKey } from '../../../adminNavConfig';
 import { recordRecentAdminMaster } from '../../../adminStorage';
@@ -21,6 +21,8 @@ import { WarehouseScopeBadge } from '../components/WarehouseScopeBadge';
 import { WarehouseModeBadge } from '../components/WarehouseModeBadge';
 import { WarehouseSetupHealth } from '../components/WarehouseSetupHealth';
 import { WarehousePreviewDrawer } from '../components/WarehousePreviewDrawer';
+import { WarehouseControlledActionDrawer } from '../components/WarehouseControlledActionDrawer';
+import { getReasonCodesForAction, parseWarehouseServiceError } from '../utils/governanceUtils';
 import { formatDate } from '../../../../utils/dateFormat';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -242,15 +244,25 @@ const WarehouseListPage: React.FC = () => {
 
   // ── Block flow ────────────────────────────────────────────────────────────
   const [blockTarget, setBlockTarget] = useState<{ id: string; warehouseCode: string; warehouseName: string } | null>(null);
-  const [blockReason, setBlockReason] = useState('');
+  const [blockReasonCode, setBlockReasonCode] = useState('');
+  const [blockReasonDescription, setBlockReasonDescription] = useState('');
+  const [blockEffectiveDate, setBlockEffectiveDate] = useState('');
   const [blockOpen, setBlockOpen] = useState(false);
   const [blockLoading, setBlockLoading] = useState(false);
 
   // ── Inactivate flow ───────────────────────────────────────────────────────
   const [inactivateTarget, setInactivateTarget] = useState<{ id: string; warehouseCode: string; warehouseName: string } | null>(null);
-  const [inactivateReason, setInactivateReason] = useState('');
+  const [inactivateReasonCode, setInactivateReasonCode] = useState('');
+  const [inactivateReasonDescription, setInactivateReasonDescription] = useState('');
+  const [inactivateEffectiveDate, setInactivateEffectiveDate] = useState('');
   const [inactivateOpen, setInactivateOpen] = useState(false);
   const [inactivateLoading, setInactivateLoading] = useState(false);
+
+  const blockReason = blockReasonDescription;
+  const setBlockReason = setBlockReasonDescription;
+  const inactivateReason = inactivateReasonDescription;
+  const setInactivateReason = setInactivateReasonDescription;
+
 
   // ── Help ──────────────────────────────────────────────────────────────────
   const [helpOpen, setHelpOpen] = useState(false);
@@ -313,51 +325,76 @@ const WarehouseListPage: React.FC = () => {
 
   function openBlock(target: { id: string; warehouseCode: string; warehouseName: string }) {
     setBlockTarget(target);
-    setBlockReason('');
+    setBlockReasonCode('COMPLIANCE');
+    setBlockReasonDescription('');
+    setBlockEffectiveDate('');
     setBlockOpen(true);
   }
 
   function openInactivate(target: { id: string; warehouseCode: string; warehouseName: string }) {
     setInactivateTarget(target);
-    setInactivateReason('');
+    setInactivateReasonCode('SITE-CLOSED');
+    setInactivateReasonDescription('');
+    setInactivateEffectiveDate('');
     setInactivateOpen(true);
   }
 
+  function closeBlockDrawer() {
+    setBlockOpen(false);
+    setBlockTarget(null);
+    setBlockReasonCode('');
+    setBlockReasonDescription('');
+    setBlockEffectiveDate('');
+  }
+
+  function closeInactivateDrawer() {
+    setInactivateOpen(false);
+    setInactivateTarget(null);
+    setInactivateReasonCode('');
+    setInactivateReasonDescription('');
+    setInactivateEffectiveDate('');
+  }
+
   async function confirmBlock() {
-    if (!blockTarget || !blockReason.trim()) return;
+    if (!blockTarget || !blockReasonCode || !blockReasonDescription.trim()) return;
     setBlockLoading(true);
     try {
-      await warehouseMockAdapter.changeWarehouseStatus(blockTarget.id, 1, {
+      await warehouseMockAdapter.changeWarehouseStatus(blockTarget.id, {
         action: 'Block',
-        reason: blockReason.trim(),
+        targetStatus: 'Blocked',
+        reasonCode: blockReasonCode,
+        reasonDescription: blockReasonDescription.trim(),
+        effectiveDate: blockEffectiveDate || undefined,
+        approvalRequired: false,
       });
       await reload();
-      setBlockOpen(false);
+      closeBlockDrawer();
       showToast(`"${blockTarget.warehouseName}" has been blocked.`, 'success');
-      setBlockTarget(null);
-      setBlockReason('');
-    } catch {
-      showToast('Failed to block warehouse.', 'error');
+    } catch (error) {
+      showToast(parseWarehouseServiceError(error).message, 'error');
     } finally {
       setBlockLoading(false);
     }
   }
 
   async function confirmInactivate() {
-    if (!inactivateTarget || !inactivateReason.trim()) return;
+    if (!inactivateTarget || !inactivateReasonCode || !inactivateReasonDescription.trim()) return;
     setInactivateLoading(true);
     try {
-      await warehouseMockAdapter.changeWarehouseStatus(inactivateTarget.id, 1, {
+      await warehouseMockAdapter.changeWarehouseStatus(inactivateTarget.id, {
         action: 'Inactivate',
-        reason: inactivateReason.trim(),
+        targetStatus: 'Inactive',
+        reasonCode: inactivateReasonCode,
+        reasonDescription: inactivateReasonDescription.trim(),
+        effectiveDate: inactivateEffectiveDate || undefined,
+        approvalRequired: true,
+        approvalRoute: 'Operations Governance',
       });
       await reload();
-      setInactivateOpen(false);
+      closeInactivateDrawer();
       showToast(`"${inactivateTarget.warehouseName}" has been inactivated.`, 'success');
-      setInactivateTarget(null);
-      setInactivateReason('');
-    } catch {
-      showToast('Failed to inactivate warehouse.', 'error');
+    } catch (error) {
+      showToast(parseWarehouseServiceError(error).message, 'error');
     } finally {
       setInactivateLoading(false);
     }
@@ -857,8 +894,86 @@ const WarehouseListPage: React.FC = () => {
       />
 
       {/* ── Block Confirm ──────────────────────────────────── */}
-      <SmartReviewDrawer
+      <WarehouseControlledActionDrawer
         open={blockOpen}
+        plan={blockTarget ? {
+          kind: 'Block',
+          title: 'Block Warehouse',
+          summary: 'Blocking this warehouse will prevent new inventory transactions while preserving visibility and history.',
+          impactSummary: [
+            `${blockTarget.warehouseName} (${blockTarget.warehouseCode})`,
+            'New inventory posting will be blocked.',
+            'Existing history remains available for review.',
+          ],
+          approvalRequired: false,
+          checklist: [
+            { id: 'reason-code', label: 'Reason code captured', passed: Boolean(blockReasonCode), detail: 'Select why the warehouse is being blocked.' },
+            { id: 'reason-description', label: 'Explanation captured', passed: Boolean(blockReasonDescription.trim()), detail: 'Add operational context for audit history.' },
+            { id: 'effective-date', label: 'No effective date required', passed: true },
+          ],
+          consequenceNote: 'The warehouse remains searchable but transactions will be blocked until it is unblocked.',
+          request: {
+            action: 'Block',
+            reasonCode: blockReasonCode,
+            reasonDescription: blockReasonDescription,
+            effectiveDate: blockEffectiveDate || undefined,
+            approvalRequired: false,
+          },
+        } : null}
+        reasonCode={blockReasonCode}
+        reasonDescription={blockReasonDescription}
+        effectiveDate={blockEffectiveDate}
+        saving={blockLoading}
+        onClose={closeBlockDrawer}
+        onReasonCodeChange={setBlockReasonCode}
+        onReasonDescriptionChange={setBlockReasonDescription}
+        onEffectiveDateChange={setBlockEffectiveDate}
+        onConfirm={confirmBlock}
+        reasonCodeOptions={getReasonCodesForAction('Block')}
+      />
+
+      <WarehouseControlledActionDrawer
+        open={inactivateOpen}
+        plan={inactivateTarget ? {
+          kind: 'Inactivate',
+          title: 'Inactivate Warehouse',
+          summary: 'Inactivation retires the warehouse from active use and requires approval routing.',
+          impactSummary: [
+            `${inactivateTarget.warehouseName} (${inactivateTarget.warehouseCode})`,
+            'New warehouse activity will be stopped.',
+            'Operations Governance approval is required before completion.',
+          ],
+          approvalRequired: true,
+          approverRoute: 'Operations Governance',
+          checklist: [
+            { id: 'reason-code', label: 'Reason code captured', passed: Boolean(inactivateReasonCode), detail: 'Select the governance reason for inactivation.' },
+            { id: 'reason-description', label: 'Explanation captured', passed: Boolean(inactivateReasonDescription.trim()), detail: 'Add business context for the approval route.' },
+            { id: 'effective-date', label: 'Effective date provided where applicable', passed: Boolean(inactivateEffectiveDate), detail: 'Choose when the inactivation should take effect.' },
+          ],
+          consequenceNote: 'Historical data remains available, and the warehouse can be reactivated later if governance approves it.',
+          request: {
+            action: 'Inactivate',
+            reasonCode: inactivateReasonCode,
+            reasonDescription: inactivateReasonDescription,
+            effectiveDate: inactivateEffectiveDate || undefined,
+            approvalRequired: true,
+            approvalRoute: 'Operations Governance',
+          },
+        } : null}
+        reasonCode={inactivateReasonCode}
+        reasonDescription={inactivateReasonDescription}
+        effectiveDate={inactivateEffectiveDate}
+        saving={inactivateLoading}
+        onClose={closeInactivateDrawer}
+        onReasonCodeChange={setInactivateReasonCode}
+        onReasonDescriptionChange={setInactivateReasonDescription}
+        onEffectiveDateChange={setInactivateEffectiveDate}
+        onConfirm={confirmInactivate}
+        reasonCodeOptions={getReasonCodesForAction('Inactivate')}
+      />
+
+      <SmartReviewDrawer
+        open={false}
         onClose={() => { setBlockOpen(false); setBlockTarget(null); setBlockReason(''); }}
         title="Block Warehouse"
         subtitle={blockTarget ? `${blockTarget.warehouseName} (${blockTarget.warehouseCode})` : undefined}
@@ -897,7 +1012,7 @@ const WarehouseListPage: React.FC = () => {
 
       {/* ── Inactivate Confirm ─────────────────────────────── */}
       <SmartReviewDrawer
-        open={inactivateOpen}
+        open={false}
         onClose={() => { setInactivateOpen(false); setInactivateTarget(null); setInactivateReason(''); }}
         title="Inactivate Warehouse"
         subtitle={inactivateTarget ? `${inactivateTarget.warehouseName} (${inactivateTarget.warehouseCode})` : undefined}

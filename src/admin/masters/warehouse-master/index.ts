@@ -87,10 +87,38 @@ export {
 export {
   validatePutawayPolicy,
   validatePickingPolicy,
+  validateCapacityPolicy,
   validateEligibilityPolicy,
   validateReservationPolicy,
+  validateAllocationPolicy,
   validateCycleCountPolicy,
 } from './validation/policyValidation';
+
+export {
+  addOrderedStrategy,
+  removeOrderedStrategy,
+  moveOrderedStrategy,
+  restoreRecommendedOrder,
+  canConfigureLocationEligibility,
+  getEligibleDefaultLocations,
+  validateCapacityAndConstraints,
+  validateStockStateSeparation,
+  validateReservationAllocationPolicies,
+  simulatePutawayStrategy,
+  simulatePickingStrategy,
+} from './utils/policyWorkbench';
+
+export {
+  buildControlledActionPlan,
+  actionNeedsApproval,
+  getReasonCodesForAction,
+  requiresControlledChangeApproval,
+  buildImportCommitPayload,
+  formatAuditEventLabel,
+  filterAuditEvents,
+  detectPermissionDenied,
+  parseWarehouseServiceError,
+} from './utils/governanceUtils';
 
 // ── Service interface ─────────────────────────────────────────────────────────
 export type { WarehouseService } from './services/warehouseService';

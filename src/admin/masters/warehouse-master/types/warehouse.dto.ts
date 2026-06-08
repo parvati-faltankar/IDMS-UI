@@ -72,6 +72,18 @@ export interface CreateWarehouseInput {
   readonly ownershipScope: WarehouseOwnershipScope;
   readonly owningOrgCode?: string;
   readonly owningBranchCode?: string;
+  readonly owningBranchCodes?: string[];
+  readonly branchOwnershipRows?: Array<{
+    readonly branchCode: string;
+    readonly businessUnit?: string;
+    readonly legalEntityCode?: string;
+    readonly inventoryOwnerCode?: string;
+  }>;
+  readonly businessUnit?: string;
+  readonly legalEntityCode?: string;
+  readonly inventoryOwnerCode?: string;
+  readonly sharedWithAllBranches?: boolean;
+  readonly sharedBranchCodes?: string[];
   readonly warehouseType: WarehouseType;
   readonly wmsEnabled: boolean;
   readonly inventoryControlMode: InventoryControlMode;
@@ -104,6 +116,9 @@ export interface ControlledActionRequest {
   readonly reasonCode?: string;
   readonly reasonDescription?: string;
   readonly correlationId?: string;
+  readonly effectiveDate?: string;
+  readonly approvalRoute?: string;
+  readonly approvalRequired?: boolean;
 }
 
 export interface StatusChangeRequest extends ControlledActionRequest {
@@ -117,6 +132,7 @@ export interface CreateHierarchyTemplateInput {
   readonly warehouseId: string;
   readonly templateCode: string;
   readonly templateName: string;
+  readonly versionNumber?: number;
   readonly flexiblePathEnabled: boolean;
   readonly levels: HierarchyLevel[];
   readonly effectiveFrom: string;
@@ -158,6 +174,7 @@ export interface UpdateLocationInput extends Partial<CreateLocationInput> {
 export interface BulkLocationInput {
   readonly warehouseId: string;
   readonly parentLocationId?: string;
+  readonly level?: number;
   readonly locationType: LocationType;
   readonly binType?: string;
   readonly codePrefix: string;
@@ -165,6 +182,9 @@ export interface BulkLocationInput {
   readonly startSequence: number;
   readonly count: number;
   readonly sequenceLength: number;
+  readonly separator?: string;
+  readonly suffix?: string;
+  readonly locationProfileName?: string;
   readonly idempotencyKey: string;
 }
 
@@ -210,6 +230,8 @@ export interface ImportValidationRequest {
   readonly warehouseId?: string;
   readonly fileName: string;
   readonly fileSize: number;
+  readonly templateVersion?: string;
+  readonly fileHash?: string;
   readonly idempotencyKey: string;
 }
 
@@ -218,30 +240,62 @@ export interface ImportValidationRow {
   readonly status: 'Valid' | 'Warning' | 'Error';
   readonly code?: string;
   readonly name?: string;
+  readonly action?: 'Create' | 'Update' | 'Unchanged';
   readonly issues: string[];
 }
 
 export interface ImportValidationResult {
   readonly importSessionId: string;
   readonly entityType: ImportEntityType;
+  readonly warehouseId?: string;
+  readonly fileName: string;
+  readonly fileSize: number;
+  readonly templateVersion?: string;
   readonly totalRows: number;
   readonly validRows: number;
   readonly warningRows: number;
   readonly errorRows: number;
+  readonly createCount: number;
+  readonly updateCount: number;
+  readonly unchangedCount: number;
   readonly rows: ImportValidationRow[];
   readonly canCommit: boolean;
+  readonly approvalRequired?: boolean;
+  readonly requiresReason?: boolean;
+  readonly idempotencyKey: string;
+  readonly fileHash?: string;
 }
 
 export interface ImportCommitRequest {
   readonly importSessionId: string;
   readonly mode: ImportMode;
   readonly idempotencyKey: string;
+  readonly fileHash?: string;
+  readonly reasonCode?: string;
+  readonly reasonDescription?: string;
+  readonly approvalRoute?: string;
 }
 
 export interface ImportResult {
   readonly success: boolean;
+  readonly importSessionId?: string;
+  readonly entityType?: ImportEntityType;
+  readonly warehouseId?: string;
+  readonly fileName?: string;
+  readonly fileSize?: number;
+  readonly templateVersion?: string;
+  readonly totalRecords?: number;
+  readonly validRecords?: number;
+  readonly warningRecords?: number;
+  readonly errorRecords?: number;
+  readonly createCount?: number;
+  readonly updateCount?: number;
+  readonly unchangedCount?: number;
+  readonly submittedForApproval?: boolean;
   readonly committedCount: number;
   readonly failedCount: number;
+  readonly errorFileName?: string;
+  readonly errors?: string[];
   readonly correlationId: string;
 }
 

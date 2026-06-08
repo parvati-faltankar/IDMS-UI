@@ -15,6 +15,10 @@ const KycSetupPage             = React.lazy(() => import('../admin/masters/KycSe
 const WarehouseListPage        = React.lazy(() => import('../admin/masters/warehouse-master/pages/WarehouseListPage'));
 const WarehouseCreateWorkspace  = React.lazy(() => import('../admin/masters/warehouse-master/pages/WarehouseCreateWorkspace'));
 const WarehouseConfigurationPage = React.lazy(() => import('../admin/masters/warehouse-master/pages/WarehouseConfigurationPage'));
+const WarehouseHierarchyPage    = React.lazy(() => import('../admin/masters/warehouse-master/pages/WarehouseHierarchyPage'));
+const WarehouseLocationsPage    = React.lazy(() => import('../admin/masters/warehouse-master/pages/WarehouseLocationsPage'));
+const WarehouseImportPage       = React.lazy(() => import('../admin/masters/warehouse-master/pages/WarehouseImportPage'));
+const WarehouseAuditPage        = React.lazy(() => import('../admin/masters/warehouse-master/pages/WarehouseAuditPage'));
 
 // ─── Area Master (Phase 1) ────────────────────────────────────────────────────
 const AreaDashboardPage  = React.lazy(() => import('../admin/masters/area-master/pages/AreaDashboardPage'));
@@ -77,6 +81,10 @@ export function renderAdminRoutes() {
       {/* ── Warehouse Master ──────────────────────────────────────────── */}
       <Route path="/admin/master/warehouse-master/new" element={<WarehouseCreateWorkspace />} />
       <Route path="/admin/master/warehouse-master/:warehouseId/configuration" element={<WarehouseConfigurationPage />} />
+      <Route path="/admin/master/warehouse-master/:warehouseId/hierarchy" element={<WarehouseHierarchyPage />} />
+      <Route path="/admin/master/warehouse-master/:warehouseId/locations" element={<WarehouseLocationsPage />} />
+      <Route path="/admin/master/warehouse-master/:warehouseId/import" element={<WarehouseImportPage />} />
+      <Route path="/admin/master/warehouse-master/:warehouseId/audit" element={<WarehouseAuditPage />} />
       <Route path="/admin/master/warehouse-master" element={<WarehouseListPage />} />
       {/* ── Area Master ─────────────────────────────────────────────────────── */}
       <Route path="/admin/area-dashboard"    element={<AreaDashboardPage />} />

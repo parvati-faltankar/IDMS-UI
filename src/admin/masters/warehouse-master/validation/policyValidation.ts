@@ -2,14 +2,20 @@
 
 import type {
   AllocationPolicy,
+  CapacityPolicy,
   CycleCountPolicy,
   EligibilityPolicy,
   PutawayPolicy,
   PickingPolicy,
   ReservationPolicy,
+  StorageConstraints,
 } from '../types/warehouse.types';
 import type { ValidationIssue } from '../types/warehouse.types';
 import type { InventoryControlMode } from '../types/warehouse.enums';
+import {
+  validateCapacityAndConstraints,
+  validateReservationAllocationPolicies,
+} from '../utils/policyWorkbench';
 
 // ─── Auto Putaway policy ──────────────────────────────────────────────────────
 
@@ -38,6 +44,26 @@ export function validatePutawayPolicy(
       severity: 'error',
       category: 'FieldRequired',
       message: 'Putaway Strategy is required when Auto Putaway is enabled.',
+    });
+  }
+
+  if (policy.enabled && (!policy.strategySequence || policy.strategySequence.length === 0)) {
+    issues.push({
+      field: 'autoPutaway.strategySequence',
+      section: 'autoPutaway',
+      severity: 'error',
+      category: 'FieldRequired',
+      message: 'At least one ordered putaway strategy is required when Auto Putaway is enabled.',
+    });
+  }
+
+  if (policy.strategySequence && policy.strategySequence[0] !== policy.strategy) {
+    issues.push({
+      field: 'autoPutaway.strategySequence',
+      section: 'autoPutaway',
+      severity: 'warning',
+      category: 'DerivedFieldMismatch',
+      message: 'Primary putaway strategy should match the first entry in the ordered strategy list.',
     });
   }
 
@@ -84,6 +110,26 @@ export function validatePickingPolicy(
     });
   }
 
+  if (policy.enabled && (!policy.strategySequence || policy.strategySequence.length === 0)) {
+    issues.push({
+      field: 'autoPicking.strategySequence',
+      section: 'autoPicking',
+      severity: 'error',
+      category: 'FieldRequired',
+      message: 'At least one ordered picking strategy is required when Auto Picking is enabled.',
+    });
+  }
+
+  if (policy.strategySequence && policy.strategySequence[0] !== policy.strategy) {
+    issues.push({
+      field: 'autoPicking.strategySequence',
+      section: 'autoPicking',
+      severity: 'warning',
+      category: 'DerivedFieldMismatch',
+      message: 'Primary picking strategy should match the first entry in the ordered strategy list.',
+    });
+  }
+
   return issues;
 }
 
@@ -113,6 +159,40 @@ export function validateEligibilityPolicy(
       category: 'FieldRequired',
       message: 'Restricted eligibility mode requires at least one allowed item or category rule.',
     });
+  }
+
+  if (policy.rules) {
+    const hasBlocked = policy.rules.some((rule) => rule.allowedOrBlocked === 'Blocked');
+    const hasAllowed = policy.rules.some((rule) => rule.allowedOrBlocked === 'Allowed');
+
+    if ((policy.mode === 'Basic-Hybrid' || policy.mode === 'Advanced-Hybrid') && !hasBlocked) {
+      issues.push({
+        section: 'itemEligibility',
+        severity: 'info',
+        category: 'PolicyConflict',
+        message: 'Hybrid modes work best when explicit deny rules are configured before allow rules.',
+      });
+    }
+
+    if (policy.mode === 'Category-Based' && !policy.rules.every((rule) => rule.ruleType === 'Category')) {
+      issues.push({
+        field: 'eligibilityPolicy.rules',
+        section: 'itemEligibility',
+        severity: 'warning',
+        category: 'PolicyConflict',
+        message: 'Category-Based mode should use category rules only.',
+      });
+    }
+
+    if (policy.mode === 'Restricted' && !hasAllowed) {
+      issues.push({
+        field: 'eligibilityPolicy.rules',
+        section: 'itemEligibility',
+        severity: 'error',
+        category: 'FieldRequired',
+        message: 'Restricted mode requires at least one allow rule.',
+      });
+    }
   }
 
   if (policy.rules) {
@@ -168,7 +248,30 @@ export function validateReservationPolicy(
     });
   }
 
+  issues.push(...validateReservationAllocationPolicies(policy, undefined, mode));
+
   return issues;
+}
+
+export function validateAllocationPolicy(
+  policy: Partial<AllocationPolicy> | undefined,
+  reservationPolicy: Partial<ReservationPolicy> | undefined,
+  mode: InventoryControlMode,
+): ValidationIssue[] {
+  return validateReservationAllocationPolicies(reservationPolicy, policy, mode).filter(
+    (issue) =>
+      issue.field === 'allocationPolicy.allocationLevel'
+      || issue.field === 'allocationPolicy.eligibleLocationTypes',
+  );
+}
+
+export function validateCapacityPolicy(
+  policy: Partial<CapacityPolicy> | undefined,
+  storageConstraints: Partial<StorageConstraints> | undefined,
+  scope: 'warehouse' | 'location',
+  mode?: InventoryControlMode,
+): ValidationIssue[] {
+  return validateCapacityAndConstraints(policy, storageConstraints, scope, mode);
 }
 
 // ─── Cycle count policy ───────────────────────────────────────────────────────

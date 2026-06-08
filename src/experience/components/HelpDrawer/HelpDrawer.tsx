@@ -1,5 +1,44 @@
+import React, { useEffect, useId, useMemo, useRef } from 'react';
 import { getHelpTopic } from '../../help/helpTopics';
 import type { HelpDrawerProps } from './HelpDrawer.types';
+
+const overlayStyle: React.CSSProperties = {
+  position: 'fixed',
+  inset: 0,
+  zIndex: 50,
+  display: 'flex',
+  justifyContent: 'flex-end',
+  background: 'rgba(15, 23, 42, 0.22)',
+};
+
+const panelStyle: React.CSSProperties = {
+  position: 'relative',
+  height: '100%',
+  width: 'min(420px, 100vw)',
+  overflowY: 'auto',
+  borderLeft: '1px solid var(--color-border)',
+  background: 'var(--color-surface)',
+  padding: '24px',
+  boxShadow: '0 18px 48px rgba(15, 23, 42, 0.24)',
+};
+
+const closeButtonStyle: React.CSSProperties = {
+  borderRadius: '10px',
+  border: '1px solid var(--color-border)',
+  padding: '8px 12px',
+  fontSize: '13px',
+  color: 'var(--color-text-muted)',
+  background: 'var(--color-surface)',
+  cursor: 'pointer',
+};
+
+function getFocusableElements(container: HTMLElement): HTMLElement[] {
+  return Array.from(
+    container.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    ),
+  ).filter((element) => !element.hasAttribute('disabled') && element.getAttribute('aria-hidden') !== 'true');
+}
 
 export function HelpDrawer({
   open,
@@ -8,57 +47,107 @@ export function HelpDrawer({
   titleFallback = 'Help & Guidance',
   onTopicChange,
 }: HelpDrawerProps) {
+  const titleId = useId();
+  const panelRef = useRef<HTMLElement | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
+
+  const sections = useMemo(() => {
+    if (!topic) return null;
+    return {
+      steps: topic.steps ?? [],
+      tips: topic.tips ?? [],
+      commonMistakes: topic.commonMistakes ?? [],
+      relatedTopics: topic.relatedTopics ?? [],
+    };
+  }, [topic]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    restoreFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    window.setTimeout(() => closeButtonRef.current?.focus(), 0);
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+
+      if (event.key !== 'Tab' || !panelRef.current) return;
+
+      const focusable = getFocusableElements(panelRef.current);
+      if (focusable.length === 0) {
+        event.preventDefault();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+
+      if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      restoreFocusRef.current?.focus();
+    };
+  }, [onClose, open]);
+
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/20" role="dialog" aria-modal="true">
+    <div style={overlayStyle} role="dialog" aria-modal="true" aria-labelledby={titleId}>
       <button
         type="button"
-        className="absolute inset-0 cursor-default"
+        style={{ position: 'absolute', inset: 0, border: 'none', background: 'transparent', cursor: 'default' }}
         aria-label="Close help"
         onClick={onClose}
       />
-      <aside className="relative h-full w-full max-w-md overflow-y-auto border-l border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-2xl">
-        <div className="mb-5 flex items-start justify-between gap-4">
+      <aside ref={panelRef} style={panelStyle}>
+        <div style={{ marginBottom: '20px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px' }}>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-primary)]">
+            <p style={{ margin: 0, fontSize: '11px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-primary)' }}>
               Help
             </p>
-            <h2 className="mt-1 text-xl font-semibold text-[var(--color-text)]">
+            <h2 id={titleId} style={{ margin: '6px 0 0', fontSize: '22px', fontWeight: 700, color: 'var(--color-text)' }}>
               {topic?.title ?? titleFallback}
             </h2>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)]"
-          >
+          <button ref={closeButtonRef} type="button" onClick={onClose} style={closeButtonStyle}>
             Close
           </button>
         </div>
 
-        {topic ? (
-          <div className="space-y-6">
-            <p className="text-sm leading-6 text-[var(--color-text-muted)]">{topic.summary}</p>
+        {topic && sections ? (
+          <div style={{ display: 'grid', gap: '24px' }}>
+            <p style={{ margin: 0, fontSize: '14px', lineHeight: 1.7, color: 'var(--color-text-muted)' }}>{topic.summary}</p>
 
-            {topic.steps && topic.steps.length > 0 && (
+            {sections.steps.length > 0 && (
               <section>
-                <h3 className="mb-3 text-sm font-semibold text-[var(--color-text)]">
+                <h3 style={{ margin: '0 0 12px', fontSize: '14px', fontWeight: 700, color: 'var(--color-text)' }}>
                   Recommended steps
                 </h3>
-                <ol className="space-y-3">
-                  {topic.steps.map((step, index) => (
-                    <li
-                      key={`${step.title}-${index}`}
-                      className="flex gap-3 rounded-xl border border-[var(--color-border)] p-3"
-                    >
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--color-surface-subtle)] text-xs font-semibold text-[var(--color-text)]">
+                <ol style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: '12px' }}>
+                  {sections.steps.map((step, index) => (
+                    <li key={`${step.title}-${index}`} style={{ display: 'flex', gap: '12px', border: '1px solid var(--color-border)', borderRadius: '14px', padding: '14px' }}>
+                      <span style={{ display: 'inline-flex', width: '24px', height: '24px', alignItems: 'center', justifyContent: 'center', borderRadius: '999px', background: 'var(--color-surface-subtle)', color: 'var(--color-text)', fontSize: '11px', fontWeight: 700, flexShrink: 0 }}>
                         {index + 1}
                       </span>
                       <div>
-                        <p className="text-sm font-medium text-[var(--color-text)]">{step.title}</p>
+                        <p style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: 'var(--color-text)' }}>{step.title}</p>
                         {step.description && (
-                          <p className="mt-1 text-sm leading-5 text-[var(--color-text-muted)]">
+                          <p style={{ margin: '6px 0 0', fontSize: '13px', lineHeight: 1.6, color: 'var(--color-text-muted)' }}>
                             {step.description}
                           </p>
                         )}
@@ -69,66 +158,76 @@ export function HelpDrawer({
               </section>
             )}
 
-            {topic.tips && topic.tips.length > 0 && (
+            {sections.tips.length > 0 && (
               <section>
-                <h3 className="mb-2 text-sm font-semibold text-[var(--color-text)]">
+                <h3 style={{ margin: '0 0 10px', fontSize: '14px', fontWeight: 700, color: 'var(--color-text)' }}>
                   Useful tips
                 </h3>
-                <ul className="list-disc space-y-2 pl-5 text-sm leading-6 text-[var(--color-text-muted)]">
-                  {topic.tips.map((tip) => (
+                <ul style={{ margin: 0, paddingLeft: '18px', display: 'grid', gap: '8px', fontSize: '13px', lineHeight: 1.7, color: 'var(--color-text-muted)' }}>
+                  {sections.tips.map((tip) => (
                     <li key={tip}>{tip}</li>
                   ))}
                 </ul>
               </section>
             )}
 
-            {topic.commonMistakes && topic.commonMistakes.length > 0 && (
+            {sections.commonMistakes.length > 0 && (
               <section
-                className="rounded-xl border p-4"
                 style={{
-                  borderColor: 'color-mix(in srgb, #f59e0b 30%, var(--color-border))',
+                  borderRadius: '14px',
+                  border: '1px solid color-mix(in srgb, #f59e0b 30%, var(--color-border))',
                   background: 'color-mix(in srgb, #f59e0b 8%, var(--color-surface))',
+                  padding: '16px',
                 }}
               >
-                <h3
-                  className="mb-2 text-sm font-semibold"
-                  style={{ color: 'color-mix(in srgb, #f59e0b 80%, var(--color-text))' }}
-                >
+                <h3 style={{ margin: '0 0 10px', fontSize: '14px', fontWeight: 700, color: 'color-mix(in srgb, #f59e0b 80%, var(--color-text))' }}>
                   Common mistakes
                 </h3>
-                <ul
-                  className="list-disc space-y-2 pl-5 text-sm leading-6"
-                  style={{ color: 'color-mix(in srgb, #f59e0b 70%, var(--color-text-muted))' }}
-                >
-                  {topic.commonMistakes.map((mistake) => (
+                <ul style={{ margin: 0, paddingLeft: '18px', display: 'grid', gap: '8px', fontSize: '13px', lineHeight: 1.7, color: 'color-mix(in srgb, #f59e0b 70%, var(--color-text-muted))' }}>
+                  {sections.commonMistakes.map((mistake) => (
                     <li key={mistake}>{mistake}</li>
                   ))}
                 </ul>
               </section>
             )}
 
-            {topic.relatedTopics && topic.relatedTopics.length > 0 && (
+            {sections.relatedTopics.length > 0 && (
               <section>
-                <h3 className="mb-2 text-sm font-semibold text-[var(--color-text)]">
+                <h3 style={{ margin: '0 0 10px', fontSize: '14px', fontWeight: 700, color: 'var(--color-text)' }}>
                   Related topics
                 </h3>
-                <div className="flex flex-wrap gap-2">
-                  {topic.relatedTopics.map((id) => {
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {sections.relatedTopics.map((id) => {
                     const related = getHelpTopic(id);
                     const label = related?.title ?? id;
+
                     return onTopicChange ? (
                       <button
                         key={id}
                         type="button"
                         onClick={() => onTopicChange(id)}
-                        className="rounded-full border border-[var(--color-border)] px-3 py-1 text-xs text-[var(--color-primary)] hover:bg-[var(--color-surface-subtle)] transition-colors"
+                        style={{
+                          borderRadius: '999px',
+                          border: '1px solid var(--color-border)',
+                          padding: '6px 10px',
+                          fontSize: '12px',
+                          color: 'var(--color-primary)',
+                          background: 'var(--color-surface)',
+                          cursor: 'pointer',
+                        }}
                       >
                         {label}
                       </button>
                     ) : (
                       <span
                         key={id}
-                        className="rounded-full border border-[var(--color-border)] px-3 py-1 text-xs text-[var(--color-text-muted)]"
+                        style={{
+                          borderRadius: '999px',
+                          border: '1px solid var(--color-border)',
+                          padding: '6px 10px',
+                          fontSize: '12px',
+                          color: 'var(--color-text-muted)',
+                        }}
                       >
                         {label}
                       </span>
@@ -139,9 +238,8 @@ export function HelpDrawer({
             )}
           </div>
         ) : (
-          <p className="text-sm text-[var(--color-text-muted)]">
-            No help content is configured for this page. Add a topic in
-            src/experience/help/helpTopics.ts.
+          <p style={{ margin: 0, fontSize: '14px', lineHeight: 1.7, color: 'var(--color-text-muted)' }}>
+            No help content is configured for this page. Add a topic in `src/experience/help/helpTopics.ts`.
           </p>
         )}
       </aside>

@@ -108,6 +108,51 @@ export const fieldHelpRegistry: Record<string, FieldHelp> = {
       'Under Identity: Passport (format: 2 letters + 8 digits), Aadhaar (12 digits), Driving Licence. ' +
       'Under Tax: PAN Card (10-character alphanumeric), GST Number (15-character GSTIN).',
   },
+
+  warehouseInventoryControlMode: {
+    key: 'warehouseInventoryControlMode',
+    title: 'Inventory Control Mode',
+    description:
+      'Choose the level at which stock is posted and governed. Warehouse-Level keeps stock at the warehouse bucket only. Location/BIN-Level requires an active hierarchy and inventory-allowed leaf locations before activation.',
+    example:
+      'Warehouse-Level for simple stock holding sites. Location/BIN-Level for warehouses that need bin tracking, directed putaway, or directed picking.',
+  },
+
+  warehouseHierarchyChoice: {
+    key: 'warehouseHierarchyChoice',
+    title: 'Hierarchy Setup Choice',
+    description:
+      'This controls how the location structure will be prepared for a Location/BIN-Level warehouse. Recommended starts from a standard structure, Copy reuses an existing pattern, and Configure later keeps the warehouse in Draft until a valid hierarchy is activated.',
+    example:
+      'Recommended template: Zone > Aisle > Rack > Shelf > BIN. Configure later: save Draft now, finish hierarchy before activation.',
+  },
+
+  warehouseReservationLevel: {
+    key: 'warehouseReservationLevel',
+    title: 'Reservation Level',
+    description:
+      'Reservation protects quantity from being consumed by other demand. Choose the level where quantity is protected. Finer levels improve source control but require matching hierarchy and inventory control capability.',
+    example:
+      'Warehouse reservation protects quantity anywhere in the warehouse. BIN reservation protects quantity in one specific BIN.',
+  },
+
+  warehouseAllocationLevel: {
+    key: 'warehouseAllocationLevel',
+    title: 'Allocation Level',
+    description:
+      'Allocation locks the source scope chosen for fulfilment. Allocation is separate from reservation: reservation protects quantity, while allocation narrows where that quantity must come from.',
+    example:
+      'Location allocation locks a pick to one location. BIN allocation locks a pick to one specific BIN.',
+  },
+
+  warehouseStorageMixing: {
+    key: 'warehouseStorageMixing',
+    title: 'Storage Mixing Rules',
+    description:
+      'These rules govern whether different items, lots, or owners can share the same storage location. They influence eligibility validation, directed putaway, and manual overrides.',
+    example:
+      'Mixed owner = No means stock for different owners cannot occupy the same BIN. Mixed lot = No means one BIN can hold only one lot at a time.',
+  },
 };
 
 /**

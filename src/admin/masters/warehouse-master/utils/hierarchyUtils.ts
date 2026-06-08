@@ -2,6 +2,9 @@
 
 import type { HierarchyLevel, HierarchyNode, HierarchyTemplate, WarehouseLocation } from '../types/warehouse.types';
 import type { ValidationIssue } from '../types/warehouse.types';
+import type { LocationType } from '../types/warehouse.enums';
+
+export const WAREHOUSE_ROOT_LEVEL_CODE = 'WAREHOUSE';
 
 // ─── Build full location code ─────────────────────────────────────────────────
 
@@ -241,4 +244,162 @@ export function validateHierarchyDepthConsistency(
       message: `Flexible paths are disabled but leaf locations exist at different depths (${[...depths].join(', ')}). Enable Flexible Paths or adjust the hierarchy.`,
     },
   ];
+}
+
+export function buildFullLocationCodeFromParent(
+  warehouseCode: string,
+  locationCode: string,
+  parentLocationId: string | undefined,
+  allLocations: WarehouseLocation[],
+): string {
+  const locationSegment = locationCode.trim().toUpperCase();
+  if (!parentLocationId) {
+    return [warehouseCode, locationSegment].filter(Boolean).join('-');
+  }
+
+  const parent = allLocations.find((item) => item.id === parentLocationId);
+  if (!parent) {
+    return [warehouseCode, locationSegment].filter(Boolean).join('-');
+  }
+
+  return [parent.profile.fullCode, locationSegment].filter(Boolean).join('-');
+}
+
+const DEFAULT_LOCATION_TYPE_ORDER: LocationType[] = [
+  'Zone',
+  'Aisle',
+  'Rack',
+  'Shelf',
+  'BIN',
+];
+
+function normalizeLevelName(levelName: string): LocationType | null {
+  const normal = levelName.trim().toUpperCase();
+  if (normal === 'ZONE') return 'Zone';
+  if (normal === 'AISLE') return 'Aisle';
+  if (normal === 'RACK') return 'Rack';
+  if (normal === 'SHELF') return 'Shelf';
+  if (normal === 'BIN') return 'BIN';
+  if (normal === 'DOCK') return 'Dock';
+  if (normal === 'STAGING') return 'Staging';
+  if (normal === 'QC') return 'QC';
+  if (normal === 'SCRAP') return 'Scrap';
+  if (normal === 'VIRTUAL') return 'Virtual';
+  if (normal === 'GENERAL') return 'General';
+  return null;
+}
+
+export function getTemplateLevelForLocation(
+  location: WarehouseLocation | null,
+  template?: HierarchyTemplate,
+): HierarchyLevel | undefined {
+  if (!location || !template) return undefined;
+  return template.levels.find(
+    (level) =>
+      level.sequence === location.profile.level ||
+      level.levelCode.toUpperCase() === location.profile.locationType.toUpperCase(),
+  );
+}
+
+export function getAllowedChildTemplateLevels(
+  parent: WarehouseLocation | null,
+  template?: HierarchyTemplate,
+): HierarchyLevel[] {
+  if (!template) return [];
+
+  const parentLevelCode = parent
+    ? getTemplateLevelForLocation(parent, template)?.levelCode ?? parent.profile.locationType.toUpperCase()
+    : WAREHOUSE_ROOT_LEVEL_CODE;
+
+  const explicitMatches = template.levels
+    .filter((level) => (level.allowedParentLevels ?? []).map((code) => code.toUpperCase()).includes(parentLevelCode.toUpperCase()))
+    .sort((left, right) => left.sequence - right.sequence);
+
+  if (explicitMatches.length > 0) return explicitMatches;
+
+  if (!parent) {
+    const rootLevels = template.levels.filter((level) => level.sequence === 1);
+    return rootLevels.sort((left, right) => left.sequence - right.sequence);
+  }
+
+  const parentLevel = getTemplateLevelForLocation(parent, template);
+  if (!parentLevel) return [];
+
+  if (!template.flexiblePathEnabled) {
+    const nextLevel = template.levels.find((level) => level.sequence === parentLevel.sequence + 1);
+    return nextLevel ? [nextLevel] : [];
+  }
+
+  const sortedLevels = [...template.levels].sort((left, right) => left.sequence - right.sequence);
+  return sortedLevels.filter((candidate) => {
+    if (candidate.sequence <= parentLevel.sequence) return false;
+    const betweenLevels = sortedLevels.filter(
+      (level) => level.sequence > parentLevel.sequence && level.sequence < candidate.sequence,
+    );
+    return betweenLevels.every((level) => level.allowSkipLevel || !level.mandatory);
+  });
+}
+
+export function explainChildLevelAllowance(
+  parent: WarehouseLocation | null,
+  childLevelCode: string,
+  template?: HierarchyTemplate,
+): { allowed: boolean; reason: string } {
+  if (!template) {
+    return { allowed: false, reason: 'No active hierarchy template is available.' };
+  }
+
+  const childLevel = template.levels.find(
+    (level) => level.levelCode.toUpperCase() === childLevelCode.toUpperCase(),
+  );
+  if (!childLevel) {
+    return { allowed: false, reason: `Level ${childLevelCode} is not part of the active template.` };
+  }
+
+  const allowedLevels = getAllowedChildTemplateLevels(parent, template);
+  const match = allowedLevels.find((level) => level.levelCode === childLevel.levelCode);
+  if (match) {
+    const parentLabel = parent ? parent.locationCode : 'warehouse root';
+    return {
+      allowed: true,
+      reason: `${match.levelName} is allowed under ${parentLabel} by the active template path rules.`,
+    };
+  }
+
+  const parentLevelCode = parent
+    ? getTemplateLevelForLocation(parent, template)?.levelCode ?? parent.profile.locationType.toUpperCase()
+    : WAREHOUSE_ROOT_LEVEL_CODE;
+  const explicitParents = childLevel.allowedParentLevels?.length
+    ? childLevel.allowedParentLevels.join(', ')
+    : 'the next valid template level';
+  return {
+    allowed: false,
+    reason: `${childLevel.levelName} is not allowed under ${parentLevelCode}. Allowed parent level(s): ${explicitParents}.`,
+  };
+}
+
+export function getAllowedChildLocationTypes(
+  parent: WarehouseLocation | null,
+  template?: HierarchyTemplate,
+): LocationType[] {
+  if (template) {
+    return getAllowedChildTemplateLevels(parent, template).map((level) =>
+      normalizeLevelName(level.levelCode) ?? normalizeLevelName(level.levelName) ?? 'General',
+    );
+  }
+
+  if (!parent) return [DEFAULT_LOCATION_TYPE_ORDER[0]];
+  const nextIndex = DEFAULT_LOCATION_TYPE_ORDER.indexOf(parent.profile.locationType) + 1;
+  return nextIndex > 0 && nextIndex < DEFAULT_LOCATION_TYPE_ORDER.length
+    ? [DEFAULT_LOCATION_TYPE_ORDER[nextIndex]]
+    : [];
+}
+
+export function isValidParentChildCombination(
+  parent: WarehouseLocation | null,
+  childType: LocationType,
+  template?: HierarchyTemplate,
+): boolean {
+  const allowed = getAllowedChildLocationTypes(parent, template);
+  return allowed.includes(childType);
 }

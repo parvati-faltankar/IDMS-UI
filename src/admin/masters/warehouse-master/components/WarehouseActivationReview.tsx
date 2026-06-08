@@ -378,8 +378,11 @@ export interface ActivationCheckInput {
   warehouseType: WarehouseType | '';
   ownershipScope: WarehouseOwnershipScope | '';
   owningOrgCode: string;
-  owningBranchCode: string;
-  timezone: string;
+  businessUnit: string;
+  legalEntityCode: string;
+  inventoryOwnerCode: string;
+  owningBranchCodes: string[];
+  branchOwnershipRowsComplete: boolean;
   inventoryControlMode: InventoryControlMode | '';
   hasActiveTemplate: boolean;
   hasActiveInventoryLocation: boolean;
@@ -420,14 +423,6 @@ export function buildActivationChecks(input: ActivationCheckInput): ActivationCh
       detail: input.warehouseType === '' ? 'Please select a Warehouse Type.' : undefined,
       fixStep: 0,
     },
-    {
-      id: 'identity-timezone',
-      category: 'Identity',
-      label: 'Operational Time Zone is specified',
-      passed: input.timezone.trim().length > 0,
-      detail: !input.timezone.trim() ? 'Time Zone is required for operational scheduling.' : undefined,
-      fixStep: 0,
-    },
     // ── Ownership ──
     {
       id: 'ownership-scope',
@@ -445,17 +440,45 @@ export function buildActivationChecks(input: ActivationCheckInput): ActivationCh
         input.ownershipScope === 'Organization'
           ? input.owningOrgCode.trim().length > 0
           : input.ownershipScope === 'Branch'
-            ? input.owningBranchCode.trim().length > 0
+            ? input.owningBranchCodes.length > 0
             : false,
       detail:
         input.ownershipScope === 'Organization' && !input.owningOrgCode.trim()
           ? 'Owning Organization is required for Organization scope.'
-          : input.ownershipScope === 'Branch' && !input.owningBranchCode.trim()
-            ? 'Owning Branch is required for Branch scope.'
+          : input.ownershipScope === 'Branch' && input.owningBranchCodes.length === 0
+            ? 'At least one Owning Branch is required for Branch scope.'
             : input.ownershipScope === ''
               ? 'Select Ownership Scope first.'
               : undefined,
       fixStep: 1,
+    },
+    {
+      id: 'ownership-branch-rows',
+      category: 'Ownership',
+      label: input.ownershipScope === 'Branch'
+        ? 'Each selected branch has complete ownership details'
+        : 'Shared ownership details are complete',
+      passed:
+        input.ownershipScope === 'Branch'
+          ? input.branchOwnershipRowsComplete
+          : input.ownershipScope === 'Organization'
+            ? Boolean(
+                input.businessUnit.trim() &&
+                input.legalEntityCode.trim() &&
+                input.inventoryOwnerCode.trim(),
+              )
+            : true,
+      detail:
+        input.ownershipScope === 'Branch' && !input.branchOwnershipRowsComplete
+          ? 'Complete Business Unit, Legal Entity, and Inventory Owner for every selected branch.'
+          : input.ownershipScope === 'Organization' &&
+            !(input.businessUnit.trim() && input.legalEntityCode.trim() && input.inventoryOwnerCode.trim())
+            ? 'Business Unit, Legal Entity, and Inventory Owner are required for Organization scope.'
+          : undefined,
+      fixStep:
+        input.ownershipScope === 'Branch' || input.ownershipScope === 'Organization'
+          ? 1
+          : undefined,
     },
     // ── Inventory Model ──
     {

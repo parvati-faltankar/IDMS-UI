@@ -10,6 +10,9 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import AdminShell from '../../../AdminShell';
+import { HelpDrawer } from '../../../../experience/components/HelpDrawer';
+import { getHelpTopic } from '../../../../experience/help/helpTopics';
 
 import { warehouseMockAdapter } from '../services/warehouseMockAdapter';
 import type { WarehouseDetails } from '../types/warehouse.types';
@@ -38,7 +41,7 @@ import { CycleCountSection } from '../components/sections/CycleCountSection';
 import { GovernanceSection } from '../components/sections/GovernanceSection';
 import type { SectionSavePayload } from '../components/sections/sectionTypes';
 
-import { ArrowLeft, Lock, AlertTriangle, Zap, Ban, RotateCcw, Settings } from 'lucide-react';
+import { ArrowLeft, Lock, AlertTriangle, Zap, Ban, RotateCcw, Settings, HelpCircle } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -295,6 +298,59 @@ function buildNavItems(
   }));
 }
 
+function mapHealthSectionToConfigSection(section: string): ConfigSectionKey {
+  switch (section) {
+    case 'branchAssignment':
+      return 'branchAccess';
+    case 'defaultLocations':
+      return 'locationDefaults';
+    case 'autoPutaway':
+      return 'putaway';
+    case 'autoPicking':
+      return 'picking';
+    case 'capacityStorage':
+      return 'capacity';
+    case 'itemEligibility':
+      return 'eligibility';
+    case 'stockStatusGovernance':
+    case 'reservationAllocation':
+      return 'stockGovernance';
+    default:
+      return section as ConfigSectionKey;
+  }
+}
+
+function getConfigHelpTopic(section: ConfigSectionKey): string {
+  switch (section) {
+    case 'ownership':
+      return 'warehouse-ownership';
+    case 'branchAccess':
+      return 'warehouse-branch-access';
+    case 'inventoryControl':
+      return 'warehouse-inventory-control';
+    case 'hierarchyTemplate':
+      return 'warehouse-hierarchy';
+    case 'locationDefaults':
+      return 'warehouse-defaults';
+    case 'putaway':
+      return 'warehouse-putaway';
+    case 'picking':
+      return 'warehouse-picking';
+    case 'capacity':
+      return 'warehouse-capacity';
+    case 'eligibility':
+      return 'warehouse-item-eligibility';
+    case 'stockGovernance':
+      return 'warehouse-stock-governance';
+    case 'cycleCount':
+      return 'warehouse-cycle-count';
+    case 'governance':
+      return 'warehouse-audit';
+    default:
+      return 'warehouse-master-overview';
+  }
+}
+
 // ─── Page component ───────────────────────────────────────────────────────────
 
 export default function WarehouseConfigurationPage() {
@@ -307,6 +363,8 @@ export default function WarehouseConfigurationPage() {
   const [activeSection, setActiveSection] = useState<ConfigSectionKey>('overview');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [isNarrow, setIsNarrow] = useState(() => window.innerWidth < 1100);
 
   const permissions: WarehousePermissions = mockAllPermissions();
 
@@ -327,6 +385,12 @@ export default function WarehouseConfigurationPage() {
         setLoading(false);
       });
   }, [warehouseId]);
+
+  useEffect(() => {
+    const handleResize = () => setIsNarrow(window.innerWidth < 1100);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const reload = useCallback(async () => {
     if (!warehouseId) return;
@@ -386,7 +450,7 @@ export default function WarehouseConfigurationPage() {
   details.setupHealth.sections.forEach((sh) => {
     const errCount = sh.issues.filter((i) => i.severity === 'error').length;
     if (errCount > 0) {
-      const mapped = sh.section as unknown as ConfigSectionKey;
+      const mapped = mapHealthSectionToConfigSection(sh.section);
       issueCountBySection[mapped] = (issueCountBySection[mapped] ?? 0) + errCount;
     }
   });
@@ -406,7 +470,7 @@ export default function WarehouseConfigurationPage() {
   // ── Section renderer ──────────────────────────────────────────────────────
   function renderSection() {
     switch (activeSection) {
-      case 'overview': return <OverviewSection warehouse={warehouse} details={details!} />;
+      case 'overview': return <OverviewSection warehouse={warehouse} details={details!} onJumpToSection={setActiveSection} />;
       case 'ownership': return <OwnershipSection {...sectionProps} />;
       case 'branchAccess': return <BranchAccessSection {...sectionProps} />;
       case 'inventoryControl': return <InventoryControlSection {...sectionProps} />;
@@ -425,9 +489,10 @@ export default function WarehouseConfigurationPage() {
 
   // ── Page layout ───────────────────────────────────────────────────────────
   return (
+    <AdminShell>
     <div
       data-testid="warehouse-configuration-page"
-      style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', background: 'var(--color-background)' }}
+      style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: '100%', overflow: 'hidden', background: 'var(--color-background)' }}
     >
       {/* ── Page header ── */}
       <header style={{
@@ -469,6 +534,19 @@ export default function WarehouseConfigurationPage() {
 
         {/* Lifecycle actions */}
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <button
+            type="button"
+            onClick={() => setHelpOpen(true)}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '5px',
+              padding: '6px 12px', fontSize: '12px', fontWeight: 600,
+              borderRadius: '7px', border: '1px solid var(--color-border)',
+              background: 'var(--color-surface)', color: 'var(--color-text)', cursor: 'pointer',
+            }}
+          >
+            <HelpCircle size={12} />
+            Help
+          </button>
           {pageActions.map((action) => (
             <button
               key={action.key}
@@ -500,11 +578,13 @@ export default function WarehouseConfigurationPage() {
 
       {/* ── Body (nav + content) ── */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        <WarehouseSectionNav
-          sections={navItems}
-          activeKey={activeSection}
-          onSelect={(k) => setActiveSection(k as ConfigSectionKey)}
-        />
+        {!isNarrow && (
+          <WarehouseSectionNav
+            sections={navItems}
+            activeKey={activeSection}
+            onSelect={(k) => setActiveSection(k as ConfigSectionKey)}
+          />
+        )}
 
         {/* Section content */}
         <main style={{
@@ -512,6 +592,23 @@ export default function WarehouseConfigurationPage() {
           padding: '20px 28px',
           background: 'var(--color-background)',
         }}>
+          {isNarrow && (
+            <div style={{ maxWidth: '340px', marginBottom: '18px' }}>
+              <label htmlFor="warehouse-section-selector" style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px', color: 'var(--color-text)' }}>
+                Section
+              </label>
+              <select
+                id="warehouse-section-selector"
+                value={activeSection}
+                onChange={(event) => setActiveSection(event.target.value as ConfigSectionKey)}
+                style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text)', fontSize: '12px' }}
+              >
+                {SECTION_META.map((section) => (
+                  <option key={section.key} value={section.key}>{section.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
           {/* Section title */}
           <div style={{ marginBottom: '18px' }}>
             <h2 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: 'var(--color-text)' }}>
@@ -532,13 +629,27 @@ export default function WarehouseConfigurationPage() {
           {renderSection()}
         </main>
       </div>
+      <HelpDrawer
+        open={helpOpen}
+        topic={getHelpTopic(getConfigHelpTopic(activeSection))}
+        onClose={() => setHelpOpen(false)}
+      />
     </div>
+    </AdminShell>
   );
 }
 
 // ─── Overview section (inline, display-only) ──────────────────────────────────
 
-function OverviewSection({ warehouse, details }: { warehouse: Warehouse; details: WarehouseDetails }) {
+function OverviewSection({
+  warehouse,
+  details,
+  onJumpToSection,
+}: {
+  warehouse: Warehouse;
+  details: WarehouseDetails;
+  onJumpToSection: (section: ConfigSectionKey) => void;
+}) {
   const health = details.setupHealth;
 
   return (
@@ -556,10 +667,12 @@ function OverviewSection({ warehouse, details }: { warehouse: Warehouse; details
         </div>
         {/* Section health list */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginTop: '8px' }}>
-          {health.sections.map((sh) => (
-            <div key={sh.section} style={{
+          {health.sections.map((sh) => {
+            const mappedSection = mapHealthSectionToConfigSection(sh.section);
+            return (
+            <button key={sh.section} type="button" onClick={() => onJumpToSection(mappedSection)} style={{
               padding: '8px 12px', borderRadius: '7px', background: 'var(--color-surface-subtle)',
-              border: '1px solid var(--color-border)', fontSize: '11px',
+              border: '1px solid var(--color-border)', fontSize: '11px', textAlign: 'left', cursor: 'pointer',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span style={{ fontWeight: 600 }}>{sh.section}</span>
@@ -583,8 +696,9 @@ function OverviewSection({ warehouse, details }: { warehouse: Warehouse; details
                   <span style={{ marginLeft: '6px', color: '#DC2626' }}>{sh.issues.length} issue{sh.issues.length > 1 ? 's' : ''}</span>
                 )}
               </div>
-            </div>
-          ))}
+            </button>
+          );
+          })}
         </div>
       </div>
 
@@ -597,10 +711,16 @@ function OverviewSection({ warehouse, details }: { warehouse: Warehouse; details
             </span>
           </div>
           {health.blockingIssues.map((issue, i) => (
-            <div key={i} style={{ padding: '8px 16px', borderBottom: '1px solid var(--color-border)', fontSize: '12px' }}>
+            <button
+              key={i}
+              type="button"
+              onClick={() => onJumpToSection(mapHealthSectionToConfigSection(issue.section ?? 'inventoryControl'))}
+              style={{ width: '100%', padding: '8px 16px', border: 'none', borderBottom: '1px solid var(--color-border)', fontSize: '12px', textAlign: 'left', background: 'var(--color-surface)', cursor: 'pointer' }}
+            >
               <span style={{ color: '#DC2626', fontWeight: 600 }}>{issue.category}: </span>
               {issue.message}
-            </div>
+              <span style={{ marginLeft: '8px', color: 'var(--color-primary)', fontWeight: 600 }}>Open section</span>
+            </button>
           ))}
         </div>
       )}

@@ -75,6 +75,17 @@ export interface AuditEvent {
   readonly reasonCode?: string;
   readonly reasonDescription?: string;
   readonly correlationId?: string;
+  readonly source?: 'Manual' | 'Import' | 'Bulk' | 'Approval' | 'System';
+  readonly referenceId?: string;
+  readonly recordVersion?: number;
+  readonly approvalStatus?: ApprovalStatus;
+  readonly effectiveDate?: string;
+  readonly approvalRoute?: string;
+  readonly fieldChanges?: Array<{
+    readonly field: string;
+    readonly previousValue?: string;
+    readonly newValue?: string;
+  }>;
   readonly snapshot?: Record<string, unknown>;
 }
 
@@ -191,6 +202,11 @@ export interface StorageConstraints {
   readonly humidityPercent?: number;
   readonly fireClass?: string;
   readonly hazmatClass?: string;
+  readonly allowMixedItemStorage?: boolean;
+  readonly allowMixedLotStorage?: boolean;
+  readonly allowMixedOwnerStorage?: boolean;
+  readonly complianceLockRequired?: boolean;
+  readonly complianceLockCode?: string;
 }
 
 // ─── Timing / calendar ───────────────────────────────────────────────────────
@@ -258,6 +274,8 @@ export interface HierarchyLevel {
   readonly mandatory: boolean;
   readonly leafEligible: boolean;
   readonly allowSkipLevel: boolean;
+  readonly allowedParentLevels?: string[];
+  readonly allowedChildLevels?: string[];
   readonly description?: string;
 }
 
@@ -462,6 +480,7 @@ export interface WarehouseSummary {
 export interface WarehouseDetails {
   readonly warehouse: Warehouse;
   readonly hierarchyTemplates: HierarchyTemplate[];
+  readonly locations: WarehouseLocation[];
   readonly setupHealth: SetupHealth;
   readonly recentAuditEvents: AuditEvent[];
 }

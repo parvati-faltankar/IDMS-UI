@@ -9,6 +9,7 @@ import { validateTemplateLevelTree } from '../utils/hierarchyUtils';
 export interface HierarchyTemplateFieldErrors {
   templateCode?: string;
   templateName?: string;
+  versionNumber?: string;
   effectiveFrom?: string;
   effectiveTo?: string;
   levels?: string;
@@ -28,20 +29,25 @@ export function validateHierarchyTemplateForSave(
   } else if (!TEMPLATE_CODE_PATTERN.test(input.templateCode.trim())) {
     errors.templateCode =
       'Template Code must be 2–20 uppercase letters, digits, hyphens, or underscores.';
-  } else {
-    const duplicate = existingTemplates.find(
+  } else if (input.versionNumber !== undefined) {
+    const duplicateVersion = existingTemplates.find(
       (t) =>
         t.templateCode.trim().toUpperCase() === input.templateCode.trim().toUpperCase() &&
+        t.currentVersion.versionNumber === input.versionNumber &&
         t.warehouseId === input.warehouseId &&
         t.id !== editingId,
     );
-    if (duplicate) {
-      errors.templateCode = 'A template with this code already exists for this warehouse.';
+    if (duplicateVersion) {
+      errors.versionNumber = 'This template version already exists for this warehouse.';
     }
   }
 
   if (!input.templateName?.trim()) {
     errors.templateName = 'Template Name is required.';
+  }
+
+  if (input.versionNumber !== undefined && input.versionNumber < 1) {
+    errors.versionNumber = 'Version must be 1 or greater.';
   }
 
   if (!input.effectiveFrom) {

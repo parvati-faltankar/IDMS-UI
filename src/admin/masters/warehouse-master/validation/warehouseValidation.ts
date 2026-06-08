@@ -1,6 +1,6 @@
 // ─── Warehouse Master — Core Warehouse Validation ────────────────────────────
 
-import type { CreateWarehouseInput, UpdateWarehouseInput } from '../types/warehouse.dto';
+import type { CreateWarehouseInput } from '../types/warehouse.dto';
 import type { Warehouse } from '../types/warehouse.types';
 import type { ValidationIssue } from '../types/warehouse.types';
 
@@ -12,6 +12,11 @@ export interface WarehouseFieldErrors {
   ownershipScope?: string;
   owningOrgCode?: string;
   owningBranchCode?: string;
+  owningBranchCodes?: string;
+  branchOwnershipRows?: string;
+  businessUnit?: string;
+  legalEntityCode?: string;
+  inventoryOwnerCode?: string;
   warehouseType?: string;
   inventoryControlMode?: string;
   autoPutaway?: string;
@@ -57,8 +62,28 @@ export function validateWarehouseForSave(
     errors.ownershipScope = 'Ownership Scope is required.';
   } else if (input.ownershipScope === 'Organization' && !input.owningOrgCode?.trim()) {
     errors.owningOrgCode = 'Owning Organisation is required for Org-level warehouses.';
-  } else if (input.ownershipScope === 'Branch' && !input.owningBranchCode?.trim()) {
-    errors.owningBranchCode = 'Owning Branch is required for Branch-level warehouses.';
+  } else if (input.ownershipScope === 'Organization' && !input.businessUnit?.trim()) {
+    errors.businessUnit = 'Business Unit is required for Org-level warehouses.';
+  } else if (input.ownershipScope === 'Organization' && !input.legalEntityCode?.trim()) {
+    errors.legalEntityCode = 'Legal Entity is required for Org-level warehouses.';
+  } else if (input.ownershipScope === 'Organization' && !input.inventoryOwnerCode?.trim()) {
+    errors.inventoryOwnerCode = 'Inventory Owner is required for Org-level warehouses.';
+  } else if (
+    input.ownershipScope === 'Branch' &&
+    !(input.owningBranchCodes?.length || input.owningBranchCode?.trim())
+  ) {
+    errors.owningBranchCodes = 'At least one Owning Branch is required for Branch-level warehouses.';
+  } else if (input.ownershipScope === 'Branch') {
+    const branchRows = input.branchOwnershipRows ?? [];
+    const incompleteRow = branchRows.find(
+      (row) =>
+        !row.businessUnit?.trim() ||
+        !row.legalEntityCode?.trim() ||
+        !row.inventoryOwnerCode?.trim(),
+    );
+    if (incompleteRow) {
+      errors.branchOwnershipRows = `Complete Business Unit, Legal Entity, and Inventory Owner for ${incompleteRow.branchCode}.`;
+    }
   }
 
   // Type
@@ -116,7 +141,7 @@ export function validateWarehouseInput(
 }
 
 function fieldToSection(field: string): import('../types/warehouse.enums').ConfigurationSectionKey {
-  if (['warehouseCode', 'warehouseName', 'ownershipScope', 'owningOrgCode', 'owningBranchCode'].includes(field)) {
+  if (['warehouseCode', 'warehouseName', 'ownershipScope', 'owningOrgCode', 'owningBranchCode', 'owningBranchCodes', 'branchOwnershipRows', 'businessUnit', 'legalEntityCode', 'inventoryOwnerCode'].includes(field)) {
     return 'identity';
   }
   if (['warehouseType', 'inventoryControlMode', 'wmsEnabled'].includes(field)) {

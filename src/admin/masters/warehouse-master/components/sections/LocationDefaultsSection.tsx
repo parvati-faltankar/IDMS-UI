@@ -1,40 +1,66 @@
-// ─── LocationDefaultsSection ──────────────────────────────────────────────────
-
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import type { ConfigSectionProps } from './sectionTypes';
 import type { DefaultLocations } from '../../types/warehouse.types';
-import { inputBase, inputRO, labelBase, hintTxt, twoCol, sCard, sHead, sBody, SectionActionRow } from './sectionStyles';
+import { PURPOSE_LABELS, getEligibleDefaultLocations } from '../../utils/policyWorkbench';
+import {
+  hintTxt,
+  inputBase,
+  inputRO,
+  labelBase,
+  sBody,
+  sCard,
+  sHead,
+  SectionActionRow,
+} from './sectionStyles';
 
 type DefaultPurpose = keyof DefaultLocations;
 
 const PURPOSES: { key: DefaultPurpose; label: string; hint: string }[] = [
-  { key: 'putaway', label: 'Default Putaway Location', hint: 'Items are placed here when no specific rule matches.' },
-  { key: 'picking', label: 'Default Picking Location', hint: 'Picking source when no directed pick is available.' },
-  { key: 'return', label: 'Default Return Location', hint: 'Returned goods held here pending inspection.' },
-  { key: 'qc', label: 'Default QC Location', hint: 'Quality control staging area.' },
-  { key: 'staging', label: 'Default Staging Location', hint: 'Dispatch staging area before shipment.' },
-  { key: 'scrap', label: 'Default Scrap Location', hint: 'Damaged / write-off items are moved here.' },
+  { key: 'putaway', label: 'Default Putaway Location', hint: 'Used only when no explicit putaway rule resolves a location.' },
+  { key: 'picking', label: 'Default Picking Location', hint: 'Used only when no directed picking rule resolves a source.' },
+  { key: 'return', label: 'Default Return Location', hint: 'Returned goods route here by default.' },
+  { key: 'qc', label: 'Default QC Location', hint: 'Inspection and hold routing defaults here.' },
+  { key: 'staging', label: 'Default Staging Location', hint: 'Dispatch staging defaults here.' },
+  { key: 'scrap', label: 'Default Scrap Location', hint: 'Scrapped or damaged goods default here.' },
 ];
 
 interface LocalState {
   defaults: Partial<DefaultLocations>;
 }
 
-function toLocal(w: ConfigSectionProps['warehouse']): LocalState {
-  return { defaults: { ...w.defaultLocations } };
+function toLocal(warehouse: ConfigSectionProps['warehouse']): LocalState {
+  return { defaults: { ...warehouse.defaultLocations } };
 }
 
 export function LocationDefaultsSection({ warehouse, locations, readOnly, saving, onSave }: ConfigSectionProps) {
   const [local, setLocal] = useState<LocalState>(() => toLocal(warehouse));
   const [dirty, setDirty] = useState(false);
 
-  const locationIds = locations
-    .filter((l) => l.status === 'Active')
-    .map((l) => l.id);
+  const eligibleByPurpose = useMemo(
+    () => PURPOSES.reduce<Record<DefaultPurpose, ReturnType<typeof getEligibleDefaultLocations>>>(
+      (accumulator, purpose) => ({
+        ...accumulator,
+        [purpose.key]: getEligibleDefaultLocations(locations, purpose.key),
+      }),
+      {} as Record<DefaultPurpose, ReturnType<typeof getEligibleDefaultLocations>>,
+    ),
+    [locations],
+  );
 
   function set(key: DefaultPurpose, value: string) {
-    setLocal((s) => ({
-      defaults: { ...s.defaults, [key]: value ? { locationId: value, locationCode: value } : undefined },
+    const location = locations.find((entry) => entry.id === value);
+    setLocal((current) => ({
+      defaults: {
+        ...current.defaults,
+        [key]: value && location
+          ? {
+              purpose: PURPOSE_LABELS[key],
+              locationId: location.id,
+              locationCode: location.profile.fullCode,
+              locationName: location.locationName,
+            }
+          : undefined,
+      },
     }));
     setDirty(true);
   }
@@ -57,8 +83,7 @@ export function LocationDefaultsSection({ warehouse, locations, readOnly, saving
         </div>
         <div style={sBody}>
           <p style={{ ...hintTxt, marginBottom: '16px' }}>
-            These defaults are used when no explicit routing rule, putaway strategy, or directed-pick path
-            resolves to a specific location. Each purpose is independent.
+            Defaults are purpose-aware. Putaway and picking defaults must be active inventory-allowed leaf locations.
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             {PURPOSES.map(({ key, label, hint }) => (
@@ -66,16 +91,21 @@ export function LocationDefaultsSection({ warehouse, locations, readOnly, saving
                 <label style={labelBase}>{label}</label>
                 <select
                   value={local.defaults[key]?.locationId ?? ''}
-                  onChange={(e) => set(key, e.target.value)}
+                  onChange={(event) => set(key, event.target.value)}
                   style={readOnly ? inputRO : inputBase}
                   disabled={readOnly}
                 >
                   <option value="">None</option>
-                  {locationIds.map((id) => (
-                    <option key={id} value={id}>{id}</option>
+                  {eligibleByPurpose[key].map((location) => (
+                    <option key={location.id} value={location.id}>
+                      {location.profile.fullCode} - {location.locationName}
+                    </option>
                   ))}
                 </select>
                 <p style={hintTxt}>{hint}</p>
+                <p style={{ ...hintTxt, marginTop: '2px' }}>
+                  Eligible options: {eligibleByPurpose[key].length}
+                </p>
               </div>
             ))}
           </div>

@@ -61,22 +61,23 @@ export function HierarchyTemplateSection({ warehouse, templates }: ConfigSection
             <div>
               {/* Table header */}
               <div style={{
-                display: 'grid', gridTemplateColumns: '1fr 1fr 80px 100px',
+                display: 'grid', gridTemplateColumns: '1fr 1fr 60px 80px 100px',
                 gap: '8px', padding: '6px 0',
                 borderBottom: '1px solid var(--color-border)',
                 fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase',
               }}>
                 <span>Template Code</span><span>Template Name</span>
-                <span>Status</span><span>Effective From</span>
+                <span>Ver.</span><span>Status</span><span>Effective From</span>
               </div>
               {templates.map((t) => (
                 <div key={t.id} style={{
-                  display: 'grid', gridTemplateColumns: '1fr 1fr 80px 100px',
+                  display: 'grid', gridTemplateColumns: '1fr 1fr 60px 80px 100px',
                   gap: '8px', padding: '10px 0', borderBottom: '1px solid var(--color-border)',
                   alignItems: 'center', fontSize: '12px',
                 }}>
                   <span style={{ fontFamily: 'monospace', fontSize: '11px' }}>{t.templateCode}</span>
                   <span>{t.templateName}</span>
+                  <span>v{t.currentVersion.versionNumber}</span>
                   <span style={{
                     display: 'inline-flex', padding: '2px 7px', borderRadius: '9999px', fontSize: '10px', fontWeight: 600,
                     background: t.status === 'Active' ? '#DCFCE7' : t.status === 'Draft' ? '#F1F5F9' : '#FEF2F2',

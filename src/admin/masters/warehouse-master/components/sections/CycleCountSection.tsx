@@ -3,12 +3,12 @@
 import React, { useState } from 'react';
 import type { ConfigSectionProps } from './sectionTypes';
 import type { CycleCountPolicy } from '../../types/warehouse.types';
-import type { CycleCountFrequency } from '../../types/warehouse.enums';
+import type { CycleCountFrequency, CycleCountScope } from '../../types/warehouse.enums';
 import { inputBase, inputRO, labelBase, hintTxt, twoCol, sCard, sHead, sBody, SectionActionRow } from './sectionStyles';
 
 const FREQUENCIES: CycleCountFrequency[] = ['Daily', 'Weekly', 'Fortnightly', 'Monthly', 'Quarterly', 'Annually'];
-const SCOPES = ['Full', 'Partial', 'ABC-Class', 'Random'];
-const VARIANCE_UNITS = ['Quantity', 'Percentage'];
+const SCOPES: CycleCountScope[] = ['Full', 'Category', 'Zone', 'ABC-Class'];
+const VARIANCE_UNITS: Array<CycleCountPolicy['varianceUnit']> = ['Percent', 'Units'];
 
 function defaultPolicy(): CycleCountPolicy {
   return {
@@ -17,7 +17,7 @@ function defaultPolicy(): CycleCountPolicy {
     frequency: 'Monthly',
     freezeEnabled: false,
     varianceTolerance: 0,
-    varianceUnit: 'Quantity',
+    varianceUnit: 'Units',
   };
 }
 
@@ -66,7 +66,7 @@ export function CycleCountSection({ warehouse, readOnly, saving, onSave }: Confi
               <label style={labelBase}>Count Scope</label>
               <select
                 value={local.scope}
-                onChange={(e) => set('scope', e.target.value)}
+                onChange={(e) => set('scope', e.target.value as CycleCountScope)}
                 style={readOnly || !local.enabled ? inputRO : inputBase}
                 disabled={readOnly || !local.enabled}
               >
@@ -101,7 +101,7 @@ export function CycleCountSection({ warehouse, readOnly, saving, onSave }: Confi
               <label style={labelBase}>Variance Unit</label>
               <select
                 value={local.varianceUnit}
-                onChange={(e) => set('varianceUnit', e.target.value)}
+                onChange={(e) => set('varianceUnit', e.target.value as CycleCountPolicy['varianceUnit'])}
                 style={readOnly || !local.enabled ? inputRO : inputBase}
                 disabled={readOnly || !local.enabled}
               >

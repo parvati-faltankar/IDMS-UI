@@ -1,8 +1,10 @@
 // ─── Warehouse Master — Location Validation ──────────────────────────────────
 
 import type { CreateLocationInput } from '../types/warehouse.dto';
-import type { Warehouse, WarehouseLocation, ValidationIssue } from '../types/warehouse.types';
+import type { HierarchyTemplate, Warehouse, WarehouseLocation, ValidationIssue } from '../types/warehouse.types';
 import { isCircularHierarchy } from '../utils/hierarchyUtils';
+import { isValidParentChildCombination } from '../utils/hierarchyUtils';
+import { buildFullLocationCodeFromParent } from '../utils/hierarchyUtils';
 
 // ─── Field-level save validation ──────────────────────────────────────────────
 
@@ -20,6 +22,7 @@ export function validateLocationForSave(
   input: CreateLocationInput,
   warehouse: Warehouse,
   existingLocations: WarehouseLocation[],
+  template?: HierarchyTemplate,
   editingId?: string,
 ): LocationFieldErrors {
   const errors: LocationFieldErrors = {};
@@ -54,6 +57,12 @@ export function validateLocationForSave(
     errors.locationType = 'Location Type is required.';
   }
 
+  if (!input.parentLocationId && input.locationType && !isValidParentChildCombination(null, input.locationType, template)) {
+    errors.locationType = template
+      ? `Location Type "${input.locationType}" is not allowed directly under the warehouse root by the active template.`
+      : 'Location Type is not valid at the warehouse root.';
+  }
+
   // Circular hierarchy check
   if (editingId && input.parentLocationId) {
     if (isCircularHierarchy(editingId, input.parentLocationId, existingLocations)) {
@@ -68,7 +77,24 @@ export function validateLocationForSave(
       errors.parentLocationId = 'Selected parent location does not exist.';
     } else if (parent.status !== 'Active' && parent.status !== 'Draft') {
       errors.parentLocationId = `Parent location is ${parent.status} and cannot accept children.`;
+    } else if (!isValidParentChildCombination(parent, input.locationType, template)) {
+      errors.parentLocationId = `Location Type "${input.locationType}" is not valid under parent "${parent.locationCode}".`;
     }
+  }
+
+  const fullCode = buildFullLocationCodeFromParent(
+    warehouse.warehouseCode,
+    input.locationCode,
+    input.parentLocationId,
+    existingLocations,
+  );
+  const duplicateFullCode = existingLocations.find(
+    (location) =>
+      location.profile.fullCode.trim().toUpperCase() === fullCode.toUpperCase() &&
+      location.id !== editingId,
+  );
+  if (duplicateFullCode) {
+    errors.locationCode = 'This full location path would duplicate an existing location code path.';
   }
 
   // Capacity sanity
