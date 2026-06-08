@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { ConfigSectionProps } from './sectionTypes';
 import type { DefaultLocations } from '../../types/warehouse.types';
 import { PURPOSE_LABELS, getEligibleDefaultLocations } from '../../utils/policyWorkbench';

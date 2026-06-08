@@ -10,6 +10,10 @@ interface HierarchyNodeInspectorProps {
   locations: WarehouseLocation[];
   template?: HierarchyTemplate;
   childCount: number;
+  rootSelected?: boolean;
+  allowedChildLevels?: string[];
+  allowedChildReasons?: string[];
+  childCreationAllowed?: boolean;
   allowedChildReason?: string;
   onAddChild?: () => void;
   onBulkCreate?: () => void;
@@ -31,12 +35,16 @@ export function HierarchyNodeInspector({
   locations,
   template,
   childCount,
+  rootSelected = false,
+  allowedChildLevels,
+  allowedChildReasons,
+  childCreationAllowed = true,
   allowedChildReason,
   onAddChild,
   onBulkCreate,
   onOpenLocations,
 }: HierarchyNodeInspectorProps) {
-  if (!location) {
+  if (!location && !rootSelected) {
     return (
       <div style={{ padding: '28px', color: 'var(--color-text-muted)', fontSize: '13px' }}>
         Select a hierarchy node to inspect its status, derived values, restrictions, and child-node information.
@@ -44,12 +52,83 @@ export function HierarchyNodeInspector({
     );
   }
 
-  const effectiveStatus = deriveEffectiveLocationStatus(location.status, warehouse.status);
-  const leafEndpoint = deriveIsLeafEndpoint(location.id, locations, template);
-  const inventoryAllowed = deriveInventoryAllowed(location, locations, template);
-  const utilization = location.capacity?.maxUnits && location.capacity.currentUnits !== undefined
-    ? `${Math.round((location.capacity.currentUnits / location.capacity.maxUnits) * 100)}%`
+  if (!location && rootSelected) {
+    return (
+      <div style={{ height: '100%', overflowY: 'auto', padding: '22px 24px', background: 'var(--color-surface-subtle)' }}>
+        <div style={{ marginBottom: '18px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+            <span style={{ fontSize: '18px', fontWeight: 700, color: 'var(--color-text)' }}>{warehouse.warehouseCode}</span>
+            <span style={{ fontSize: '12px', padding: '3px 8px', borderRadius: '999px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text-muted)' }}>
+              Warehouse Root
+            </span>
+          </div>
+          <div style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>{warehouse.warehouseName}</div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '12px', marginBottom: '18px' }}>
+          {metricLabel('Children', childCount)}
+          {metricLabel('Node Type', 'Root')}
+          {metricLabel('Inventory Endpoint', 'No')}
+        </div>
+
+        <section style={cardStyle}>
+          <div style={cardHeaderStyle}>Allowed Child Levels</div>
+          <div style={cardBodyStyle}>
+            <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '8px' }}>
+              {allowedChildLevels && allowedChildLevels.length > 0
+                ? allowedChildLevels.join(', ')
+                : 'No child levels are currently allowed under warehouse root.'}
+            </div>
+            {allowedChildReasons && allowedChildReasons.length > 0 && (
+              <ul style={{ margin: 0, paddingLeft: '18px', color: 'var(--color-text-muted)', fontSize: '12px', lineHeight: 1.6 }}>
+                {allowedChildReasons.map((reason) => (
+                  <li key={reason}>{reason}</li>
+                ))}
+              </ul>
+            )}
+            {!allowedChildLevels?.length && allowedChildReason && (
+              <div style={{ fontSize: '12px', color: '#92400E', marginTop: '8px' }}>{allowedChildReason}</div>
+            )}
+          </div>
+        </section>
+
+        <section style={cardStyle}>
+          <div style={cardHeaderStyle}>Action Panel</div>
+          <div style={{ ...cardBodyStyle, display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            {onAddChild && (
+              <button type="button" onClick={onAddChild} disabled={!childCreationAllowed} style={{ ...actionBtn, opacity: childCreationAllowed ? 1 : 0.55 }}>
+                Add child
+              </button>
+            )}
+            {onBulkCreate && (
+              <button type="button" onClick={onBulkCreate} disabled={!childCreationAllowed} style={{ ...actionBtn, opacity: childCreationAllowed ? 1 : 0.55 }}>
+                Bulk create
+              </button>
+            )}
+            <button type="button" onClick={onOpenLocations} style={actionBtn}>
+              Open locations list
+            </button>
+            {!childCreationAllowed && allowedChildReason && (
+              <div style={{ width: '100%', fontSize: '12px', color: '#92400E' }}>{allowedChildReason}</div>
+            )}
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  const selectedLocation = location;
+  if (!selectedLocation) return null;
+
+  const effectiveStatus = deriveEffectiveLocationStatus(selectedLocation.status, warehouse.status);
+  const leafEndpoint = deriveIsLeafEndpoint(selectedLocation.id, locations, template);
+  const inventoryAllowed = deriveInventoryAllowed(selectedLocation, locations, template);
+  const utilization = selectedLocation.capacity?.maxUnits && selectedLocation.capacity.currentUnits !== undefined
+    ? `${Math.round((selectedLocation.capacity.currentUnits / selectedLocation.capacity.maxUnits) * 100)}%`
     : 'n/a';
+  const parentNode = selectedLocation.parentLocationId
+    ? locations.find((item) => item.id === selectedLocation.parentLocationId)
+    : undefined;
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', padding: '22px 24px', background: 'var(--color-surface-subtle)' }}>
@@ -59,21 +138,37 @@ export function HierarchyNodeInspector({
             {location.locationCode}
           </span>
           <span style={{ fontSize: '12px', padding: '3px 8px', borderRadius: '999px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text-muted)' }}>
-            {location.profile.locationType}
+            {selectedLocation.profile.locationType}
           </span>
-          <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{location.profile.fullCode}</span>
+          <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{selectedLocation.profile.fullCode}</span>
         </div>
         <div style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>
-          {location.locationName}
+          {selectedLocation.locationName}
         </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '12px', marginBottom: '18px' }}>
-        {metricLabel('Level', location.profile.level)}
+        {metricLabel('Level', selectedLocation.profile.level)}
+        {metricLabel('Level Code', selectedLocation.profile.templateLevelCode ?? 'n/a')}
         {metricLabel('Children', childCount)}
         {metricLabel('Capacity Utilization', utilization)}
         {metricLabel('Effective Status', effectiveStatus)}
       </div>
+
+      <section style={cardStyle}>
+        <div style={cardHeaderStyle}>Identifier</div>
+        <div style={cardBodyStyle}>
+          <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '6px' }}>
+            Full location identifier: <strong style={{ color: 'var(--color-text)' }}>{selectedLocation.profile.fullCode}</strong>
+          </div>
+          <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '6px' }}>
+            Parent identifier: <strong style={{ color: 'var(--color-text)' }}>{parentNode?.profile.fullCode ?? `${warehouse.warehouseCode} (root)`}</strong>
+          </div>
+          <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+            Code lock policy: <strong style={{ color: 'var(--color-text)' }}>{template?.codeLockedAfterActivation ? 'Locked after activation' : 'Editable by policy'}</strong>
+          </div>
+        </div>
+      </section>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '12px', marginBottom: '18px' }}>
         <DerivedValueDisplay
@@ -100,10 +195,10 @@ export function HierarchyNodeInspector({
         </div>
         <div style={cardBodyStyle}>
           <ul style={{ margin: 0, paddingLeft: '18px', color: 'var(--color-text-muted)', fontSize: '12px', lineHeight: 1.6 }}>
-            <li>Putaway: {location.putawayBlocked ? 'Blocked' : 'Allowed'}</li>
-            <li>Picking: {location.pickingBlocked ? 'Blocked' : 'Allowed'}</li>
-            <li>Movement State: {location.movementState}</li>
-            <li>Commitment State: {location.commitmentState}</li>
+            <li>Putaway: {selectedLocation.putawayBlocked ? 'Blocked' : 'Allowed'}</li>
+            <li>Picking: {selectedLocation.pickingBlocked ? 'Blocked' : 'Allowed'}</li>
+            <li>Movement State: {selectedLocation.movementState}</li>
+            <li>Commitment State: {selectedLocation.commitmentState}</li>
             <li>Inventory posting: {inventoryAllowed ? 'Allowed on this node' : 'Blocked on this node'}</li>
             {allowedChildReason && <li>Child creation rule: {allowedChildReason}</li>}
           </ul>
@@ -114,13 +209,31 @@ export function HierarchyNodeInspector({
         <div style={cardHeaderStyle}>Eligibility Summary</div>
         <div style={cardBodyStyle}>
           <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '6px' }}>
-            {location.eligibilityPolicy
-              ? `Mode: ${location.eligibilityPolicy.mode} · Rules: ${location.eligibilityPolicy.rules.length}`
+            {selectedLocation.eligibilityPolicy
+              ? `Mode: ${selectedLocation.eligibilityPolicy.mode} · Rules: ${selectedLocation.eligibilityPolicy.rules.length}`
               : 'No location-level eligibility overrides. Warehouse-level policy applies.'}
           </div>
           <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-            Stock statuses: {location.stockStatuses.length > 0 ? location.stockStatuses.join(', ') : 'none'}
+            Stock statuses: {selectedLocation.stockStatuses.length > 0 ? selectedLocation.stockStatuses.join(', ') : 'none'}
           </div>
+        </div>
+      </section>
+
+      <section style={cardStyle}>
+        <div style={cardHeaderStyle}>Allowed Child Levels</div>
+        <div style={cardBodyStyle}>
+          <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '8px' }}>
+            {allowedChildLevels && allowedChildLevels.length > 0
+              ? allowedChildLevels.join(', ')
+              : 'No child levels are currently allowed under this node.'}
+          </div>
+          {allowedChildReasons && allowedChildReasons.length > 0 && (
+            <ul style={{ margin: 0, paddingLeft: '18px', color: 'var(--color-text-muted)', fontSize: '12px', lineHeight: 1.6 }}>
+              {allowedChildReasons.map((reason) => (
+                <li key={reason}>{reason}</li>
+              ))}
+            </ul>
+          )}
         </div>
       </section>
 
@@ -128,12 +241,12 @@ export function HierarchyNodeInspector({
         <div style={cardHeaderStyle}>Action Panel</div>
         <div style={{ ...cardBodyStyle, display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           {onAddChild && (
-            <button type="button" onClick={onAddChild} style={actionBtn}>
+            <button type="button" onClick={onAddChild} disabled={!childCreationAllowed} style={{ ...actionBtn, opacity: childCreationAllowed ? 1 : 0.55 }}>
               Add child
             </button>
           )}
           {onBulkCreate && (
-            <button type="button" onClick={onBulkCreate} style={actionBtn}>
+            <button type="button" onClick={onBulkCreate} disabled={!childCreationAllowed} style={{ ...actionBtn, opacity: childCreationAllowed ? 1 : 0.55 }}>
               Bulk create
             </button>
           )}
@@ -146,6 +259,9 @@ export function HierarchyNodeInspector({
           <button type="button" style={{ ...actionBtn, opacity: 0.65 }} title="Lifecycle actions will be added in governed flow.">
             Change status
           </button>
+          {!childCreationAllowed && allowedChildReason && (
+            <div style={{ width: '100%', fontSize: '12px', color: '#92400E' }}>{allowedChildReason}</div>
+          )}
         </div>
       </section>
     </div>

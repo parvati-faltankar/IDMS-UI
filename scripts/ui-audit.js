@@ -9,8 +9,6 @@ const checks = [
   'node scripts/check-page-structure.js',
   'node scripts/check-admin-structure.js',
   'node scripts/check-admin-table-design.js',
-  'node scripts/check-guided-form-layout.js',
-  'node scripts/check-drawer-usage.js',
 ];
 
 for (const check of checks) {

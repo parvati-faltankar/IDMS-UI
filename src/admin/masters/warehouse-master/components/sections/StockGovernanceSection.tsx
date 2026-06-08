@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { ConfigSectionProps } from './sectionTypes';
 import type { AllocationPolicy, ReservationPolicy } from '../../types/warehouse.types';
 import type { AllocationLevel, LocationType, ReservationLevel } from '../../types/warehouse.enums';

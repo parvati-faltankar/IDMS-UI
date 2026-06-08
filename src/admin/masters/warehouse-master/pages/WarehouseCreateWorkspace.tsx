@@ -109,6 +109,11 @@ const CYCLE_FREQUENCIES: CycleCountFrequency[] = [
 
 const HIERARCHY_OPTIONS = [
   {
+    key: 'quick',
+    label: 'Create hierarchy quickly (wizard)',
+    description: 'Use guided pattern-based quick creation after draft save. Recommended for fast BIN-level onboarding.',
+  },
+  {
     key: 'recommended',
     label: 'Start from recommended template',
     description: 'Zone → Aisle → Rack → Shelf → BIN (5 levels). Suitable for most distribution centres.',
@@ -309,7 +314,7 @@ export function validateStep(
  *  Does not mutate input. Exported for testing. */
 export function applyPreset(
   preset: OperationalPreset,
-  state: CreateFormState,
+  _state: CreateFormState,
 ): Partial<CreateFormState> {
   const deltas: Record<OperationalPreset, Partial<CreateFormState>> = {
     simple: {
@@ -427,12 +432,6 @@ const inputBase: React.CSSProperties = {
   boxSizing: 'border-box',
 };
 const inputErr: React.CSSProperties = { ...inputBase, border: '1px solid #FCA5A5' };
-const inputRO: React.CSSProperties = {
-  ...inputBase,
-  background: 'var(--color-surface-subtle)',
-  color: 'var(--color-text-muted)',
-  cursor: 'not-allowed',
-};
 const labelBase: React.CSSProperties = {
   fontSize: '12px',
   fontWeight: 600,
@@ -627,6 +626,7 @@ const WarehouseCreateWorkspace: React.FC = () => {
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [isNarrow, setIsNarrow] = useState(() => window.innerWidth < 1024);
+  const [savedDraftWarehouseId, setSavedDraftWarehouseId] = useState<string | null>(null);
   const codeCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const branchRowCache = useRef<Record<string, BranchOwnershipRow>>({});
 
@@ -956,30 +956,39 @@ const WarehouseCreateWorkspace: React.FC = () => {
   }
 
   // ── Save Draft ─────────────────────────────────────────────────────────────
-  async function handleSaveDraft() {
+  async function saveDraftInternal(redirectToList: boolean): Promise<string | null> {
     const errs = validateStep(0, state);
     if (Object.keys(errs).length > 0) {
       setFieldErrors(errs);
       showToast('Warehouse Name and Code are required to save a draft.', 'error');
-      return;
+      return null;
     }
     if (!state.inventoryControlMode) {
       showToast('Select an Inventory Control Mode before saving.', 'error');
-      return;
+      return null;
     }
     setSaving(true);
     try {
-      await warehouseMockAdapter.createWarehouse(buildInput());
+      const details = await warehouseMockAdapter.createWarehouse(buildInput());
+      setSavedDraftWarehouseId(details.warehouse.id);
       setIsDirty(false);
       showToast('Warehouse saved as Draft.', 'success');
-      setTimeout(() => navigate(WAREHOUSE_ROUTES.list), 800);
+      if (redirectToList) {
+        setTimeout(() => navigate(WAREHOUSE_ROUTES.list), 800);
+      }
+      return details.warehouse.id;
     } catch (err) {
       const msg =
         err instanceof Error ? err.message : 'Unexpected error saving warehouse.';
       showToast(msg, 'error');
+      return null;
     } finally {
       setSaving(false);
     }
+  }
+
+  async function handleSaveDraft() {
+    await saveDraftInternal(true);
   }
 
   // ── Activate ───────────────────────────────────────────────────────────────
@@ -990,7 +999,7 @@ const WarehouseCreateWorkspace: React.FC = () => {
       const details = await warehouseMockAdapter.createWarehouse(buildInput());
       const activationResult = await warehouseMockAdapter.activateWarehouse(
         details.warehouse.id,
-        { correlationId: `COR-${Date.now()}` },
+        { action: 'Activate', correlationId: `COR-${Date.now()}` },
       );
       if (!activationResult.success) {
         showToast(
@@ -1038,7 +1047,7 @@ const WarehouseCreateWorkspace: React.FC = () => {
     // until after save + hierarchy setup, so we use hierarchyChoice as a proxy).
     hasActiveTemplate:
       !isBinLevel ||
-      (state.hierarchyChoice === 'recommended' || state.hierarchyChoice === 'copy'),
+      (state.hierarchyChoice === 'quick' || state.hierarchyChoice === 'recommended' || state.hierarchyChoice === 'copy'),
     hasActiveInventoryLocation: !isBinLevel || state.hierarchyChoice === 'later' ? false : !isBinLevel,
     codeIsUnique,
     hasPermission: true, // Phase 3: mock permissions always granted
@@ -1766,6 +1775,26 @@ const WarehouseCreateWorkspace: React.FC = () => {
                 <p style={hintTxt}>
                   The hierarchy levels will be copied. Locations and BINs are not copied.
                 </p>
+              </div>
+            )}
+
+            {state.hierarchyChoice === 'quick' && (
+              <div style={{ marginBottom: '16px', display: 'grid', gap: '10px' }}>
+                <div style={{ padding: '10px 14px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '8px', fontSize: '12px', color: '#1D4ED8' }}>
+                  Quick wizard requires a saved draft warehouse first. This keeps hierarchy creation tied to a concrete warehouse ID.
+                </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const draftId = savedDraftWarehouseId ?? await saveDraftInternal(false);
+                    if (draftId) {
+                      navigate(`${WAREHOUSE_ROUTES.hierarchy(draftId)}?quickWizard=1`);
+                    }
+                  }}
+                  style={{ ...btnPrimary, width: 'fit-content' }}
+                >
+                  Save Draft and Launch Quick Wizard
+                </button>
               </div>
             )}
 
@@ -2555,6 +2584,32 @@ const WarehouseCreateWorkspace: React.FC = () => {
                   <option value="WH-0003">WH-HYD-02 - Hyderabad Secondary</option>
                 </select>
                 <p style={hintTxt}>Only the hierarchy model is copied. Live locations and stock are not copied.</p>
+              </div>
+            )}
+
+            {state.hierarchyChoice === 'quick' && (
+              <div style={{ marginBottom: '16px', display: 'grid', gap: '10px' }}>
+                <div style={{ padding: '10px 14px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '8px', fontSize: '12px', color: '#1D4ED8' }}>
+                  Quick wizard requires a draft warehouse ID. Save draft first, then launch directly into hierarchy quick creation.
+                </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const draftId = savedDraftWarehouseId ?? await saveDraftInternal(false);
+                    if (draftId) {
+                      navigate(`${WAREHOUSE_ROUTES.hierarchy(draftId)}?quickWizard=1`);
+                    }
+                  }}
+                  style={{
+                    ...btnPrimary,
+                    width: 'fit-content',
+                    opacity: saving ? 0.7 : 1,
+                    cursor: saving ? 'wait' : 'pointer',
+                  }}
+                  disabled={saving}
+                >
+                  Save Draft and Launch Quick Wizard
+                </button>
               </div>
             )}
 

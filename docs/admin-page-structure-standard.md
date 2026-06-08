@@ -63,71 +63,9 @@ of the page is completing a guided form, configuration workflow, or activation c
 - Organisation Master form (`OrgMasterFormPage`)
 - KYC Setup form view
 - Picklist configuration
+- Code Generation Policy form view
 - Any multi-section setup or activation workflow
 - Long configuration pages where section navigation adds value
-
-**Do NOT use AdminPageShell for guided step workflows — see §3 below.**
-
----
-
-### 1c. Compact Form Workspace — for guided multi-step activation workflows
-
-Use the **Compact Form Workspace** pattern when the form is a guided, step-by-step
-activation workflow (e.g. Code Generation Policy create/edit).
-
-This pattern bypasses `AdminPageShell` entirely and creates a self-contained
-flex-column layout that fits the viewport without any browser-level scrolling.
-
-```
-┌────────────────────────────────────────────────────────────────┐
-│  AppTopHeader + AdminSidebar (rendered by AdminShell)          │
-├────────────────────────────────────────────────────────────────┤
-│  Compact Form Header                    ← 64–78px max          │
-│  breadcrumb / title + status badge / short description         │
-│                              Back to Policies | How this works │
-├────────────────────────────────────────────────────────────────┤
-│  Workflow Bar (step pills + sample preview)    ← 44px fixed    │
-├────────────────────────────────────────────────────────────────┤
-│  Scrollable Form Body                   ← flex: 1, overflow-y  │
-│  Section panels — only one step visible at a time              │
-│  Fields start immediately after workflow bar                   │
-├────────────────────────────────────────────────────────────────┤
-│  Fixed Footer (flexShrink: 0)           ← 60px fixed           │
-│  ← Previous  Step X of N         Save Draft | Continue →      │
-└────────────────────────────────────────────────────────────────┘
-```
-
-**Outer container requirements:**
-
-```tsx
-<div style={{
-  height: '100%',
-  display: 'flex',
-  flexDirection: 'column',
-  overflow: 'hidden',
-  background: 'var(--color-surface)',
-}}>
-  <CompactHeader />        {/* flexShrink: 0, minHeight: 64px */}
-  <WorkflowBar />          {/* flexShrink: 0, height: 44px */}
-  <ScrollableBody />       {/* flex: 1, overflowY: 'auto' */}
-  <FixedFooter />          {/* flexShrink: 0, height: 60px */}
-</div>
-```
-
-**Rules:**
-
-- Header + workflow bar combined must not exceed 136px.
-- Footer must be `flexShrink: 0` — NOT `position: sticky`. A fixed flex-child footer
-  never overlaps form content and is always visible.
-- The scrollable body has `flex: 1; overflow-y: auto` — it is the ONLY scroll region.
-- Save Draft belongs only in the footer. Never in `secondaryActions` of any header.
-- Auto-generated codes (Policy Code, etc.) must be compact metadata rows, not full
-  disabled inputs.
-- Step states must be gated: a downstream step must not show "complete" until all its
-  prerequisite steps are complete.
-
-**Examples:**
-- `src/admin/masters/CodeGenerationPolicyPage.tsx` — `renderForm()` uses this pattern.
 
 ---
 
@@ -298,7 +236,6 @@ It is allowed **only** for these cases:
 - Simple 1–2 field forms.
 - Pages that are list-only (no configuration workflow).
 - Pages where all fields fit comfortably on one screen.
-- Guided step workflows with Draft → Active lifecycle — use the **Compact Form Workspace** (§10) instead.
 
 ---
 
@@ -406,20 +343,19 @@ admin table standard. Its `renderList()` function demonstrates:
 
 ---
 
-## 8. Required elements for every admin page
+## 7. Required elements for every admin page
 
 Every admin page — generic or specialised — must include all of the following.
 
 ### Page shell selection (mandatory)
 
-Choose based on the page's primary purpose:
+Choose based on the page’s primary purpose:
 
 | Page type | Required shell | Props |
 |---|---|---|
 | Specialised admin list/table | `AdminListPageShell` | `title`, `primaryAction`, `summaryItems`, `searchValue`, `onSearchChange`, `quickFilterItems`, `helpTopicId` |
 | Generic admin list | `AdminPageShell` (via `MasterListPage`) | standard props |
 | Admin config / long form | `AdminPageShell` or `AdminConfigShell` | `title`, `breadcrumbs`, `toolbar` (section tabs), `helpTopicId` |
-| Guided multi-step activation workflow | Compact Form Workspace (see §10) | 4-part flex-column layout; no AdminPageShell |
 
 ### PageHeader (mandatory for AdminPageShell / AdminConfigShell pages)
 
@@ -512,73 +448,7 @@ collapsible dropdown. Do not render three independent `<select>` dropdowns side 
 
 ---
 
-## 11. Drawer Integration Standard
-
-This section defines where drawers fit within the admin page structure and which drawer types
-are allowed at each layer. For the full drawer decision matrix and layout rules, see
-`docs/admin-drawer-usage-standard.md`.
-
-### 11a. Drawer placement hierarchy
-
-```
-AdminShell (outer)
- └─ Page content area
-     ├─ AdminListPageShell (list view)
-     │   ├─ Row click → SmartPreviewDrawer (lg)
-     │   ├─ Eye icon → SmartPreviewDrawer (lg)
-     │   ├─ "How this works" → HelpDrawer (md)
-     │   └─ Advanced filters → SmartFormDrawer/filter (sm)
-     └─ Compact Form Workspace (guided form)
-         ├─ "How this works" → HelpDrawer (md)
-         ├─ Activate review → SmartReviewDrawer (lg) [optional inline dialog also ok]
-         └─ Dependency view → SmartPreviewDrawer (lg)
-```
-
-### 11b. Approved drawer types per context
-
-| Context | Drawer type | Width | Component |
-|---|---|---|---|
-| Row click from any list | Preview | `lg` | `SmartPreviewDrawer` |
-| Eye/View icon from any list | Preview | `lg` | `SmartPreviewDrawer` |
-| Quick create for a simple master | Quick Create | `md` | `SmartFormDrawer` |
-| Quick edit for a simple master | Quick Edit | `md` | `SmartFormDrawer` |
-| "How this works" / help trigger | Help | `md` | `HelpDrawer` |
-| Advanced filter panel | Filter | `sm` | `SmartFormDrawer` |
-| Pre-activation summary | Review | `lg` | `SmartReviewDrawer` |
-| Dependency / related records | Dependency | `lg` | `SmartPreviewDrawer` |
-| Audit history | Activity | `lg` | `SmartPreviewDrawer` |
-
-### 11c. Full-page flows that must NOT become drawers
-
-These flows must remain full-page regardless of future refactoring:
-
-- Organisation Master form (`OrgMasterFormPage`) — 6 sections, Draft → Active lifecycle
-- KYC Setup configuration form — multi-section with country-rule matrix
-- Code Generation Policy create/edit — 6 guided steps with pattern builder and preview
-- Numbering & Code Setup complex configuration — interdependent prefix + policy setup
-- Picklist multi-level configuration — parent/child value trees
-
-Use drawers inside these pages only for: Help, Review confirmation, Dependency view, small
-sub-item add/edit that is genuinely simple.
-
-### 11d. Drawer component reference
-
-All admin drawers must use these components from `src/experience/components/`:
-
-| Component | Use for |
-|---|---|
-| `SmartDrawer` | Base wrapper for any custom drawer not covered by the specialised types |
-| `SmartPreviewDrawer` | Record preview from list rows; dependency/activity views |
-| `SmartFormDrawer` | Quick create/edit for simple masters; filter panels |
-| `SmartReviewDrawer` | Pre-activation or pre-publish review and confirmation |
-| `HelpDrawer` | Contextual help and guidance |
-
-Do not create one-off drawer components outside these. If a use case is not covered,
-extend the nearest matching component.
-
----
-
-## 9. Existing pages and their compliance status
+## 8. Existing pages and their compliance status
 
 | Page | File | Shell | Status |
 |---|---|---|---|
@@ -586,7 +456,7 @@ extend the nearest matching component.
 | Generic master list | `MasterListPage.tsx` | `AdminPageShell` | Compliant |
 | Generic master form | `MasterFormPage.tsx` | `AdminPageShell` | Compliant |
 | Code Generation Policy (list) | `CodeGenerationPolicyPage.tsx` | `AdminListPageShell` | ✅ Compliant |
-| Code Generation Policy (form) | `CodeGenerationPolicyPage.tsx` | **Compact Form Workspace** (§10 reference) | ✅ Compliant — Guided Create/Edit Standard |
+| Code Generation Policy (form) | `CodeGenerationPolicyPage.tsx` | `AdminPageShell` | ✅ Compliant |
 | Organisation Master | `OrgMasterFormPage.tsx` | `AdminPageShell` | Compliant |
 | KYC Setup (list) | `KycSetupPage.tsx` | `AdminPageShell` | Needs migration to `AdminListPageShell` |
 | KYC Setup (form) | `KycSetupPage.tsx` | `AdminPageShell` | Compliant |
@@ -595,147 +465,3 @@ extend the nearest matching component.
 
 Pending pages are tracked in Wave 1 / Wave 2 in the implementation backlog.
 See `docs/admin-demo-walkthrough.md` for the demo readiness status.
-
----
-
-## 10. Guided Admin Create/Edit Standard
-
-**Reference implementation:** `src/admin/masters/CodeGenerationPolicyPage.tsx` — `renderForm()`
-
-The Guided Admin Create/Edit Standard is the official layout and behaviour pattern for complex
-admin forms that have a Draft → Active lifecycle. Use it instead of `AdminPageShell` + section
-tabs whenever all three conditions below apply:
-
-- The form has 4 or more configuration steps that must be completed in a logical order.
-- The entity has a Draft → Active lifecycle that locks generation-critical fields on activation.
-- Misconfiguration would affect transactional data (document codes, numbers, templates).
-
-**Examples:** Code Generation Policy, Numbering Policy, Document Template Policy, Workflow Rule Setup.
-
-**Do not use it for** simple 2–3 field forms, purely reference data masters, or forms without
-a lifecycle activation step.
-
----
-
-### 10a. Required structure
-
-| Zone | Height | Role |
-|---|---|---|
-| Compact Form Header | 64–78 px min | Title, breadcrumb, status badge; Back to List; How this works |
-| Workflow Bar | 44 px fixed | Step pills with state indicators + live preview chip |
-| Scrollable Form Body | `flex: 1` | One step visible at a time; independent scroll |
-| Fixed Footer | 60 px fixed | Navigation and primary action; always visible |
-
-```tsx
-// Required outer container
-<div style={{
-  height: '100%',
-  display: 'flex',
-  flexDirection: 'column',
-  overflow: 'hidden',
-  background: 'var(--color-surface)',
-}}>
-  <CompactHeader  style={{ flexShrink: 0, minHeight: 64 }} />
-  <WorkflowBar    style={{ flexShrink: 0, height: 44 }} />
-  <ScrollableBody style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }} />
-  <FixedFooter    style={{ flexShrink: 0, height: 60 }} />
-</div>
-```
-
----
-
-### 10b. Layout rules
-
-1. **Combined header + workflow bar must not exceed 136 px.**
-2. **Form body scrolls independently.** Use `flex: 1; overflow-y: auto; overflow-x: hidden`.
-3. **Footer is a flex child, not `position: sticky`.** Use `flexShrink: 0; height: 60px` so it
-   is architecturally impossible for it to overlap form content.
-4. **Footer actions must remain visible at all scroll positions.** The fixed footer guarantees this.
-5. **First input field must be visible without scrolling.** Keep body `padding-top ≤ 16px`.
-6. **Section panel card padding must be ≤ 20 px top/bottom.** Prefer `padding: 16px 20px`.
-7. **Auto-generated codes (Policy Code, Voucher Number, etc.) must be compact metadata rows**,
-   not full-width disabled or locked inputs. Display as:
-   `Policy Code: [AUTO badge] · Generated on first save`
-
----
-
-### 10c. Action rules
-
-| Zone | Allowed actions | Forbidden |
-|---|---|---|
-| Compact Header | ← Back to List · How this works (help) | Save Draft, Activate, Delete, any form action |
-| Footer — setup steps | ← Previous · Step X of N · Save Draft · Continue → | Activate (not on Review), Cancel |
-| Footer — review step | ← Previous · Save Draft · Preview · Activate | Continue (final step) |
-| Footer — view-only | ← Back to List · Edit | Save Draft, Activate |
-| Footer — active policy edit | Save Changes | Save Draft, Activate |
-
-- **Save Draft belongs only in the footer.** Never add it to header `secondaryActions`.
-- **Activate must be disabled until the activation checklist passes.** Gate with `!checklistAllPassed`.
-- **Activate must open a confirmation dialog** showing: a policy summary grid (name, scope,
-  prefix, series, format, sample output) + a consequence warning (what gets locked, what it affects).
-
----
-
-### 10d. Step rules
-
-1. **Steps must have logical states:** `inprogress` (active), `complete` (required fields pass),
-   `partial` (some fields filled), `attention` (error/blocked), `notstarted` (not yet reached).
-2. **No downstream step may show "complete" before its prerequisites are met.** Gate completion
-   with a `stepStepState(key)` function that checks upstream required fields.
-3. **Format/numbering steps must be gated on series/type steps above them.**
-4. **Review step must not show "complete" while editing.** Show `inprogress` only when active;
-   `notstarted` otherwise.
-5. **Usage & History must be hidden or disabled** for unsaved new records (no `editingId`).
-6. **Section panel badges must match step nav state.** When the step nav shows "Not started"
-   due to gating, the panel header badge must not show "Complete". Pass a `completionOverride`
-   prop to the section panel component.
-
----
-
-### 10e. Preview rules
-
-1. **If the form configuration generates a code or output,** show a compact live preview chip
-   in the workflow bar — not a separate panel.
-2. **Ready state:** green chip (`background: #F0FDF4; border: 1px solid #BBF7D0`) with the
-   generated output in monospace font.
-3. **Incomplete state:** muted chip with a specific, actionable message
-   (e.g. "Complete prefix & format to preview") — not a vague placeholder.
-4. **Do not use large permanent preview panels.** The inline chip is sufficient unless a rich
-   preview (document layout, visual template) is genuinely necessary.
-5. **On the Review step,** show a larger dedicated sample preview block so the user can
-   confirm the generated output before activation.
-
----
-
-### 10f. Activation checklist rules
-
-1. Define a `computeActivationChecklist(form)` function returning
-   `Array<{ id: string; label: string; passed: boolean; detail?: string }>`.
-2. Derive `checklistAllPassed = checklist.every(i => i.passed)` and `checklistFailCount`.
-3. **Disable the Activate button** when `!checklistAllPassed`.
-4. On Activate click: run full `validateForActivation()` — show inline error list on failure;
-   open the confirmation dialog on success.
-5. **The confirmation dialog must include:**
-   - A policy summary grid (name, scope, prefix, series, format, sample output)
-   - A consequence warning (which fields will be locked, what entity is affected)
-   - A clear "Activate" primary button and a "Cancel" secondary button
-
----
-
-### 10g. Help integration
-
-- Every guided form must wire a `helpTopicId` pointing to a real `HelpTopic` entry.
-- The Compact Form Header must include a **"How this works"** button that opens `HelpDrawer`.
-- The help topic `steps` array must cover the full guided workflow from new → activate.
-
----
-
-### 10h. Empty / loading / error states
-
-| State | Requirement |
-|---|---|
-| New record | `EMPTY_FORM` constant with safe defaults; all step states start as empty/notstarted |
-| Edit existing | Load record into form state; locked fields show `lockedInputStyle` |
-| Loading | Disable save/activate buttons until data is ready |
-| Activation error | Show inline error list above the footer; keep form open |
-| Save draft error | Show inline banner; do not navigate away |

@@ -4,7 +4,7 @@ import { warehouseMockAdapter } from '../services/warehouseMockAdapter';
 import type { BulkLocationInput, BulkPreview } from '../types/warehouse.dto';
 import type { BinType, LocationType } from '../types/warehouse.enums';
 import type { HierarchyTemplate, Warehouse, WarehouseLocation } from '../types/warehouse.types';
-import { getAllowedChildTemplateLevels } from '../utils/hierarchyUtils';
+import { getAllowedChildTemplateLevels, resolveLocationTypeForLevel } from '../utils/hierarchyUtils';
 
 export interface BulkCreateFormState {
   parentLocationId?: string;
@@ -36,7 +36,7 @@ export function isPreviewInvalidated(
 
 export function makeDefaultBulkState(parent: WarehouseLocation | null, template?: HierarchyTemplate): BulkCreateFormState {
   const allowedTemplateLevel = getAllowedChildTemplateLevels(parent, template)[0];
-  const derivedType = mapTemplateLevelToLocationType(allowedTemplateLevel?.levelCode, parent);
+  const derivedType = allowedTemplateLevel ? resolveLocationTypeForLevel(allowedTemplateLevel) : parent ? 'General' : 'Zone';
   return {
     parentLocationId: parent?.id,
     childLevelCode: allowedTemplateLevel?.levelCode ?? '',
@@ -106,7 +106,7 @@ export function LocationBulkCreateDrawer({
   useEffect(() => {
     const selectedLevel = allowedLevels.find((level) => level.levelCode === form.childLevelCode) ?? allowedLevels[0];
     if (!selectedLevel) return;
-    const nextLocationType = mapTemplateLevelToLocationType(selectedLevel.levelCode, parentLocation);
+    const nextLocationType = resolveLocationTypeForLevel(selectedLevel);
     setForm((current) => {
       if (
         current.childLevelCode === selectedLevel.levelCode &&
@@ -148,7 +148,7 @@ export function LocationBulkCreateDrawer({
   if (!open) return null;
 
   async function generatePreview() {
-    const result = await warehouseMockAdapter.bulkPreviewLocations(warehouse.id, bulkInput);
+    const result = await warehouseMockAdapter.previewBulkLocationIdentifiers(warehouse.id, bulkInput);
     setPreview(result);
     setPreviewFingerprint(buildBulkPreviewFingerprint(form));
     setStep(2);
@@ -185,7 +185,9 @@ export function LocationBulkCreateDrawer({
           <div>
             <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text)' }}>Bulk Create Locations</div>
             <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-              Parent: {parentLocation ? `${parentLocation.locationCode} · Level ${form.level}` : `Warehouse root · Level ${form.level}`}
+              Parent: {parentLocation
+                ? `${parentLocation.locationCode} · ${parentLocation.profile.fullCode} · Level ${form.level}`
+                : `${warehouse.warehouseCode} (warehouse root) · Level ${form.level}`}
             </div>
           </div>
           <button type="button" onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--color-text-muted)' }}>
@@ -276,10 +278,11 @@ export function LocationBulkCreateDrawer({
               </div>
               <div>
                 {preview.rows.map((row) => (
-                  <div key={row.proposedCode} style={{ display: 'grid', gridTemplateColumns: '90px 1fr 1fr 130px', gap: '10px', padding: '10px 14px', borderTop: '1px solid var(--color-border)', fontSize: '12px' }}>
+                  <div key={`${row.sequenceNumber}-${row.proposedCode}`} style={{ display: 'grid', gridTemplateColumns: '80px 1fr 1fr 1.5fr 140px', gap: '10px', padding: '10px 14px', borderTop: '1px solid var(--color-border)', fontSize: '12px' }}>
                     <span>{row.sequenceNumber}</span>
                     <span>{row.proposedCode}</span>
                     <span>{row.proposedName}</span>
+                    <span title={row.fullLocationIdentifier}>{row.fullLocationIdentifier ?? '—'}</span>
                     <span style={{ color: row.conflict ? '#D97706' : '#16A34A' }}>
                       {row.conflict ? row.conflictReason : 'Ready'}
                     </span>
@@ -318,23 +321,6 @@ export function LocationBulkCreateDrawer({
       </div>
     </div>
   );
-}
-
-function mapTemplateLevelToLocationType(levelCode?: string, parent?: WarehouseLocation | null): LocationType {
-  const normalized = levelCode?.trim().toUpperCase();
-  if (normalized === 'ZONE') return 'Zone';
-  if (normalized === 'AISLE') return 'Aisle';
-  if (normalized === 'RACK') return 'Rack';
-  if (normalized === 'SHELF') return 'Shelf';
-  if (normalized === 'BIN') return 'BIN';
-  if (normalized === 'DOCK') return 'Dock';
-  if (normalized === 'STAGING') return 'Staging';
-  if (normalized === 'QC') return 'QC';
-  if (normalized === 'SCRAP') return 'Scrap';
-  if (normalized === 'VIRTUAL') return 'Virtual';
-  if (parent?.profile.locationType === 'Shelf') return 'BIN';
-  if (parent) return 'General';
-  return 'Zone';
 }
 
 function Field({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {

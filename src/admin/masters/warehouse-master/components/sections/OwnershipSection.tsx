@@ -1,6 +1,6 @@
 // ─── OwnershipSection ─────────────────────────────────────────────────────────
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import type { ConfigSectionProps } from './sectionTypes';
 import {
   inputBase, inputRO, labelBase, hintTxt, twoCol, fw,

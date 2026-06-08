@@ -403,28 +403,17 @@ export function AdminListPageShell({
         </>
       )}
 
-      {/* Right: search + filters + actions — always takes remaining row space */}
+      {/* Right: search + filters + actions — pushes to the right when there's a summary */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
           gap: '6px',
-          flex: '1 1 auto',
-          flexWrap: 'nowrap',
-          minWidth: 0,
+          flexWrap: 'wrap',
+          flex: summaryItems.length > 0 ? '1 1 auto' : undefined,
+          justifyContent: summaryItems.length > 0 ? 'flex-end' : undefined,
         }}
       >
-        {/* Search + chips + advanced filter — inner group that may wrap on narrow viewports */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            flex: '1 1 auto',
-            flexWrap: 'wrap',
-            minWidth: 0,
-          }}
-        >
         {/* Search input */}
         {(onSearchChange !== undefined || searchValue !== undefined) && (
           <div style={{ position: 'relative', flex: '0 1 240px', minWidth: '140px' }}>
@@ -558,13 +547,8 @@ export function AdminListPageShell({
           </button>
         )}
 
-        {/* Extra toolbar actions — pinned to right end, never wraps to a new row */}
-        </div>
-        {toolbarActions !== undefined && (
-          <div style={{ flexShrink: 0, marginLeft: 'auto' }}>
-            {toolbarActions}
-          </div>
-        )}
+        {/* Extra toolbar actions */}
+        {toolbarActions}
       </div>
     </div>
   ) : null;

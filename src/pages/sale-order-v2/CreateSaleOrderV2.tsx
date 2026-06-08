@@ -35,7 +35,6 @@ import {
   CancelDialog,
   AmendDialog,
 } from '../../engine/components';
-import { SALE_ORDER_ENTITY } from '../../engine/entities/saleOrder.config';
 
 type SaleOrderTabKey =
   | 'customer-order'
@@ -772,7 +771,7 @@ const CreateSaleOrderV2: React.FC<CreateSaleOrderProps> = ({
   const workflowStatus = workflow.state.workflowInstance?.status;
   const isWorkflowLoading = workflow.state.isLoading;
   const workflowError = workflow.state.workflowError;
-  const approvalCaseId = editingDocument?.approvalCaseId;
+  const approvalCaseId = workflow.state.workflowInstance?.approvalCaseId;
   const [showAdvancedProductColumns, setShowAdvancedProductColumns] = useState(false);
   const [orderLevelDiscountAmount, setOrderLevelDiscountAmount] = useState('');
   const [orderLevelDiscountPercent, setOrderLevelDiscountPercent] = useState('');

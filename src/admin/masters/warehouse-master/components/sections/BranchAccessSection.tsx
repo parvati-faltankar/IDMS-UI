@@ -1,10 +1,10 @@
 // ─── BranchAccessSection ─────────────────────────────────────────────────────
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Plus, Trash2, Info } from 'lucide-react';
 import type { ConfigSectionProps } from './sectionTypes';
 import type { BranchAssignment } from '../../types/warehouse.types';
-import { inputBase, inputRO, labelBase, hintTxt, sCard, sHead, sBody, SectionActionRow } from './sectionStyles';
+import { inputBase, sCard, sHead, sBody, SectionActionRow } from './sectionStyles';
 
 const BRANCH_CODES = ['BR-HYD', 'BR-PUNE', 'BR-CHN', 'BR-DEL', 'BR-MUM'];
 

@@ -113,7 +113,7 @@ export function renderCreateRoutes({
         element={
           <CreateSaleOrder
             key={editingDocumentId ?? 'new-sale-order'}
-            editingDocument={getSaleOrderByIdFromStore(editingDocumentId) ?? getSaleOrderById(editingDocumentId)}
+            editingDocument={getSaleOrderByIdFromStore(editingDocumentId ?? null) ?? getSaleOrderById(editingDocumentId ?? null)}
             onBack={() => navigateTo(paths.saleOrderList)}
             onNavigateToSaleOrderList={() => navigateTo(paths.saleOrderList)}
           />
@@ -125,7 +125,7 @@ export function renderCreateRoutes({
         element={
           <CreateSaleOrderV2
             key={editingDocumentId ?? 'new-sale-order-v2'}
-            editingDocument={getSaleOrderByIdFromStore(editingDocumentId) ?? findSaleOrderV2Document(editingDocumentId)}
+            editingDocument={getSaleOrderByIdFromStore(editingDocumentId ?? null) ?? findSaleOrderV2Document(editingDocumentId ?? undefined)}
             onBack={() => navigateTo(paths.saleOrderV2List)}
             onNavigateToSaleOrderList={() => navigateTo(paths.saleOrderV2List)}
           />
@@ -137,7 +137,7 @@ export function renderCreateRoutes({
         element={
           <CreateSaleAllocationRequisition
             key={editingDocumentId ?? 'new-sale-allocation-requisition'}
-            editingDocument={getSaleAllocationRequisitionById(editingDocumentId)}
+            editingDocument={getSaleAllocationRequisitionById(editingDocumentId ?? null)}
             onBack={() => navigateTo(paths.saleAllocationRequisitionList)}
             onNavigateToSaleAllocationRequisitionList={() => navigateTo(paths.saleAllocationRequisitionList)}
           />

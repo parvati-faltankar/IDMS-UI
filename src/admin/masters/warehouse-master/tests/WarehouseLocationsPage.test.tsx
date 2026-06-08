@@ -4,7 +4,7 @@ import { SEED_LOCATIONS, WH_BIN_LEVEL_ACTIVE } from '../fixtures/warehouseFixtur
 
 describe('WarehouseLocationsPage helpers', () => {
   it('builds row model with derived effective status and path', () => {
-    const row = buildLocationRowModel(SEED_LOCATIONS[0], WH_BIN_LEVEL_ACTIVE.status);
+    const row = buildLocationRowModel(SEED_LOCATIONS[0], WH_BIN_LEVEL_ACTIVE.status, SEED_LOCATIONS, new Set());
     expect(row.fullPath).toContain('WH-PUNE-01');
     expect(row.effectiveStatus).toBe('Active');
   });
@@ -12,6 +12,7 @@ describe('WarehouseLocationsPage helpers', () => {
   it('filters by inventory allowed and search', () => {
     const rows = filterLocationRows(SEED_LOCATIONS, WH_BIN_LEVEL_ACTIVE.status, 'B001', {
       level: '',
+      levelRole: '',
       parentId: '',
       locationType: '',
       binType: '',
@@ -22,6 +23,7 @@ describe('WarehouseLocationsPage helpers', () => {
       pickingBlocked: '',
       eligibilityMode: '',
       issuesOnly: '',
+      identifierIssues: '',
     });
     expect(rows).toHaveLength(1);
     expect(rows[0].locationCode).toBe('B001');

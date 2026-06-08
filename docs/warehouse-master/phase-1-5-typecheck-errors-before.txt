@@ -1,0 +1,86 @@
+﻿src/admin/masters/area-master/services/areaService.ts(136,11): error TS6133: 'levelById' is declared but its value is never read.
+src/admin/masters/area-master/services/areaService.ts(137,20): error TS6133: 'a' is declared but its value is never read.
+src/admin/masters/engine-config/service-registry/pages/ServiceRegistryList.tsx(70,12): error TS6133: 'showToast' is declared but its value is never read.
+src/admin/masters/product-master/pages/ProductFormPage.tsx(1,28): error TS6133: 'useMemo' is declared but its value is never read.
+src/admin/masters/product-master/pages/ProductFormPage.tsx(11,3): error TS6196: 'ScopeType' is declared but never used.
+src/admin/masters/product-master/pages/ProductFormPage.tsx(12,3): error TS6196: 'ScopeDimension' is declared but never used.
+src/admin/masters/product-master/pages/ProductFormPage.tsx(13,3): error TS6196: 'ScopeActivationStatus' is declared but never used.
+src/admin/masters/product-master/pages/ProductFormPage.tsx(17,3): error TS6196: 'PackType' is declared but never used.
+src/admin/masters/product-master/pages/ProductFormPage.tsx(18,3): error TS6196: 'PackMaterial' is declared but never used.
+src/admin/masters/product-master/pages/ProductFormPage.tsx(19,3): error TS6196: 'IdentifierType' is declared but never used.
+src/admin/masters/product-master/pages/ProductFormPage.tsx(20,3): error TS6196: 'AssociationType' is declared but never used.
+src/admin/masters/product-master/pages/ProductFormPage.tsx(21,3): error TS6196: 'OrgType' is declared but never used.
+src/admin/masters/product-master/pages/ProductFormPage.tsx(87,7): error TS6133: 'labelMuted' is declared but its value is never read.
+src/admin/masters/product-master/pages/ProductFormPage.tsx(392,20): error TS2345: Argument of type '(e: Record<string, string>) => { [x: string]: string | undefined; }' is not assignable to parameter of type 'SetStateAction<Record<string, string>>'.
+  Type '(e: Record<string, string>) => { [x: string]: string | undefined; }' is not assignable to type '(prevState: Record<string, string>) => Record<string, string>'.
+    Type '{ [x: string]: string | undefined; }' is not assignable to type 'Record<string, string>'.
+      'string' index signatures are incompatible.
+        Type 'string | undefined' is not assignable to type 'string'.
+          Type 'undefined' is not assignable to type 'string'.
+src/admin/masters/product-master/pages/ProductListPage.tsx(440,11): error TS2322: Type '{ open: boolean; onClose: () => void; title: string; subtitle: string; statusBadge: { label: ProductStatus; style: CSSProperties; }; sections: PreviewSection[]; onEdit: () => void; }' is not assignable to type 'IntrinsicAttributes & SmartPreviewDrawerProps'.
+  Property 'statusBadge' does not exist on type 'IntrinsicAttributes & SmartPreviewDrawerProps'.
+src/admin/masters/service-type-master/pages/ServiceTypeFormPage.tsx(522,211): error TS2345: Argument of type 'string' is not assignable to parameter of type '"" | OperatorType'.
+src/admin/masters/service-type-master/pages/ServiceTypeListPage.tsx(297,11): error TS2322: Type '{ label: string; tone: "default"; onClick: () => void; }[]' is not assignable to type 'SmartDrawerAction[]'.
+  Type '{ label: string; tone: "default"; onClick: () => void; }' is not assignable to type 'SmartDrawerAction'.
+    Types of property 'tone' are incompatible.
+      Type '"default"' is not assignable to type '"outline" | "primary" | "danger" | undefined'.
+src/admin/masters/uom-master/pages/UomListPage.tsx(584,11): error TS2322: Type '"success" | "error" | "neutral" | undefined' is not assignable to type '"draft" | "active" | "inactive" | "warning" | undefined'.
+  Type '"success"' is not assignable to type '"draft" | "active" | "inactive" | "warning" | undefined'.
+src/admin/masters/warehouse-master/components/RuleExplanationPopover.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/admin/masters/warehouse-master/components/sections/BranchAccessSection.tsx(3,8): error TS6133: 'React' is declared but its value is never read.
+src/admin/masters/warehouse-master/components/sections/BranchAccessSection.tsx(7,21): error TS6133: 'inputRO' is declared but its value is never read.
+src/admin/masters/warehouse-master/components/sections/BranchAccessSection.tsx(7,30): error TS6133: 'labelBase' is declared but its value is never read.
+src/admin/masters/warehouse-master/components/sections/BranchAccessSection.tsx(7,41): error TS6133: 'hintTxt' is declared but its value is never read.
+src/admin/masters/warehouse-master/components/sections/CapacityPolicySection.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/admin/masters/warehouse-master/components/sections/CycleCountSection.tsx(3,8): error TS6133: 'React' is declared but its value is never read.
+src/admin/masters/warehouse-master/components/sections/EligibilityPolicySection.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/admin/masters/warehouse-master/components/sections/EligibilityPolicySection.tsx(130,43): error TS2345: Argument of type 'LocalPolicy' is not assignable to parameter of type 'Partial<EligibilityPolicy>'.
+  Types of property 'rules' are incompatible.
+    Type 'EditableRule[]' is not assignable to type 'EligibilityRule[]'.
+      Property 'ruleId' is missing in type 'EditableRule' but required in type 'EligibilityRule'.
+src/admin/masters/warehouse-master/components/sections/GovernanceSection.tsx(4,1): error TS6133: 'React' is declared but its value is never read.
+src/admin/masters/warehouse-master/components/sections/GovernanceSection.tsx(5,17): error TS6133: 'User' is declared but its value is never read.
+src/admin/masters/warehouse-master/components/sections/GovernanceSection.tsx(22,10): error TS6133: 'eventColor' is declared but its value is never read.
+src/admin/masters/warehouse-master/components/sections/HierarchyTemplateSection.tsx(3,1): error TS6133: 'React' is declared but its value is never read.
+src/admin/masters/warehouse-master/components/sections/InventoryControlSection.tsx(3,8): error TS6133: 'React' is declared but its value is never read.
+src/admin/masters/warehouse-master/components/sections/InventoryControlSection.tsx(5,10): error TS6133: 'inputBase' is declared but its value is never read.
+src/admin/masters/warehouse-master/components/sections/InventoryControlSection.tsx(5,21): error TS6133: 'inputRO' is declared but its value is never read.
+src/admin/masters/warehouse-master/components/sections/LocationDefaultsSection.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/admin/masters/warehouse-master/components/sections/OwnershipSection.tsx(3,8): error TS6133: 'React' is declared but its value is never read.
+src/admin/masters/warehouse-master/components/sections/PickingPolicySection.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/admin/masters/warehouse-master/components/sections/PutawayPolicySection.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/admin/masters/warehouse-master/components/sections/StockGovernanceSection.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/admin/masters/warehouse-master/components/WarehouseControlledActionDrawer.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/admin/masters/warehouse-master/components/WarehousePreviewDrawer.tsx(17,1): error TS6133: 'ValidationIssuePanel' is declared but its value is never read.
+src/admin/masters/warehouse-master/components/WarehousePreviewDrawer.tsx(36,9): error TS6133: 'locations' is declared but its value is never read.
+src/admin/masters/warehouse-master/components/WarehousePreviewDrawer.tsx(154,61): error TS2339: Property 'key' does not exist on type 'SectionHealth'.
+src/admin/masters/warehouse-master/components/WarehousePreviewDrawer.tsx(154,83): error TS2339: Property 'completedCount' does not exist on type 'SectionHealth'.
+src/admin/masters/warehouse-master/components/WarehousePreviewDrawer.tsx(158,61): error TS2339: Property 'key' does not exist on type 'SectionHealth'.
+src/admin/masters/warehouse-master/components/WarehousePreviewDrawer.tsx(158,83): error TS2339: Property 'totalCount' does not exist on type 'SectionHealth'.
+src/admin/masters/warehouse-master/pages/WarehouseAuditPage.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/admin/masters/warehouse-master/pages/WarehouseConfigurationPage.tsx(11,8): error TS6133: 'React' is declared but its value is never read.
+src/admin/masters/warehouse-master/pages/WarehouseConfigurationPage.tsx(82,3): error TS6133: 'locations' is declared but its value is never read.
+src/admin/masters/warehouse-master/pages/WarehouseConfigurationPage.tsx(395,9): error TS6133: 'reload' is declared but its value is never read.
+src/admin/masters/warehouse-master/pages/WarehouseConfigurationPage.tsx(645,3): error TS6133: 'warehouse' is declared but its value is never read.
+src/admin/masters/warehouse-master/pages/WarehouseCreateWorkspace.tsx(312,3): error TS6133: 'state' is declared but its value is never read.
+src/admin/masters/warehouse-master/pages/WarehouseCreateWorkspace.tsx(430,7): error TS6133: 'inputRO' is declared but its value is never read.
+src/admin/masters/warehouse-master/pages/WarehouseCreateWorkspace.tsx(993,9): error TS2345: Argument of type '{ correlationId: string; }' is not assignable to parameter of type 'ControlledActionRequest'.
+  Property 'action' is missing in type '{ correlationId: string; }' but required in type 'ControlledActionRequest'.
+src/admin/masters/warehouse-master/pages/WarehouseImportPage.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/admin/masters/warehouse-master/pages/WarehouseLocationsPage.tsx(98,56): error TS2345: Argument of type 'string' is not assignable to parameter of type 'WarehouseStatus'.
+src/admin/masters/warehouse-master/services/warehouseService.ts(27,3): error TS6196: 'Warehouse' is declared but never used.
+src/admin/masters/warehouse-master/utils/policyWorkbench.ts(442,54): error TS2345: Argument of type 'string' is not assignable to parameter of type '"Batch" | "FIFO" | "LIFO" | "FEFO" | "Nearest-Empty" | "Fixed-BIN" | "Random" | "Zone-Directed" | "Capacity-Optimised" | "LEFO" | "Zone-Wave" | "Single-Order" | "Cluster"'.
+src/admin/masters/warehouse-master/utils/policyWorkbench.ts(454,5): error TS2322: Type 'string[]' is not assignable to type 'PutawayStrategy[]'.
+  Type 'string' is not assignable to type 'PutawayStrategy'.
+src/admin/masters/warehouse-master/utils/policyWorkbench.ts(482,54): error TS2345: Argument of type 'string' is not assignable to parameter of type '"Batch" | "FIFO" | "LIFO" | "FEFO" | "Nearest-Empty" | "Fixed-BIN" | "Random" | "Zone-Directed" | "Capacity-Optimised" | "LEFO" | "Zone-Wave" | "Single-Order" | "Cluster"'.
+src/admin/masters/warehouse-master/utils/policyWorkbench.ts(494,5): error TS2322: Type 'string[]' is not assignable to type 'PickingStrategy[]'.
+  Type 'string' is not assignable to type 'PickingStrategy'.
+src/admin/masters/warehouse-master/utils/rulePrecedence.ts(11,3): error TS6196: 'AllocationPolicy' is declared but never used.
+src/admin/masters/warehouse-master/utils/rulePrecedence.ts(63,13): error TS6133: 'policy' is declared but its value is never read.
+src/admin/masters/warehouse-master/utils/rulePrecedence.ts(63,21): error TS6133: 'source' is declared but its value is never read.
+src/admin/masters/warehouse-master/validation/hierarchyValidation.ts(3,45): error TS6196: 'UpdateHierarchyTemplateInput' is declared but never used.
+src/pages/sale-order-v2/CreateSaleOrderV2.tsx(38,1): error TS6133: 'SALE_ORDER_ENTITY' is declared but its value is never read.
+src/pages/sale-order-v2/CreateSaleOrderV2.tsx(775,43): error TS2339: Property 'approvalCaseId' does not exist on type 'SaleOrderDocument'.
+src/routes/createRoutes.tsx(128,102): error TS2345: Argument of type 'string | null' is not assignable to parameter of type 'string | undefined'.
+  Type 'null' is not assignable to type 'string | undefined'.
+

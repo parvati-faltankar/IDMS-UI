@@ -517,11 +517,11 @@ const UomListPage: React.FC = () => {
   );
 
   // ── Preview drawer status ──────────────────────────────────────────────
-  const previewStatusTone: 'success' | 'error' | 'neutral' | undefined = !previewUom
+  const previewStatusTone: 'active' | 'draft' | 'inactive' | 'warning' | undefined = !previewUom
     ? undefined
-    : previewUom.status === 'Active'   ? 'success'
-    : previewUom.status === 'Inactive' ? 'error'
-    : 'neutral';
+    : previewUom.status === 'Active'   ? 'active'
+    : previewUom.status === 'Inactive' ? 'inactive'
+    : 'draft';
 
   const helpTopic = getHelpTopic('unit-of-measurement');
 

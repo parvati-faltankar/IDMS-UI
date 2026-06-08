@@ -21,7 +21,6 @@ import { recordRecentAdminMaster } from './adminStorage';
 import { cn } from '../utils/classNames';
 import { AdminListPageShell } from '../experience/components/AdminListPageShell';
 import { HelpDrawer } from '../experience/components/HelpDrawer';
-import { SmartPreviewDrawer } from '../experience/components/SmartPreviewDrawer';
 import { getHelpTopic } from '../experience/help/helpTopics';
 
 // ─── Mock data generation ────────────────────────────────────────────────────
@@ -127,16 +126,6 @@ const MasterListPage: React.FC = () => {
   const [openRowMenu, setOpenRowMenu] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [helpTopicId, setHelpTopicId] = useState('generic-master-list');
-
-  // ── Preview drawer ──────────────────────────────────────────────
-  const [previewRecord, setPreviewRecord] = useState<(typeof allRecords)[0] | null>(null);
-  const previewOpen = previewRecord !== null;
-
-  const openPreview = (record: (typeof allRecords)[0]) => {
-    setOpenRowMenu(null);
-    setPreviewRecord(record);
-  };
-  const closePreview = () => setPreviewRecord(null);
 
   const filteredRecords = useMemo(() => {
     let records = [...allRecords];
@@ -326,7 +315,7 @@ const MasterListPage: React.FC = () => {
                 <div
                   key={record.id}
                   style={{ display: 'grid', gridTemplateColumns: '36px 88px minmax(200px, 1fr) 80px 100px 56px', alignItems: 'center', height: '44px', padding: '0 12px 0 8px', borderBottom: isLast ? 'none' : '1px solid var(--color-border)', background: selectedRows.has(record.id) ? '#EFF6FF' : 'transparent', transition: 'background 0.1s', cursor: 'pointer' }}
-                  onClick={() => openPreview(record)}
+                  onClick={() => navigate(`/admin/master/${masterKey}/${record.id}`)}
                   onMouseEnter={e => { if (!selectedRows.has(record.id)) e.currentTarget.style.background = '#F8FAFC'; }}
                   onMouseLeave={e => { e.currentTarget.style.background = selectedRows.has(record.id) ? '#EFF6FF' : 'transparent'; }}
                 >
@@ -371,7 +360,7 @@ const MasterListPage: React.FC = () => {
                       type="button"
                       title="View record"
                       aria-label="View record"
-                      onClick={() => openPreview(record)}
+                      onClick={() => navigate(`/admin/master/${masterKey}/${record.id}`)}
                       style={{ width: '28px', height: '28px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-muted)' }}
                       onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-subtle)'; }}
                       onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
@@ -394,7 +383,7 @@ const MasterListPage: React.FC = () => {
                         <>
                           <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setOpenRowMenu(null)} />
                           <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 4px)', zIndex: 100, minWidth: '160px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.1)', padding: '4px', overflow: 'hidden' }}>
-                            <MasterMoreMenuItem icon={<Eye size={13} />} label="View details" onClick={() => { openPreview(record); setOpenRowMenu(null); }} />
+                            <MasterMoreMenuItem icon={<Eye size={13} />} label="View details" onClick={() => { navigate(`/admin/master/${masterKey}/${record.id}`); setOpenRowMenu(null); }} />
                             <MasterMoreMenuItem icon={<Edit2 size={13} />} label="Edit" onClick={() => { navigate(`/admin/master/${masterKey}/${record.id}?mode=edit`); setOpenRowMenu(null); }} />
                             <MasterMoreMenuItem icon={<Copy size={13} />} label="Duplicate" onClick={() => setOpenRowMenu(null)} />
                             <MasterMoreMenuItem icon={<History size={13} />} label="Audit history" onClick={() => setOpenRowMenu(null)} />
@@ -460,54 +449,6 @@ const MasterListPage: React.FC = () => {
         topic={getHelpTopic(helpTopicId)}
         onClose={() => setHelpOpen(false)}
         onTopicChange={(id) => setHelpTopicId(id)}
-      />
-      {/* ── Preview drawer ──────────────────────────────────────── */}
-      <SmartPreviewDrawer
-        open={previewOpen}
-        onClose={closePreview}
-        title={previewRecord?.name ?? ''}
-        subtitle={`${previewRecord?.id ?? ''} — ${master?.label ?? ''}`}
-        statusLabel={previewRecord?.status}
-        statusTone={
-          previewRecord?.status === 'Active'   ? 'active'   :
-          previewRecord?.status === 'Draft'    ? 'draft'    :
-          previewRecord?.status === 'Inactive' ? 'inactive' : undefined
-        }
-        summaryFields={previewRecord ? [
-          { label: 'Code',        value: previewRecord.id,                mono: true },
-          { label: 'Status',      value: previewRecord.status },
-          { label: 'Created',     value: previewRecord.createdDate },
-          { label: 'Updated',     value: previewRecord.updatedDate },
-        ] : []}
-        sections={previewRecord ? [
-          {
-            title: 'Basic Information',
-            fields: [
-              { label: 'Name',        value: previewRecord.name,        span: 2 },
-              { label: 'Description', value: previewRecord.description, span: 2, muted: true },
-            ],
-          },
-          {
-            title: 'Group & Master',
-            fields: [
-              { label: 'Group',        value: group?.label ?? '—' },
-              { label: 'Master Type',  value: master?.label ?? '—' },
-            ],
-          },
-        ] : []}
-        primaryAction={{
-          label: 'Edit',
-          tone: 'primary',
-          onClick: () => { closePreview(); navigate(`/admin/master/${masterKey}/${previewRecord!.id}?mode=edit`); },
-        }}
-        secondaryActions={[
-          { label: 'Duplicate', tone: 'outline', onClick: closePreview },
-        ]}
-        dangerAction={
-          previewRecord?.status === 'Active'
-            ? { label: 'Deactivate', tone: 'danger', onClick: closePreview }
-            : undefined
-        }
       />
     </AdminShell>
   );

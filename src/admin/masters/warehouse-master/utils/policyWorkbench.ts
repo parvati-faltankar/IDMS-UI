@@ -424,7 +424,8 @@ export function simulatePutawayStrategy(
   orderedStrategies: readonly PutawayStrategy[],
   locations: WarehouseLocation[],
 ): StrategySimulationResult<PutawayStrategy> {
-  const activeStrategies = orderedStrategies.length > 0 ? [...orderedStrategies] : ['FEFO', 'Nearest-Empty', 'Capacity-Optimised'];
+  const fallbackStrategies: PutawayStrategy[] = ['FEFO', 'Nearest-Empty', 'Capacity-Optimised'];
+  const activeStrategies: PutawayStrategy[] = orderedStrategies.length > 0 ? [...orderedStrategies] : fallbackStrategies;
   const filtered = locations.filter((location) => {
     if (location.status !== 'Active') return false;
     if (!location.profile.inventoryAllowed || !location.profile.isLeafEndpoint) return false;
@@ -464,7 +465,8 @@ export function simulatePickingStrategy(
   orderedStrategies: readonly PickingStrategy[],
   locations: WarehouseLocation[],
 ): StrategySimulationResult<PickingStrategy> {
-  const activeStrategies = orderedStrategies.length > 0 ? [...orderedStrategies] : ['FEFO', 'FIFO', 'Zone-Wave'];
+  const fallbackStrategies: PickingStrategy[] = ['FEFO', 'FIFO', 'Zone-Wave'];
+  const activeStrategies: PickingStrategy[] = orderedStrategies.length > 0 ? [...orderedStrategies] : fallbackStrategies;
   const filtered = locations.filter((location) => {
     if (location.status !== 'Active') return false;
     if (!location.profile.inventoryAllowed || !location.profile.isLeafEndpoint) return false;

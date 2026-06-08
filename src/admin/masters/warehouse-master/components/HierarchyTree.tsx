@@ -263,7 +263,7 @@ export function HierarchyTree({
                   {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                 </button>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <div aria-hidden="true" style={{ width: '8px', height: '8px', borderRadius: '999px', background: nodeTypeColor(item.node.levelName) }} />
+                  <div aria-hidden="true" style={{ width: '8px', height: '8px', borderRadius: '999px', background: nodeTypeColor(item.node.levelCode) }} />
                   <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>
                     {item.node.levelName}
                   </span>
@@ -281,7 +281,7 @@ export function HierarchyTree({
                     )}
                   </div>
                   <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {item.node.locationName} · {item.node.fullCode}
+                    {item.node.locationName} · Full ID: {item.node.fullCode}
                   </div>
                 </div>
                 {onAddChild && (
@@ -346,12 +346,13 @@ const iconBtn: React.CSSProperties = {
   flexShrink: 0,
 };
 
-function nodeTypeColor(levelName: string): string {
-  const normal = levelName.toLowerCase();
-  if (normal.includes('zone')) return '#0EA5E9';
-  if (normal.includes('aisle')) return '#8B5CF6';
-  if (normal.includes('rack')) return '#F97316';
-  if (normal.includes('shelf')) return '#14B8A6';
-  if (normal.includes('bin')) return '#22C55E';
-  return '#64748B';
+function nodeTypeColor(levelCode: string): string {
+  const normalized = levelCode.trim().toUpperCase();
+  let hash = 0;
+  for (let i = 0; i < normalized.length; i++) {
+    hash = ((hash << 5) - hash) + normalized.charCodeAt(i);
+    hash |= 0;
+  }
+  const palette = ['#0EA5E9', '#16A34A', '#F97316', '#4F46E5', '#D97706', '#059669', '#A855F7'];
+  return palette[Math.abs(hash) % palette.length];
 }

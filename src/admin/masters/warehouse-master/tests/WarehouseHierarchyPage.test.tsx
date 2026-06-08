@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { canAddChildUnderNode, collectHierarchyIssueNodeIds } from '../pages/WarehouseHierarchyPage';
+import {
+  buildHierarchySetupPanelModel,
+  buildHierarchyTreeWithWarehouseRoot,
+  canAddChildUnderNode,
+  collectHierarchyIssueNodeIds,
+} from '../pages/WarehouseHierarchyPage';
 import { WH_BIN_LEVEL_ACTIVE } from '../fixtures/warehouseFixtures';
 import type { HierarchyTemplate, WarehouseLocation } from '../types/warehouse.types';
 
@@ -49,10 +54,49 @@ const template: HierarchyTemplate = {
 };
 
 describe('WarehouseHierarchyPage helpers', () => {
+  it('builds setup panel model with required fields', () => {
+    const details = {
+      warehouse: WH_BIN_LEVEL_ACTIVE,
+      hierarchyTemplates: [template],
+      locations: [parent],
+      setupHealth: { overallTone: 'partial', readyForActivation: false, sections: [], blockingIssues: [] },
+      recentAuditEvents: [],
+    };
+    const model = buildHierarchySetupPanelModel(details, template);
+    expect(model.inventoryControlMode).toBe('Location-BIN-Level');
+    expect(model.activeTemplateName).toBe('Warehouse');
+    expect(model.templateStatus).toBe('Active');
+    expect(model.nodeCount).toBe(1);
+  });
+
+  it('returns empty hierarchy next action guidance', () => {
+    const details = {
+      warehouse: WH_BIN_LEVEL_ACTIVE,
+      hierarchyTemplates: [template],
+      locations: [],
+      setupHealth: { overallTone: 'partial', readyForActivation: false, sections: [], blockingIssues: [] },
+      recentAuditEvents: [],
+    };
+    const model = buildHierarchySetupPanelModel(details, template);
+    expect(model.nextRecommendedAction).toContain('no locations have been created');
+  });
+
+  it('builds virtual warehouse root node for tree visibility', () => {
+    const tree = buildHierarchyTreeWithWarehouseRoot('WM02', 'Warehouse 02', []);
+    expect(tree).toHaveLength(1);
+    expect(tree[0].locationCode).toBe('WM02');
+    expect(tree[0].levelCode).toBe('WAREHOUSE');
+  });
+
   it('blocks add child under invalid parent with stock/open dependency', () => {
     const blockedParent = { ...parent, stockStatuses: ['Available'] as const };
     const result = canAddChildUnderNode(blockedParent, 'Location-BIN-Level', template, [blockedParent]);
     expect(result.allowed).toBe(false);
+  });
+
+  it('allows add child from warehouse root when active template permits root child levels', () => {
+    const result = canAddChildUnderNode(null, 'Location-BIN-Level', template, [parent]);
+    expect(result.allowed).toBe(true);
   });
 
   it('allows add child under valid parent in BIN-level mode', () => {
@@ -73,5 +117,24 @@ describe('WarehouseHierarchyPage helpers', () => {
   it('blocks hierarchy actions for warehouse-level mode', () => {
     const result = canAddChildUnderNode(parent, 'Warehouse-Level', template, [parent]);
     expect(result.allowed).toBe(false);
+  });
+
+  it('returns disabled reason when no child level is allowed under node', () => {
+    const terminalTemplate: HierarchyTemplate = {
+      ...template,
+      levels: [
+        { levelCode: 'BIN', levelName: 'BIN', sequence: 1, mandatory: true, leafEligible: true, allowSkipLevel: false, allowedParentLevels: ['WAREHOUSE'], allowedChildLevels: [] },
+      ],
+    };
+    const terminalNode: WarehouseLocation = {
+      ...parent,
+      profile: {
+        ...parent.profile,
+        templateLevelCode: 'BIN',
+      },
+    };
+    const result = canAddChildUnderNode(terminalNode, 'Location-BIN-Level', terminalTemplate, [terminalNode]);
+    expect(result.allowed).toBe(false);
+    expect(result.reason).toContain('No valid child levels remain');
   });
 });

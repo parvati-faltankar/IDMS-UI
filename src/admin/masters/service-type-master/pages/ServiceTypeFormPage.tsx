@@ -11,6 +11,7 @@ import { recordRecentAdminMaster } from '../../../adminStorage';
 import type {
   ServiceTypeRecord,
   PostingType,
+  OperatorType,
   ContractOperator,
   ServiceDeliveryMode,
   AssetIdentificationLevel,
@@ -519,7 +520,7 @@ const ServiceTypeFormPage: React.FC = () => {
             {recurrenceMode === 'both' && (
               <div style={fw}>
                 <label style={labelBase}>Operator (when both apply)</label>
-                <SegmentedControl options={[{ value: 'AND', label: 'AND — whichever comes first' }, { value: 'OR', label: 'OR — either is sufficient' }]} value={form.operator} onChange={(v) => setF('operator', v)} />
+                <SegmentedControl options={[{ value: 'AND', label: 'AND — whichever comes first' }, { value: 'OR', label: 'OR — either is sufficient' }]} value={form.operator} onChange={(v) => setF('operator', v as '' | OperatorType)} />
               </div>
             )}
           </div>

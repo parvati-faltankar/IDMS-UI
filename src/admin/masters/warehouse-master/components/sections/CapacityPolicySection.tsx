@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { ConfigSectionProps } from './sectionTypes';
 import type { CapacityPolicy, StorageConstraints } from '../../types/warehouse.types';
 import { validateCapacityAndConstraints } from '../../utils/policyWorkbench';

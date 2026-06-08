@@ -7,23 +7,23 @@ import type {
   DefaultLocations,
   EligibilityPolicy,
   HierarchyLevel,
-  InventoryControlMode,
   OperatingCalendar,
   PutawayPolicy,
   PickingPolicy,
   ReservationPolicy,
   StorageConstraints,
-  WarehouseOwnershipScope,
-  WarehouseStatus,
-  WarehouseType,
 } from './warehouse.types';
 
 import type {
   ExportFormat,
   ImportEntityType,
   ImportMode,
+  InventoryControlMode,
   LocationType,
+  WarehouseOwnershipScope,
   WarehouseLifecycleAction,
+  WarehouseStatus,
+  WarehouseType,
 } from './warehouse.enums';
 
 // ─── Query DTOs ───────────────────────────────────────────────────────────────
@@ -72,7 +72,9 @@ export interface CreateWarehouseInput {
   readonly ownershipScope: WarehouseOwnershipScope;
   readonly owningOrgCode?: string;
   readonly owningBranchCode?: string;
+  /** Deprecated compatibility field. Branch-scope ownership must normalize to exactly one primary branch. */
   readonly owningBranchCodes?: string[];
+  /** Deprecated compatibility field. Branch-scope ownership must normalize to exactly one primary branch. */
   readonly branchOwnershipRows?: Array<{
     readonly branchCode: string;
     readonly businessUnit?: string;
@@ -132,7 +134,21 @@ export interface CreateHierarchyTemplateInput {
   readonly warehouseId: string;
   readonly templateCode: string;
   readonly templateName: string;
+  readonly templateSource?: 'System' | 'UserDefined' | 'Imported' | 'Cloned';
+  readonly templateScope?: 'Warehouse' | 'Organization';
+  readonly defaultPathSeparator?: string;
+  readonly includeWarehouseCodeInIdentifier?: boolean;
+  readonly defaultSequenceLength?: number;
+  readonly manualNodeCodeAllowed?: boolean;
+  readonly autoGenerateNodeCodeAllowed?: boolean;
+  readonly codeLockedAfterActivation?: boolean;
+  readonly dependencyMarker?: {
+    readonly hasNodes?: boolean;
+    readonly hasStock?: boolean;
+    readonly hasTransactions?: boolean;
+  };
   readonly versionNumber?: number;
+  readonly changeDescription?: string;
   readonly flexiblePathEnabled: boolean;
   readonly levels: HierarchyLevel[];
   readonly effectiveFrom: string;
@@ -151,6 +167,8 @@ export interface CreateLocationInput {
   readonly locationCode: string;
   readonly locationName: string;
   readonly parentLocationId?: string;
+  readonly templateLevelId?: string;
+  readonly templateLevelCode?: string;
   readonly locationType: LocationType;
   readonly binType?: string;
   readonly barcodeValue?: string;
@@ -175,6 +193,8 @@ export interface BulkLocationInput {
   readonly warehouseId: string;
   readonly parentLocationId?: string;
   readonly level?: number;
+  readonly templateLevelId?: string;
+  readonly templateLevelCode?: string;
   readonly locationType: LocationType;
   readonly binType?: string;
   readonly codePrefix: string;
@@ -190,8 +210,16 @@ export interface BulkLocationInput {
 
 export interface BulkPreviewRow {
   readonly sequenceNumber: number;
+  readonly levelCode?: string;
+  readonly parentCode?: string;
+  readonly parentFullLocationIdentifier?: string;
   readonly proposedCode: string;
   readonly proposedName: string;
+  readonly fullLocationIdentifier?: string;
+  readonly leafEndpointPreview?: boolean;
+  readonly inventoryEndpointEligible?: boolean;
+  readonly inventoryAllowedPreview?: boolean;
+  readonly validationStatus?: 'Valid' | 'Conflict';
   readonly conflict: boolean;
   readonly conflictReason?: string;
 }
@@ -214,10 +242,141 @@ export interface CommitBulkRequest {
   readonly idempotencyKey: string;
 }
 
+export interface LocationIdentifierPreviewInput {
+  readonly warehouseId: string;
+  readonly parentLocationId?: string;
+  readonly templateLevelId?: string;
+  readonly templateLevelCode?: string;
+  readonly nodeCode?: string;
+  readonly autoGenerate?: boolean;
+  readonly manualOverride?: boolean;
+}
+
+export interface LocationIdentifierPreviewResult {
+  readonly nodeCode: string;
+  readonly fullLocationIdentifier: string;
+  readonly conflict: boolean;
+  readonly conflictReason?: string;
+}
+
+export interface LocationIdentifierConflict {
+  readonly locationId: string;
+  readonly locationCode: string;
+  readonly fullLocationIdentifier: string;
+  readonly reason: string;
+}
+
 export interface BulkResult {
   readonly success: boolean;
   readonly createdCount: number;
   readonly failedCount: number;
+  readonly errors: Array<{ code: string; name: string; reason: string }>;
+  readonly correlationId: string;
+}
+
+// ─── Quick hierarchy wizard DTOs ─────────────────────────────────────────────
+
+export type QuickHierarchyPatternKey =
+  | 'simple-root-bin'
+  | 'zone-bin'
+  | 'standard-distribution'
+  | 'floor-room-shelf'
+  | 'yard-lane-bay'
+  | 'cold-room-chamber-position'
+  | 'custom-pattern';
+
+export interface QuickHierarchyPatternLevel {
+  readonly levelCode: string;
+  readonly levelName: string;
+  readonly sequence: number;
+  readonly leafEligible: boolean;
+  readonly inventoryEndpointEligible: boolean;
+  readonly defaultLocationType?: LocationType;
+}
+
+export interface QuickHierarchyPattern {
+  readonly key: QuickHierarchyPatternKey;
+  readonly label: string;
+  readonly description: string;
+  readonly levels: QuickHierarchyPatternLevel[];
+}
+
+export interface QuickHierarchyCodingPolicyInput {
+  readonly levelCode: string;
+  readonly codePrefix: string;
+  readonly startSequence: number;
+  readonly sequenceLength: number;
+  readonly separator?: string;
+  readonly suffix?: string;
+}
+
+export interface QuickHierarchyDefaultsInput {
+  readonly status?: 'Draft';
+  readonly defaultLocationType?: LocationType;
+  readonly inventoryEndpointEligible?: boolean;
+  readonly capacityApplicable?: boolean;
+  readonly itemEligibilityApplicable?: boolean;
+  readonly responsibilityApplicable?: boolean;
+  readonly barcodeApplicable?: boolean;
+  readonly qrApplicable?: boolean;
+}
+
+export interface QuickHierarchyPreviewInput {
+  readonly warehouseId: string;
+  readonly patternKey: QuickHierarchyPatternKey;
+  readonly templateAction: 'reuse-active' | 'create-from-pattern';
+  readonly activateTemplateOnCommit?: boolean;
+  readonly countsByLevel: Record<string, number>;
+  readonly codingByLevel: QuickHierarchyCodingPolicyInput[];
+  readonly defaults?: QuickHierarchyDefaultsInput;
+}
+
+export interface QuickHierarchyPreviewRow {
+  readonly tempNodeId: string;
+  readonly parentTempNodeId?: string;
+  readonly level: number;
+  readonly levelCode: string;
+  readonly levelName: string;
+  readonly parentCode?: string;
+  readonly nodeCode: string;
+  readonly nodeName: string;
+  readonly fullLocationIdentifier: string;
+  readonly leafEndpointPreview: boolean;
+  readonly inventoryEndpointEligible: boolean;
+  readonly capacityApplicable: boolean;
+  readonly itemEligibilityApplicable: boolean;
+  readonly responsibilityApplicable: boolean;
+  readonly status: 'Draft';
+  readonly validationStatus: 'Valid' | 'Conflict';
+  readonly conflictReason?: string;
+}
+
+export interface QuickHierarchyPreviewResult {
+  readonly previewToken: string;
+  readonly warehouseId: string;
+  readonly patternKey: QuickHierarchyPatternKey;
+  readonly rows: QuickHierarchyPreviewRow[];
+  readonly totalGeneratedNodes: number;
+  readonly conflictCount: number;
+  readonly validCount: number;
+  readonly generatedAt: string;
+  readonly paramsHash: string;
+  readonly warnings: string[];
+}
+
+export interface QuickHierarchyCommitRequest {
+  readonly warehouseId: string;
+  readonly previewToken: string;
+  readonly paramsHash: string;
+  readonly idempotencyKey: string;
+}
+
+export interface QuickHierarchyCommitResult {
+  readonly success: boolean;
+  readonly createdCount: number;
+  readonly failedCount: number;
+  readonly firstCreatedLocationId?: string;
+  readonly createdFullIdentifiers: string[];
   readonly errors: Array<{ code: string; name: string; reason: string }>;
   readonly correlationId: string;
 }

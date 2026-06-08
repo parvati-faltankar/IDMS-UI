@@ -14,6 +14,7 @@ import { LocationBulkCreateDrawer } from '../components/LocationBulkCreateDrawer
 
 interface LocationFilterState {
   level: string;
+  levelRole: string;
   parentId: string;
   locationType: string;
   binType: string;
@@ -24,11 +25,16 @@ interface LocationFilterState {
   pickingBlocked: string;
   eligibilityMode: string;
   issuesOnly: string;
+  identifierIssues: string;
 }
 
 export interface LocationRowModel {
   readonly id: string;
   readonly locationCode: string;
+  readonly levelCode: string;
+  readonly levelRole: string;
+  readonly parentFullIdentifier: string;
+  readonly fullLocationIdentifier: string;
   readonly locationName: string;
   readonly fullPath: string;
   readonly level: number;
@@ -41,10 +47,12 @@ export interface LocationRowModel {
   readonly pickingStatus: string;
   readonly effectiveStatus: string;
   readonly stockDependency: string;
+  readonly hasIdentifierIssue: boolean;
 }
 
 const EMPTY_FILTERS: LocationFilterState = {
   level: '',
+  levelRole: '',
   parentId: '',
   locationType: '',
   binType: '',
@@ -55,19 +63,31 @@ const EMPTY_FILTERS: LocationFilterState = {
   pickingBlocked: '',
   eligibilityMode: '',
   issuesOnly: '',
+  identifierIssues: '',
 };
 
 export function buildLocationRowModel(
   location: WarehouseLocation,
   warehouseStatus: WarehouseStatus,
+  allLocations: WarehouseLocation[],
+  duplicateFullIdentifiers: Set<string>,
 ): LocationRowModel {
   const capacityUtilization = location.capacity?.maxUnits && location.capacity.currentUnits !== undefined
     ? `${Math.round((location.capacity.currentUnits / location.capacity.maxUnits) * 100)}%`
     : 'n/a';
 
+  const parent = location.parentLocationId
+    ? allLocations.find((entry) => entry.id === location.parentLocationId)
+    : undefined;
+  const levelCode = location.profile.templateLevelCode ?? 'n/a';
+  const levelRole = location.profile.locationRole ?? 'n/a';
   return {
     id: location.id,
     locationCode: location.locationCode,
+    levelCode,
+    levelRole,
+    parentFullIdentifier: parent?.profile.fullCode ?? 'Warehouse root',
+    fullLocationIdentifier: location.profile.fullCode,
     locationName: location.locationName,
     fullPath: location.profile.fullCode,
     level: location.profile.level,
@@ -84,20 +104,30 @@ export function buildLocationRowModel(
       location.commitmentState !== 'Uncommitted' ? location.commitmentState : null,
       location.movementState !== 'Idle' ? location.movementState : null,
     ].filter(Boolean).join(' · ') || 'None',
+    hasIdentifierIssue: duplicateFullIdentifiers.has(location.profile.fullCode.toUpperCase()),
   };
 }
 
 export function filterLocationRows(
   locations: WarehouseLocation[],
-  warehouseStatus: string,
+  warehouseStatus: WarehouseStatus,
   search: string,
   filters: LocationFilterState,
 ): LocationRowModel[] {
   const q = search.trim().toLowerCase();
+  const fullCodeCounts = locations.reduce<Map<string, number>>((acc, location) => {
+    const key = location.profile.fullCode.toUpperCase();
+    acc.set(key, (acc.get(key) ?? 0) + 1);
+    return acc;
+  }, new Map());
+  const duplicateFullIdentifiers = new Set(
+    Array.from(fullCodeCounts.entries()).filter(([, count]) => count > 1).map(([key]) => key),
+  );
   return locations
-    .map((location) => buildLocationRowModel(location, warehouseStatus))
+    .map((location) => buildLocationRowModel(location, warehouseStatus, locations, duplicateFullIdentifiers))
     .filter((row) => {
       if (filters.level && String(row.level) !== filters.level) return false;
+      if (filters.levelRole && row.levelRole !== filters.levelRole) return false;
       if (filters.parentId) {
         const parent = locations.find((location) => location.id === row.id);
         if (parent?.parentLocationId !== filters.parentId) return false;
@@ -115,8 +145,18 @@ export function filterLocationRows(
       if (filters.pickingBlocked === 'yes' && row.pickingStatus !== 'Blocked') return false;
       if (filters.eligibilityMode && row.eligibilityMode !== filters.eligibilityMode) return false;
       if (filters.issuesOnly === 'yes' && row.stockDependency === 'None' && row.effectiveStatus === 'Active' && row.inventoryAllowed) return false;
+      if (filters.identifierIssues === 'yes' && !row.hasIdentifierIssue) return false;
       if (q) {
-        const hay = [row.locationCode, row.locationName, row.fullPath, row.locationType, row.binType].join(' ').toLowerCase();
+        const hay = [
+          row.locationCode,
+          row.locationName,
+          row.fullPath,
+          row.fullLocationIdentifier,
+          row.parentFullIdentifier,
+          row.locationType,
+          row.binType,
+          row.levelCode,
+        ].join(' ').toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -219,6 +259,10 @@ const WarehouseLocationsPage: React.FC = () => {
               <option value="">All Levels</option>
               {[...new Set(details.locations.map((location) => String(location.profile.level)))].map((level) => <option key={level} value={level}>{`Level ${level}`}</option>)}
             </select>
+            <select value={filters.levelRole} onChange={(event) => setFilters((state) => ({ ...state, levelRole: event.target.value }))} style={filterInput}>
+              <option value="">All Level Roles</option>
+              {[...new Set(details.locations.map((location) => location.profile.locationRole).filter(Boolean))].map((role) => <option key={role} value={role ?? ''}>{role}</option>)}
+            </select>
             <select value={filters.parentId} onChange={(event) => setFilters((state) => ({ ...state, parentId: event.target.value }))} style={filterInput}>
               <option value="">All Parents</option>
               {details.locations.filter((location) => !location.parentLocationId).map((location) => <option key={location.id} value={location.id}>{location.locationCode}</option>)}
@@ -262,6 +306,10 @@ const WarehouseLocationsPage: React.FC = () => {
               <option value="">Issue Filter</option>
               <option value="yes">Issues only</option>
             </select>
+            <select value={filters.identifierIssues} onChange={(event) => setFilters((state) => ({ ...state, identifierIssues: event.target.value }))} style={filterInput}>
+              <option value="">Identifier Issues</option>
+              <option value="yes">Duplicate full identifier</option>
+            </select>
             <button type="button" onClick={() => setFilters(EMPTY_FILTERS)} style={rowActionBtn}>
               Clear filters
             </button>
@@ -303,17 +351,19 @@ const WarehouseLocationsPage: React.FC = () => {
               </div>
             ) : (
               <>
-                <div style={{ display: 'grid', gridTemplateColumns: '110px 180px 220px 60px 110px 100px 110px 110px 120px 110px 110px 110px 180px 90px', gap: '10px', padding: '12px 14px', borderBottom: '1px solid var(--color-border)', background: 'var(--color-surface-subtle)', fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)' }}>
-                  {['Location Code', 'Location Name', 'Full Path', 'Level', 'Location Type', 'BIN Type', 'Inventory Allowed', 'Capacity Utilization', 'Eligibility Mode', 'Putaway Status', 'Picking Status', 'Effective Status', 'Stock/Dependency', 'Actions'].map((header) => (
+                <div style={{ display: 'grid', gridTemplateColumns: '100px 150px 200px 200px 60px 110px 100px 110px 110px 120px 110px 110px 110px 160px 110px 90px', gap: '10px', padding: '12px 14px', borderBottom: '1px solid var(--color-border)', background: 'var(--color-surface-subtle)', fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)' }}>
+                  {['Location Code', 'Location Name', 'Full Identifier', 'Parent Identifier', 'Level', 'Level Code', 'Location Type', 'BIN Type', 'Inventory Allowed', 'Capacity Utilization', 'Eligibility Mode', 'Putaway Status', 'Picking Status', 'Effective Status', 'Stock/Dependency', 'Actions'].map((header) => (
                     <div key={header}>{header}</div>
                   ))}
                 </div>
                 {filtered.map((row) => (
-                  <div key={row.id} style={{ display: 'grid', gridTemplateColumns: '110px 180px 220px 60px 110px 100px 110px 110px 120px 110px 110px 110px 180px 90px', gap: '10px', padding: '12px 14px', borderTop: '1px solid var(--color-border)', fontSize: '12px', color: 'var(--color-text)' }}>
+                  <div key={row.id} style={{ display: 'grid', gridTemplateColumns: '100px 150px 200px 200px 60px 110px 100px 110px 110px 120px 110px 110px 110px 160px 110px 90px', gap: '10px', padding: '12px 14px', borderTop: '1px solid var(--color-border)', fontSize: '12px', color: 'var(--color-text)' }}>
                     <div>{row.locationCode}</div>
                     <div>{row.locationName}</div>
-                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.fullPath}</div>
+                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: row.hasIdentifierIssue ? '#B91C1C' : undefined }}>{row.fullLocationIdentifier}</div>
+                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.parentFullIdentifier}</div>
                     <div>{row.level}</div>
+                    <div>{row.levelCode}</div>
                     <div>{row.locationType}</div>
                     <div>{row.binType}</div>
                     <div>{row.inventoryAllowed ? 'Yes' : 'No'}</div>

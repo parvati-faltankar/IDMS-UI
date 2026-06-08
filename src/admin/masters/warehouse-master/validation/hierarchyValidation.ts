@@ -1,7 +1,8 @@
 // ─── Warehouse Master — Hierarchy Template Validation ───────────────────────
 
-import type { CreateHierarchyTemplateInput, UpdateHierarchyTemplateInput } from '../types/warehouse.dto';
+import type { CreateHierarchyTemplateInput } from '../types/warehouse.dto';
 import type { HierarchyTemplate, ValidationIssue } from '../types/warehouse.types';
+import type { HierarchyTemplateStatus } from '../types/warehouse.enums';
 import { validateTemplateLevelTree } from '../utils/hierarchyUtils';
 
 // ─── Field-level validation ───────────────────────────────────────────────────
@@ -16,6 +17,26 @@ export interface HierarchyTemplateFieldErrors {
 }
 
 const TEMPLATE_CODE_PATTERN = /^[A-Z0-9][A-Z0-9_-]{1,19}$/;
+
+function toIsoDay(value: string | undefined): string {
+  return (value ?? '').slice(0, 10);
+}
+
+function hasStructuralHierarchyChange(
+  current: HierarchyTemplate,
+  proposed: CreateHierarchyTemplateInput,
+): boolean {
+  if (current.levels.length !== proposed.levels.length) return true;
+  const currentSignature = current.levels
+    .map((level) => `${level.sequence}|${level.levelCode}|${(level.allowedParentLevels ?? []).join(',')}`)
+    .sort()
+    .join('||');
+  const nextSignature = proposed.levels
+    .map((level) => `${level.sequence}|${level.levelCode}|${(level.allowedParentLevels ?? []).join(',')}`)
+    .sort()
+    .join('||');
+  return currentSignature !== nextSignature;
+}
 
 export function validateHierarchyTemplateForSave(
   input: CreateHierarchyTemplateInput,
@@ -68,6 +89,19 @@ export function validateHierarchyTemplateForSave(
     }
   }
 
+  if (editingId) {
+    const existing = existingTemplates.find((template) => template.id === editingId);
+    if (
+      existing &&
+      existing.status === 'Active' &&
+      existing.codeLockedAfterActivation &&
+      (existing.dependencyMarker?.hasNodes || existing.dependencyMarker?.hasStock || existing.dependencyMarker?.hasTransactions) &&
+      hasStructuralHierarchyChange(existing, input)
+    ) {
+      errors.levels = 'Active templates with dependencies are structurally locked and cannot be edited.';
+    }
+  }
+
   return errors;
 }
 
@@ -93,6 +127,15 @@ export function validateHierarchyTemplateForActivation(
 
   if (!template.templateName?.trim()) {
     issues.push({ field: 'templateName', severity: 'error', category: 'FieldRequired', message: 'Template Name is required.' });
+  }
+
+  if (template.effectiveTo && toIsoDay(template.effectiveTo) < toIsoDay(new Date().toISOString())) {
+    issues.push({
+      field: 'effectiveTo',
+      severity: 'error',
+      category: 'LifecycleConstraint',
+      message: 'Expired templates cannot be activated. Update Effective To or keep the template in Draft.',
+    });
   }
 
   if (!template.levels || template.levels.length === 0) {
@@ -121,6 +164,30 @@ export function validateHierarchyTemplateForActivation(
   }
 
   return issues;
+}
+
+export function validateHierarchyTemplateLifecycleAction(
+  currentStatus: HierarchyTemplateStatus,
+  targetStatus: HierarchyTemplateStatus,
+  hasDependency: boolean,
+): string | undefined {
+  if (currentStatus === targetStatus) {
+    return `Template is already in ${targetStatus} status.`;
+  }
+
+  if (targetStatus === 'Draft') {
+    return 'Templates cannot transition back to Draft once created.';
+  }
+
+  if (targetStatus === 'Inactive' && currentStatus === 'Active' && hasDependency) {
+    return 'Cannot set Active template to Inactive while dependent hierarchy nodes exist.';
+  }
+
+  if (targetStatus === 'Blocked' && currentStatus === 'Superseded') {
+    return 'Superseded templates cannot be blocked.';
+  }
+
+  return undefined;
 }
 
 export function hasHierarchyTemplateFieldErrors(errors: HierarchyTemplateFieldErrors): boolean {

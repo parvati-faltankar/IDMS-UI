@@ -22,6 +22,13 @@ function getStatusStyle(status: ProductStatus): React.CSSProperties {
   return { background: '#F1F5F9', color: '#64748B' }; // Draft
 }
 
+function getStatusTone(status: ProductStatus): 'active' | 'draft' | 'inactive' | 'warning' {
+  if (status === 'Active') return 'active';
+  if (status === 'Draft') return 'draft';
+  if (status === 'Inactive') return 'inactive';
+  return 'warning';
+}
+
 function getTypeStyle(type: ProductType): React.CSSProperties {
   const meta = PRODUCT_TYPE_META[type];
   return meta ? { background: meta.bgColor, color: meta.color } : { background: '#EFF6FF', color: '#1D4ED8' };
@@ -437,9 +444,10 @@ const ProductListPage: React.FC = () => {
           onClose={() => { setPreviewOpen(false); setPreviewProduct(null); }}
           title={previewProduct.productName}
           subtitle={`${previewProduct.productCode} · ${previewProduct.productType}`}
-          statusBadge={{ label: previewProduct.productStatus, style: getStatusStyle(previewProduct.productStatus) }}
+          statusLabel={previewProduct.productStatus}
+          statusTone={getStatusTone(previewProduct.productStatus)}
           sections={buildPreviewSections(previewProduct)}
-          onEdit={() => { setPreviewOpen(false); navigate(`/admin/product-master/${previewProduct.id}`); }}
+          primaryAction={{ label: 'Edit', onClick: () => { setPreviewOpen(false); navigate(`/admin/product-master/${previewProduct.id}`); } }}
         />
       )}
 

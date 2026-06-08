@@ -3,6 +3,14 @@
 import type {
   AuditQuery,
   BulkLocationInput,
+  LocationIdentifierConflict,
+  LocationIdentifierPreviewInput,
+  LocationIdentifierPreviewResult,
+  QuickHierarchyCommitRequest,
+  QuickHierarchyCommitResult,
+  QuickHierarchyPattern,
+  QuickHierarchyPreviewInput,
+  QuickHierarchyPreviewResult,
   BulkPreview,
   BulkResult,
   CommitBulkRequest,
@@ -24,7 +32,6 @@ import type {
   AuditEvent,
   HierarchyNode,
   ValidationResult,
-  Warehouse,
   WarehouseDetails,
   WarehouseLocation,
   WarehouseSummary,
@@ -42,6 +49,14 @@ export interface WarehouseService {
   changeWarehouseStatus(id: string, request: StatusChangeRequest): Promise<ActionResult>;
   listHierarchy(id: string): Promise<HierarchyNode[]>;
   createLocation(id: string, input: CreateLocationInput): Promise<WarehouseLocation>;
+  previewLocationIdentifier(id: string, input: LocationIdentifierPreviewInput): Promise<LocationIdentifierPreviewResult>;
+  listQuickHierarchyPatterns(id: string): Promise<QuickHierarchyPattern[]>;
+  previewQuickHierarchy(id: string, input: QuickHierarchyPreviewInput): Promise<QuickHierarchyPreviewResult>;
+  validateQuickHierarchy(id: string, input: QuickHierarchyPreviewInput): Promise<ValidationResult>;
+  commitQuickHierarchy(id: string, request: QuickHierarchyCommitRequest): Promise<QuickHierarchyCommitResult>;
+  previewBulkLocationIdentifiers(id: string, input: BulkLocationInput): Promise<BulkPreview>;
+  validateLocationIdentifier(id: string, input: LocationIdentifierPreviewInput): Promise<ValidationResult>;
+  listLocationIdentifierConflicts(id: string): Promise<LocationIdentifierConflict[]>;
   bulkPreviewLocations(id: string, input: BulkLocationInput): Promise<BulkPreview>;
   commitBulkLocations(id: string, request: CommitBulkRequest): Promise<BulkResult>;
   validateImport(request: ImportValidationRequest): Promise<ImportValidationResult>;

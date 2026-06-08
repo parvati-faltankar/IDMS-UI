@@ -1,18 +1,34 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { AlertTriangle, ChevronLeft, Eye, EyeOff, HelpCircle, Import, Plus, Rows3, Settings2, X } from 'lucide-react';
 import AdminShell from '../../../AdminShell';
 import { HelpDrawer } from '../../../../experience/components/HelpDrawer';
 import { getHelpTopic } from '../../../../experience/help/helpTopics';
 import { warehouseMockAdapter } from '../services/warehouseMockAdapter';
-import type { HierarchyTemplate, WarehouseDetails, WarehouseLocation } from '../types/warehouse.types';
-import { buildHierarchyTree, explainChildLevelAllowance, getAllowedChildLocationTypes, getAllowedChildTemplateLevels } from '../utils/hierarchyUtils';
+import { activateHierarchyTemplateMock } from '../services/warehouseMockAdapter';
+import type { HierarchyNode, HierarchyTemplate, WarehouseDetails, WarehouseLocation } from '../types/warehouse.types';
+import { WAREHOUSE_ROOT_LEVEL_CODE, buildHierarchyTree, explainChildLevelAllowance, getAllowedChildLocationTypes, getAllowedChildTemplateLevels } from '../utils/hierarchyUtils';
 import { WAREHOUSE_ROUTES } from '../utils/routeUtils';
 import { HierarchyTree } from '../components/HierarchyTree';
 import { HierarchyNodeInspector } from '../components/HierarchyNodeInspector';
 import { LocationBulkCreateDrawer } from '../components/LocationBulkCreateDrawer';
 import { LocationNodeCreateDrawer } from '../components/LocationNodeCreateDrawer';
 import { HierarchyTemplateDesigner } from '../components/HierarchyTemplateDesigner';
+import { QuickHierarchyWizard } from '../components/QuickHierarchyWizard';
+
+const VIRTUAL_ROOT_NODE_ID = '__WAREHOUSE_ROOT__';
+
+export interface HierarchySetupPanelModel {
+  readonly inventoryControlMode: string;
+  readonly activeTemplateName: string;
+  readonly activeTemplateVersion: string;
+  readonly templateStatus: string;
+  readonly nodeCount: number;
+  readonly leafEndpointCount: number;
+  readonly inventoryAllowedEndpointCount: number;
+  readonly hierarchySetupComplete: boolean;
+  readonly nextRecommendedAction: string;
+}
 
 export function canAddChildUnderNode(
   location: WarehouseLocation | null,
@@ -57,9 +73,69 @@ export function collectHierarchyIssueNodeIds(locations: WarehouseLocation[]): Se
   );
 }
 
+export function buildHierarchySetupPanelModel(
+  details: WarehouseDetails,
+  activeTemplate: HierarchyTemplate | undefined,
+): HierarchySetupPanelModel {
+  const nodeCount = details.locations.length;
+  const leafEndpointCount = details.locations.filter((location) => location.profile.isLeafEndpoint).length;
+  const inventoryAllowedEndpointCount = details.locations.filter((location) => location.profile.isLeafEndpoint && location.profile.inventoryAllowed).length;
+
+  let nextRecommendedAction = 'Hierarchy has at least one valid inventory endpoint.';
+  if (!activeTemplate) {
+    nextRecommendedAction = 'No active template exists. Start by selecting or creating a hierarchy template.';
+  } else if (nodeCount === 0) {
+    nextRecommendedAction = 'Active template exists, but no locations have been created. Select the warehouse root and click Add Child or Bulk Create.';
+  } else {
+    const nextParent = details.locations.find((location) => !location.profile.isLeafEndpoint);
+    const nextLevels = getAllowedChildTemplateLevels(nextParent ?? null, activeTemplate);
+    if (nextParent && nextLevels.length > 0) {
+      nextRecommendedAction = `${nextParent.profile.templateLevelCode ?? nextParent.locationCode} exists. Select ${nextParent.locationCode} and create the next allowed child level: ${nextLevels[0].levelName}.`;
+    } else if (leafEndpointCount === 0) {
+      nextRecommendedAction = 'Continue creating child levels until a leaf endpoint is reached.';
+    } else if (inventoryAllowedEndpointCount === 0) {
+      nextRecommendedAction = 'Leaf endpoint exists but not inventory-allowed yet. Activate the leaf location to make it eligible.';
+    }
+  }
+
+  return {
+    inventoryControlMode: details.warehouse.inventoryControlMode,
+    activeTemplateName: activeTemplate?.templateName ?? 'None',
+    activeTemplateVersion: activeTemplate ? `v${activeTemplate.currentVersion.versionNumber}` : '—',
+    templateStatus: activeTemplate?.status ?? 'No Active Template',
+    nodeCount,
+    leafEndpointCount,
+    inventoryAllowedEndpointCount,
+    hierarchySetupComplete: Boolean(activeTemplate && inventoryAllowedEndpointCount > 0),
+    nextRecommendedAction,
+  };
+}
+
+export function buildHierarchyTreeWithWarehouseRoot(
+  warehouseCode: string,
+  warehouseName: string,
+  treeNodes: HierarchyNode[],
+): HierarchyNode[] {
+  return [{
+    id: VIRTUAL_ROOT_NODE_ID,
+    locationId: undefined,
+    locationCode: warehouseCode,
+    locationName: warehouseName,
+    levelCode: WAREHOUSE_ROOT_LEVEL_CODE,
+    levelName: 'Warehouse',
+    parentId: undefined,
+    children: treeNodes,
+    isLeaf: false,
+    inventoryAllowed: false,
+    status: 'Active',
+    fullCode: warehouseCode,
+  }];
+}
+
 const WarehouseHierarchyPage: React.FC = () => {
   const { warehouseId } = useParams<{ warehouseId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const [details, setDetails] = useState<WarehouseDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -72,10 +148,12 @@ const WarehouseHierarchyPage: React.FC = () => {
   const [createParent, setCreateParent] = useState<WarehouseLocation | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [designerOpen, setDesignerOpen] = useState(false);
+  const [showTemplateStructure, setShowTemplateStructure] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [isNarrow, setIsNarrow] = useState(() => window.innerWidth < 1100);
   const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [quickWizardOpen, setQuickWizardOpen] = useState(false);
 
   async function load() {
     if (!warehouseId) return;
@@ -83,7 +161,7 @@ const WarehouseHierarchyPage: React.FC = () => {
     try {
       const next = await warehouseMockAdapter.getWarehouse(warehouseId);
       setDetails(next);
-      setSelectedId((current) => current ?? next.locations[0]?.id ?? null);
+      setSelectedId((current) => current ?? VIRTUAL_ROOT_NODE_ID);
       setExpandedIds(new Set(next.locations.map((location) => location.parentLocationId).filter(Boolean) as string[]));
       setError(null);
     } catch (err) {
@@ -103,6 +181,13 @@ const WarehouseHierarchyPage: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('quickWizard') === '1') {
+      setQuickWizardOpen(true);
+    }
+  }, [location.search]);
+
   const activeTemplate = useMemo(
     () => details?.hierarchyTemplates.find((template) => template.status === 'Active'),
     [details],
@@ -112,8 +197,14 @@ const WarehouseHierarchyPage: React.FC = () => {
     [details?.locations],
   );
   const treeNodes = useMemo(() => buildHierarchyTree(details?.locations ?? [], activeTemplate), [details?.locations, activeTemplate]);
+  const treeNodesWithRoot = useMemo(
+    () => details ? buildHierarchyTreeWithWarehouseRoot(details.warehouse.warehouseCode, details.warehouse.warehouseName, treeNodes) : [],
+    [details, treeNodes],
+  );
+  const setupPanel = useMemo(() => details ? buildHierarchySetupPanelModel(details, activeTemplate) : null, [details, activeTemplate]);
   const selectedLocation = details?.locations.find((location) => location.id === selectedId) ?? null;
-  const selectedContext = selectedLocation ?? null;
+  const selectedIsRoot = selectedId === VIRTUAL_ROOT_NODE_ID;
+  const selectedContext = selectedIsRoot ? null : selectedLocation;
 
   if (loading) {
     return (
@@ -138,6 +229,7 @@ const WarehouseHierarchyPage: React.FC = () => {
     details.locations,
   );
   const nextAllowedLevels = getAllowedChildTemplateLevels(selectedContext, activeTemplate);
+  const selectedNodeAllowedChildReasons = nextAllowedLevels.map((level) => explainChildLevelAllowance(selectedContext, level.levelCode, activeTemplate).reason);
 
   return (
     <AdminShell>
@@ -168,6 +260,9 @@ const WarehouseHierarchyPage: React.FC = () => {
               <button type="button" onClick={() => setDesignerOpen(true)} style={toolbarBtn}>
                 <Settings2 size={14} /> Template designer
               </button>
+              <button type="button" onClick={() => setQuickWizardOpen(true)} style={toolbarBtn}>
+                <Plus size={14} /> Create hierarchy quickly
+              </button>
               <button type="button" style={{ ...toolbarBtn, opacity: 0.55 }}>
                 <Import size={14} /> Import
               </button>
@@ -182,6 +277,67 @@ const WarehouseHierarchyPage: React.FC = () => {
               </button>
             </div>
           </div>
+          {setupPanel && (
+            <div style={{ marginTop: '14px', border: '1px solid var(--color-border)', borderRadius: '12px', padding: '12px', background: 'var(--color-surface-subtle)' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '10px', marginBottom: '10px' }}>
+                <Metric label="Inventory Control Mode" value={setupPanel.inventoryControlMode} />
+                <Metric label="Active Template" value={`${setupPanel.activeTemplateName} ${setupPanel.activeTemplateVersion}`} />
+                <Metric label="Template Status" value={setupPanel.templateStatus} />
+                <Metric label="Hierarchy Setup" value={setupPanel.hierarchySetupComplete ? 'Complete' : 'In Progress'} />
+                <Metric label="Nodes" value={setupPanel.nodeCount} />
+                <Metric label="Leaf Endpoints" value={setupPanel.leafEndpointCount} />
+                <Metric label="Inventory Allowed Endpoints" value={setupPanel.inventoryAllowedEndpointCount} />
+                <Metric label="Selected Parent" value={selectedIsRoot ? details.warehouse.warehouseCode : selectedLocation?.locationCode ?? 'None'} />
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '10px' }}>
+                Next recommended action: <strong style={{ color: 'var(--color-text)' }}>{setupPanel.nextRecommendedAction}</strong>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <button type="button" onClick={() => setQuickWizardOpen(true)} style={toolbarBtn}>Create Hierarchy Quickly</button>
+                <button type="button" onClick={() => setDesignerOpen(true)} style={toolbarBtn}>Design Template</button>
+                <button type="button" onClick={() => { setDesignerOpen(true); setToast('Use Apply Preset inside Template Designer.'); }} style={toolbarBtn}>Apply Preset</button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const candidate = details.hierarchyTemplates.find((template) => template.status !== 'Active');
+                    if (!candidate) {
+                      setToast('No draft or inactive template available to activate.');
+                      return;
+                    }
+                    await activateHierarchyTemplateMock(details.warehouse.id, candidate.id);
+                    await load();
+                    setToast(`Activated template ${candidate.templateCode}.`);
+                  }}
+                  style={toolbarBtn}
+                >
+                  Activate Template
+                </button>
+                <button type="button" onClick={() => setShowTemplateStructure((value) => !value)} style={toolbarBtn}>View Template Structure</button>
+              </div>
+              {!activeTemplate && (
+                <div style={{ marginTop: '10px', padding: '10px 12px', borderRadius: '10px', background: '#FEF3C7', color: '#92400E', fontSize: '12px' }}>
+                  No active template exists. Start by selecting or creating a hierarchy template.
+                </div>
+              )}
+              {activeTemplate && details.locations.length === 0 && (
+                <div style={{ marginTop: '10px', padding: '10px 12px', borderRadius: '10px', background: '#EFF6FF', color: '#1D4ED8', fontSize: '12px' }}>
+                  Your template is ready. Create actual locations now.
+                </div>
+              )}
+              {showTemplateStructure && activeTemplate && (
+                <div style={{ marginTop: '10px', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--color-border)', background: 'var(--color-surface)' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text)', marginBottom: '6px' }}>Template Structure</div>
+                  <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                    {activeTemplate.levels
+                      .slice()
+                      .sort((left, right) => left.sequence - right.sequence)
+                      .map((level) => `${level.levelName} (${level.levelCode})`)
+                      .join(' -> ')}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
           {!addChildState.allowed && selectedLocation && (
             <div style={{ marginTop: '12px', display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 12px', borderRadius: '10px', background: '#FEF3C7', color: '#92400E' }}>
               <AlertTriangle size={14} />
@@ -197,38 +353,9 @@ const WarehouseHierarchyPage: React.FC = () => {
 
         <div style={{ display: 'grid', gridTemplateColumns: isNarrow ? 'minmax(0, 1fr)' : '460px minmax(0, 1fr)', minHeight: 0, flex: 1 }}>
           <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-            <div style={{ padding: '12px 12px 0', background: 'var(--color-surface)' }}>
-              <button
-                type="button"
-                onClick={() => setSelectedId(null)}
-                style={{
-                  width: '100%',
-                  textAlign: 'left',
-                  padding: '12px 14px',
-                  borderRadius: '12px',
-                  border: `1px solid ${selectedId === null ? 'var(--color-primary)' : 'var(--color-border)'}`,
-                  background: selectedId === null ? 'color-mix(in srgb, var(--color-primary) 6%, white)' : 'var(--color-surface-subtle)',
-                  cursor: 'pointer',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
-                  <div>
-                    <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text)' }}>Warehouse Root</div>
-                    <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
-                      {details.warehouse.warehouseCode} · Add the first node directly under the warehouse when the active template allows it.
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
-                      Allowed: {getAllowedChildTemplateLevels(null, activeTemplate).map((level) => level.levelCode).join(', ') || 'none'}
-                    </span>
-                  </div>
-                </div>
-              </button>
-            </div>
             <div style={{ flex: 1, minHeight: 0 }}>
               <HierarchyTree
-                nodes={treeNodes}
+                nodes={treeNodesWithRoot}
                 selectedId={selectedId}
                 expandedIds={expandedIds}
                 searchValue={search}
@@ -245,13 +372,13 @@ const WarehouseHierarchyPage: React.FC = () => {
                 onExpandAll={() => setExpandedIds(new Set(details.locations.map((location) => location.id)))}
                 onCollapseAll={() => setExpandedIds(new Set())}
                 onAddChild={(id) => {
-                  const location = details.locations.find((item) => item.id === id) ?? null;
+                  const location = id === VIRTUAL_ROOT_NODE_ID ? null : details.locations.find((item) => item.id === id) ?? null;
                   setSelectedId(id);
                   setCreateParent(location);
                   setCreateOpen(true);
                 }}
                 onBulkCreate={(id) => {
-                  const location = details.locations.find((item) => item.id === id) ?? null;
+                  const location = id === VIRTUAL_ROOT_NODE_ID ? null : details.locations.find((item) => item.id === id) ?? null;
                   setSelectedId(id);
                   setBulkParent(location);
                   setBulkOpen(true);
@@ -265,12 +392,16 @@ const WarehouseHierarchyPage: React.FC = () => {
               location={selectedLocation}
               locations={details.locations}
               template={activeTemplate}
-              childCount={details.locations.filter((location) => location.parentLocationId === selectedLocation?.id).length}
-              allowedChildReason={nextAllowedLevels.length > 0 && selectedContext
+              childCount={selectedIsRoot
+                ? details.locations.filter((location) => !location.parentLocationId).length
+                : details.locations.filter((location) => location.parentLocationId === selectedLocation?.id).length}
+              rootSelected={selectedIsRoot}
+              allowedChildLevels={nextAllowedLevels.map((level) => `${level.levelName} (${level.levelCode})`)}
+              allowedChildReasons={selectedNodeAllowedChildReasons}
+              childCreationAllowed={addChildState.allowed}
+              allowedChildReason={nextAllowedLevels.length > 0
                 ? explainChildLevelAllowance(selectedContext, nextAllowedLevels[0].levelCode, activeTemplate).reason
-                : selectedId === null && nextAllowedLevels.length > 0
-                  ? explainChildLevelAllowance(null, nextAllowedLevels[0].levelCode, activeTemplate).reason
-                  : addChildState.reason}
+                : addChildState.reason}
               onAddChild={() => {
                 setCreateParent(selectedContext);
                 setCreateOpen(true);
@@ -307,7 +438,13 @@ const WarehouseHierarchyPage: React.FC = () => {
                   location={selectedLocation}
                   locations={details.locations}
                   template={activeTemplate}
-                  childCount={details.locations.filter((location) => location.parentLocationId === selectedLocation?.id).length}
+                  childCount={selectedIsRoot
+                    ? details.locations.filter((location) => !location.parentLocationId).length
+                    : details.locations.filter((location) => location.parentLocationId === selectedLocation?.id).length}
+                  rootSelected={selectedIsRoot}
+                  allowedChildLevels={nextAllowedLevels.map((level) => `${level.levelName} (${level.levelCode})`)}
+                  allowedChildReasons={selectedNodeAllowedChildReasons}
+                  childCreationAllowed={addChildState.allowed}
                   allowedChildReason={nextAllowedLevels.length > 0
                     ? explainChildLevelAllowance(selectedContext, nextAllowedLevels[0].levelCode, activeTemplate).reason
                     : addChildState.reason}
@@ -364,9 +501,26 @@ const WarehouseHierarchyPage: React.FC = () => {
             warehouseId={details.warehouse.id}
             templates={details.hierarchyTemplates}
             activeTemplate={activeTemplate}
+            hasTemplateDependencies={details.locations.length > 0}
             onClose={() => setDesignerOpen(false)}
             onSaved={async () => {
               await load();
+            }}
+          />
+        )}
+
+        {quickWizardOpen && (
+          <QuickHierarchyWizard
+            open={quickWizardOpen}
+            warehouseId={details.warehouse.id}
+            onClose={() => setQuickWizardOpen(false)}
+            onCommitted={async (result) => {
+              await load();
+              if (result.firstCreatedLocationId) {
+                setSelectedId(result.firstCreatedLocationId);
+              }
+              setToast(`Quick hierarchy created ${result.createdCount} location nodes.`);
+              setQuickWizardOpen(false);
             }}
           />
         )}
@@ -407,5 +561,14 @@ const backBtn: React.CSSProperties = {
   cursor: 'pointer',
   padding: 0,
 };
+
+function Metric({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div style={{ border: '1px solid var(--color-border)', borderRadius: '10px', padding: '8px 10px', background: 'var(--color-surface)' }}>
+      <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', marginBottom: '3px' }}>{label}</div>
+      <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text)' }}>{value}</div>
+    </div>
+  );
+}
 
 export default WarehouseHierarchyPage;

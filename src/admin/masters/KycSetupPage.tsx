@@ -7,20 +7,18 @@ import {
   ClipboardCheck,
   FileText,
   Globe,
+  LayoutGrid,
   Pencil,
   Plus,
   ShieldCheck,
   Trash2,
+  User,
   X,
   ZapOff,
 } from 'lucide-react';
 import AdminShell from '../AdminShell';
 import { AdminPageShell } from '../../experience/components/AdminPageShell';
 import { AdminListPageShell } from '../../experience/components/AdminListPageShell';
-import { SmartFormDrawer } from '../../experience/components/SmartFormDrawer';
-import { SmartPreviewDrawer } from '../../experience/components/SmartPreviewDrawer';
-import type { PreviewSection } from '../../experience/components/SmartPreviewDrawer';
-import { SmartReviewDrawer } from '../../experience/components/SmartReviewDrawer';
 import { findGroupForMasterKey, findMasterByKey } from '../adminNavConfig';
 import { recordRecentAdminMaster } from '../adminStorage';
 import { ValidationChecklist } from '../../experience/components/ValidationChecklist';
@@ -83,19 +81,58 @@ const DEACTIVATION_REASONS = [
 
 // ─── Section config ───────────────────────────────────────────────────────────
 
-type KycSectionKey = 'overview' | 'proofs' | 'review';
+type KycSectionKey = 'overview' | 'kyc-grid' | 'checklist';
 
 const KYC_SECTIONS: Array<{ key: KycSectionKey; label: string; icon: React.ElementType; description: string }> = [
-  { key: 'overview', label: 'Overview',           icon: ShieldCheck,    description: 'Identity, entity and status' },
-  { key: 'proofs',   label: 'Proof Requirements', icon: Globe,          description: 'Country-wise proof requirements' },
-  { key: 'review',   label: 'Review',             icon: ClipboardCheck, description: 'Review and activate configuration' },
+  { key: 'overview',  label: 'Overview',            icon: User,          description: 'Identity, entity and status' },
+  { key: 'kyc-grid',  label: 'KYC Grid',             icon: LayoutGrid,    description: 'Country-wise proof requirements' },
+  { key: 'checklist', label: 'Activation Checklist', icon: ClipboardCheck, description: 'Review and activate configuration' },
 ];
 
-const SECTION_ORDER: KycSectionKey[] = ['overview', 'proofs', 'review'];
+// ─── Interfaces ───────────────────────────────────────────────────────────────
 
-// ─── Shared KYC types (imported from shared module) ──────────────────────────
-import type { KycProofRow, KycFormData, KycConfig } from './kycConfig';
-import { MOCK_CONFIGS } from './kycConfig';
+interface KycProofRow {
+  id: string;
+  country: string;
+  proofCategory: string;
+  proofType: string;
+  documentNumberRequired: boolean;
+  tooltip: string;
+  placeholderText: string;
+  isCharAllowed: boolean;
+  isNumberAllowed: boolean;
+  isSpecialCharAllowed: boolean;
+  allowedSpecialCharacters: string;
+  minLength: string;
+  maxLength: string;
+  mustMatchRegex: boolean;
+  regexPattern: string;
+  regexErrorMessage: string;
+  isAttachmentEnabled: boolean;
+  isAttachmentMandatory: boolean;
+  allowedFileTypes: string[];
+  maxFileSize: string;
+  minFileSize: string;
+  maximumFileCount: string;
+  isMandatory: boolean;
+  isActive: boolean;
+}
+
+interface KycFormData {
+  name: string;
+  displayName: string;
+  entity: string;
+  entityType: string;
+  description: string;
+  isActive: boolean;
+  proofRows: KycProofRow[];
+}
+
+interface KycConfig extends KycFormData {
+  id: string;
+  code: string;
+  status: 'Draft' | 'Active' | 'Inactive';
+}
 
 type FormMode = 'add' | 'edit' | 'view';
 type ViewMode = 'list' | 'form';
@@ -140,7 +177,17 @@ function getStatusDot(status: KycConfig['status']) {
   return 'color-mix(in srgb, #f59e0b 80%, var(--color-text))';
 }
 
-// MOCK_CONFIGS is now imported from ./kycConfig
+const MOCK_CONFIGS: KycConfig[] = [
+  {
+    id: '1', code: 'KYC-001', name: 'Individual Customer KYC', displayName: 'Individual Customer KYC',
+    entity: 'Customer', entityType: 'Individual', description: 'KYC for individual customers',
+    isActive: true, status: 'Active',
+    proofRows: [
+      { id: 'r1', country: 'India', proofCategory: 'Identity Proof', proofType: 'Aadhaar Card', documentNumberRequired: true, tooltip: 'Enter 12-digit Aadhaar number', placeholderText: 'XXXX XXXX XXXX', isCharAllowed: false, isNumberAllowed: true, isSpecialCharAllowed: false, allowedSpecialCharacters: '', minLength: '12', maxLength: '12', mustMatchRegex: true, regexPattern: '^[0-9]{12}$', regexErrorMessage: 'Must be a 12-digit number', isAttachmentEnabled: true, isAttachmentMandatory: true, allowedFileTypes: ['PDF', 'JPG', 'PNG'], maxFileSize: '2048', minFileSize: '10', maximumFileCount: '2', isMandatory: true, isActive: true },
+      { id: 'r2', country: 'India', proofCategory: 'Address Proof', proofType: 'Electricity Bill', documentNumberRequired: false, tooltip: '', placeholderText: '', isCharAllowed: true, isNumberAllowed: true, isSpecialCharAllowed: false, allowedSpecialCharacters: '', minLength: '', maxLength: '', mustMatchRegex: false, regexPattern: '', regexErrorMessage: '', isAttachmentEnabled: true, isAttachmentMandatory: false, allowedFileTypes: ['PDF', 'JPG'], maxFileSize: '5120', minFileSize: '10', maximumFileCount: '3', isMandatory: false, isActive: true },
+    ],
+  },
+];
 
 // ─── Section completion ───────────────────────────────────────────────────────
 
@@ -151,13 +198,13 @@ function getKycSectionCompletion(key: KycSectionKey, form: KycFormData): 'comple
     if (filled > 0) return 'partial';
     return 'empty';
   }
-  if (key === 'proofs') {
+  if (key === 'kyc-grid') {
     const active = form.proofRows.filter(r => r.isActive).length;
     if (active > 0) return 'complete';
     if (form.proofRows.length > 0) return 'partial';
     return 'empty';
   }
-  return 'empty'; // review is always read-only
+  return 'empty'; // checklist is always read-only
 }
 
 // ─── Activation validation ────────────────────────────────────────────────────
@@ -216,7 +263,7 @@ function buildChecklist(form: KycFormData): ChecklistItem[] {
         ? `${activeRows.length} active proof${activeRows.length > 1 ? 's' : ''} configured`
         : 'No active proof rows',
       status: gridErrors.length === 0 ? 'ok' : 'error',
-      section: 'proofs',
+      section: 'kyc-grid',
       errors: gridErrors,
     },
     {
@@ -226,7 +273,7 @@ function buildChecklist(form: KycFormData): ChecklistItem[] {
         ? 'All rows have required fields filled'
         : `${rowValidationErrors.length} issue${rowValidationErrors.length > 1 ? 's' : ''} found`,
       status: rowValidationErrors.length === 0 ? 'ok' : 'error',
-      section: 'proofs',
+      section: 'kyc-grid',
       errors: rowValidationErrors,
     },
   ];
@@ -395,7 +442,7 @@ const KycSectionPanel: React.FC<KycSectionPanelProps> = ({ sectionKey, title, fo
           <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text)' }}>{title}</span>
           {subtitle && <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '1px' }}>{subtitle}</div>}
         </div>
-        {sectionKey !== 'review' && (
+        {sectionKey !== 'checklist' && (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '11px', fontWeight: 500, color: badge.color }}>
             <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: badge.dot }} />
             {badge.label}
@@ -448,10 +495,10 @@ const KycSetupPage: React.FC = () => {
   const [deactivationReason, setDeactivationReason] = useState('');
   const [deactivationRemark, setDeactivationRemark] = useState('');
 
-  // ── Delete confirmation (SmartReviewDrawer) ─────────────────────────────────
+  // ── Delete confirmation ─────────────────────────────────────────────────────
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
-  // ── Proof form drawer (SmartFormDrawer) ─────────────────────────────────────
+  // ── Proof drawer ────────────────────────────────────────────────────────────
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingRow, setEditingRow] = useState<KycProofRow | null>(null);
   const [drawerRow, setDrawerRow] = useState<KycProofRow>({ id: genId(), ...EMPTY_ROW });
@@ -459,23 +506,13 @@ const KycSetupPage: React.FC = () => {
   const [drawerDirty, setDrawerDirty] = useState(false);
   const [prefilledCountry, setPrefilledCountry] = useState<string>('');
 
-  // ── Proof preview drawer (SmartPreviewDrawer) ───────────────────────────────
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewRow, setPreviewRow] = useState<KycProofRow | null>(null);
-
-  // ── Activation review drawer (SmartReviewDrawer) ─────────────────────────────
-  const [reviewDrawerOpen, setReviewDrawerOpen] = useState(false);
-
   // ── Computed ────────────────────────────────────────────────────────────────
   const editingConfig = useMemo(() => configs.find(c => c.id === editingId), [configs, editingId]);
-  const deleteTarget = useMemo(() => configs.find(c => c.id === deleteConfirmId) ?? null, [configs, deleteConfirmId]);
   const isViewOnly = formMode === 'view';
   const isDraft = !editingId || editingConfig?.status === 'Draft';
   const currentCode = editingConfig?.code ?? '(New Config)';
   const availableEntityTypes = form.entity ? (ENTITY_TYPE_MAP[form.entity] ?? []) : [];
   const checklist = useMemo(() => buildChecklist(form), [form]);
-  const canActivate = !isViewOnly && (formMode === 'add' || editingConfig?.status === 'Draft');
-  const checklistAllPassed = checklist.every(c => c.status === 'ok');
 
   // ── Help ────────────────────────────────────────────────────────────────────
   const [helpOpen, setHelpOpen] = useState(false);
@@ -548,12 +585,11 @@ const KycSetupPage: React.FC = () => {
   const handleActivate = () => {
     const errors: string[] = [];
     checklist.forEach(item => { errors.push(...item.errors); });
-    if (errors.length > 0) { setActivationErrors(errors); setActiveSection('review'); setReviewDrawerOpen(false); return; }
+    if (errors.length > 0) { setActivationErrors(errors); setActiveSection('checklist'); return; }
     const id = editingId ?? genId();
     const code = editingConfig?.code ?? `KYC-${String(configs.length + 1).padStart(3, '0')}`;
     const record: KycConfig = { ...form, id, code, status: 'Active' };
     setConfigs(prev => editingId ? prev.map(c => c.id === editingId ? record : c) : [...prev, record]);
-    setReviewDrawerOpen(false);
     setViewMode('list');
   };
 
@@ -584,6 +620,9 @@ const KycSetupPage: React.FC = () => {
   }
 
   function closeDrawer() {
+    if (drawerDirty) {
+      if (!window.confirm('You have unsaved changes. Discard them?')) return;
+    }
     setDrawerOpen(false); setEditingRow(null); setDrawerDirty(false);
   }
 
@@ -682,43 +721,7 @@ const KycSetupPage: React.FC = () => {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [drawerOpen]);
-
-  // ── Proof drawer component-level refs ───────────────────────────────────────
-  const r = drawerRow;
-  const isCountryLocked = !!prefilledCountry && !editingRow;
-  const drawerTitle = [r.proofCategory, r.proofType, r.country ? `${COUNTRIES.find(c => c.name === r.country)?.flag ?? ''} ${r.country}` : ''].filter(Boolean).join(' · ') || (editingRow ? 'Edit Proof Row' : 'New Proof Requirement');
-  const drawerValidationErrors = Object.values(drawerErrors).filter(Boolean);
-
-  // ── Proof preview data builder ───────────────────────────────────────────────
-  function buildPreviewSections(row: KycProofRow): PreviewSection[] {
-    const sections: PreviewSection[] = [];
-    if (row.documentNumberRequired) {
-      const fields: PreviewSection['fields'] = [
-        { label: 'Tooltip', value: row.tooltip || '—' },
-        { label: 'Placeholder', value: row.placeholderText || '—' },
-        { label: 'Allowed Format', value: [row.isCharAllowed && 'Chars', row.isNumberAllowed && 'Numbers', row.isSpecialCharAllowed && 'Special'].filter(Boolean).join(', ') || '—' },
-      ];
-      if (row.isSpecialCharAllowed) fields.push({ label: 'Allowed Specials', value: row.allowedSpecialCharacters || '—' });
-      if (row.minLength || row.maxLength) fields.push({ label: 'Length', value: `${row.minLength || '0'} – ${row.maxLength || '∞'}` });
-      sections.push({ title: 'Document Number Rules', fields });
-    }
-    if (row.mustMatchRegex) {
-      sections.push({ title: 'Regex Validation', fields: [
-        { label: 'Pattern', value: row.regexPattern, mono: true },
-        { label: 'Error Message', value: row.regexErrorMessage || '—' },
-      ]});
-    }
-    if (row.isAttachmentEnabled) {
-      sections.push({ title: 'Attachment Settings', fields: [
-        { label: 'Mandatory', value: row.isAttachmentMandatory ? 'Yes' : 'No' },
-        { label: 'File Types', value: row.allowedFileTypes.join(', ') || '—' },
-        { label: 'Size (KB)', value: `${row.minFileSize || '0'} – ${row.maxFileSize || '∞'}` },
-        { label: 'Max Files', value: row.maximumFileCount || '—' },
-      ]});
-    }
-    return sections;
-  }
+  }, [drawerOpen, drawerDirty]);
 
   // ─── Render: list view ───────────────────────────────────────────────────────
   const renderList = () => (
@@ -792,8 +795,237 @@ const KycSetupPage: React.FC = () => {
             </table>
           </div>
         )}
+      {/* Delete confirm */}
+      {deleteConfirmId && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div onClick={() => setDeleteConfirmId(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)' }} />
+          <div style={{ position: 'relative', width: '400px', background: 'var(--color-surface)', borderRadius: '14px', padding: '24px', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+              <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Trash2 size={16} style={{ color: '#DC2626' }} /></div>
+              <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text)' }}>Delete Configuration?</div>
+            </div>
+            <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginBottom: '20px', lineHeight: 1.5 }}>This will permanently delete the KYC configuration and all its proof rows. This cannot be undone.</div>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <button type="button" onClick={() => setDeleteConfirmId(null)} style={btnOutline}>Cancel</button>
+              <button type="button" onClick={() => confirmDelete(deleteConfirmId)} style={{ ...btnBase, background: '#DC2626', color: 'white', border: 'none' }}>Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminListPageShell>
   );
+
+  // ─── Render: proof drawer ────────────────────────────────────────────────────
+  const renderDrawer = () => {
+    if (!drawerOpen) return null;
+    const r = drawerRow;
+    const isCountryLocked = !!prefilledCountry && !editingRow;
+    const drawerTitle = [r.proofCategory, r.proofType, r.country ? `${COUNTRIES.find(c => c.name === r.country)?.flag ?? ''} ${r.country}` : ''].filter(Boolean).join(' · ') || (editingRow ? 'Edit Proof Row' : 'New Proof Requirement');
+
+    return (
+      <>
+        {/* Overlay */}
+        <div onClick={closeDrawer} style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(1px)' }} />
+        {/* Drawer panel */}
+        <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: '520px', zIndex: 1101, background: 'var(--color-surface)', boxShadow: '-8px 0 40px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column' }}>
+          {/* Drawer header */}
+          <div style={{ flexShrink: 0, padding: '16px 20px', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text)', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{drawerTitle}</div>
+              <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '3px' }}>{editingRow ? 'Edit proof requirement' : 'Define a new proof requirement'} · Press Esc to close</div>
+            </div>
+            <button type="button" onClick={closeDrawer} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '30px', height: '30px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-muted)', flexShrink: 0 }}><X size={14} /></button>
+          </div>
+
+          {/* Drawer body */}
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+            <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+
+            {/* Group 1: Proof Identity */}
+            <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '10px', overflow: 'hidden' }}>
+              <div style={{ padding: '10px 16px', background: 'var(--color-surface-subtle)', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Globe size={13} style={{ color: 'var(--color-primary)' }} />
+                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Proof Identity</span>
+              </div>
+              <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <DField label="Country" required error={drawerErrors.country}>
+                  {isCountryLocked ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 12px', background: 'var(--color-surface-subtle)', border: '1px solid var(--color-border)', borderRadius: '8px', fontSize: '13px' }}>
+                      <span>{COUNTRIES.find(c => c.name === r.country)?.flag}</span>
+                      <span style={{ color: 'var(--color-text)', fontWeight: 500 }}>{r.country}</span>
+                      <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'var(--color-text-muted)', padding: '1px 6px', borderRadius: '4px', background: 'var(--color-border)' }}>Pre-filled</span>
+                    </div>
+                  ) : (
+                    <DSelect
+                      value={r.country}
+                      onChange={v => setDrawerField('country', v)}
+                      options={COUNTRIES.map(c => c.name)}
+                      placeholder="— Select Country —"
+                      error={drawerErrors.country}
+                    />
+                  )}
+                </DField>
+                <DField label="Proof Category" required error={drawerErrors.proofCategory} help={(() => { const h = getFieldHelp('proofCategory'); return h ? <FieldHelpPopover title={h.title} description={h.description} example={h.example} /> : null; })()}>
+                  <DSelect
+                    value={r.proofCategory}
+                    onChange={v => setDrawerField('proofCategory', v)}
+                    options={[...PROOF_CATEGORIES]}
+                    placeholder={r.country ? '— Select Category —' : '— Select Country first —'}
+                    disabled={!r.country}
+                    error={drawerErrors.proofCategory}
+                  />
+                </DField>
+                <DField label="Proof Type" required error={drawerErrors.proofType} help={(() => { const h = getFieldHelp('proofType'); return h ? <FieldHelpPopover title={h.title} description={h.description} example={h.example} /> : null; })()}>
+                  <DSelect
+                    value={r.proofType}
+                    onChange={v => setDrawerField('proofType', v)}
+                    options={drawerProofTypes}
+                    placeholder={r.proofCategory ? '— Select Proof Type —' : '— Select Category first —'}
+                    disabled={!r.proofCategory}
+                    error={drawerErrors.proofType}
+                  />
+                </DField>
+              </div>
+            </div>
+
+            {/* Group 2: Document Number Rules */}
+            <DrawerCard
+              toggleLabel="Document Number Required"
+              toggleDescription="Require the entity to provide a document number for this proof"
+              enabled={r.documentNumberRequired}
+              onToggle={v => setDrawerField('documentNumberRequired', v)}
+              disabled={isViewOnly}
+              accentColor="#2563EB"
+            >
+              <DField label="Tooltip Text" error={drawerErrors.tooltip}>
+                <textarea value={r.tooltip} onChange={e => setDrawerField('tooltip', e.target.value)} placeholder="Helper text shown next to the document number field…" maxLength={1000} rows={2} disabled={isViewOnly} style={{ ...inputBase, resize: 'none', lineHeight: 1.5 }} />
+                <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', textAlign: 'right', marginTop: '2px' }}>{r.tooltip.length}/1000</div>
+              </DField>
+              <DField label="Placeholder Text" error={drawerErrors.placeholderText}>
+                <input value={r.placeholderText} onChange={e => setDrawerField('placeholderText', e.target.value)} placeholder="e.g. XXXX XXXX XXXX" maxLength={1000} disabled={isViewOnly} style={inputBase} />
+              </DField>
+              <DField label="Allowed Format" error={drawerErrors.format}>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {([['isCharAllowed', 'Characters'], ['isNumberAllowed', 'Numbers'], ['isSpecialCharAllowed', 'Special Chars']] as const).map(([field, label]) => {
+                    const isOn = r[field] as boolean;
+                    return (
+                      <button key={field} type="button" disabled={isViewOnly} onClick={() => setDrawerField(field, !isOn as never)}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '6px 12px', fontSize: '12px', fontWeight: 600, border: `1.5px solid ${isOn ? '#2563EB' : 'var(--color-border)'}`, borderRadius: '8px', background: isOn ? '#EFF6FF' : 'var(--color-surface)', color: isOn ? '#1D4ED8' : 'var(--color-text)', cursor: isViewOnly ? 'default' : 'pointer', transition: 'all 0.15s' }}>
+                        {isOn && <Check size={11} />}{label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {drawerErrors.format && <div style={{ fontSize: '11px', color: '#DC2626', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}><AlertCircle size={11} />{drawerErrors.format}</div>}
+              </DField>
+              {r.isSpecialCharAllowed && (
+                <DField label="Allowed Special Characters" required error={drawerErrors.allowedSpecialCharacters} help={(() => { const h = getFieldHelp('allowedSpecialCharacters'); return h ? <FieldHelpPopover title={h.title} description={h.description} example={h.example} /> : null; })()}>
+                  <input value={r.allowedSpecialCharacters} onChange={e => setDrawerField('allowedSpecialCharacters', e.target.value)} placeholder="e.g. - / ." disabled={isViewOnly} style={inputBase} />
+                  <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', marginTop: '3px' }}>Separate characters with spaces or commas</div>
+                </DField>
+              )}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <DField label="Min Length">
+                  <input type="number" value={r.minLength} onChange={e => setDrawerField('minLength', e.target.value)} placeholder="0" min={0} disabled={isViewOnly} style={inputBase} />
+                </DField>
+                <DField label="Max Length" error={drawerErrors.maxLength}>
+                  <input type="number" value={r.maxLength} onChange={e => setDrawerField('maxLength', e.target.value)} placeholder="e.g. 20" min={0} disabled={isViewOnly} style={{ ...inputBase, borderColor: drawerErrors.maxLength ? '#DC2626' : undefined }} />
+                  {drawerErrors.maxLength && <div style={{ fontSize: '11px', color: '#DC2626', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}><AlertCircle size={11} />{drawerErrors.maxLength}</div>}
+                </DField>
+              </div>
+            </DrawerCard>
+
+            {/* Group 3: Regex Validation */}
+            <DrawerCard
+              toggleLabel="Must Match Regex Pattern"
+              toggleDescription="Define a regex pattern the document number must satisfy"
+              enabled={r.mustMatchRegex}
+              onToggle={v => setDrawerField('mustMatchRegex', v)}
+              disabled={isViewOnly}
+              accentColor="#7C3AED"
+            >
+              <div style={{ padding: '8px 12px', background: '#F5F3FF', border: '1px solid #C4B5FD', borderRadius: '8px', display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                <AlertCircle size={13} style={{ color: '#7C3AED', marginTop: '1px', flexShrink: 0 }} />
+                <span style={{ fontSize: '11px', color: '#5B21B6', lineHeight: 1.4 }}>Regex overrides Character, Number, Special Char, Min/Max Length rules at runtime.</span>
+              </div>
+              <DField label="Regex Pattern" required error={drawerErrors.regexPattern} help={(() => { const h = getFieldHelp('regexPattern'); return h ? <FieldHelpPopover title={h.title} description={h.description} example={h.example} /> : null; })()}>
+                <input
+                  value={r.regexPattern}
+                  onChange={e => setDrawerField('regexPattern', e.target.value)}
+                  placeholder="e.g. ^[0-9]{12}$"
+                  disabled={isViewOnly}
+                  style={{ ...inputBase, fontFamily: 'monospace', borderColor: drawerErrors.regexPattern ? '#DC2626' : r.regexPattern && !isValidRegex(r.regexPattern) ? '#F59E0B' : undefined }}
+                />
+                {r.regexPattern && !drawerErrors.regexPattern && (
+                  <div style={{ fontSize: '10px', color: isValidRegex(r.regexPattern) ? '#16A34A' : '#F59E0B', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    {isValidRegex(r.regexPattern) ? <><CheckCircle2 size={10} />Valid regex</> : <><AlertCircle size={10} />Invalid regex syntax</>}
+                  </div>
+                )}
+              </DField>
+              <DField label="Regex Error Message" required error={drawerErrors.regexErrorMessage}>
+                <input value={r.regexErrorMessage} onChange={e => setDrawerField('regexErrorMessage', e.target.value)} placeholder="e.g. Must be a 12-digit number" disabled={isViewOnly} style={inputBase} />
+              </DField>
+            </DrawerCard>
+
+            {/* Group 4: Attachment Settings */}
+            <DrawerCard
+              toggleLabel="Attachment Enabled"
+              toggleDescription="Allow or require document file upload for this proof"
+              enabled={r.isAttachmentEnabled}
+              onToggle={v => setDrawerField('isAttachmentEnabled', v)}
+              disabled={isViewOnly}
+              accentColor="#059669"
+            >
+              <Toggle value={r.isAttachmentMandatory} onChange={v => setDrawerField('isAttachmentMandatory', v)} disabled={isViewOnly} label="Attachment Mandatory" description="Transaction cannot proceed without uploading this document" />
+              <DField label="Allowed File Types">
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {FILE_TYPES.map(ft => {
+                    const selected = r.allowedFileTypes.includes(ft);
+                    return (
+                      <button key={ft} type="button" disabled={isViewOnly} onClick={() => setDrawerField('allowedFileTypes', selected ? r.allowedFileTypes.filter(f => f !== ft) : [...r.allowedFileTypes, ft])}
+                        style={{ padding: '4px 10px', fontSize: '11px', fontWeight: 600, border: `1.5px solid ${selected ? '#059669' : 'var(--color-border)'}`, borderRadius: '6px', background: selected ? '#DCFCE7' : 'var(--color-surface)', color: selected ? '#15803D' : 'var(--color-text)', cursor: isViewOnly ? 'default' : 'pointer', transition: 'all 0.15s' }}>
+                        {ft}
+                      </button>
+                    );
+                  })}
+                </div>
+              </DField>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <DField label="Min File Size (KB)">
+                  <input type="number" value={r.minFileSize} onChange={e => setDrawerField('minFileSize', e.target.value)} placeholder="e.g. 10" min={0} disabled={isViewOnly} style={inputBase} />
+                </DField>
+                <DField label="Max File Size (KB)" error={drawerErrors.maxFileSize}>
+                  <input type="number" value={r.maxFileSize} onChange={e => setDrawerField('maxFileSize', e.target.value)} placeholder="e.g. 2048" min={0} disabled={isViewOnly} style={{ ...inputBase, borderColor: drawerErrors.maxFileSize ? '#DC2626' : undefined }} />
+                  {drawerErrors.maxFileSize && <div style={{ fontSize: '11px', color: '#DC2626', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}><AlertCircle size={11} />{drawerErrors.maxFileSize}</div>}
+                </DField>
+              </div>
+              <DField label="Maximum File Count">
+                <input type="number" value={r.maximumFileCount} onChange={e => setDrawerField('maximumFileCount', e.target.value)} placeholder="e.g. 3" min={1} disabled={isViewOnly} style={inputBase} />
+              </DField>
+            </DrawerCard>
+
+            {/* Group 5: Proof Status */}
+            <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '10px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <Toggle value={r.isMandatory} onChange={v => setDrawerField('isMandatory', v)} disabled={isViewOnly} label="Is Mandatory" description="Transaction cannot proceed without submitting this proof" />
+              <Toggle value={r.isActive} onChange={v => setDrawerField('isActive', v)} disabled={isViewOnly} label="Is Active" description="Inactive proofs are excluded from runtime validation" />
+            </div>
+
+            </div>{/* end inner content wrapper */}
+          </div>
+
+          {/* Drawer footer */}
+          {!isViewOnly && (
+            <div style={{ flexShrink: 0, padding: '14px 20px', borderTop: '1px solid var(--color-border)', display: 'flex', gap: '8px', justifyContent: 'flex-end', background: 'var(--color-surface)' }}>
+              <button type="button" onClick={closeDrawer} style={btnOutline}>Cancel</button>
+              <button type="button" onClick={saveDrawerRow} style={btnPrimary}>
+                <Check size={13} />{editingRow ? 'Update Proof Row' : 'Save Proof Row'}
+              </button>
+            </div>
+          )}
+        </div>
+      </>
+    );
+  };
 
   // ─── Render: form view ───────────────────────────────────────────────────────
   const renderForm = () => (
@@ -806,7 +1038,7 @@ const KycSetupPage: React.FC = () => {
       helpTopicId={helpTopicId}
       onHelpClick={(id) => { setHelpTopicId(id); setHelpOpen(true); }}
       primaryAction={!isViewOnly ? (
-        (formMode === 'add' || editingConfig?.status === 'Draft') ? { label: 'Review & Activate', tone: 'primary' as const, onClick: () => setReviewDrawerOpen(true) } :
+        (formMode === 'add' || editingConfig?.status === 'Draft') ? { label: 'Activate', tone: 'primary' as const, onClick: handleActivate } :
         editingConfig?.status === 'Active' ? { label: 'Save', tone: 'primary' as const, onClick: handleSaveDraft } :
         undefined
       ) : undefined}
@@ -816,38 +1048,23 @@ const KycSetupPage: React.FC = () => {
         { label: 'KYC List', tone: 'ghost' as const, onClick: goBackToList },
       ]}
       toolbar={
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
-            {KYC_SECTIONS.map((s, i) => {
-              const isActive = activeSection === s.key;
-              const completion = getKycSectionCompletion(s.key, form);
-              const dot = completion === 'complete' ? '#16A34A' : completion === 'partial' ? '#3B82F6' : 'var(--color-border)';
-              return (
-                <button key={s.key} type="button" onClick={() => setActiveSection(s.key)}
-                  style={{
-                    padding: '6px 16px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px',
-                    fontWeight: isActive ? 600 : 400, border: 'none',
-                    borderRight: i < KYC_SECTIONS.length - 1 ? '1px solid var(--color-border)' : 'none',
-                    background: isActive ? 'var(--color-primary)' : 'transparent',
-                    color: isActive ? 'white' : 'var(--color-text)',
-                    cursor: 'pointer', transition: 'all 0.15s',
-                  }}>
-                  {s.key !== 'review' && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: isActive ? 'rgba(255,255,255,0.6)' : dot, flexShrink: 0 }} />}
-                  {s.label}
-                </button>
-              );
-            })}
-          </div>
-          <div style={{ display: 'flex', gap: '6px' }}>
-            {SECTION_ORDER.indexOf(activeSection) > 0 && (
-              <button type="button" onClick={() => setActiveSection(SECTION_ORDER[SECTION_ORDER.indexOf(activeSection) - 1])}
-                style={{ ...btnOutline, padding: '6px 14px', fontSize: '12px' }}>← Previous</button>
-            )}
-            {SECTION_ORDER.indexOf(activeSection) < SECTION_ORDER.length - 1 && (
-              <button type="button" onClick={() => setActiveSection(SECTION_ORDER[SECTION_ORDER.indexOf(activeSection) + 1])}
-                style={{ ...btnPrimary, padding: '6px 14px', fontSize: '12px' }}>Continue →</button>
-            )}
-          </div>
+        <div style={{ display: 'flex', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
+          {KYC_SECTIONS.map((s, i) => {
+            const isActive = activeSection === s.key;
+            return (
+              <button key={s.key} type="button" onClick={() => setActiveSection(s.key)}
+                style={{
+                  padding: '6px 16px', fontSize: '13px',
+                  fontWeight: isActive ? 600 : 400, border: 'none',
+                  borderRight: i < KYC_SECTIONS.length - 1 ? '1px solid var(--color-border)' : 'none',
+                  background: isActive ? 'var(--color-primary)' : 'transparent',
+                  color: isActive ? 'white' : 'var(--color-text)',
+                  cursor: 'pointer', transition: 'all 0.15s',
+                }}>
+                {s.label}
+              </button>
+            );
+          })}
         </div>
       }
     >
@@ -952,11 +1169,11 @@ const KycSetupPage: React.FC = () => {
             </KycSectionPanel>
           )}
 
-          {/* ── Section: Proof Requirements ── */}
-          {activeSection === 'proofs' && (
+          {/* ── Section: KYC Grid ── */}
+          {activeSection === 'kyc-grid' && (
             <KycSectionPanel
-              sectionKey="proofs"
-              title="Proof Requirements"
+              sectionKey="kyc-grid"
+              title="KYC Grid"
               form={form}
               subtitle={form.proofRows.length > 0 ? `${form.proofRows.length} proof${form.proofRows.length > 1 ? 's' : ''} across ${proofsByCountry.size} countr${proofsByCountry.size > 1 ? 'ies' : 'y'}` : undefined}
             >
@@ -1025,10 +1242,7 @@ const KycSetupPage: React.FC = () => {
                         </thead>
                         <tbody>
                           {rows.map((row) => (
-                            <tr key={row.id}
-                              style={{ borderTop: '1px solid var(--color-border)', background: row.isActive ? undefined : '#FAFAFA', cursor: 'pointer' }}
-                              onClick={() => { setPreviewRow(row); setPreviewOpen(true); }}
-                            >
+                            <tr key={row.id} style={{ borderTop: '1px solid var(--color-border)', background: row.isActive ? undefined : '#FAFAFA' }}>
                               <td style={{ padding: '10px 14px', color: 'var(--color-text-muted)', fontWeight: 500 }}>{row.proofCategory}</td>
                               <td style={{ padding: '10px 14px', fontWeight: 600, color: row.isActive ? 'var(--color-text)' : 'var(--color-text-muted)' }}>{row.proofType}</td>
                               <td style={{ padding: '10px 14px' }}>
@@ -1042,10 +1256,10 @@ const KycSetupPage: React.FC = () => {
                               <td style={{ padding: '10px 14px' }}>
                                 <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: row.isAttachmentEnabled ? '#059669' : 'var(--color-border)', display: 'inline-block' }} />
                               </td>
-                              <td style={{ padding: '10px 14px' }} onClick={e => e.stopPropagation()}>
+                              <td style={{ padding: '10px 14px' }}>
                                 <Toggle value={row.isActive} onChange={() => !isViewOnly && toggleRowActive(row.id)} size="sm" disabled={isViewOnly} />
                               </td>
-                              <td style={{ padding: '10px 14px' }} onClick={e => e.stopPropagation()}>
+                              <td style={{ padding: '10px 14px' }}>
                                 <div style={{ display: 'flex', gap: '5px', justifyContent: 'flex-end' }}>
                                   <button type="button" title="Edit" onClick={() => openDrawerEdit(row)} style={{ ...btnOutline, padding: '4px 7px' }}><Pencil size={11} /></button>
                                   {!isViewOnly && <button type="button" title="Delete" onClick={() => deleteRow(row.id)} style={{ ...btnOutline, padding: '4px 7px', borderColor: '#FCA5A5', color: '#DC2626' }}><Trash2 size={11} /></button>}
@@ -1062,250 +1276,70 @@ const KycSetupPage: React.FC = () => {
             </KycSectionPanel>
           )}
 
-          {/* ── Section: Review ── */}
-          {activeSection === 'review' && (
-            <KycSectionPanel sectionKey="review" title="Review" form={form} subtitle="Review all requirements before activating this configuration">
-              {/* Identity summary */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '20px' }}>
-                {[
-                  { label: 'Name',          value: form.name || '—' },
-                  { label: 'Entity',        value: form.entity || '—' },
-                  { label: 'Entity Type',   value: form.entityType || '—' },
-                  { label: 'Active Proofs', value: `${form.proofRows.filter(rr => rr.isActive).length}` },
-                  { label: 'Countries',     value: `${proofsByCountry.size}` },
-                  { label: 'Mandatory',     value: `${form.proofRows.filter(rr => rr.isMandatory).length}` },
-                ].map(f => (
-                  <div key={f.label} style={{ padding: '12px 14px', background: 'var(--color-surface-subtle)', border: '1px solid var(--color-border)', borderRadius: '8px' }}>
-                    <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>{f.label}</div>
-                    <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--color-text)' }}>{f.value}</div>
-                  </div>
-                ))}
-              </div>
-              {/* Readiness checklist */}
+          {/* ── Section: Activation Checklist ── */}
+          {activeSection === 'checklist' && (
+            <KycSectionPanel sectionKey="checklist" title="Activation Checklist" form={form} subtitle="Review all requirements before activating this configuration">
               <ValidationChecklist
                 items={checklist.map(item => ({ ...item, sectionKey: item.section }))}
                 onNavigateToSection={key => setActiveSection(key as KycSectionKey)}
-                canActivate={canActivate && checklistAllPassed}
+                canActivate={!isViewOnly && (formMode === 'add' || editingConfig?.status === 'Draft')}
                 isReadOnly={isViewOnly}
-                onActivate={() => setReviewDrawerOpen(true)}
+                onActivate={handleActivate}
               />
-              {canActivate && !checklistAllPassed && (
-                <div style={{ marginTop: '16px', padding: '12px 16px', background: 'color-mix(in srgb, var(--color-danger) 6%, var(--color-surface))', border: '1px solid color-mix(in srgb, var(--color-danger) 20%, var(--color-border))', borderRadius: '10px', fontSize: '12px', color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
-                  <AlertCircle size={13} style={{ color: 'var(--color-danger)', marginRight: '6px', verticalAlign: 'text-bottom' }} />
-                  Resolve all checklist issues before activating this configuration.
-                </div>
-              )}
             </KycSectionPanel>
           )}
 
-      {/* ── Proof form drawer (SmartFormDrawer) ── */}
-      <SmartFormDrawer
-        open={drawerOpen}
-        onClose={closeDrawer}
-        title={drawerTitle}
-        subtitle={editingRow ? 'Edit proof requirement' : 'Define a new proof requirement'}
-        width="lg"
-        onSave={saveDrawerRow}
-        saveLabel={editingRow ? 'Update Proof Row' : 'Save Proof Row'}
-        isDirty={drawerDirty}
-        dirtyWarningText="You have unsaved changes to this proof row."
-        validationErrors={drawerValidationErrors}
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {/* Proof Identity */}
-          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '10px', overflow: 'hidden' }}>
-            <div style={{ padding: '10px 16px', background: 'var(--color-surface-subtle)', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Globe size={13} style={{ color: 'var(--color-primary)' }} />
-              <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Proof Identity</span>
-            </div>
-            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <DField label="Country" required error={drawerErrors.country}>
-                {isCountryLocked ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 12px', background: 'var(--color-surface-subtle)', border: '1px solid var(--color-border)', borderRadius: '8px', fontSize: '13px' }}>
-                    <span>{COUNTRIES.find(c => c.name === r.country)?.flag}</span>
-                    <span style={{ color: 'var(--color-text)', fontWeight: 500 }}>{r.country}</span>
-                    <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'var(--color-text-muted)', padding: '1px 6px', borderRadius: '4px', background: 'var(--color-border)' }}>Pre-filled</span>
-                  </div>
-                ) : (
-                  <DSelect value={r.country} onChange={v => setDrawerField('country', v)} options={COUNTRIES.map(c => c.name)} placeholder="— Select Country —" error={drawerErrors.country} />
-                )}
-              </DField>
-              <DField label="Proof Category" required error={drawerErrors.proofCategory} help={(() => { const h = getFieldHelp('proofCategory'); return h ? <FieldHelpPopover title={h.title} description={h.description} example={h.example} /> : null; })()}>
-                <DSelect value={r.proofCategory} onChange={v => setDrawerField('proofCategory', v)} options={[...PROOF_CATEGORIES]} placeholder={r.country ? '— Select Category —' : '— Select Country first —'} disabled={!r.country} error={drawerErrors.proofCategory} />
-              </DField>
-              <DField label="Proof Type" required error={drawerErrors.proofType} help={(() => { const h = getFieldHelp('proofType'); return h ? <FieldHelpPopover title={h.title} description={h.description} example={h.example} /> : null; })()}>
-                <DSelect value={r.proofType} onChange={v => setDrawerField('proofType', v)} options={drawerProofTypes} placeholder={r.proofCategory ? '— Select Proof Type —' : '— Select Category first —'} disabled={!r.proofCategory} error={drawerErrors.proofType} />
-              </DField>
-            </div>
-          </div>
-          {/* Document Number Rules */}
-          <DrawerCard toggleLabel="Document Number Required" toggleDescription="Require the entity to provide a document number for this proof" enabled={r.documentNumberRequired} onToggle={v => setDrawerField('documentNumberRequired', v)} disabled={isViewOnly} accentColor="#2563EB">
-            <DField label="Tooltip Text" error={drawerErrors.tooltip}>
-              <textarea value={r.tooltip} onChange={e => setDrawerField('tooltip', e.target.value)} placeholder="Helper text shown next to the document number field…" maxLength={1000} rows={2} disabled={isViewOnly} style={{ ...inputBase, resize: 'none', lineHeight: 1.5 }} />
-              <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', textAlign: 'right', marginTop: '2px' }}>{r.tooltip.length}/1000</div>
-            </DField>
-            <DField label="Placeholder Text">
-              <input value={r.placeholderText} onChange={e => setDrawerField('placeholderText', e.target.value)} placeholder="e.g. XXXX XXXX XXXX" maxLength={1000} disabled={isViewOnly} style={inputBase} />
-            </DField>
-            <DField label="Allowed Format" error={drawerErrors.format}>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                {([['isCharAllowed', 'Characters'], ['isNumberAllowed', 'Numbers'], ['isSpecialCharAllowed', 'Special Chars']] as const).map(([field, label]) => {
-                  const isOn = r[field] as boolean;
-                  return (
-                    <button key={field} type="button" disabled={isViewOnly} onClick={() => setDrawerField(field, !isOn as never)}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '6px 12px', fontSize: '12px', fontWeight: 600, border: `1.5px solid ${isOn ? '#2563EB' : 'var(--color-border)'}`, borderRadius: '8px', background: isOn ? '#EFF6FF' : 'var(--color-surface)', color: isOn ? '#1D4ED8' : 'var(--color-text)', cursor: isViewOnly ? 'default' : 'pointer' }}>
-                      {isOn && <Check size={11} />}{label}
-                    </button>
-                  );
-                })}
-              </div>
-              {drawerErrors.format && <div style={{ fontSize: '11px', color: '#DC2626', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}><AlertCircle size={11} />{drawerErrors.format}</div>}
-            </DField>
-            {r.isSpecialCharAllowed && (
-              <DField label="Allowed Special Characters" required error={drawerErrors.allowedSpecialCharacters} help={(() => { const h = getFieldHelp('allowedSpecialCharacters'); return h ? <FieldHelpPopover title={h.title} description={h.description} example={h.example} /> : null; })()}>
-                <input value={r.allowedSpecialCharacters} onChange={e => setDrawerField('allowedSpecialCharacters', e.target.value)} placeholder="e.g. - / ." disabled={isViewOnly} style={inputBase} />
-                <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', marginTop: '3px' }}>Separate with spaces or commas</div>
-              </DField>
-            )}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-              <DField label="Min Length"><input type="number" value={r.minLength} onChange={e => setDrawerField('minLength', e.target.value)} placeholder="0" min={0} disabled={isViewOnly} style={inputBase} /></DField>
-              <DField label="Max Length" error={drawerErrors.maxLength}><input type="number" value={r.maxLength} onChange={e => setDrawerField('maxLength', e.target.value)} placeholder="e.g. 20" min={0} disabled={isViewOnly} style={{ ...inputBase, borderColor: drawerErrors.maxLength ? '#DC2626' : undefined }} /></DField>
-            </div>
-          </DrawerCard>
-          {/* Regex Validation */}
-          <DrawerCard toggleLabel="Must Match Regex Pattern" toggleDescription="Define a regex pattern the document number must satisfy" enabled={r.mustMatchRegex} onToggle={v => setDrawerField('mustMatchRegex', v)} disabled={isViewOnly} accentColor="#7C3AED">
-            <div style={{ padding: '8px 12px', background: '#F5F3FF', border: '1px solid #C4B5FD', borderRadius: '8px', display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
-              <AlertCircle size={13} style={{ color: '#7C3AED', marginTop: '1px', flexShrink: 0 }} />
-              <span style={{ fontSize: '11px', color: '#5B21B6', lineHeight: 1.4 }}>Regex overrides Character, Number, Special Char, Min/Max Length rules at runtime.</span>
-            </div>
-            <DField label="Regex Pattern" required error={drawerErrors.regexPattern} help={(() => { const h = getFieldHelp('regexPattern'); return h ? <FieldHelpPopover title={h.title} description={h.description} example={h.example} /> : null; })()}>
-              <input value={r.regexPattern} onChange={e => setDrawerField('regexPattern', e.target.value)} placeholder="e.g. ^[0-9]{12}$" disabled={isViewOnly}
-                style={{ ...inputBase, fontFamily: 'monospace', borderColor: drawerErrors.regexPattern ? '#DC2626' : r.regexPattern && !isValidRegex(r.regexPattern) ? '#F59E0B' : undefined }} />
-              {r.regexPattern && !drawerErrors.regexPattern && (
-                <div style={{ fontSize: '10px', color: isValidRegex(r.regexPattern) ? '#16A34A' : '#F59E0B', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  {isValidRegex(r.regexPattern) ? <><CheckCircle2 size={10} />Valid regex</> : <><AlertCircle size={10} />Invalid regex syntax</>}
-                </div>
-              )}
-            </DField>
-            <DField label="Regex Error Message" required error={drawerErrors.regexErrorMessage}>
-              <input value={r.regexErrorMessage} onChange={e => setDrawerField('regexErrorMessage', e.target.value)} placeholder="e.g. Must be a 12-digit number" disabled={isViewOnly} style={inputBase} />
-            </DField>
-          </DrawerCard>
-          {/* Attachment Settings */}
-          <DrawerCard toggleLabel="Attachment Enabled" toggleDescription="Allow or require document file upload for this proof" enabled={r.isAttachmentEnabled} onToggle={v => setDrawerField('isAttachmentEnabled', v)} disabled={isViewOnly} accentColor="#059669">
-            <Toggle value={r.isAttachmentMandatory} onChange={v => setDrawerField('isAttachmentMandatory', v)} disabled={isViewOnly} label="Attachment Mandatory" description="Transaction cannot proceed without uploading this document" />
-            <DField label="Allowed File Types">
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                {FILE_TYPES.map(ft => {
-                  const selected = r.allowedFileTypes.includes(ft);
-                  return (
-                    <button key={ft} type="button" disabled={isViewOnly} onClick={() => setDrawerField('allowedFileTypes', selected ? r.allowedFileTypes.filter(f => f !== ft) : [...r.allowedFileTypes, ft])}
-                      style={{ padding: '4px 10px', fontSize: '11px', fontWeight: 600, border: `1.5px solid ${selected ? '#059669' : 'var(--color-border)'}`, borderRadius: '6px', background: selected ? '#DCFCE7' : 'var(--color-surface)', color: selected ? '#15803D' : 'var(--color-text)', cursor: isViewOnly ? 'default' : 'pointer' }}>
-                      {ft}
-                    </button>
-                  );
-                })}
-              </div>
-            </DField>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-              <DField label="Min File Size (KB)"><input type="number" value={r.minFileSize} onChange={e => setDrawerField('minFileSize', e.target.value)} placeholder="e.g. 10" min={0} disabled={isViewOnly} style={inputBase} /></DField>
-              <DField label="Max File Size (KB)" error={drawerErrors.maxFileSize}><input type="number" value={r.maxFileSize} onChange={e => setDrawerField('maxFileSize', e.target.value)} placeholder="e.g. 2048" min={0} disabled={isViewOnly} style={{ ...inputBase, borderColor: drawerErrors.maxFileSize ? '#DC2626' : undefined }} /></DField>
-            </div>
-            <DField label="Maximum File Count"><input type="number" value={r.maximumFileCount} onChange={e => setDrawerField('maximumFileCount', e.target.value)} placeholder="e.g. 3" min={1} disabled={isViewOnly} style={inputBase} /></DField>
-          </DrawerCard>
-          {/* Proof Status */}
-          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '10px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <Toggle value={r.isMandatory} onChange={v => setDrawerField('isMandatory', v)} disabled={isViewOnly} label="Is Mandatory" description="Transaction cannot proceed without submitting this proof" />
-            <Toggle value={r.isActive} onChange={v => setDrawerField('isActive', v)} disabled={isViewOnly} label="Is Active" description="Inactive proofs are excluded from runtime validation" />
-          </div>
-        </div>
-      </SmartFormDrawer>
-
-      {/* ── Proof preview (SmartPreviewDrawer) ── */}
-      <SmartPreviewDrawer
-        open={previewOpen && !!previewRow}
-        onClose={() => setPreviewOpen(false)}
-        title={previewRow?.proofType ?? 'Proof Requirement'}
-        subtitle={previewRow ? `${COUNTRIES.find(c => c.name === previewRow.country)?.flag ?? ''} ${previewRow.country} · ${previewRow.proofCategory}` : undefined}
-        statusLabel={previewRow?.isActive ? 'Active' : 'Inactive'}
-        statusTone={previewRow?.isActive ? 'active' : 'inactive'}
-        summaryFields={previewRow ? [
-          { label: 'Country',       value: previewRow.country },
-          { label: 'Proof Category', value: previewRow.proofCategory },
-          { label: 'Proof Type',    value: previewRow.proofType },
-          { label: 'Mandatory',     value: previewRow.isMandatory ? 'Required' : 'Optional' },
-        ] : []}
-        sections={previewRow ? buildPreviewSections(previewRow) : []}
-        primaryAction={!isViewOnly && previewRow ? { label: 'Edit', onClick: () => { setPreviewOpen(false); openDrawerEdit(previewRow); } } : undefined}
-        dangerAction={!isViewOnly && previewRow ? { label: 'Delete', onClick: () => { deleteRow(previewRow.id); setPreviewOpen(false); } } : undefined}
-      />
-
-      {/* ── Activation review (SmartReviewDrawer) ── */}
-      <SmartReviewDrawer
-        open={reviewDrawerOpen}
-        onClose={() => setReviewDrawerOpen(false)}
-        title="Review & Activate"
-        subtitle={form.name || 'KYC Configuration'}
-        description="Review the configuration readiness and confirm activation."
-        summaryFields={[
-          { label: 'Name',          value: form.name || '—' },
-          { label: 'Entity',        value: form.entity ? `${form.entity} · ${form.entityType}` : '—' },
-          { label: 'Active Proofs', value: form.proofRows.filter(rr => rr.isActive).length },
-          { label: 'Countries',     value: proofsByCountry.size },
-        ]}
-        checklist={checklist.map(item => ({ id: item.key, label: item.label, passed: item.status === 'ok', detail: item.detail }))}
-        warningText={!checklistAllPassed ? 'Please resolve all checklist issues before activating.' : undefined}
-        consequenceNote="Once activated, this configuration will be applied to all new KYC transactions for the selected entity and entity type."
-        confirmLabel="Activate Configuration"
-        onConfirm={handleActivate}
-        confirmDisabled={!checklistAllPassed}
-      />
+      {/* Proof drawer */}
+      {renderDrawer()}
     </AdminPageShell>
   );
+
+  // ─── Render: deactivation modal ──────────────────────────────────────────────
+  const renderDeactivationModal = () => {
+    if (!deactivationOpen || !deactivationTarget) return null;
+    return (
+      <div style={{ position: 'fixed', inset: 0, zIndex: 1300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div onClick={() => setDeactivationOpen(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)' }} />
+        <div style={{ position: 'relative', width: '480px', background: 'var(--color-surface)', borderRadius: '16px', boxShadow: '0 24px 64px rgba(0,0,0,0.18)', overflow: 'hidden' }}>
+          <div style={{ padding: '18px 20px 14px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', borderBottom: '1px solid var(--color-border)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'color-mix(in srgb, var(--color-danger) 12%, var(--color-surface))', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><ZapOff size={16} style={{ color: 'var(--color-danger)' }} /></div>
+              <div>
+                <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text)' }}>Deactivate Configuration</div>
+                <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>{deactivationTarget.name}</div>
+              </div>
+            </div>
+            <button type="button" onClick={() => setDeactivationOpen(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-muted)', padding: '4px' }}><X size={16} /></button>
+          </div>
+          <div style={{ padding: '20px' }}>
+            <div style={{ padding: '10px 14px', background: 'color-mix(in srgb, #f59e0b 8%, var(--color-surface))', border: '1px solid color-mix(in srgb, #f59e0b 30%, var(--color-border))', borderRadius: '8px', fontSize: '12px', color: 'color-mix(in srgb, #f59e0b 75%, var(--color-text))', marginBottom: '16px', lineHeight: 1.4 }}>
+              This configuration will no longer be applied to new transactions. Existing validated records are not affected.
+            </div>
+            <div style={{ marginBottom: '14px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '6px' }}>Reason <span style={{ color: '#DC2626' }}>*</span></div>
+              <DSelect value={deactivationReason} onChange={setDeactivationReason} options={DEACTIVATION_REASONS} placeholder="— Select a reason —" />
+            </div>
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '6px' }}>Remark (Optional)</div>
+              <textarea value={deactivationRemark} onChange={e => setDeactivationRemark(e.target.value)} placeholder="Any additional notes…" rows={3} style={{ ...inputBase, resize: 'none', lineHeight: 1.5 }} />
+            </div>
+          </div>
+          <div style={{ padding: '14px 20px', borderTop: '1px solid var(--color-border)', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+            <button type="button" onClick={() => setDeactivationOpen(false)} style={btnOutline}>Cancel</button>
+            <button type="button" onClick={confirmDeactivation} disabled={!deactivationReason} style={{ ...btnBase, background: deactivationReason ? '#DC2626' : 'var(--color-border)', color: deactivationReason ? 'white' : 'var(--color-text-muted)', border: 'none', cursor: deactivationReason ? 'pointer' : 'not-allowed' }}>
+              <ZapOff size={13} />Confirm Deactivate
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   // ─── Root render ─────────────────────────────────────────────────────────────
   return (
     <AdminShell>
       {viewMode === 'list' ? renderList() : renderForm()}
-
-      {/* ── Deactivation (SmartFormDrawer) ── */}
-      <SmartFormDrawer
-        open={deactivationOpen && !!deactivationTarget}
-        onClose={() => { setDeactivationOpen(false); setDeactivationTarget(null); setDeactivationReason(''); setDeactivationRemark(''); }}
-        title="Deactivate Configuration"
-        subtitle={deactivationTarget?.name}
-        onSave={confirmDeactivation}
-        saveLabel="Confirm Deactivate"
-        saveDisabled={!deactivationReason}
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div style={{ padding: '10px 14px', background: 'color-mix(in srgb, #f59e0b 8%, var(--color-surface))', border: '1px solid color-mix(in srgb, #f59e0b 30%, var(--color-border))', borderRadius: '8px', fontSize: '12px', color: 'color-mix(in srgb, #f59e0b 75%, var(--color-text))', lineHeight: 1.5 }}>
-            This configuration will no longer be applied to new transactions. Existing validated records are not affected.
-          </div>
-          <DField label="Reason" required>
-            <DSelect value={deactivationReason} onChange={setDeactivationReason} options={DEACTIVATION_REASONS} placeholder="— Select a reason —" />
-          </DField>
-          <DField label="Remark (Optional)">
-            <textarea value={deactivationRemark} onChange={e => setDeactivationRemark(e.target.value)} placeholder="Any additional notes…" rows={3} style={{ ...inputBase, resize: 'none', lineHeight: 1.5 }} />
-          </DField>
-        </div>
-      </SmartFormDrawer>
-
-      {/* ── Delete confirmation (SmartReviewDrawer) ── */}
-      <SmartReviewDrawer
-        open={!!deleteConfirmId}
-        onClose={() => setDeleteConfirmId(null)}
-        title="Delete Configuration?"
-        subtitle={deleteTarget?.name}
-        description="This will permanently delete the KYC configuration and all its proof rows."
-        checklist={[
-          { id: 'confirm-delete', label: 'This action is irreversible', passed: false, detail: 'All proof rows will be permanently removed' },
-        ]}
-        warningText="This action cannot be undone."
-        confirmLabel="Delete Configuration"
-        onConfirm={() => deleteConfirmId && confirmDelete(deleteConfirmId)}
-      />
-
+      {renderDeactivationModal()}
       {kycHelpTopic && (
         <HelpDrawer
           open={helpOpen}

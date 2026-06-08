@@ -44,8 +44,39 @@ export type AssignmentStatus =
 export type HierarchyTemplateStatus =
   | 'Draft'
   | 'Active'
+  | 'Blocked'
   | 'Superseded'
   | 'Inactive';
+
+export type HierarchyLevelRole =
+  | 'Structural'
+  | 'InventoryEndpoint'
+  | 'Picking'
+  | 'Staging'
+  | 'Dock'
+  | 'QC'
+  | 'Returns'
+  | 'Damage'
+  | 'Scrap'
+  | 'Yard'
+  | 'Reporting'
+  | 'Custom';
+
+export type LocationTransactionPurpose =
+  | 'Storage'
+  | 'Putaway'
+  | 'Picking'
+  | 'Staging'
+  | 'Dock'
+  | 'QC'
+  | 'Returns'
+  | 'Damage'
+  | 'Scrap'
+  | 'Replenishment'
+  | 'Dispatch'
+  | 'Count'
+  | 'Inspection'
+  | 'Custom';
 
 // ─── Location ────────────────────────────────────────────────────────────────
 
@@ -107,6 +138,67 @@ export type EligibilityMode =
   | 'Basic-Hybrid'
   | 'Category-Based'
   | 'Advanced-Hybrid';
+
+export type EligibilityScopeType =
+  | 'Warehouse'
+  | 'HierarchyNode'
+  | 'LocationProfile'
+  | 'ItemCategory'
+  | 'ItemAttribute'
+  | 'Custom';
+
+export type EligibilityRuleDirection = 'Allow' | 'Deny';
+
+export type EligibilitySubjectType =
+  | 'Item'
+  | 'Category'
+  | 'Group'
+  | 'Brand'
+  | 'Model'
+  | 'Attribute'
+  | 'Owner'
+  | 'HazardClass'
+  | 'TemperatureClass'
+  | 'ComplianceClass';
+
+export type ResponsibilityMode =
+  | 'InheritFromParent'
+  | 'AssignDirectly'
+  | 'NotApplicable';
+
+export type ResponsibilityRole =
+  | 'WarehouseManager'
+  | 'ZoneSupervisor'
+  | 'AreaSupervisor'
+  | 'RackCustodian'
+  | 'BinCustodian'
+  | 'Custom';
+
+export type ResponsibilityStatus =
+  | 'NotApplicable'
+  | 'Assigned'
+  | 'Inherited'
+  | 'Unassigned'
+  | 'Expired';
+
+export type CapacityEnforcementMode =
+  | 'None'
+  | 'Informational'
+  | 'Warning'
+  | 'HardBlock'
+  | 'ApprovalRequired';
+
+export type CapacityRollupMode =
+  | 'None'
+  | 'OwnCapacityOnly'
+  | 'RollupFromChildren'
+  | 'SharedParentPool';
+
+export type CapacityConsumptionSource =
+  | 'DirectStock'
+  | 'ChildStockRollup'
+  | 'ReservedInbound'
+  | 'PlannedOnly';
 
 // ─── Stock status ─────────────────────────────────────────────────────────────
 

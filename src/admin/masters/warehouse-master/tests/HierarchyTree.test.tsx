@@ -34,6 +34,23 @@ const TREE: HierarchyNode[] = [
 ];
 
 describe('HierarchyTree helpers', () => {
+  it('keeps warehouse root visible in flattened hierarchy', () => {
+    const withRoot: HierarchyNode[] = [{
+      id: '__WAREHOUSE_ROOT__',
+      locationCode: 'WM02',
+      locationName: 'Warehouse 02',
+      levelCode: 'WAREHOUSE',
+      levelName: 'Warehouse',
+      children: TREE,
+      isLeaf: false,
+      inventoryAllowed: false,
+      status: 'Active',
+      fullCode: 'WM02',
+    }];
+    const items = flattenHierarchyItems(withRoot, new Set(['__WAREHOUSE_ROOT__', 'root']));
+    expect(items[0].id).toBe('__WAREHOUSE_ROOT__');
+  });
+
   it('flattens expanded tree items in visible order', () => {
     const items = flattenHierarchyItems(TREE, new Set(['root']));
     expect(items.map((item) => item.id)).toEqual(['root', 'aisle']);

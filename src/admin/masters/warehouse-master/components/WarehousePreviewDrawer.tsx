@@ -14,7 +14,6 @@ import { WarehouseStatusBadge } from './WarehouseStatusBadge';
 import { WarehouseScopeBadge } from './WarehouseScopeBadge';
 import { WarehouseModeBadge } from './WarehouseModeBadge';
 import { WarehouseSetupHealth } from './WarehouseSetupHealth';
-import { ValidationIssuePanel } from './ValidationIssuePanel';
 import { deriveAvailableActions } from '../utils/warehouseDerivations';
 import { mockAllPermissions } from '../types/warehouse.permissions';
 import { formatDate } from '../../../../utils/dateFormat';
@@ -33,7 +32,6 @@ interface WarehousePreviewDrawerProps {
 
 function buildSections(details: WarehouseDetails): PreviewSection[] {
   const { warehouse: wh, hierarchyTemplates, setupHealth } = details;
-  const locations = details.recentAuditEvents; // audit events re-used below
 
   const activeTemplate = hierarchyTemplates.find((t) => t.status === 'Active');
 
@@ -151,11 +149,11 @@ function buildSections(details: WarehouseDetails): PreviewSection[] {
         },
         {
           label: 'Total Locations',
-          value: String(setupHealth.sections?.find((s) => s.key === 'locations')?.completedCount ?? '—'),
+          value: String(setupHealth.sections?.find((s) => s.section === 'locations')?.completedFields ?? '—'),
         },
         {
           label: 'Inventory-Allowed BINs',
-          value: String(setupHealth.sections?.find((s) => s.key === 'locations')?.totalCount ?? '—'),
+          value: String(setupHealth.sections?.find((s) => s.section === 'locations')?.totalFields ?? '—'),
         },
         {
           label: 'Eligibility Policy',

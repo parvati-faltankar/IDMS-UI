@@ -5,15 +5,11 @@
 // editable inputs in form state.
 
 import type {
-  CapacityPolicy,
   ControlledAction,
-  DefaultLocations,
+  EffectiveResponsibility,
   EligibilityPolicy,
-  EligibilityRule,
   HierarchyTemplate,
   InventoryControlRules,
-  LocationProfile,
-  LocationSummary,
   SectionHealth,
   SetupHealth,
   Warehouse,
@@ -24,11 +20,17 @@ import type {
   ConfigurationSectionKey,
   InventoryControlMode,
   LocationStatus,
+  ResponsibilityStatus,
   SetupHealthTone,
   WarehouseLifecycleAction,
+  WarehouseOwnershipScope,
   WarehouseStatus,
 } from '../types/warehouse.enums';
 import type { WarehousePermissions } from '../types/warehouse.permissions';
+import {
+  deriveEffectiveNodeCapabilities,
+  getTemplateLevelForLocation,
+} from './hierarchyUtils';
 
 // ─── deriveBinManaged ─────────────────────────────────────────────────────────
 
@@ -55,45 +57,36 @@ export function deriveInventoryControlRules(mode: InventoryControlMode): Invento
 
 // ─── deriveIsLeafEndpoint ─────────────────────────────────────────────────────
 
-/**
- * A location is a leaf endpoint when:
- * 1. It has no child locations in the store, OR
- * 2. The hierarchy template marks its level as leaf-eligible AND flexible paths
- *    are enabled (so a non-bottom node can be treated as a leaf).
- */
 export function deriveIsLeafEndpoint(
   locationId: string,
   allLocations: WarehouseLocation[],
   hierarchyTemplate?: HierarchyTemplate,
 ): boolean {
-  const hasChildren = allLocations.some((l) => l.parentLocationId === locationId);
-  if (!hasChildren) return true;
+  const location = allLocations.find((item) => item.id === locationId);
+  if (!location) return false;
 
-  // Flexible path: a node can be a leaf even when it has children, if the
-  // hierarchy template marks its level as leafEligible.
-  if (hierarchyTemplate?.flexiblePathEnabled) {
-    const location = allLocations.find((l) => l.id === locationId);
-    if (location) {
-      const levelCode = location.profile.level;
-      const level = hierarchyTemplate.levels.find((lv) => lv.sequence === levelCode);
-      if (level?.leafEligible) return true;
-    }
+  const hasChildren = allLocations.some((item) => item.parentLocationId === locationId);
+  if (hasChildren) return false;
+
+  const level = getTemplateLevelForLocation(location, hierarchyTemplate);
+  return level ? level.leafEligible : true;
+}
+
+export function deriveInventoryEndpointEligible(
+  location: WarehouseLocation,
+  hierarchyTemplate?: HierarchyTemplate,
+): boolean {
+  const level = getTemplateLevelForLocation(location, hierarchyTemplate);
+  if (!level) {
+    return location.profile.isLeafEndpoint;
   }
 
-  return false;
+  const capabilities = deriveEffectiveNodeCapabilities(hierarchyTemplate, level);
+  return capabilities.inventoryEndpointEligible && level.leafEligible;
 }
 
 // ─── deriveInventoryAllowed ───────────────────────────────────────────────────
 
-/**
- * Inventory is allowed at a location when ALL of the following are true:
- * 1. The location is a leaf endpoint.
- * 2. putawayBlocked = false.
- * 3. The parent location (if any) also has inventoryAllowed = true.
- * 4. The location status is Active.
- *
- * This value is DERIVED and must never be an editable field.
- */
 export function deriveInventoryAllowed(
   location: Pick<WarehouseLocation, 'id' | 'parentLocationId' | 'status' | 'putawayBlocked'>,
   allLocations: WarehouseLocation[],
@@ -102,18 +95,82 @@ export function deriveInventoryAllowed(
   if (location.status !== 'Active') return false;
   if (location.putawayBlocked) return false;
 
-  const isLeaf = deriveIsLeafEndpoint(location.id, allLocations, hierarchyTemplate);
-  if (!isLeaf) return false;
+  const warehouseLocation = allLocations.find((item) => item.id === location.id);
+  if (!warehouseLocation) return false;
+
+  if (!deriveIsLeafEndpoint(location.id, allLocations, hierarchyTemplate)) return false;
+  if (!deriveInventoryEndpointEligible(warehouseLocation, hierarchyTemplate)) return false;
 
   if (location.parentLocationId) {
     const parent = allLocations.find((l) => l.id === location.parentLocationId);
     if (parent) {
-      // Parent must have status Active
       if (parent.status !== 'Active') return false;
     }
   }
 
   return true;
+}
+
+export function deriveResponsibilitySource(
+  location: WarehouseLocation,
+  allLocations: WarehouseLocation[],
+): EffectiveResponsibility['source'] {
+  const assignment = location.responsibilityAssignment;
+  if (!assignment || assignment.mode === 'NotApplicable') return 'NotApplicable';
+  if (assignment.mode === 'AssignDirectly' && assignment.employee) return 'Direct';
+  return findNearestResponsibleAncestor(location.parentLocationId, allLocations)
+    ? 'Inherited'
+    : 'Unassigned';
+}
+
+export function deriveEffectiveResponsibleEmployee(
+  location: WarehouseLocation,
+  allLocations: WarehouseLocation[],
+): EffectiveResponsibility['employee'] {
+  const assignment = location.responsibilityAssignment;
+  if (!assignment || assignment.mode === 'NotApplicable') return undefined;
+  if (assignment.mode === 'AssignDirectly') return assignment.employee;
+  return findNearestResponsibleAncestor(location.parentLocationId, allLocations)?.responsibilityAssignment?.employee;
+}
+
+export function deriveResponsibilityStatus(
+  location: WarehouseLocation,
+  allLocations: WarehouseLocation[],
+  today: string = new Date().toISOString().slice(0, 10),
+): ResponsibilityStatus {
+  const assignment = location.responsibilityAssignment;
+  if (!assignment || assignment.mode === 'NotApplicable') return 'NotApplicable';
+  if (assignment.effectiveTo && assignment.effectiveTo < today) return 'Expired';
+  if (assignment.mode === 'AssignDirectly' && assignment.employee) return 'Assigned';
+  return findNearestResponsibleAncestor(location.parentLocationId, allLocations)
+    ? 'Inherited'
+    : 'Unassigned';
+}
+
+export function deriveEffectiveResponsibility(
+  location: WarehouseLocation,
+  allLocations: WarehouseLocation[],
+): EffectiveResponsibility {
+  const assignment = location.responsibilityAssignment;
+  if (!assignment || assignment.mode === 'NotApplicable') {
+    return {
+      mode: 'NotApplicable',
+      source: 'NotApplicable',
+      status: 'NotApplicable',
+    };
+  }
+
+  return {
+    mode: assignment.mode,
+    role: assignment.role,
+    employee: deriveEffectiveResponsibleEmployee(location, allLocations),
+    source: deriveResponsibilitySource(location, allLocations),
+    sourceLocationId:
+      assignment.mode === 'InheritFromParent'
+        ? findNearestResponsibleAncestor(location.parentLocationId, allLocations)?.id
+        : undefined,
+    status: deriveResponsibilityStatus(location, allLocations),
+  };
 }
 
 // ─── deriveEffectiveLocationStatus ───────────────────────────────────────────
@@ -267,7 +324,7 @@ export function deriveAvailableActions(
   setupHealth: SetupHealth,
   permissions: WarehousePermissions,
   hasOpenStock: boolean,
-  hasActiveLocations: boolean,
+  _hasActiveLocations: boolean,
 ): ControlledAction[] {
   const actions: ControlledAction[] = [];
 
@@ -338,7 +395,7 @@ export function deriveAvailableActions(
  */
 export function deriveRequiredConfigurationSections(
   mode: InventoryControlMode,
-  ownershipScope: WarehouseOwnershipScope,
+  _ownershipScope: WarehouseOwnershipScope,
 ): ConfigurationSectionKey[] {
   const base: ConfigurationSectionKey[] = [
     'identity',
@@ -366,7 +423,6 @@ export function deriveRequiredConfigurationSections(
   return base;
 }
 
-type WarehouseOwnershipScope = 'Organization' | 'Branch';
 
 // ─── determineApprovalRequirement ────────────────────────────────────────────
 
@@ -378,7 +434,7 @@ type WarehouseOwnershipScope = 'Organization' | 'Branch';
 export function determineApprovalRequirement(
   action: WarehouseLifecycleAction,
   warehouseStatus: WarehouseStatus,
-  hasOpenStock: boolean,
+  _hasOpenStock: boolean,
 ): boolean {
   if (action === 'Inactivate') return true;
   if (action === 'ChangeMode' && warehouseStatus === 'Active') return true;
@@ -483,6 +539,29 @@ export function evaluateLocationEligibility(
   if (warehouseResult?.eligible === false) return warehouseResult;
   if (locationResult?.eligible === false) return locationResult;
   return { eligible: true };
+}
+
+function findNearestResponsibleAncestor(
+  parentLocationId: string | undefined,
+  allLocations: WarehouseLocation[],
+): WarehouseLocation | undefined {
+  let currentParentId = parentLocationId;
+
+  while (currentParentId) {
+    const parent = allLocations.find((location) => location.id === currentParentId);
+    if (!parent) return undefined;
+
+    if (
+      parent.responsibilityAssignment?.mode === 'AssignDirectly' &&
+      parent.responsibilityAssignment.employee
+    ) {
+      return parent;
+    }
+
+    currentParentId = parent.parentLocationId;
+  }
+
+  return undefined;
 }
 
 // ─── evaluateCapacityState ────────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Info } from 'lucide-react';
 
 export interface RuleExplanationPopoverProps {

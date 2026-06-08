@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Info, Plus, Trash2 } from 'lucide-react';
 import type { ConfigSectionProps } from './sectionTypes';
 import type { EligibilityPolicy } from '../../types/warehouse.types';
@@ -127,7 +127,7 @@ export function EligibilityPolicySection({ warehouse, locations, readOnly, savin
         </div>
         <div style={sBody}>
           <div style={{ marginBottom: '14px', padding: '12px 14px', borderRadius: '8px', border: '1px solid #BFDBFE', background: '#EFF6FF', color: '#1D4ED8', fontSize: '12px' }}>
-            {summarizeEligibilityRuleMode(local)}
+            {summarizeEligibilityRuleMode({ mode: local.mode, defaultFallback: local.defaultFallback })}
           </div>
           <div style={{ marginBottom: '14px', padding: '12px 14px', borderRadius: '8px', border: '1px solid #D1FAE5', background: '#ECFDF5', color: '#065F46', fontSize: '12px' }}>
             Location-level eligibility overrides should only be configured on active inventory-allowed leaf locations.

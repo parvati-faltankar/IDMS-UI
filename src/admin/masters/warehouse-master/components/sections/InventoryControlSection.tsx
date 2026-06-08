@@ -1,8 +1,8 @@
 // ─── InventoryControlSection ──────────────────────────────────────────────────
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import type { ConfigSectionProps } from './sectionTypes';
-import { inputBase, inputRO, labelBase, hintTxt, sCard, sHead, sBody, SectionActionRow } from './sectionStyles';
+import { labelBase, hintTxt, sCard, sHead, sBody, SectionActionRow } from './sectionStyles';
 import { DerivedValueDisplay } from '../DerivedValueDisplay';
 import { ConfigurationImpactBanner } from '../ConfigurationImpactBanner';
 import { deriveBinManaged } from '../../utils/warehouseDerivations';

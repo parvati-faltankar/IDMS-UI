@@ -22,6 +22,9 @@ import {
   evaluatePreconditions,
 } from '../utils/warehouseStatusRules';
 import {
+  buildLevelGeneratedCodeExample,
+  buildTemplateIdentifierExamples,
+  buildTemplatePathPreviews,
   validateTemplateLevelTree,
   isCircularHierarchy,
   buildFullLocationCode,
@@ -31,6 +34,7 @@ import { validateWarehouseForActivation } from '../validation/activationValidati
 import { validateWarehouseForSave } from '../validation/warehouseValidation';
 import { validateLocationForSave } from '../validation/locationValidation';
 import { validateHierarchyTemplateForSave } from '../validation/hierarchyValidation';
+import { validateHierarchyTemplateLifecycleAction } from '../validation/hierarchyValidation';
 import { mockAllPermissions, readOnlyPermissions } from '../types/warehouse.permissions';
 import {
   WH_WAREHOUSE_LEVEL_ACTIVE,
@@ -394,6 +398,8 @@ describe('bulk preview', () => {
     // B001 and B002 already exist in WH-0002
     const preview = await warehouseMockAdapter.bulkPreviewLocations('WH-0002', {
       warehouseId: 'WH-0002',
+      parentLocationId: 'LOC-0008',
+      templateLevelCode: 'BIN',
       locationType: 'BIN',
       codePrefix: 'B',
       namePrefix: 'BIN',
@@ -521,11 +527,97 @@ describe('hierarchy template validation', () => {
 
   it('valid template → no errors', () => {
     const issues = validateTemplateLevelTree([
-      { levelCode: 'ZONE', levelName: 'Zone', sequence: 1, mandatory: true, leafEligible: false, allowSkipLevel: false },
-      { levelCode: 'RACK', levelName: 'Rack', sequence: 2, mandatory: false, leafEligible: false, allowSkipLevel: true },
-      { levelCode: 'BIN', levelName: 'BIN', sequence: 3, mandatory: true, leafEligible: true, allowSkipLevel: false },
+      { levelCode: 'ZONE', levelName: 'Zone', sequence: 1, mandatory: true, leafEligible: false, allowSkipLevel: false, levelRole: 'Structural' },
+      { levelCode: 'RACK', levelName: 'Rack', sequence: 2, mandatory: false, leafEligible: false, allowSkipLevel: true, levelRole: 'Structural' },
+      { levelCode: 'BIN', levelName: 'BIN', sequence: 3, mandatory: true, leafEligible: true, allowSkipLevel: false, levelRole: 'InventoryEndpoint', autoGenerateCode: true, codePrefix: 'B', startSequence: 1, sequenceLength: 3, separator: '-' },
     ]);
     expect(issues.filter((i) => i.severity === 'error')).toHaveLength(0);
+  });
+
+  it('explicit cycle in level graph → error', () => {
+    const issues = validateTemplateLevelTree([
+      { levelCode: 'A', levelName: 'A', sequence: 1, mandatory: true, leafEligible: false, allowSkipLevel: false, allowedParentLevels: ['WAREHOUSE', 'C'] },
+      { levelCode: 'B', levelName: 'B', sequence: 2, mandatory: true, leafEligible: false, allowSkipLevel: false, allowedParentLevels: ['A'] },
+      { levelCode: 'C', levelName: 'C', sequence: 3, mandatory: false, leafEligible: true, allowSkipLevel: true, allowedParentLevels: ['B'] },
+    ]);
+    expect(issues.some((issue) => issue.message.includes('cycle'))).toBe(true);
+  });
+
+  it('unreachable explicit level from warehouse root → error', () => {
+    const issues = validateTemplateLevelTree([
+      { levelCode: 'ZONE', levelName: 'Zone', sequence: 1, mandatory: true, leafEligible: false, allowSkipLevel: false, allowedParentLevels: ['WAREHOUSE'] },
+      { levelCode: 'BIN', levelName: 'Bin', sequence: 2, mandatory: true, leafEligible: true, allowSkipLevel: false, allowedParentLevels: ['ZONE'] },
+      { levelCode: 'ORPHAN', levelName: 'Orphan', sequence: 3, mandatory: false, leafEligible: true, allowSkipLevel: true, allowedParentLevels: ['UNKNOWN'] },
+    ]);
+    expect(issues.some((issue) => issue.message.includes('unreachable'))).toBe(true);
+  });
+
+  it('builds preview paths from explicit parent rules', () => {
+    const paths = buildTemplatePathPreviews([
+      { levelCode: 'ZONE', levelName: 'Zone', sequence: 1, mandatory: true, leafEligible: false, allowSkipLevel: false, allowedParentLevels: ['WAREHOUSE'] },
+      { levelCode: 'AISLE', levelName: 'Aisle', sequence: 2, mandatory: true, leafEligible: false, allowSkipLevel: false, allowedParentLevels: ['ZONE'] },
+      { levelCode: 'BIN', levelName: 'Bin', sequence: 3, mandatory: true, leafEligible: true, allowSkipLevel: false, allowedParentLevels: ['ZONE', 'AISLE'] },
+    ], true);
+    expect(paths).toContain('WAREHOUSE -> ZONE -> BIN');
+    expect(paths).toContain('WAREHOUSE -> ZONE -> AISLE -> BIN');
+  });
+
+  it('builds level code examples from coding policy fields', () => {
+    const code = buildLevelGeneratedCodeExample({
+      levelCode: 'BIN',
+      levelName: 'BIN',
+      sequence: 1,
+      mandatory: true,
+      leafEligible: true,
+      allowSkipLevel: false,
+      autoGenerateCode: true,
+      codePrefix: 'B',
+      startSequence: 7,
+      sequenceLength: 4,
+      separator: '-',
+      suffix: 'A',
+    });
+    expect(code).toBe('B-0007-A');
+  });
+
+  it('builds full identifier examples without hardcoded path names', () => {
+    const examples = buildTemplateIdentifierExamples({
+      levels: [
+        { levelCode: 'YARD', levelName: 'Yard', sequence: 1, mandatory: true, leafEligible: false, allowSkipLevel: false, allowedParentLevels: ['WAREHOUSE'], autoGenerateCode: true, codePrefix: 'Y', startSequence: 1, sequenceLength: 2, separator: '-', levelRole: 'Yard' },
+        { levelCode: 'BAY', levelName: 'Bay', sequence: 2, mandatory: true, leafEligible: true, allowSkipLevel: false, allowedParentLevels: ['YARD'], autoGenerateCode: true, codePrefix: 'BA', startSequence: 10, sequenceLength: 2, separator: '-', levelRole: 'InventoryEndpoint' },
+      ],
+      flexiblePathEnabled: false,
+      defaultPathSeparator: '/',
+      includeWarehouseCodeInIdentifier: true,
+      defaultSequenceLength: 2,
+    }, 'WHX');
+
+    expect(examples[0]).toContain('WHX/');
+    expect(examples[0]).toContain('Y-01');
+    expect(examples[0]).toContain('BA-10');
+  });
+
+  it('save validation rejects effective-to before effective-from', () => {
+    const errors = validateHierarchyTemplateForSave({
+      warehouseId: 'WH-TEST',
+      templateCode: 'TPL-DATE',
+      templateName: 'Date Rule',
+      templateSource: 'UserDefined',
+      templateScope: 'Warehouse',
+      flexiblePathEnabled: true,
+      effectiveFrom: '2026-06-10',
+      effectiveTo: '2026-06-09',
+      levels: [
+        { levelCode: 'BIN', levelName: 'Bin', sequence: 1, mandatory: true, leafEligible: true, allowSkipLevel: false, levelRole: 'InventoryEndpoint', autoGenerateCode: true, codePrefix: 'B', startSequence: 1, sequenceLength: 3, separator: '-' },
+      ],
+    }, []);
+
+    expect(errors.effectiveTo).toContain('Effective To');
+  });
+
+  it('lifecycle guard blocks inactivation of active template with dependencies', () => {
+    const message = validateHierarchyTemplateLifecycleAction('Active', 'Inactive', true);
+    expect(message).toContain('dependent hierarchy nodes');
   });
 });
 
@@ -674,8 +766,16 @@ describe('validateLocationForSave', () => {
 
   it('valid input → no errors', () => {
     const errors = validateLocationForSave(
-      { warehouseId: warehouse.id, locationCode: 'NEWBIN', locationName: 'New BIN', locationType: 'BIN' },
+      {
+        warehouseId: warehouse.id,
+        parentLocationId: 'LOC-0008',
+        templateLevelCode: 'BIN',
+        locationCode: 'NEWBIN',
+        locationName: 'New BIN',
+        locationType: 'BIN',
+      },
       warehouse, SEED_LOCATIONS,
+      SEED_HIERARCHY_TEMPLATES[0],
     );
     expect(Object.values(errors).filter(Boolean)).toHaveLength(0);
   });

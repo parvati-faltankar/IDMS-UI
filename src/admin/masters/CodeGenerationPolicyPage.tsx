@@ -20,6 +20,7 @@ import {
   ZapOff,
 } from 'lucide-react';
 import AdminShell from '../AdminShell';
+import { AdminPageShell } from '../../experience/components/AdminPageShell';
 import { AdminListPageShell } from '../../experience/components/AdminListPageShell';
 import { findGroupForMasterKey, findMasterByKey } from '../adminNavConfig';
 import { recordRecentAdminMaster } from '../adminStorage';
@@ -76,10 +77,7 @@ const CRITICAL_FIELDS = new Set<keyof PolicyFormData>([
 
 // ─── Form section navigation (org-master-style sidebar) ────────────────────
 
-type CGPSectionKey = 'basic' | 'applicability' | 'prefix' | 'series' | 'format' | 'review' | 'history';
-
-// Ordered guided steps — 'history' is accessible but not part of the main setup flow
-const CGP_FORM_STEPS: CGPSectionKey[] = ['basic', 'applicability', 'prefix', 'series', 'format', 'review'];
+type CGPSectionKey = 'basic' | 'applicability' | 'prefix' | 'series' | 'format' | 'history';
 
 const CGP_SECTIONS: Array<{
   key: CGPSectionKey;
@@ -92,8 +90,7 @@ const CGP_SECTIONS: Array<{
   { key: 'prefix',        label: 'Prefix Selection', icon: Hash,      description: 'Prefix assigned to this policy' },
   { key: 'series',        label: 'Series & Pattern', icon: Edit2,     description: 'Series type, year format and pattern' },
   { key: 'format',        label: 'Number Format',    icon: Info,      description: 'Sequence length, padding and separator' },
-  { key: 'review',  label: 'Review',          icon: CheckCircle2, description: 'Review all settings and activate policy' },
-  { key: 'history', label: 'Usage & History', icon: Eye,          description: 'Usage stats and deactivation record — available after first save' },
+  { key: 'history',       label: 'Usage & History',  icon: Eye,       description: 'Usage stats and deactivation record' },
 ];
 
 const CGP_SECTION_REQUIRED: Record<CGPSectionKey, (keyof PolicyFormData)[]> = {
@@ -102,7 +99,6 @@ const CGP_SECTION_REQUIRED: Record<CGPSectionKey, (keyof PolicyFormData)[]> = {
   prefix:        ['prefixId'],
   series:        ['seriesType'],
   format:        ['numberLength', 'startingNumber', 'paddingCharacter', 'alignmentType', 'separator', 'caseFormat'],
-  review:        [],
   history:       [],
 };
 
@@ -112,7 +108,6 @@ const CGP_SECTION_FIELDS: Record<CGPSectionKey, (keyof PolicyFormData)[]> = {
   prefix:        ['prefixId', 'prefixValue'],
   series:        ['seriesType', 'calendarYearFormat', 'financialYearFormat', 'customResetBasis', 'codePattern'],
   format:        ['numberLength', 'startingNumber', 'paddingCharacter', 'alignmentType', 'separator', 'caseFormat'],
-  review:        [],
   history:       [],
 };
 
@@ -493,55 +488,6 @@ function generatePolicyCode(policies: Policy[]): string {
   return `${prefix}${String(max + 1).padStart(3, '0')}`;
 }
 
-// ─── Activation checklist ─────────────────────────────────────────────────────
-
-interface ChecklistItem {
-  id: string;
-  label: string;
-  passed: boolean;
-  detail?: string;
-}
-
-function computeActivationChecklist(
-  form: PolicyFormData,
-  policies: Policy[],
-  editingId: string | null,
-  sampleCode: string,
-): ChecklistItem[] {
-  const basicOk = !!(form.policyName.trim() && form.displayName.trim());
-  const applicabilityOk = !!(form.applicableFor && form.module && form.entity);
-  const prefixOk = !!(form.prefixId && form.prefixValue);
-
-  const seriesBase = !!form.seriesType;
-  const calOk = !['Calendar Year', 'Monthly', 'Daily'].includes(form.seriesType) || !!form.calendarYearFormat;
-  const fyOk  = form.seriesType !== 'Financial Year' || !!form.financialYearFormat;
-  const customOk = form.seriesType !== 'Custom' || (!!form.customResetBasis && !!form.codePattern && form.codePattern.includes('{Sequence}'));
-  const seriesOk = seriesBase && calOk && fyOk && customOk;
-
-  const formatOk = !!(form.numberLength && form.startingNumber && form.paddingCharacter && form.alignmentType && form.separator && form.caseFormat);
-  const previewOk = sampleCode !== '—' && sampleCode !== 'CONFIGURE-PATTERN';
-
-  const dupExists = policies.some(p =>
-    p.id !== editingId &&
-    p.status === 'Active' &&
-    p.applicableFor === form.applicableFor &&
-    p.module === form.module &&
-    p.entity === form.entity &&
-    p.entityType === form.entityType &&
-    p.prefixId === form.prefixId
-  );
-
-  return [
-    { id: 'basic',         label: 'Basic details complete',       passed: basicOk,         detail: basicOk         ? undefined : 'Policy Name and Display Name are required' },
-    { id: 'applicability', label: 'Applicability selected',       passed: applicabilityOk, detail: applicabilityOk ? undefined : 'Applicable For, Module and Entity are required' },
-    { id: 'prefix',        label: 'Prefix selected',              passed: prefixOk,        detail: prefixOk        ? undefined : 'An active prefix must be linked to this policy' },
-    { id: 'series',        label: 'Series type configured',       passed: seriesOk,        detail: seriesOk        ? undefined : 'Series type and any required year/pattern fields must be set' },
-    { id: 'format',        label: 'Number format complete',       passed: formatOk,        detail: formatOk        ? undefined : 'Number length, padding, separator and case format are required' },
-    { id: 'preview',       label: 'Sample code can be generated', passed: previewOk,       detail: previewOk       ? undefined : 'Complete prefix and series/format to generate a sample code' },
-    { id: 'nodup',         label: 'No conflicting active policy', passed: !dupExists,      detail: dupExists       ? 'An active policy already exists for this scope and prefix' : undefined },
-  ];
-}
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 const CodeGenerationPolicyPage: React.FC = () => {
@@ -663,13 +609,6 @@ const CodeGenerationPolicyPage: React.FC = () => {
   const showCustomSection = form.seriesType === 'Custom';
 
   const sampleCode = useMemo(() => buildSampleCode(form), [form]);
-
-  const cgpChecklist = useMemo(
-    () => computeActivationChecklist(form, policies, editingId, sampleCode),
-    [form, policies, editingId, sampleCode],
-  );
-  const checklistAllPassed = cgpChecklist.every(c => c.passed);
-  const checklistFailCount = cgpChecklist.filter(c => !c.passed).length;
 
   const filteredPolicies = useMemo(() => {
     let list = policies;
@@ -890,7 +829,14 @@ const CodeGenerationPolicyPage: React.FC = () => {
       secondaryActions={[
         { label: 'How this works', onClick: () => { setHelpTopicId('code-generation-policy'); setHelpOpen(true); } },
       ]}
-      // summaryItems omitted — counts already appear inside quickFilterItems chips (All N · Active N · Draft N · Inactive N)
+      helpTopicId="code-generation-policy"
+      onHelpClick={(id) => { setHelpTopicId(id); setHelpOpen(true); }}
+      summaryItems={[
+        { label: 'Total',    value: policies.length },
+        { label: 'Active',   value: policies.filter(p => p.status === 'Active').length,   tone: 'success' },
+        { label: 'Draft',    value: policies.filter(p => p.status === 'Draft').length,    tone: 'warning' },
+        { label: 'Inactive', value: policies.filter(p => p.status === 'Inactive').length, tone: 'danger'  },
+      ]}
       searchValue={searchQuery}
       searchPlaceholder="Search code, name, entity…"
       onSearchChange={setSearchQuery}
@@ -1177,197 +1123,47 @@ const CodeGenerationPolicyPage: React.FC = () => {
   const renderForm = () => {
     const isActiveLockBanner = isActiveLocked && !isViewOnly;
     const isDraft = !editingId || editingPolicy?.status === 'Draft';
-
-    // ── Mode-aware title/breadcrumbs ─────────────────────────────
-    const pageTitle =
-      formMode === 'add'  ? 'New Code Generation Policy' :
-      formMode === 'edit' ? 'Edit Code Generation Policy' :
-                            editingPolicy?.policyName || 'Code Generation Policy';
-    const pageDescription =
-      isViewOnly         ? `${editingPolicy?.policyCode ?? ''} — Read-only view` :
-      isActiveLockBanner ? 'Active policy — scope, prefix, series and format fields are locked' :
-      formMode === 'add' ? 'Define prefix, series type, and number format for the generated codes.' :
-                           'Update generation rules and activation settings.';
-    const pageBreadcrumbs = ['Admin', group.label, master.label, formMode === 'add' ? 'New' : formMode === 'edit' ? 'Edit' : 'View'];
-
-    // ── Guided step helpers ──────────────────────────────────────
-    const stepIdx    = CGP_FORM_STEPS.indexOf(activeSection);
-    const isOnReview = activeSection === 'review';
-
-    const goToPrevStep = () => {
-      if (stepIdx > 0) setActiveSection(CGP_FORM_STEPS[stepIdx - 1]);
-    };
-    const goToNextStep = () => {
-      if (stepIdx < CGP_FORM_STEPS.length - 1) setActiveSection(CGP_FORM_STEPS[stepIdx + 1]);
-    };
-
-    const stepStepState = (key: CGPSectionKey): 'complete' | 'inprogress' | 'notstarted' | 'attention' => {
-      if (key === activeSection) return 'inprogress';
-      if (key === 'review') return 'notstarted';
-      // Gate: a downstream step cannot be 'complete' until its prerequisites are satisfied
-      const applicabilityOk = !!(form.applicableFor && form.module && form.entity);
-      const prefixOk        = !!(form.prefixId);
-      const seriesOk        = !!(form.seriesType);
-      if (key === 'prefix' && !applicabilityOk) return 'notstarted';
-      if (key === 'series' && (!applicabilityOk || !prefixOk)) return 'notstarted';
-      if (key === 'format' && (!applicabilityOk || !prefixOk || !seriesOk)) return 'notstarted';
-      const req  = CGP_SECTION_REQUIRED[key];
-      const all  = CGP_SECTION_FIELDS[key];
-      if (all.length === 0) return 'notstarted';
-      if (req.length > 0 && req.every(f => !!form[f])) return 'complete';
-      if (all.some(f => !!form[f])) return 'attention';
-      return 'notstarted';
-    };
-
-    // ── Step navigation toolbar ──────────────────────────────────
-    const stepNav = (
-      <div style={{ display: 'flex', alignItems: 'center', width: '100%', minWidth: 0, overflow: 'hidden' }}>
-        {/* Step pills */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '2px', overflowX: 'auto', flexShrink: 1, minWidth: 0 }}>
-          {CGP_FORM_STEPS.map((key, i) => {
-            const sec   = CGP_SECTIONS.find(s => s.key === key)!;
-            const isAct = key === activeSection;
-            const state = stepStepState(key);
-            const circleColor =
-              isAct                ? 'var(--color-primary)' :
-              state === 'complete' ? '#16A34A' :
-              state === 'attention'? '#D97706' : 'var(--color-border)';
-            const labelColor =
-              isAct                ? 'var(--color-primary)' :
-              state === 'complete' ? '#15803D' :
-              state === 'attention'? '#D97706' : 'var(--color-text-muted)';
-            return (
-              <React.Fragment key={key}>
-                {i > 0 && (
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0, color: 'var(--color-border)' }}>
-                    <path d="M5 3l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setActiveSection(key)}
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', gap: '6px',
-                    padding: '4px 10px', border: 'none', background: 'transparent',
-                    cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
-                  }}
-                >
-                  {/* Circle */}
-                  <span style={{
-                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                    width: '20px', height: '20px', borderRadius: '50%', flexShrink: 0,
-                    border: `2px solid ${circleColor}`,
-                    background: isAct ? circleColor : state === 'complete' ? '#DCFCE7' : 'transparent',
-                    fontSize: '10px', fontWeight: 700,
-                    color: isAct ? 'white' : state === 'complete' ? '#15803D' : circleColor,
-                    transition: 'all 0.15s',
-                  }}>
-                    {state === 'complete' && !isAct
-                      ? <Check size={10} strokeWidth={3} />
-                      : i + 1}
-                  </span>
-                  {/* Label */}
-                  <span style={{ fontSize: '12px', fontWeight: isAct ? 600 : 400, color: labelColor, transition: 'color 0.15s' }}>
-                    {sec.label}
-                  </span>
-                </button>
-              </React.Fragment>
-            );
-          })}
-          {/* History tab — only for saved policies, shown after guided steps */}
-          {editingPolicy && (
-            <>
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0, color: 'var(--color-border)' }}>
-                <path d="M5 3l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              <button
-                type="button"
-                onClick={() => setActiveSection('history')}
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: '6px',
-                  padding: '4px 10px', border: 'none', background: 'transparent',
-                  cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
-                }}
-              >
-                <span style={{ fontSize: '12px', fontWeight: activeSection === 'history' ? 600 : 400, color: activeSection === 'history' ? 'var(--color-primary)' : 'var(--color-text-muted)' }}>
-                  History
-                </span>
-              </button>
-            </>
-          )}
-        </div>
-
-        {/* Live sample code preview — right side of step nav */}
-        <div style={{ marginLeft: 'auto', paddingLeft: '16px', flexShrink: 0 }}>
-          {sampleCode !== '—' && sampleCode !== 'CONFIGURE-PATTERN' ? (
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 12px', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '8px' }}>
-              <span style={{ fontSize: '10px', fontWeight: 700, color: '#15803D', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Sample</span>
-              <span style={{ fontFamily: 'monospace', fontSize: '13px', fontWeight: 800, color: '#15803D', letterSpacing: '0.04em' }}>
-                {sampleCode}
-              </span>
-            </div>
-          ) : (
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 12px', background: 'var(--color-surface-subtle)', border: '1px solid var(--color-border)', borderRadius: '8px' }}>
-              <span style={{ fontSize: '10px', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Sample</span>
-              <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Complete prefix &amp; format to preview</span>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-
-    // Status badge for compact header
-    const statusBadgeStyle =
-      editingPolicy?.status === 'Active'
-        ? { background: 'color-mix(in srgb, #10b981 12%, var(--color-surface))', color: 'color-mix(in srgb, #10b981 85%, var(--color-text))', borderColor: 'color-mix(in srgb, #10b981 35%, var(--color-border))' }
-        : { background: 'var(--color-surface-subtle)', color: 'var(--color-text-muted)', borderColor: 'var(--color-border)' };
-
+    const currentCode = editingPolicy?.policyCode ?? '(New Policy)';
     return (
-      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--color-surface)' }}>
-
-        {/* ── 1. Compact Form Header ───────────────────────────────────────────── */}
-        <div style={{
-          flexShrink: 0, padding: '10px 24px',
-          borderBottom: '1px solid var(--color-border)',
-          background: 'var(--color-surface)',
-          display: 'flex', alignItems: 'center', gap: '16px', minHeight: '64px',
-        }}>
-          {/* Left: breadcrumb → title + status → description */}
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginBottom: '2px', userSelect: 'none' }}>
-              {pageBreadcrumbs.join(' / ')}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text)', lineHeight: 1.25 }}>{pageTitle}</span>
-              {editingPolicy?.status && (
-                <span style={{ display: 'inline-flex', alignItems: 'center', fontSize: '11px', fontWeight: 600, padding: '2px 9px', borderRadius: '9999px', border: '1px solid', ...statusBadgeStyle }}>
-                  {editingPolicy.status}
-                </span>
-              )}
-            </div>
-            <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px', lineHeight: 1.35 }}>
-              {pageDescription}
-            </div>
+      <AdminPageShell
+        title={currentCode}
+        description={isViewOnly ? 'Viewing — read only' : isActiveLockBanner ? 'Active — only Display Name and Description are editable' : 'Edit form — save as Draft or Activate'}
+        breadcrumbs={[group.label, master.label]}
+        statusLabel={editingPolicy?.status}
+        statusTone={editingPolicy?.status === 'Active' ? 'active' : editingPolicy?.status === 'Draft' ? 'draft' : editingPolicy?.status === 'Inactive' ? 'neutral' : undefined}
+        helpTopicId={helpTopicId}
+        onHelpClick={(id) => { setHelpTopicId(id); setHelpOpen(true); }}
+        primaryAction={!isViewOnly ? (
+          (formMode === 'add' || editingPolicy?.status === 'Draft') ? { label: 'Activate', tone: 'primary' as const, onClick: handleActivate } :
+          editingPolicy?.status === 'Active' ? { label: 'Save', tone: 'primary' as const, onClick: handleSaveDraft } :
+          undefined
+        ) : undefined}
+        secondaryActions={[
+          ...(!isViewOnly && isDraft ? [{ label: 'Save Draft', tone: 'ghost' as const, onClick: handleSaveDraft }] : []),
+          ...(!isViewOnly && editingPolicy?.status === 'Active' ? [{ label: 'Deactivate', tone: 'ghost' as const, onClick: () => editingPolicy && openDeactivation(editingPolicy) }] : []),
+          { label: 'Policy List', tone: 'ghost' as const, onClick: goBackToList },
+        ]}
+        toolbar={
+          <div style={{ display: 'flex', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
+            {CGP_SECTIONS.map((s, i) => {
+              const isActive = activeSection === s.key;
+              return (
+                <button key={s.key} type="button" onClick={() => setActiveSection(s.key)}
+                  style={{
+                    padding: '6px 16px', fontSize: '13px',
+                    fontWeight: isActive ? 600 : 400, border: 'none',
+                    borderRight: i < CGP_SECTIONS.length - 1 ? '1px solid var(--color-border)' : 'none',
+                    background: isActive ? 'var(--color-primary)' : 'transparent',
+                    color: isActive ? 'white' : 'var(--color-text)',
+                    cursor: 'pointer', transition: 'all 0.15s',
+                  }}>
+                  {s.label}
+                </button>
+              );
+            })}
           </div>
-          {/* Right: header actions */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-            <button type="button" onClick={goBackToList} style={btnOutline}>← Back to Policies</button>
-            <button type="button" onClick={() => { setHelpTopicId('code-generation-policy'); setHelpOpen(true); }} style={btnOutline}>How this works</button>
-          </div>
-        </div>
-
-        {/* ── 2. Workflow Bar ──────────────────────────────────────────────── */}
-        <div style={{
-          flexShrink: 0, height: '44px', padding: '0 24px',
-          borderBottom: '1px solid var(--color-border)',
-          background: 'var(--color-surface)',
-          display: 'flex', alignItems: 'center', overflow: 'hidden',
-        }}>
-          {stepNav}
-        </div>
-
-        {/* ── 3. Scrollable Form Body ────────────────────────────────────────── */}
-        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '16px 24px', background: 'var(--color-surface-subtle)' }}>
+        }
+      >
 
         {/* ── Alert banners ── */}
         {(isActiveLockBanner || activationErrors.length > 0) && (
@@ -1402,482 +1198,402 @@ const CodeGenerationPolicyPage: React.FC = () => {
           </div>
         )}
 
-        {/* ── Basic Details ── */}
-        {activeSection === 'basic' && (
-          <CGPSectionPanel sectionKey="basic" title="Basic Details" form={form}>
-            {/* Policy Code — compact metadata row (not a large disabled input) */}
-            <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'var(--color-surface-subtle)', border: '1px solid var(--color-border)', borderRadius: '8px' }}>
-              <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--color-text-muted)' }}>Policy Code:</span>
-              <span style={{ fontSize: '11px', fontWeight: 700, padding: '1px 7px', borderRadius: '4px', background: '#EFF6FF', color: '#1D4ED8' }}>AUTO</span>
-              <span style={{ fontSize: '11px', color: editingPolicy?.policyCode ? 'var(--color-text)' : 'var(--color-text-muted)', fontFamily: editingPolicy?.policyCode ? 'monospace' : undefined }}>
-                {editingPolicy?.policyCode || '· Generated on first save'}
-              </span>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              <FField label="Policy Name" required error={fieldErrors.policyName}>
-                <FInput value={form.policyName} onChange={v => setField('policyName', v)} placeholder="e.g. Sales Order Number, Customer Code" maxLength={100} locked={isLocked('policyName')} error={fieldErrors.policyName} />
-              </FField>
-              <FField label="Display Name" required error={fieldErrors.displayName}>
-                <FInput value={form.displayName} onChange={v => setField('displayName', v)} placeholder="e.g. Sales Order Number" maxLength={100} locked={isLocked('displayName')} error={fieldErrors.displayName} />
-                {form.displayName && form.policyName && form.displayName === form.policyName && (
-                  <div style={{ marginTop: '4px', fontSize: '11px', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Check size={10} style={{ color: '#94A3B8' }} />
-                    Synced with Policy Name
-                  </div>
-                )}
-              </FField>
-              <FField label="Policy Status" required>
-                <FSelect
-                  value={form.status}
-                  onChange={v => setField('status', v as PolicyStatus)}
-                  locked={isLocked('status') || (!isViewOnly && editingPolicy?.status === 'Active')}
-                  options={['Draft', 'Active', 'Inactive']}
-                  error={fieldErrors.status}
-                />
-                <div style={{ marginTop: '4px', fontSize: '11px', color: 'var(--color-text-muted)' }}>
-                  {form.status === 'Draft' && 'Incomplete — use Activate in the Review step to go live.'}
-                  {form.status === 'Active' && 'Live and used for code generation.'}
-                  {form.status === 'Inactive' && 'Disabled — new codes will not be generated.'}
-                </div>
-              </FField>
-              <div style={{ gridColumn: '1 / -1' }}>
-                <FField label="Description (Optional)">
-                  <textarea
-                    value={form.description}
-                    onChange={e => setField('description', e.target.value)}
-                    placeholder="Brief description of this code generation policy…"
-                    maxLength={500} rows={2} disabled={isLocked('description')}
-                    style={{ ...inputBase, resize: 'none', lineHeight: 1.5, ...(isLocked('description') ? lockedInputStyle : {}) }}
-                  />
-                  <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px', textAlign: 'right' }}>{form.description.length}/500</div>
-                </FField>
-              </div>
-            </div>
-          </CGPSectionPanel>
-        )}
 
-        {/* ── Applicability ── */}
-        {activeSection === 'applicability' && (
-          <CGPSectionPanel sectionKey="applicability" title="Applicability" form={form}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              <FField label="Applicable For" required error={fieldErrors.applicableFor}>
-                <FSelect value={form.applicableFor} onChange={v => setField('applicableFor', v)} locked={isLocked('applicableFor')} options={APPLICABLE_FOR_OPTIONS as unknown as string[]} error={fieldErrors.applicableFor} />
-              </FField>
-              <FField label="Module" required error={fieldErrors.module}>
-                <FSelect value={form.module} onChange={v => setField('module', v)} locked={isLocked('module')} disabled={!form.applicableFor && !isLocked('module')} options={availableModules} error={fieldErrors.module} placeholder={form.applicableFor ? '— Select Module —' : '— Select Applicable For first —'} />
-              </FField>
-              <FField label="Entity" required error={fieldErrors.entity}>
-                <FSelect value={form.entity} onChange={v => setField('entity', v)} locked={isLocked('entity')} disabled={!form.module && !isLocked('entity')} options={availableEntities} error={fieldErrors.entity} placeholder={form.module ? '— Select Entity —' : '— Select Module first —'} />
-              </FField>
-              <FField label="Entity Type" error={fieldErrors.entityType}>
-                <FSelect value={form.entityType} onChange={v => setField('entityType', v)} locked={isLocked('entityType')} disabled={(!form.entity && !isLocked('entityType')) || !requiresEntityType} options={availableEntityTypes} error={fieldErrors.entityType} placeholder={!requiresEntityType ? '— Not applicable for this Entity —' : '— Select Entity Type (Optional) —'} />
-              </FField>
-            </div>
-          </CGPSectionPanel>
-        )}
-
-        {/* ── Prefix Selection ── */}
-        {activeSection === 'prefix' && (
-          <CGPSectionPanel sectionKey="prefix" title="Prefix Selection" form={form}>
-            {(!form.applicableFor || !form.module || !form.entity) && !isLocked('prefixId') ? (
-              <div style={{ padding: '16px', background: 'var(--color-surface-subtle)', border: '1px dashed var(--color-border)', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Info size={15} style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} />
-                <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>Complete the <strong>Applicability</strong> section first to see matching prefixes.</span>
-              </div>
-            ) : availablePrefixes.length === 0 && !isLocked('prefixId') ? (
-              <div style={{ padding: '16px', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <AlertCircle size={15} style={{ color: '#D97706', flexShrink: 0 }} />
-                <span style={{ fontSize: '13px', color: '#92400E' }}>
-                  No active prefixes found for the selected scope ({form.applicableFor} / {form.module} / {form.entity}{form.entityType ? ` / ${form.entityType}` : ''}).
-                  {' '}Please create a prefix in Code Prefix Master first.
-                </span>
-              </div>
-            ) : (
-              <div>
-                <FField label="Prefix" required>
-                  <FSelect
-                    value={form.prefixId}
-                    onChange={v => setField('prefixId', v)}
-                    locked={isLocked('prefixId')}
-                    options={availablePrefixes.map(p => p.id)}
-                    displayMap={Object.fromEntries(availablePrefixes.map(p => [p.id, `${p.prefixValue} — ${p.name}`]))}
-                    placeholder="— Select Prefix —"
-                  />
-                </FField>
-                {form.prefixValue && (
-                  <div style={{ marginTop: '10px', display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 14px', background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: '8px' }}>
-                    <span style={{ fontSize: '12px', color: '#0369A1', fontWeight: 500 }}>Selected prefix value:</span>
-                    <span style={{ fontFamily: 'monospace', fontSize: '16px', fontWeight: 800, color: '#0369A1', letterSpacing: '0.05em' }}>{form.prefixValue}</span>
-                    {availablePrefixes.find(p => p.id === form.prefixId)?.isDefault && (
-                      <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', background: '#0369A1', color: 'white', fontWeight: 600 }}>DEFAULT</span>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </CGPSectionPanel>
-        )}
-
-        {/* ── Series & Pattern ── */}
-        {activeSection === 'series' && (
-          <>
-            <CGPSectionPanel sectionKey="series" title="Series Configuration" form={form}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <FField label="Series Type" required error={fieldErrors.seriesType}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
-                      {SERIES_TYPES.map(st => {
-                        const active = form.seriesType === st;
-                        const locked = isLocked('seriesType');
-                        return (
-                          <button
-                            key={st} type="button" disabled={locked}
-                            onClick={() => !locked && setField('seriesType', st)}
-                            style={{ padding: '10px 14px', fontSize: '13px', fontWeight: active ? 700 : 500, border: `1.5px solid ${active ? 'var(--color-primary)' : 'var(--color-border)'}`, borderRadius: '10px', background: active ? 'var(--color-primary)' : locked ? 'var(--color-surface-subtle)' : 'var(--color-surface)', color: active ? 'white' : locked ? 'var(--color-text-muted)' : 'var(--color-text)', cursor: locked ? 'not-allowed' : 'pointer', textAlign: 'center', transition: 'all 0.15s' }}
-                          >
-                            {st}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </FField>
-                  {form.seriesType && (
-                    <div style={{ marginTop: '8px', padding: '8px 12px', background: '#F8FAFC', border: '1px solid var(--color-border)', borderRadius: '8px' }}>
-                      <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                        {form.seriesType === 'Continuous' && 'Sequence runs continuously with no reset. Format: PREFIX-SEQ'}
-                        {form.seriesType === 'Calendar Year' && 'Resets every calendar year. Format: PREFIX-YYYY/YY-SEQ'}
-                        {form.seriesType === 'Financial Year' && 'Resets every financial year. Format: PREFIX-FY-SEQ'}
-                        {form.seriesType === 'Monthly' && 'Resets every month. Format: PREFIX-YYYY/YY-MM-SEQ'}
-                        {form.seriesType === 'Daily' && 'Resets every day. Format: PREFIX-YYYY/YY-MM-DD-SEQ'}
-                        {form.seriesType === 'Custom' && 'Define your own pattern using allowed tokens.'}
-                      </span>
-                    </div>
-                  )}
-                </div>
-                {showCalendarYearFormat && (
-                  <FField label="Calendar Year Format" required>
-                    <FSelect value={form.calendarYearFormat} onChange={v => setField('calendarYearFormat', v)} locked={isLocked('calendarYearFormat')} options={['YYYY', 'YY']} displayMap={{ 'YYYY': 'YYYY — Full year (e.g. 2026)', 'YY': 'YY — Short year (e.g. 26)' }} placeholder="— Select Year Format —" />
-                  </FField>
-                )}
-                {showFinancialYearFormat && (
-                  <FField label="Financial Year Format" required>
-                    <FSelect value={form.financialYearFormat} onChange={v => setField('financialYearFormat', v)} locked={isLocked('financialYearFormat')} options={['YYYY-YY', 'YY-YY', 'FY-YYYY-YY', 'FY-YY-YY']} displayMap={{ 'YYYY-YY': 'YYYY-YY (e.g. 2026-27)', 'YY-YY': 'YY-YY (e.g. 26-27)', 'FY-YYYY-YY': 'FY-YYYY-YY (e.g. FY-2026-27)', 'FY-YY-YY': 'FY-YY-YY (e.g. FY-26-27)' }} placeholder="— Select FY Format —" />
-                  </FField>
-                )}
-                {form.seriesType === 'Custom' && (
-                  <FField label="Custom Reset Basis" required>
-                    <FSelect value={form.customResetBasis} onChange={v => setField('customResetBasis', v)} locked={isLocked('customResetBasis')} options={['No Reset', 'Calendar Year', 'Financial Year', 'Monthly', 'Daily']} placeholder="— Select Reset Basis —" />
-                  </FField>
-                )}
-              </div>
-            </CGPSectionPanel>
-
-            {/* Pattern Configuration (Custom series only) */}
-            {showCustomSection && (
-              <div style={{ marginTop: '20px' }}>
-                <FormSection label="Pattern Configuration" icon={<Edit2 size={14} />} highlight>
-                  <div style={{ marginBottom: '12px', padding: '10px 14px', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '8px', display: 'flex', gap: '8px' }}>
-                    <Info size={14} style={{ color: '#D97706', flexShrink: 0, marginTop: '1px' }} />
-                    <span style={{ fontSize: '12px', color: '#92400E', lineHeight: 1.5 }}>
-                      Use only the allowed tokens below. The <strong>{'{Sequence}'}</strong> token is mandatory.
-                      Click a token chip to insert it at the end of the pattern.
-                    </span>
-                  </div>
-                  <FField label="Code Pattern" required>
-                    <FInput value={form.codePattern} onChange={v => setField('codePattern', v)} placeholder="e.g. {Prefix}-{Financial Year}-{Sequence}" maxLength={250} locked={isLocked('codePattern')} monospace />
-                  </FField>
-                  {!isLocked('codePattern') && (
-                    <div style={{ marginTop: '12px' }}>
-                      <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>Available Tokens — click to insert</div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                        {CUSTOM_TOKENS.map(({ token, label, hint }) => {
-                          const isInPattern = form.codePattern.includes(token);
-                          return (
-                            <button key={token} type="button" title={hint} onClick={() => setField('codePattern', form.codePattern + token)}
-                              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '5px 10px', fontSize: '12px', fontWeight: 600, border: `1.5px solid ${isInPattern ? '#2563EB' : 'var(--color-border)'}`, borderRadius: '8px', background: isInPattern ? '#EFF6FF' : 'var(--color-surface)', color: isInPattern ? '#1D4ED8' : 'var(--color-text)', cursor: 'pointer', transition: 'all 0.1s', fontFamily: 'monospace' }}>
-                              {label}
-                              {token === '{Sequence}' && <span style={{ fontSize: '10px', color: '#DC2626' }}>✱</span>}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      {form.codePattern && !form.codePattern.includes('{Sequence}') && (
-                        <div style={{ marginTop: '8px', fontSize: '12px', color: '#DC2626', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <AlertCircle size={13} />
-                          Pattern must include the <strong>{'{Sequence}'}</strong> token.
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </FormSection>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* ── Number Format ── */}
-        {activeSection === 'format' && (
-          <CGPSectionPanel
-            sectionKey="format"
-            title="Number Format"
-            form={form}
-            completionOverride={!form.seriesType && !isLocked('seriesType') ? 'empty' : undefined}
-          >
-            {!form.seriesType && !isLocked('seriesType') && (
-              <div style={{ marginBottom: '16px', padding: '12px 14px', background: 'var(--color-surface-subtle)', border: '1px dashed var(--color-border)', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Info size={14} style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} />
-                <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>Complete the <strong>Series &amp; Pattern</strong> step to unlock number format configuration.</span>
-              </div>
-            )}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              <FField label="Number Length" required error={fieldErrors.numberLength}>
-                <FInput value={form.numberLength} onChange={v => setField('numberLength', v)} placeholder="e.g. 5" type="number" locked={isLocked('numberLength')} error={fieldErrors.numberLength} />
-                <div style={{ marginTop: '4px', fontSize: '11px', color: 'var(--color-text-muted)' }}>Digits in the sequence number (1–10). Example: 5 → 00001</div>
-              </FField>
-              <FField label="Starting Number" required error={fieldErrors.startingNumber}>
-                <FInput value={form.startingNumber} onChange={v => setField('startingNumber', v)} placeholder="e.g. 1" type="number" locked={isLocked('startingNumber')} error={fieldErrors.startingNumber} />
-                <div style={{ marginTop: '4px', fontSize: '11px', color: 'var(--color-text-muted)' }}>
-                  First number in the sequence. {isActiveLocked ? 'Locked once Active.' : 'Useful for migration — set to last number + 1.'}
-                </div>
-              </FField>
-              <FField label="Padding Character" required>
-                <FSelect value={form.paddingCharacter} onChange={v => setField('paddingCharacter', v)} locked={isLocked('paddingCharacter')} options={['0', ' ', '_', '*']} displayMap={{ '0': '0 (Zero — recommended)', ' ': 'Space', '_': 'Underscore', '*': 'Asterisk' }} placeholder="— Select Character —" />
-              </FField>
-              <FField label="Alignment Type" required>
-                <FSelect value={form.alignmentType} onChange={v => setField('alignmentType', v)} locked={isLocked('alignmentType')} options={['Right', 'Left']} displayMap={{ 'Right': 'Right — left-pad (e.g. 00031)', 'Left': 'Left — right-pad (e.g. 31000)' }} placeholder="— Select Alignment —" />
-              </FField>
-              <FField label="Separator / Concatenation Character" required>
-                <FSelect value={form.separator} onChange={v => setField('separator', v)} locked={isLocked('separator')} options={['-', '/', '_', 'Blank']} displayMap={{ '-': '- (Hyphen — default)', '/': '/ (Slash)', '_': '_ (Underscore)', 'Blank': 'Blank (No separator)' }} placeholder="— Select Separator —" />
-              </FField>
-              <FField label="Case Format" required>
-                <FSelect value={form.caseFormat} onChange={v => setField('caseFormat', v)} locked={isLocked('caseFormat')} options={['Uppercase', 'Lowercase', 'As Entered']} displayMap={{ 'Uppercase': 'Uppercase (SO, CUST)', 'Lowercase': 'Lowercase (so, cust)', 'As Entered': 'As Entered (keep as-is)' }} placeholder="— Select Case —" />
-              </FField>
-            </div>
-          </CGPSectionPanel>
-        )}
-
-        {/* ── Review ── */}
-        {activeSection === 'review' && (
-          <div>
-            {/* Summary cards */}
-            {[
-              {
-                heading: 'Policy Identity',
-                rows: [
-                  { label: 'Policy Code',  value: editingPolicy?.policyCode || 'AUTO — generated on first save', mono: !!editingPolicy?.policyCode },
-                  { label: 'Policy Name',  value: form.policyName  || '—', missing: !form.policyName },
-                  { label: 'Display Name', value: form.displayName || '—', missing: !form.displayName },
-                  ...(form.description ? [{ label: 'Description', value: form.description }] : []),
-                ],
-              },
-              {
-                heading: 'Applicability',
-                rows: [
-                  { label: 'Applicable For', value: form.applicableFor || '—', missing: !form.applicableFor },
-                  { label: 'Module',          value: form.module || '—',        missing: !form.module },
-                  { label: 'Entity',          value: form.entity || '—',        missing: !form.entity },
-                  ...(requiresEntityType ? [{ label: 'Entity Type', value: form.entityType || '— (optional)' }] : []),
-                ],
-              },
-              {
-                heading: 'Prefix & Series',
-                rows: [
-                  { label: 'Prefix',      value: form.prefixValue || '—',  missing: !form.prefixValue, mono: true },
-                  { label: 'Series Type', value: form.seriesType  || '—',  missing: !form.seriesType },
-                  ...(form.calendarYearFormat  ? [{ label: 'Calendar Year Format',  value: form.calendarYearFormat }]  : []),
-                  ...(form.financialYearFormat ? [{ label: 'Financial Year Format', value: form.financialYearFormat }] : []),
-                  ...(form.codePattern         ? [{ label: 'Pattern',               value: form.codePattern, mono: true }] : []),
-                ],
-              },
-              {
-                heading: 'Number Format',
-                rows: [
-                  { label: 'Sequence Length', value: form.numberLength ? `${form.numberLength} digits` : '—', missing: !form.numberLength },
-                  { label: 'Starting Number', value: form.startingNumber || '—', missing: !form.startingNumber },
-                  { label: 'Padding',         value: form.paddingCharacter ? `"${form.paddingCharacter}" — ${form.alignmentType}-aligned` : '—' },
-                  { label: 'Separator',       value: form.separator === 'Blank' ? 'None (no separator)' : (form.separator || '—') },
-                  { label: 'Case',            value: form.caseFormat || '—' },
-                ],
-              },
-            ].map(block => (
-              <div key={block.heading} style={{ marginBottom: '16px', border: '1px solid var(--color-border)', borderRadius: '10px', overflow: 'hidden' }}>
-                <div style={{ padding: '10px 16px', background: 'var(--color-surface-subtle)', borderBottom: '1px solid var(--color-border)' }}>
-                  <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{block.heading}</span>
-                </div>
-                <div style={{ padding: '14px 16px', display: 'grid', gridTemplateColumns: '160px 1fr', rowGap: '8px', columnGap: '12px', alignItems: 'baseline' }}>
-                  {block.rows.map(row => (
-                    <React.Fragment key={row.label}>
-                      <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', textAlign: 'right' }}>{row.label}</span>
-                      <span style={{ fontSize: '13px', color: ('missing' in row && row.missing) ? '#DC2626' : 'var(--color-text)', fontFamily: ('mono' in row && row.mono) ? 'monospace' : undefined, fontWeight: ('mono' in row && row.mono) ? 700 : 500, display: 'flex', alignItems: 'center', gap: '5px' }}>
-                        {('missing' in row && row.missing) && <AlertCircle size={11} style={{ color: '#DC2626', flexShrink: 0 }} />}
-                        {row.value}
-                      </span>
-                    </React.Fragment>
-                  ))}
-                </div>
-              </div>
-            ))}
-
-            {/* Sample code preview */}
-            <div style={{ marginBottom: '16px', padding: '16px 20px', borderRadius: '10px', background: sampleCode !== '—' && sampleCode !== 'CONFIGURE-PATTERN' ? '#F0FDF4' : 'var(--color-surface-subtle)', border: `1px solid ${sampleCode !== '—' && sampleCode !== 'CONFIGURE-PATTERN' ? '#BBF7D0' : 'var(--color-border)'}` }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>Sample Generated Code</div>
-              <div style={{ fontFamily: 'monospace', fontSize: '26px', fontWeight: 900, letterSpacing: '0.04em', color: sampleCode !== '—' && sampleCode !== 'CONFIGURE-PATTERN' ? '#15803D' : 'var(--color-text-muted)', lineHeight: 1 }}>
-                {sampleCode}
-              </div>
-              {(sampleCode === '—' || sampleCode === 'CONFIGURE-PATTERN') && (
-                <div style={{ marginTop: '6px', fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                  Complete the Prefix, Series, and Format steps to generate a preview code.
-                </div>
-              )}
-            </div>
-
-            {/* Activation checklist */}
-            <div style={{ marginBottom: '16px', border: '1px solid var(--color-border)', borderRadius: '10px', overflow: 'hidden' }}>
-              <div style={{ padding: '10px 16px', background: 'var(--color-surface-subtle)', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Activation Checklist</span>
-                <span style={{ fontSize: '12px', fontWeight: 600, color: checklistAllPassed ? '#15803D' : '#D97706' }}>
-                  {checklistAllPassed ? 'All checks passed — ready to activate' : `${checklistFailCount} item${checklistFailCount !== 1 ? 's' : ''} need attention`}
-                </span>
-              </div>
-              <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {cgpChecklist.map(item => (
-                  <div key={item.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                    <span style={{ flexShrink: 0, marginTop: '1px', color: item.passed ? '#16A34A' : '#D97706', display: 'flex', alignItems: 'center' }}>
-                      {item.passed ? <CheckCircle2 size={15} /> : <AlertCircle size={15} />}
-                    </span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <span style={{ fontSize: '13px', fontWeight: 500, color: item.passed ? 'var(--color-text)' : 'var(--color-text)' }}>{item.label}</span>
-                      {!item.passed && item.detail && (
-                        <div style={{ fontSize: '11px', color: '#D97706', marginTop: '2px' }}>{item.detail}</div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── Usage & History ── */}
-        {activeSection === 'history' && (
-          <CGPSectionPanel sectionKey="history" title="Usage & History" form={form}>
-            {!editingPolicy ? (
-              <div style={{ padding: '20px 16px', textAlign: 'center', background: 'var(--color-surface-subtle)', border: '1px dashed var(--color-border)', borderRadius: '10px' }}>
-                <div style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>
-                  Usage history will appear here after the policy is saved and activated.
-                </div>
-              </div>
-            ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                <FField label="Used In Code Generation">
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 14px', background: 'var(--color-surface-subtle)', border: '1px solid var(--color-border)', borderRadius: '10px' }}>
-                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: editingPolicy.usedInCodeGeneration ? '#16A34A' : '#94A3B8', flexShrink: 0 }} />
-                    <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text)' }}>{editingPolicy.usedInCodeGeneration ? 'Yes' : 'No'}</span>
-                  </div>
-                </FField>
-                <FField label="Generated Code Count">
-                  <div style={{ padding: '10px 14px', background: 'var(--color-surface-subtle)', border: '1px solid var(--color-border)', borderRadius: '10px' }}>
-                    <span style={{ fontFamily: 'monospace', fontSize: '18px', fontWeight: 800, color: 'var(--color-primary)' }}>{editingPolicy.generatedCodeCount.toLocaleString()}</span>
-                    <span style={{ marginLeft: '6px', fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 500 }}>codes generated</span>
-                  </div>
-                </FField>
-                {editingPolicy.status === 'Inactive' && (
-                  <>
-                    <FField label="Deactivation Reason">
-                      <div style={{ padding: '10px 14px', background: 'var(--color-surface-subtle)', border: '1px solid var(--color-border)', borderRadius: '10px', fontSize: '13px', color: editingPolicy.deactivationReason ? 'var(--color-text)' : 'var(--color-text-muted)' }}>
-                        {editingPolicy.deactivationReason || '—'}
+              {/* ── Basic Details ── */}
+              {activeSection === 'basic' && (
+                <CGPSectionPanel sectionKey="basic" title="Basic Details" form={form}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    <FField label="Policy Code">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', background: 'var(--color-surface-subtle)', border: '1px solid var(--color-border)', borderRadius: '10px' }}>
+                        <span style={{ fontSize: '11px', padding: '1px 7px', borderRadius: '4px', background: '#EFF6FF', color: '#1D4ED8', fontWeight: 600, flexShrink: 0 }}>AUTO</span>
+                        <span style={{ fontSize: '13px', color: editingPolicy?.policyCode ? 'var(--color-text)' : 'var(--color-text-muted)', fontFamily: editingPolicy?.policyCode ? 'monospace' : undefined }}>
+                          {editingPolicy?.policyCode || 'System generated on first save'}
+                        </span>
                       </div>
                     </FField>
+                    <FField label="Policy Status" required>
+                      <FSelect
+                        value={form.status}
+                        onChange={v => setField('status', v as PolicyStatus)}
+                        locked={isLocked('status') || (!isViewOnly && editingPolicy?.status === 'Active')}
+                        options={['Draft', 'Active', 'Inactive']}
+                        error={fieldErrors.status}
+                      />
+                      <div style={{ marginTop: '6px', fontSize: '11px', color: 'var(--color-text-muted)', lineHeight: 1.4 }}>
+                        {form.status === 'Draft' && 'Policy is incomplete. Use Activate to enable it for code generation.'}
+                        {form.status === 'Active' && 'Policy is live and used for code generation.'}
+                        {form.status === 'Inactive' && 'Policy is disabled. New codes will not be generated.'}
+                      </div>
+                    </FField>
+                    <FField label="Policy Name" required error={fieldErrors.policyName}>
+                      <FInput value={form.policyName} onChange={v => setField('policyName', v)} placeholder="e.g. Sales Order Number, Customer Code" maxLength={100} locked={isLocked('policyName')} error={fieldErrors.policyName} />
+                    </FField>
+                    <FField label="Display Name" required error={fieldErrors.displayName}>
+                      <FInput value={form.displayName} onChange={v => setField('displayName', v)} placeholder="e.g. Sales Order Number" maxLength={100} locked={isLocked('displayName')} error={fieldErrors.displayName} />
+                    </FField>
                     <div style={{ gridColumn: '1 / -1' }}>
-                      <FField label="Deactivation Remark">
-                        <div style={{ padding: '10px 14px', background: 'var(--color-surface-subtle)', border: '1px solid var(--color-border)', borderRadius: '10px', fontSize: '13px', color: editingPolicy.deactivationRemark ? 'var(--color-text)' : 'var(--color-text-muted)', lineHeight: 1.5, minHeight: '60px' }}>
-                          {editingPolicy.deactivationRemark || '—'}
-                        </div>
+                      <FField label="Description (Optional)">
+                        <textarea
+                          value={form.description}
+                          onChange={e => setField('description', e.target.value)}
+                          placeholder="Brief description of this code generation policy…"
+                          maxLength={500} rows={3} disabled={isLocked('description')}
+                          style={{ ...inputBase, resize: 'none', lineHeight: 1.5, ...(isLocked('description') ? lockedInputStyle : {}) }}
+                        />
+                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '4px', textAlign: 'right' }}>{form.description.length}/500</div>
                       </FField>
                     </div>
-                  </>
-                )}
-              </div>
-            )}
-          </CGPSectionPanel>
-        )}
+                  </div>
+                </CGPSectionPanel>
+              )}
 
-        </div>{/* ── end scrollable form body ── */}
+              {/* ── Applicability ── */}
+              {activeSection === 'applicability' && (
+                <CGPSectionPanel sectionKey="applicability" title="Applicability" form={form}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    <FField label="Applicable For" required error={fieldErrors.applicableFor}>
+                      <FSelect value={form.applicableFor} onChange={v => setField('applicableFor', v)} locked={isLocked('applicableFor')} options={APPLICABLE_FOR_OPTIONS as unknown as string[]} error={fieldErrors.applicableFor} />
+                    </FField>
+                    <FField label="Module" required error={fieldErrors.module}>
+                      <FSelect value={form.module} onChange={v => setField('module', v)} locked={isLocked('module')} disabled={!form.applicableFor && !isLocked('module')} options={availableModules} error={fieldErrors.module} placeholder={form.applicableFor ? '— Select Module —' : '— Select Applicable For first —'} />
+                    </FField>
+                    <FField label="Entity" required error={fieldErrors.entity}>
+                      <FSelect value={form.entity} onChange={v => setField('entity', v)} locked={isLocked('entity')} disabled={!form.module && !isLocked('entity')} options={availableEntities} error={fieldErrors.entity} placeholder={form.module ? '— Select Entity —' : '— Select Module first —'} />
+                    </FField>
+                    <FField label="Entity Type" error={fieldErrors.entityType}>
+                      <FSelect value={form.entityType} onChange={v => setField('entityType', v)} locked={isLocked('entityType')} disabled={(!form.entity && !isLocked('entityType')) || !requiresEntityType} options={availableEntityTypes} error={fieldErrors.entityType} placeholder={!requiresEntityType ? '— Not applicable for this Entity —' : '— Select Entity Type (Optional) —'} />
+                    </FField>
+                  </div>
+                </CGPSectionPanel>
+              )}
 
-        {/* ── 4. Fixed Footer ──────────────────────────────────────────────── */}
-        {!isViewOnly && activeSection !== 'history' && (
-          <div style={{
-            flexShrink: 0, height: '60px', padding: '0 24px',
-            borderTop: '1px solid var(--color-border)',
-            background: 'var(--color-surface)',
-            display: 'flex', alignItems: 'center', gap: '8px', zIndex: 50,
-          }}>
-            {/* Previous — hidden for Active policy edits */}
-            {!isActiveLocked && (
-              <button
-                type="button"
-                onClick={goToPrevStep}
-                disabled={stepIdx <= 0}
-                style={{ ...btnOutline, opacity: stepIdx <= 0 ? 0.4 : 1, cursor: stepIdx <= 0 ? 'not-allowed' : 'pointer' }}
-              >
-                ← Previous
-              </button>
-            )}
-            {/* Step counter */}
-            {!isActiveLocked && (
-              <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', padding: '0 4px' }}>
-                Step {Math.max(1, stepIdx + 1)} of {CGP_FORM_STEPS.length}
-              </span>
-            )}
-            {/* Push actions right */}
-            <span style={{ flex: 1 }} />
-            {/* Active policy edit: Save Changes only */}
-            {isActiveLocked && (
-              <button type="button" onClick={handleSaveDraft} style={btnPrimary}>Save Changes</button>
-            )}
-            {/* Draft/new workflow: Save Draft + Continue / Activate */}
-            {!isActiveLocked && (
-              <>
-                {isDraft && (
-                  <button type="button" onClick={handleSaveDraft} style={btnOutline}>Save Draft</button>
-                )}
-                {isOnReview ? (
-                  <button
-                    type="button"
-                    onClick={handleActivate}
-                    disabled={!checklistAllPassed}
-                    title={!checklistAllPassed ? `${checklistFailCount} checklist item${checklistFailCount !== 1 ? 's' : ''} need attention before activating` : 'Activate this policy for code generation'}
-                    style={{ ...btnPrimary, opacity: checklistAllPassed ? 1 : 0.5, cursor: checklistAllPassed ? 'pointer' : 'not-allowed' }}
-                  >
-                    <Check size={13} />
-                    Activate Policy
-                  </button>
-                ) : (
-                  <button type="button" onClick={goToNextStep} style={btnPrimary}>Continue →</button>
-                )}
-              </>
-            )}
-          </div>
-        )}
+              {/* ── Prefix Selection ── */}
+              {activeSection === 'prefix' && (
+                <CGPSectionPanel sectionKey="prefix" title="Prefix Selection" form={form}>
+                  {(!form.applicableFor || !form.module || !form.entity) && !isLocked('prefixId') ? (
+                    <div style={{ padding: '16px', background: 'var(--color-surface-subtle)', border: '1px dashed var(--color-border)', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <Info size={15} style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} />
+                      <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>Complete the <strong>Applicability</strong> section first to see matching prefixes.</span>
+                    </div>
+                  ) : availablePrefixes.length === 0 && !isLocked('prefixId') ? (
+                    <div style={{ padding: '16px', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <AlertCircle size={15} style={{ color: '#D97706', flexShrink: 0 }} />
+                      <span style={{ fontSize: '13px', color: '#92400E' }}>
+                        No active prefixes found for the selected scope ({form.applicableFor} / {form.module} / {form.entity}{form.entityType ? ` / ${form.entityType}` : ''}).
+                        {' '}Please create a prefix in Code Prefix Master first.
+                      </span>
+                    </div>
+                  ) : (
+                    <div>
+                      <FField label="Prefix" required>
+                        <FSelect
+                          value={form.prefixId}
+                          onChange={v => setField('prefixId', v)}
+                          locked={isLocked('prefixId')}
+                          options={availablePrefixes.map(p => p.id)}
+                          displayMap={Object.fromEntries(availablePrefixes.map(p => [p.id, `${p.prefixValue} — ${p.name}`]))}
+                          placeholder="— Select Prefix —"
+                        />
+                      </FField>
+                      {form.prefixValue && (
+                        <div style={{ marginTop: '10px', display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 14px', background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: '8px' }}>
+                          <span style={{ fontSize: '12px', color: '#0369A1', fontWeight: 500 }}>Selected prefix value:</span>
+                          <span style={{ fontFamily: 'monospace', fontSize: '16px', fontWeight: 800, color: '#0369A1', letterSpacing: '0.05em' }}>{form.prefixValue}</span>
+                          {availablePrefixes.find(p => p.id === form.prefixId)?.isDefault && (
+                            <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', background: '#0369A1', color: 'white', fontWeight: 600 }}>DEFAULT</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </CGPSectionPanel>
+              )}
 
-        {/* View-only footer */}
-        {isViewOnly && (
-          <div style={{
-            flexShrink: 0, height: '56px', padding: '0 24px',
-            borderTop: '1px solid var(--color-border)',
-            background: 'var(--color-surface)',
-            display: 'flex', alignItems: 'center', gap: '8px',
-          }}>
-            <button type="button" onClick={goBackToList} style={btnOutline}>← Back to Policies</button>
-            {editingPolicy && editingPolicy.status !== 'Inactive' && (
-              <button type="button" onClick={() => { openEditForm(editingPolicy); }} style={btnOutline}>
-                <Edit2 size={12} /> Edit Policy
-              </button>
-            )}
-          </div>
-        )}
 
-      </div>
+              {/* ── Series & Pattern ── */}
+              {activeSection === 'series' && (
+                <>
+                  <CGPSectionPanel sectionKey="series" title="Series Configuration" form={form}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                      <div style={{ gridColumn: '1 / -1' }}>
+                        <FField label="Series Type" required error={fieldErrors.seriesType}>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                            {SERIES_TYPES.map(st => {
+                              const active = form.seriesType === st;
+                              const locked = isLocked('seriesType');
+                              return (
+                                <button
+                                  key={st}
+                                  type="button"
+                                  disabled={locked}
+                                  onClick={() => !locked && setField('seriesType', st)}
+                                  style={{
+                                    padding: '10px 14px', fontSize: '13px',
+                                    fontWeight: active ? 700 : 500,
+                                    border: `1.5px solid ${active ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                                    borderRadius: '10px',
+                                    background: active ? 'var(--color-primary)' : locked ? 'var(--color-surface-subtle)' : 'var(--color-surface)',
+                                    color: active ? 'white' : locked ? 'var(--color-text-muted)' : 'var(--color-text)',
+                                    cursor: locked ? 'not-allowed' : 'pointer',
+                                    textAlign: 'center',
+                                    transition: 'all 0.15s',
+                                  }}
+                                >
+                                  {st}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </FField>
+                        {form.seriesType && (
+                          <div style={{ marginTop: '8px', padding: '8px 12px', background: '#F8FAFC', border: '1px solid var(--color-border)', borderRadius: '8px' }}>
+                            <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                              {form.seriesType === 'Continuous' && 'Sequence runs continuously with no reset. Format: PREFIX-SEQ'}
+                              {form.seriesType === 'Calendar Year' && 'Resets every calendar year. Format: PREFIX-YYYY/YY-SEQ'}
+                              {form.seriesType === 'Financial Year' && 'Resets every financial year. Format: PREFIX-FY-SEQ'}
+                              {form.seriesType === 'Monthly' && 'Resets every month. Format: PREFIX-YYYY/YY-MM-SEQ'}
+                              {form.seriesType === 'Daily' && 'Resets every day. Format: PREFIX-YYYY/YY-MM-DD-SEQ'}
+                              {form.seriesType === 'Custom' && 'Define your own pattern using allowed tokens.'}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      {showCalendarYearFormat && (
+                        <FField label="Calendar Year Format" required>
+                          <FSelect
+                            value={form.calendarYearFormat}
+                            onChange={v => setField('calendarYearFormat', v)}
+                            locked={isLocked('calendarYearFormat')}
+                            options={['YYYY', 'YY']}
+                            displayMap={{ 'YYYY': 'YYYY — Full year (e.g. 2026)', 'YY': 'YY — Short year (e.g. 26)' }}
+                            placeholder="— Select Year Format —"
+                          />
+                        </FField>
+                      )}
+                      {showFinancialYearFormat && (
+                        <FField label="Financial Year Format" required>
+                          <FSelect
+                            value={form.financialYearFormat}
+                            onChange={v => setField('financialYearFormat', v)}
+                            locked={isLocked('financialYearFormat')}
+                            options={['YYYY-YY', 'YY-YY', 'FY-YYYY-YY', 'FY-YY-YY']}
+                            displayMap={{ 'YYYY-YY': 'YYYY-YY (e.g. 2026-27)', 'YY-YY': 'YY-YY (e.g. 26-27)', 'FY-YYYY-YY': 'FY-YYYY-YY (e.g. FY-2026-27)', 'FY-YY-YY': 'FY-YY-YY (e.g. FY-26-27)' }}
+                            placeholder="— Select FY Format —"
+                          />
+                        </FField>
+                      )}
+                      {form.seriesType === 'Custom' && (
+                        <FField label="Custom Reset Basis" required>
+                          <FSelect
+                            value={form.customResetBasis}
+                            onChange={v => setField('customResetBasis', v)}
+                            locked={isLocked('customResetBasis')}
+                            options={['No Reset', 'Calendar Year', 'Financial Year', 'Monthly', 'Daily']}
+                            placeholder="— Select Reset Basis —"
+                          />
+                        </FField>
+                      )}
+                    </div>
+                  </CGPSectionPanel>
+
+                  {/* Pattern Configuration (Custom series only) */}
+                  {showCustomSection && (
+                    <div style={{ marginTop: '20px' }}>
+                      <FormSection label="Pattern Configuration" icon={<Edit2 size={14} />} highlight>
+                        <div style={{ marginBottom: '12px', padding: '10px 14px', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '8px', display: 'flex', gap: '8px' }}>
+                          <Info size={14} style={{ color: '#D97706', flexShrink: 0, marginTop: '1px' }} />
+                          <span style={{ fontSize: '12px', color: '#92400E', lineHeight: 1.5 }}>
+                            Use only the allowed tokens below. The <strong>{'{Sequence}'}</strong> token is mandatory.
+                            Click a token chip to insert it at the end of the pattern.
+                          </span>
+                        </div>
+                        <FField label="Code Pattern" required>
+                          <FInput
+                            value={form.codePattern}
+                            onChange={v => setField('codePattern', v)}
+                            placeholder="e.g. {Prefix}-{Financial Year}-{Sequence}"
+                            maxLength={250}
+                            locked={isLocked('codePattern')}
+                            monospace
+                          />
+                        </FField>
+                        {!isLocked('codePattern') && (
+                          <div style={{ marginTop: '12px' }}>
+                            <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>
+                              Available Tokens — click to insert
+                            </div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                              {CUSTOM_TOKENS.map(({ token, label, hint }) => {
+                                const isInPattern = form.codePattern.includes(token);
+                                return (
+                                  <button
+                                    key={token}
+                                    type="button"
+                                    title={hint}
+                                    onClick={() => setField('codePattern', form.codePattern + token)}
+                                    style={{
+                                      display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                      padding: '5px 10px', fontSize: '12px', fontWeight: 600,
+                                      border: `1.5px solid ${isInPattern ? '#2563EB' : 'var(--color-border)'}`,
+                                      borderRadius: '8px',
+                                      background: isInPattern ? '#EFF6FF' : 'var(--color-surface)',
+                                      color: isInPattern ? '#1D4ED8' : 'var(--color-text)',
+                                      cursor: 'pointer', transition: 'all 0.1s',
+                                      fontFamily: 'monospace',
+                                    }}
+                                  >
+                                    {label}
+                                    {token === '{Sequence}' && <span style={{ fontSize: '10px', color: '#DC2626' }}>✱</span>}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            {form.codePattern && !form.codePattern.includes('{Sequence}') && (
+                              <div style={{ marginTop: '8px', fontSize: '12px', color: '#DC2626', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <AlertCircle size={13} />
+                                Pattern must include the <strong>{'{Sequence}'}</strong> token.
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </FormSection>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* ── Number Format ── */}
+              {activeSection === 'format' && (
+                <CGPSectionPanel sectionKey="format" title="Number Format" form={form}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    <FField label="Number Length" required error={fieldErrors.numberLength}>
+                      <FInput value={form.numberLength} onChange={v => setField('numberLength', v)} placeholder="e.g. 5" type="number" locked={isLocked('numberLength')} error={fieldErrors.numberLength} />
+                      <div style={{ marginTop: '4px', fontSize: '11px', color: 'var(--color-text-muted)' }}>Digits in the sequence number (1–10). Example: 5 → 00001</div>
+                    </FField>
+                    <FField label="Starting Number" required error={fieldErrors.startingNumber}>
+                      <FInput value={form.startingNumber} onChange={v => setField('startingNumber', v)} placeholder="e.g. 1" type="number" locked={isLocked('startingNumber')} error={fieldErrors.startingNumber} />
+                      <div style={{ marginTop: '4px', fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                        First number in the sequence. {isActiveLocked ? 'Locked once Active.' : 'Useful for migration — set to last number + 1.'}
+                      </div>
+                    </FField>
+                    <FField label="Padding Character" required>
+                      <FSelect value={form.paddingCharacter} onChange={v => setField('paddingCharacter', v)} locked={isLocked('paddingCharacter')} options={['0', ' ', '_', '*']} displayMap={{ '0': '0 (Zero — recommended)', ' ': 'Space', '_': 'Underscore', '*': 'Asterisk' }} placeholder="— Select Character —" />
+                    </FField>
+                    <FField label="Alignment Type" required>
+                      <FSelect value={form.alignmentType} onChange={v => setField('alignmentType', v)} locked={isLocked('alignmentType')} options={['Right', 'Left']} displayMap={{ 'Right': 'Right — left-pad (e.g. 00031)', 'Left': 'Left — right-pad (e.g. 31000)' }} placeholder="— Select Alignment —" />
+                    </FField>
+                    <FField label="Separator / Concatenation Character" required>
+                      <FSelect value={form.separator} onChange={v => setField('separator', v)} locked={isLocked('separator')} options={['-', '/', '_', 'Blank']} displayMap={{ '-': '- (Hyphen — default)', '/': '/ (Slash)', '_': '_ (Underscore)', 'Blank': 'Blank (No separator)' }} placeholder="— Select Separator —" />
+                    </FField>
+                    <FField label="Case Format" required>
+                      <FSelect value={form.caseFormat} onChange={v => setField('caseFormat', v)} locked={isLocked('caseFormat')} options={['Uppercase', 'Lowercase', 'As Entered']} displayMap={{ 'Uppercase': 'Uppercase (SO, CUST)', 'Lowercase': 'Lowercase (so, cust)', 'As Entered': 'As Entered (keep as-is)' }} placeholder="— Select Case —" />
+                    </FField>
+                  </div>
+                </CGPSectionPanel>
+              )}
+
+              {/* ── Usage & History ── */}
+              {activeSection === 'history' && (
+                <CGPSectionPanel sectionKey="history" title="Usage & History" form={form}>
+                  {!editingPolicy ? (
+                    <div style={{ padding: '20px 16px', textAlign: 'center', background: 'var(--color-surface-subtle)', border: '1px dashed var(--color-border)', borderRadius: '10px' }}>
+                      <div style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>
+                        Usage history will appear here after the policy is saved and activated.
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                      <FField label="Used In Code Generation">
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 14px', background: 'var(--color-surface-subtle)', border: '1px solid var(--color-border)', borderRadius: '10px' }}>
+                          <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: editingPolicy.usedInCodeGeneration ? '#16A34A' : '#94A3B8', flexShrink: 0 }} />
+                          <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text)' }}>{editingPolicy.usedInCodeGeneration ? 'Yes' : 'No'}</span>
+                        </div>
+                        <div style={{ marginTop: '6px', fontSize: '11px', color: 'var(--color-text-muted)', lineHeight: 1.4 }}>
+                          {editingPolicy.usedInCodeGeneration ? 'This policy has been used. It cannot be deleted.' : 'Policy has not been used yet. Can be deleted if Draft.'}
+                        </div>
+                      </FField>
+                      <FField label="Generated Code Count">
+                        <div style={{ padding: '10px 14px', background: 'var(--color-surface-subtle)', border: '1px solid var(--color-border)', borderRadius: '10px' }}>
+                          <span style={{ fontFamily: 'monospace', fontSize: '18px', fontWeight: 800, color: 'var(--color-primary)' }}>{editingPolicy.generatedCodeCount.toLocaleString()}</span>
+                          <span style={{ marginLeft: '6px', fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 500 }}>codes generated</span>
+                        </div>
+                      </FField>
+                      {editingPolicy.status === 'Inactive' && (
+                        <>
+                          <FField label="Deactivation Reason">
+                            <div style={{ padding: '10px 14px', background: 'var(--color-surface-subtle)', border: '1px solid var(--color-border)', borderRadius: '10px', fontSize: '13px', color: editingPolicy.deactivationReason ? 'var(--color-text)' : 'var(--color-text-muted)' }}>
+                              {editingPolicy.deactivationReason || '—'}
+                            </div>
+                          </FField>
+                          <div style={{ gridColumn: '1 / -1' }}>
+                            <FField label="Deactivation Remark">
+                              <div style={{ padding: '10px 14px', background: 'var(--color-surface-subtle)', border: '1px solid var(--color-border)', borderRadius: '10px', fontSize: '13px', color: editingPolicy.deactivationRemark ? 'var(--color-text)' : 'var(--color-text-muted)', lineHeight: 1.5, minHeight: '60px' }}>
+                                {editingPolicy.deactivationRemark || '—'}
+                              </div>
+                            </FField>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </CGPSectionPanel>
+              )}
+
+            {/* ── Sticky preview bar ── */}
+            {(() => {
+              const isValid = sampleCode !== '—' && sampleCode !== 'CONFIGURE-PATTERN';
+              return (
+                <div style={{ flexShrink: 0, background: isValid ? '#F0FDF4' : 'var(--color-surface)', borderTop: `1.5px solid ${isValid ? '#BBF7D0' : 'var(--color-border)'}`, padding: '0 24px', display: 'flex', alignItems: 'center', gap: '20px', height: '68px', minHeight: '68px' }}>
+                  <div style={{ flexShrink: 0 }}>
+                    <div style={{ fontSize: '10px', fontWeight: 700, color: isValid ? '#15803D' : 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '3px' }}>
+                      Live Preview
+                    </div>
+                    <div style={{ fontFamily: 'monospace', fontSize: '22px', fontWeight: 900, color: isValid ? '#15803D' : 'var(--color-text-muted)', letterSpacing: '0.04em', lineHeight: 1, whiteSpace: 'nowrap' }}>
+                      {sampleCode}
+                    </div>
+                  </div>
+                  {isValid ? (
+                    <>
+                      <div style={{ width: '1px', height: '36px', background: '#BBF7D0', flexShrink: 0 }} />
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                        {form.prefixValue && (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', padding: '3px 8px', borderRadius: '6px', background: '#DCFCE7', color: '#15803D', fontWeight: 600 }}>
+                            <span style={{ fontWeight: 500, opacity: 0.75 }}>Prefix</span>
+                            <span>{form.prefixValue}</span>
+                          </span>
+                        )}
+                        {form.seriesType && (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', padding: '3px 8px', borderRadius: '6px', background: '#DCFCE7', color: '#15803D', fontWeight: 600 }}>
+                            <span style={{ fontWeight: 500, opacity: 0.75 }}>Series</span>
+                            <span>{form.seriesType}</span>
+                          </span>
+                        )}
+                        {form.numberLength && (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', padding: '3px 8px', borderRadius: '6px', background: '#DCFCE7', color: '#15803D', fontWeight: 600 }}>
+                            <span style={{ fontWeight: 500, opacity: 0.75 }}>Seq</span>
+                            <span>{form.numberLength} digits</span>
+                          </span>
+                        )}
+                        {form.separator && (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', padding: '3px 8px', borderRadius: '6px', background: '#DCFCE7', color: '#15803D', fontWeight: 600 }}>
+                            <span style={{ fontWeight: 500, opacity: 0.75 }}>Sep</span>
+                            <span>{form.separator === 'Blank' ? 'none' : `"${form.separator}"`}</span>
+                          </span>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', lineHeight: 1.4 }}>
+                      {sampleCode === 'CONFIGURE-PATTERN'
+                        ? 'Enter a valid Code Pattern with all required tokens.'
+                        : 'Configure Prefix and Series Type above to see a live preview.'}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+      </AdminPageShell>
     );
   };
 
@@ -2102,52 +1818,30 @@ const CodeGenerationPolicyPage: React.FC = () => {
   // ─── Render: activate confirm ───────────────────────────────────
   const renderActivateConfirm = () => {
     if (!activateConfirmOpen) return null;
-    const summaryRows: { label: string; value: string; style?: React.CSSProperties }[] = [
-      { label: 'Policy Name',    value: form.policyName, style: { fontSize: '13px', fontWeight: 600, color: 'var(--color-text)' } },
-      { label: 'Applicable For', value: `${form.applicableFor} / ${form.module} / ${form.entity}${form.entityType ? ` (${form.entityType})` : ''}`, style: { fontSize: '13px', color: 'var(--color-text)' } },
-      { label: 'Prefix',         value: form.prefixValue, style: { fontFamily: 'monospace', fontSize: '14px', fontWeight: 800, color: '#0369A1' } },
-      { label: 'Series Type',    value: form.seriesType, style: { fontSize: '13px', color: 'var(--color-text)' } },
-      { label: 'Number Format',  value: `${form.numberLength} digits, ${form.alignmentType}-aligned, sep "${form.separator === 'Blank' ? 'none' : form.separator}"`, style: { fontSize: '13px', color: 'var(--color-text)' } },
-      { label: 'Sample Code',    value: sampleCode, style: { fontFamily: 'monospace', fontSize: '15px', fontWeight: 800, color: '#15803D' } },
-    ];
     return (
       <div style={{ position: 'fixed', inset: 0, zIndex: 1300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div onClick={() => setActivateConfirmOpen(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)' }} />
-        <div style={{ position: 'relative', width: '520px', maxHeight: '90vh', background: 'var(--color-surface)', borderRadius: '16px', boxShadow: '0 24px 64px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          {/* Header */}
-          <div style={{ padding: '18px 20px 14px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
-            <div>
-              <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-text)' }}>Activate Code Generation Policy?</div>
-              <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Review the settings below before activating.</div>
-            </div>
+        <div style={{ position: 'relative', width: '460px', background: 'var(--color-surface)', borderRadius: '16px', boxShadow: '0 24px 64px rgba(0,0,0,0.18)', overflow: 'hidden' }}>
+          <div style={{ padding: '18px 20px 14px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', borderBottom: '1px solid var(--color-border)' }}>
+            <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-text)' }}>Activate Policy</div>
             <button type="button" onClick={() => setActivateConfirmOpen(false)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', border: 'none', borderRadius: '8px', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-muted)' }}>
               <X size={16} />
             </button>
           </div>
-          {/* Body */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
-            {/* Policy summary grid */}
-            <div style={{ marginBottom: '16px', border: '1px solid var(--color-border)', borderRadius: '10px', overflow: 'hidden' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', rowGap: '10px', columnGap: '12px', padding: '16px', alignItems: 'baseline' }}>
-                {summaryRows.map(({ label, value, style }) => (
-                  <React.Fragment key={label}>
-                    <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', textAlign: 'right' }}>{label}</span>
-                    <span style={style}>{value}</span>
-                  </React.Fragment>
-                ))}
+          <div style={{ padding: '20px' }}>
+            <div style={{ marginBottom: '16px', padding: '12px 14px', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '10px', display: 'flex', gap: '8px' }}>
+              <Check size={15} style={{ color: '#15803D', flexShrink: 0, marginTop: '1px' }} />
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: '#14532D' }}>All validation checks passed</div>
+                <div style={{ fontSize: '12px', color: '#374151', marginTop: '4px' }}>Sample code: <strong style={{ fontFamily: 'monospace', color: '#15803D' }}>{sampleCode}</strong></div>
               </div>
             </div>
-            {/* Warning */}
-            <div style={{ padding: '12px 14px', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '10px', display: 'flex', gap: '8px' }}>
-              <AlertCircle size={14} style={{ color: '#D97706', flexShrink: 0, marginTop: '1px' }} />
-              <div style={{ fontSize: '12px', color: '#92400E', lineHeight: 1.5 }}>
-                Once activated, this policy will be used to generate codes for <strong>{form.entity}</strong>.
-                Generation-critical fields (scope, prefix, series, format) will be <strong>locked</strong> and cannot be changed.
-              </div>
+            <div style={{ fontSize: '13px', color: 'var(--color-text)', lineHeight: 1.6 }}>
+              Once activated, generation-critical fields will be locked.
+              This policy will be used for code generation. Are you sure you want to activate this policy?
             </div>
           </div>
-          {/* Footer */}
-          <div style={{ padding: '14px 20px', borderTop: '1px solid var(--color-border)', display: 'flex', gap: '10px', justifyContent: 'flex-end', flexShrink: 0 }}>
+          <div style={{ padding: '14px 20px', borderTop: '1px solid var(--color-border)', display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
             <button type="button" onClick={() => setActivateConfirmOpen(false)} style={btnOutline}>Cancel</button>
             <button type="button" onClick={confirmActivate} style={btnPrimary}>
               <Check size={13} />
@@ -2256,12 +1950,10 @@ interface CGPSectionPanelProps {
   title: string;
   form: PolicyFormData;
   highlight?: boolean;
-  /** Override the auto-computed completion badge — useful when prerequisites gate a section. */
-  completionOverride?: 'complete' | 'partial' | 'empty';
   children: React.ReactNode;
 }
-const CGPSectionPanel: React.FC<CGPSectionPanelProps> = ({ sectionKey, title, form, highlight, completionOverride, children }) => {
-  const completion = completionOverride ?? getCGPSectionCompletion(sectionKey, form);
+const CGPSectionPanel: React.FC<CGPSectionPanelProps> = ({ sectionKey, title, form, highlight, children }) => {
+  const completion = getCGPSectionCompletion(sectionKey, form);
   const allFields = CGP_SECTION_FIELDS[sectionKey];
   const totalFields = allFields.length;
   const filledFields = allFields.filter((f) => !!form[f as keyof PolicyFormData]).length;
@@ -2289,7 +1981,7 @@ const CGPSectionPanel: React.FC<CGPSectionPanelProps> = ({ sectionKey, title, fo
           )}
         </div>
       </div>
-      <div style={{ padding: '16px 20px' }}>{children}</div>
+      <div style={{ padding: '24px 20px' }}>{children}</div>
     </div>
   );
 };

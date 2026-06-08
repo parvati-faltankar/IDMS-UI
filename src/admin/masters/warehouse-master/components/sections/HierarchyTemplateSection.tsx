@@ -1,6 +1,5 @@
 // ─── HierarchyTemplateSection ─────────────────────────────────────────────────
 
-import React from 'react';
 import { ExternalLink, Info, Lock } from 'lucide-react';
 import type { ConfigSectionProps } from './sectionTypes';
 import { sCard, sHead, sBody } from './sectionStyles';

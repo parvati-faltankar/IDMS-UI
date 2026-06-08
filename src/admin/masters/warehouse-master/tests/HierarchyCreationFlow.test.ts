@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { activateHierarchyTemplateMock, createHierarchyTemplateMock, __resetMockStores, warehouseMockAdapter } from '../services/warehouseMockAdapter';
-import { getAllowedChildTemplateLevels } from '../utils/hierarchyUtils';
+import { buildTemplateIdentifierExamples, getAllowedChildTemplateLevels } from '../utils/hierarchyUtils';
 import type { HierarchyTemplate, WarehouseLocation } from '../types/warehouse.types';
 
 const flowTemplateLevels: HierarchyTemplate['levels'] = [
-  { levelCode: 'ZONE', levelName: 'Zone', sequence: 1, mandatory: true, leafEligible: false, allowSkipLevel: false, allowedParentLevels: ['WAREHOUSE'], allowedChildLevels: ['AISLE', 'BIN'] },
-  { levelCode: 'AISLE', levelName: 'Aisle', sequence: 2, mandatory: true, leafEligible: false, allowSkipLevel: false, allowedParentLevels: ['ZONE'], allowedChildLevels: ['RACK'] },
-  { levelCode: 'RACK', levelName: 'Rack', sequence: 3, mandatory: true, leafEligible: false, allowSkipLevel: false, allowedParentLevels: ['AISLE'], allowedChildLevels: ['BIN'] },
-  { levelCode: 'BIN', levelName: 'BIN', sequence: 4, mandatory: true, leafEligible: true, allowSkipLevel: false, allowedParentLevels: ['WAREHOUSE', 'ZONE', 'RACK'], allowedChildLevels: [] },
+  { levelId: 'LVL-ZONE', levelCode: 'ZONE', levelName: 'Zone', sequence: 1, mandatory: true, leafEligible: false, allowSkipLevel: false, allowedParentLevels: ['WAREHOUSE'], allowedChildLevels: ['AISLE', 'BIN'], capacityApplicable: false, itemEligibilityApplicable: false, responsibilityApplicable: true, inventoryEndpointEligible: false, barcodeApplicable: false, qrApplicable: false, transactionPurposes: ['Storage'], capacityEnforcementMode: 'None', capacityRollupMode: 'None', allowCapabilityOverride: false, defaultResponsibilityRole: 'ZoneSupervisor', defaultLocationRole: 'Structural', defaultLocationType: 'Zone' },
+  { levelId: 'LVL-AISLE', levelCode: 'AISLE', levelName: 'Aisle', sequence: 2, mandatory: true, leafEligible: false, allowSkipLevel: false, allowedParentLevels: ['ZONE'], allowedChildLevels: ['RACK'], capacityApplicable: false, itemEligibilityApplicable: false, responsibilityApplicable: true, inventoryEndpointEligible: false, barcodeApplicable: false, qrApplicable: false, transactionPurposes: ['Storage'], capacityEnforcementMode: 'None', capacityRollupMode: 'None', allowCapabilityOverride: false, defaultResponsibilityRole: 'AreaSupervisor', defaultLocationRole: 'Structural', defaultLocationType: 'Aisle' },
+  { levelId: 'LVL-RACK', levelCode: 'RACK', levelName: 'Rack', sequence: 3, mandatory: true, leafEligible: false, allowSkipLevel: false, allowedParentLevels: ['AISLE'], allowedChildLevels: ['BIN'], capacityApplicable: true, itemEligibilityApplicable: false, responsibilityApplicable: true, inventoryEndpointEligible: false, barcodeApplicable: true, qrApplicable: false, transactionPurposes: ['Storage'], capacityEnforcementMode: 'Warning', capacityRollupMode: 'RollupFromChildren', allowCapabilityOverride: false, defaultResponsibilityRole: 'RackCustodian', defaultLocationRole: 'Structural', defaultLocationType: 'Rack' },
+  { levelId: 'LVL-BIN', levelCode: 'BIN', levelName: 'BIN', sequence: 4, mandatory: true, leafEligible: true, allowSkipLevel: false, allowedParentLevels: ['WAREHOUSE', 'ZONE', 'RACK'], allowedChildLevels: [], capacityApplicable: true, itemEligibilityApplicable: true, responsibilityApplicable: true, inventoryEndpointEligible: true, barcodeApplicable: true, qrApplicable: true, transactionPurposes: ['Storage', 'Picking'], capacityEnforcementMode: 'HardBlock', capacityRollupMode: 'OwnCapacityOnly', allowCapabilityOverride: true, defaultResponsibilityRole: 'BinCustodian', defaultLocationRole: 'InventoryEndpoint', defaultLocationType: 'BIN' },
 ];
 
 describe('Hierarchy creation flow', () => {
@@ -70,6 +70,9 @@ describe('Hierarchy creation flow', () => {
     expect(aisle.profile.level).toBe(2);
     expect(rack.profile.level).toBe(3);
     expect(bin.profile.level).toBe(4);
+    expect(zone.profile.fullCode).toBe('WH-FLOW-Z01');
+    expect(aisle.profile.fullCode).toBe('WH-FLOW-Z01-A01');
+    expect(rack.profile.fullCode).toBe('WH-FLOW-Z01-A01-R01');
     expect(bin.profile.fullCode).toBe('WH-FLOW-Z01-A01-R01-B01');
 
     const details = await warehouseMockAdapter.getWarehouse(createdWarehouse.warehouse.id);
@@ -150,6 +153,9 @@ describe('Hierarchy creation flow', () => {
       status: 'Draft',
       profile: {
         locationType: 'Zone',
+        templateLevelId: 'LVL-ZONE',
+        templateLevelCode: 'ZONE',
+        locationRole: 'Structural',
         level: 1,
         fullCode: 'WH-TEST-Z01',
         isLeafEndpoint: false,
@@ -167,5 +173,100 @@ describe('Hierarchy creation flow', () => {
 
     expect(getAllowedChildTemplateLevels(null, template).map((level) => level.levelCode)).toEqual(['ZONE', 'BIN']);
     expect(getAllowedChildTemplateLevels(zone, template).map((level) => level.levelCode)).toEqual(['AISLE', 'BIN']);
+  });
+
+  it('builds full identifier examples from runtime level policies', () => {
+    const examples = buildTemplateIdentifierExamples({
+      levels: [
+        { levelCode: 'YARD', levelName: 'Yard', sequence: 1, mandatory: true, leafEligible: false, allowSkipLevel: false, allowedParentLevels: ['WAREHOUSE'], autoGenerateCode: true, codePrefix: 'Y', startSequence: 2, sequenceLength: 2, separator: '-', levelRole: 'Yard' },
+        { levelCode: 'BIN', levelName: 'BIN', sequence: 2, mandatory: true, leafEligible: true, allowSkipLevel: false, allowedParentLevels: ['YARD'], autoGenerateCode: true, codePrefix: 'B', startSequence: 9, sequenceLength: 3, separator: '-', levelRole: 'InventoryEndpoint' },
+      ],
+      flexiblePathEnabled: false,
+      defaultPathSeparator: '/',
+      includeWarehouseCodeInIdentifier: true,
+      defaultSequenceLength: 3,
+    }, 'WH-FLOW');
+
+    expect(examples).toHaveLength(1);
+    expect(examples[0]).toBe('WH-FLOW/Y-02/B-009');
+  });
+
+  it('supports custom Warehouse -> Floor -> Room -> Shelf path', async () => {
+    const createdWarehouse = await warehouseMockAdapter.createWarehouse({
+      warehouseCode: 'WM02',
+      warehouseName: 'Warehouse Floor Path',
+      ownershipScope: 'Organization',
+      owningOrgCode: 'ORG-001',
+      businessUnit: 'BU-MFG',
+      legalEntityCode: 'LE-INDIA-001',
+      inventoryOwnerCode: 'OWN-001',
+      warehouseType: 'Physical',
+      wmsEnabled: true,
+      inventoryControlMode: 'Location-BIN-Level',
+    });
+
+    const createdTemplate = await createHierarchyTemplateMock({
+      warehouseId: createdWarehouse.warehouse.id,
+      templateCode: 'FLOOR-PATH',
+      templateName: 'Floor Room Shelf',
+      versionNumber: 1,
+      flexiblePathEnabled: false,
+      effectiveFrom: '2026-06-08',
+      levels: [
+        {
+          levelId: 'LVL-FLR', levelCode: 'FLR', levelName: 'Floor', sequence: 1, mandatory: true, leafEligible: false, allowSkipLevel: false,
+          allowedParentLevels: ['WAREHOUSE'], allowedChildLevels: ['ROOM'], inventoryEndpointEligible: false,
+          capacityApplicable: false, itemEligibilityApplicable: false, responsibilityApplicable: true, barcodeApplicable: false, qrApplicable: false,
+          transactionPurposes: ['Storage'], capacityEnforcementMode: 'None', capacityRollupMode: 'None', allowCapabilityOverride: false,
+          defaultResponsibilityRole: 'AreaSupervisor', defaultLocationRole: 'Structural', defaultLocationType: 'General',
+          autoGenerateCode: true, codePrefix: 'F', startSequence: 1, sequenceLength: 2, separator: '-', suffix: '',
+        },
+        {
+          levelId: 'LVL-ROOM', levelCode: 'ROOM', levelName: 'Room', sequence: 2, mandatory: true, leafEligible: false, allowSkipLevel: false,
+          allowedParentLevels: ['FLR'], allowedChildLevels: ['SHLF'], inventoryEndpointEligible: false,
+          capacityApplicable: false, itemEligibilityApplicable: false, responsibilityApplicable: true, barcodeApplicable: false, qrApplicable: false,
+          transactionPurposes: ['Storage'], capacityEnforcementMode: 'None', capacityRollupMode: 'None', allowCapabilityOverride: false,
+          defaultResponsibilityRole: 'AreaSupervisor', defaultLocationRole: 'Structural', defaultLocationType: 'General',
+          autoGenerateCode: true, codePrefix: 'RM', startSequence: 1, sequenceLength: 2, separator: '-', suffix: '',
+        },
+        {
+          levelId: 'LVL-SHLF', levelCode: 'SHLF', levelName: 'Shelf', sequence: 3, mandatory: true, leafEligible: true, allowSkipLevel: false,
+          allowedParentLevels: ['ROOM'], allowedChildLevels: [], inventoryEndpointEligible: true,
+          capacityApplicable: true, itemEligibilityApplicable: true, responsibilityApplicable: true, barcodeApplicable: false, qrApplicable: false,
+          transactionPurposes: ['Storage'], capacityEnforcementMode: 'Warning', capacityRollupMode: 'OwnCapacityOnly', allowCapabilityOverride: false,
+          defaultResponsibilityRole: 'AreaSupervisor', defaultLocationRole: 'InventoryEndpoint', defaultLocationType: 'General',
+          autoGenerateCode: true, codePrefix: 'S', startSequence: 1, sequenceLength: 2, separator: '-', suffix: '',
+        },
+      ],
+    });
+    await activateHierarchyTemplateMock(createdWarehouse.warehouse.id, createdTemplate.id);
+
+    const floor = await warehouseMockAdapter.createLocation(createdWarehouse.warehouse.id, {
+      warehouseId: createdWarehouse.warehouse.id,
+      locationCode: 'F01',
+      locationName: 'Floor 01',
+      locationType: 'General',
+      templateLevelCode: 'FLR',
+    });
+    const room = await warehouseMockAdapter.createLocation(createdWarehouse.warehouse.id, {
+      warehouseId: createdWarehouse.warehouse.id,
+      parentLocationId: floor.id,
+      locationCode: 'RM01',
+      locationName: 'Room 01',
+      locationType: 'General',
+      templateLevelCode: 'ROOM',
+    });
+    const shelf = await warehouseMockAdapter.createLocation(createdWarehouse.warehouse.id, {
+      warehouseId: createdWarehouse.warehouse.id,
+      parentLocationId: room.id,
+      locationCode: 'S01',
+      locationName: 'Shelf 01',
+      locationType: 'General',
+      templateLevelCode: 'SHLF',
+    });
+
+    expect(floor.profile.fullCode).toBe('WM02-F01');
+    expect(room.profile.fullCode).toBe('WM02-F01-RM01');
+    expect(shelf.profile.fullCode).toBe('WM02-F01-RM01-S01');
   });
 });

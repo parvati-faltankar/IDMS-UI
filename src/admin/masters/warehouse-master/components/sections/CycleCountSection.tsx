@@ -1,6 +1,6 @@
 // ─── CycleCountSection ────────────────────────────────────────────────────────
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import type { ConfigSectionProps } from './sectionTypes';
 import type { CycleCountPolicy } from '../../types/warehouse.types';
 import type { CycleCountFrequency, CycleCountScope } from '../../types/warehouse.enums';

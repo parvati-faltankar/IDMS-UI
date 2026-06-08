@@ -1,27 +1,11 @@
 // ─── GovernanceSection ────────────────────────────────────────────────────────
 // Displays recent audit events + approval references (read-only display section)
 
-import React from 'react';
-import { Clock, User, Info } from 'lucide-react';
+import { Clock, Info } from 'lucide-react';
 import type { ConfigSectionProps } from './sectionTypes';
 import type { AuditEvent } from '../../types/warehouse.types';
 import { sCard, sHead, sBody } from './sectionStyles';
 import { WAREHOUSE_ROUTES } from '../../utils/routeUtils';
-
-const EVENT_COLOR: Record<string, string> = {
-  Created: '#2563EB',
-  Updated: '#7C3AED',
-  Activated: '#16A34A',
-  Blocked: '#D97706',
-  Inactivated: '#DC2626',
-  StatusChanged: '#0891B2',
-  LocationAdded: '#059669',
-  TemplateActivated: '#6D28D9',
-};
-
-function eventColor(action: string): string {
-  return EVENT_COLOR[action] ?? 'var(--color-text-muted)';
-}
 
 export function GovernanceSection({ warehouse }: ConfigSectionProps & { auditEvents?: AuditEvent[] }) {
   // The full audit event list lives on WarehouseDetails.recentAuditEvents.

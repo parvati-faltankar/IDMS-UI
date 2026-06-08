@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ArrowDown, ArrowUp, FlaskConical, Lock, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import type { ConfigSectionProps } from './sectionTypes';
 import type { PickingPolicy } from '../../types/warehouse.types';

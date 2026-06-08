@@ -1,4 +1,3 @@
-export * from './AddressPickerDrawer/AddressPickerDrawer';
 export * from './AdminConfigShell';
 export * from './AdminListPageShell';
 export * from './AdminPageShell';
@@ -9,9 +8,5 @@ export * from './FieldHelpPopover';
 export * from './GlobalHeader';
 export * from './HelpDrawer';
 export * from './PageHeader';
-export * from './SmartDrawer';
-export * from './SmartFormDrawer';
-export * from './SmartPreviewDrawer';
-export * from './SmartReviewDrawer';
 export * from './SmartSidebar';
 export * from './ValidationChecklist';

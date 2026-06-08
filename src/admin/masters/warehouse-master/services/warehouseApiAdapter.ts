@@ -8,6 +8,14 @@ import type { WarehouseService } from './warehouseService';
 import type {
   AuditQuery,
   BulkLocationInput,
+  LocationIdentifierConflict,
+  LocationIdentifierPreviewInput,
+  LocationIdentifierPreviewResult,
+  QuickHierarchyCommitRequest,
+  QuickHierarchyCommitResult,
+  QuickHierarchyPattern,
+  QuickHierarchyPreviewInput,
+  QuickHierarchyPreviewResult,
   BulkPreview,
   BulkResult,
   CommitBulkRequest,
@@ -126,6 +134,53 @@ export const warehouseApiAdapter: WarehouseService = {
       method: 'POST',
       body: JSON.stringify(input),
     });
+  },
+
+  async previewLocationIdentifier(warehouseId: string, input: LocationIdentifierPreviewInput): Promise<LocationIdentifierPreviewResult> {
+    return apiFetch(`${API_BASE}/${warehouseId}/locations/identifier-preview`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  },
+
+  async listQuickHierarchyPatterns(warehouseId: string): Promise<QuickHierarchyPattern[]> {
+    return apiFetch(`${API_BASE}/${warehouseId}/hierarchy/quick/patterns`);
+  },
+
+  async previewQuickHierarchy(warehouseId: string, input: QuickHierarchyPreviewInput): Promise<QuickHierarchyPreviewResult> {
+    return apiFetch(`${API_BASE}/${warehouseId}/hierarchy/quick/preview`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  },
+
+  async validateQuickHierarchy(warehouseId: string, input: QuickHierarchyPreviewInput): Promise<ValidationResult> {
+    return apiFetch(`${API_BASE}/${warehouseId}/hierarchy/quick/validate`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  },
+
+  async commitQuickHierarchy(warehouseId: string, request: QuickHierarchyCommitRequest): Promise<QuickHierarchyCommitResult> {
+    return apiFetch(`${API_BASE}/${warehouseId}/hierarchy/quick/commit`, {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  },
+
+  async previewBulkLocationIdentifiers(warehouseId: string, input: BulkLocationInput): Promise<BulkPreview> {
+    return this.bulkPreviewLocations(warehouseId, input);
+  },
+
+  async validateLocationIdentifier(warehouseId: string, input: LocationIdentifierPreviewInput): Promise<ValidationResult> {
+    return apiFetch(`${API_BASE}/${warehouseId}/locations/identifier-validate`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  },
+
+  async listLocationIdentifierConflicts(warehouseId: string): Promise<LocationIdentifierConflict[]> {
+    return apiFetch(`${API_BASE}/${warehouseId}/locations/identifier-conflicts`);
   },
 
   async bulkPreviewLocations(warehouseId: string, input: BulkLocationInput): Promise<BulkPreview> {

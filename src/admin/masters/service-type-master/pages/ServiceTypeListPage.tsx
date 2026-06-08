@@ -296,10 +296,10 @@ const ServiceTypeListPage: React.FC = () => {
           primaryAction={{ label: 'Edit', tone: 'primary', onClick: () => navigate(`/admin/master/service-type-master/${previewRecord.id}`) }}
           secondaryActions={[
             ...(previewRecord.status === 'Draft' || previewRecord.status === 'Inactive'
-              ? [{ label: 'Activate', tone: 'default' as const, onClick: () => handleActivate(previewRecord) }]
+              ? [{ label: 'Activate', tone: 'outline' as const, onClick: () => handleActivate(previewRecord) }]
               : []),
             ...(previewRecord.status === 'Active'
-              ? [{ label: 'Deactivate', tone: 'default' as const, onClick: () => handleDeactivate(previewRecord) }]
+              ? [{ label: 'Deactivate', tone: 'outline' as const, onClick: () => handleDeactivate(previewRecord) }]
               : []),
           ]}
         />

@@ -215,71 +215,6 @@ Open `docs/component-contracts.md`. Add a row for the new component with its req
 
 ---
 
-## 2a. How to add a guided create/edit admin master
-
-Use this path when the entity has a **Draft → Active lifecycle** with 4+ interdependent
-configuration steps — for example, Code Generation Policy, Numbering Policy, Workflow Rules.
-These forms must use the **Compact Form Workspace** layout (see
-`docs/admin-page-structure-standard.md §10`) rather than `AdminPageShell` + section tabs.
-
-**When to use guided (vs. specialised):**
-
-| Condition | Specialized (`AdminPageShell`) | Guided (Compact Form Workspace) |
-|---|---|---|
-| Configuration steps | 1–3 sections | 4+ steps with logical gate dependencies |
-| Lifecycle | Simple Active/Inactive | Draft → Active with field locking on activation |
-| Generates output | No | Yes — codes, numbers, labels, templates |
-| Activation checklist | Not needed | Required — gates the Activate button |
-
-**Step 1 — Follow Steps 1 and 2 from the generic flow (§1).**
-NavConfig + help topic are required regardless of page type.
-
-**Step 2 — Run the generator with `--type guided`**
-
-```bash
-node scripts/create-admin-master.js \
-  --key numbering-policy \
-  --label "Numbering Policy" \
-  --group document-code \
-  --description "Define prefix and number format for document auto-numbering" \
-  --type guided
-```
-
-The generator creates `src/admin/masters/NumberingPolicyPage.tsx` with:
-
-- Compact Form Workspace outer container (height: 100%, flex-column, overflow: hidden)
-- Compact Form Header (breadcrumb, title, status badge, Back to List, How this works)
-- Workflow Bar (step pills + live preview chip)
-- Scrollable Form Body (`flex: 1; overflow-y: auto`)
-- Fixed Footer (`flexShrink: 0; height: 60px`) with Previous/Save Draft/Continue/Activate
-- `EMPTY_FORM`, `CGP_FORM_STEPS`-style constants, `stepStepState()` gating function
-- `computeActivationChecklist()` function + Activate confirmation dialog
-- `HelpDrawer` wired
-
-**Step 3 — Add the static route** (same as specialized §2 Step 3).
-
-**Step 4 — Customise the generated template:**
-
-- Replace placeholder step keys (`basic`, `config`, `review`) with your domain steps
-- Fill in `EMPTY_FORM` with your record's fields
-- Add real domain field components to each step section panel
-- Update `buildSamplePreview()` if the form generates an output
-- Update `computeActivationChecklist()` with domain-specific validation
-- Add locked field logic for Active records (`isLocked(field)`)
-- Add real help topic steps and tips in `helpTopics.ts`
-
-**Step 5 — Governance checklist before merging:**
-
-- `npm run build` — 0 TypeScript errors
-- `npm run ui:governance` — all checks pass (including `check-guided-form-layout.js`)
-- Confirm: header + workflow bar combined ≤ 136 px
-- Confirm: footer is a flex child, not `position: sticky`
-- Confirm: Activate button is disabled until checklist passes
-- Confirm: Activate opens a confirmation dialog
-- Confirm: Save Draft is NOT in header `secondaryActions`
-
----
-
 ## 3. Required adminNavConfig entry fields
 
 Every master item in `adminNavConfig.ts` must supply these fields via the `m()` helper:
@@ -420,14 +355,6 @@ node scripts/create-admin-master.js \
   --group service \
   --description "Configure warranty coverage rules for products" \
   --type specialized
-
-# Guided create/edit master (creates src/admin/masters/NumberingPolicyPage.tsx)
-node scripts/create-admin-master.js \
-  --key numbering-policy \
-  --label "Numbering Policy" \
-  --group document-code \
-  --description "Define prefix and number format for document auto-numbering" \
-  --type guided
 ```
 
 ### Arguments
@@ -438,7 +365,7 @@ node scripts/create-admin-master.js \
 | `--label` | Yes | Title Case display label |
 | `--group` | Yes | One of the 12 valid group keys |
 | `--description` | Yes | One sentence, sentence-case, no trailing period |
-| `--type` | Yes | `generic`, `specialized`, or `guided` |
+| `--type` | Yes | `generic` or `specialized` |
 | `--help` | No | Print help and exit |
 
 ### What the generator does
@@ -460,19 +387,6 @@ node scripts/create-admin-master.js \
   - Form with segmented section tabs (Overview / Settings / Advanced)
   - `HelpDrawer` wired
   - No duplicate header, no second command search, no TODO-only sections
-- Prints all the same snippets as generic
-
-**For guided:**
-- Creates `src/admin/masters/{Pascal}Page.tsx` with the **Compact Form Workspace** layout:
-  - Compact Form Header (breadcrumb, title, status badge, Back to List, How this works)
-  - Workflow Bar with step pills and live preview chip
-  - Scrollable Form Body (`flex: 1; overflow-y: auto`)
-  - Fixed Footer (`flexShrink: 0; height: 60px`) with Previous/Save Draft/Continue/Activate
-  - `EMPTY_FORM` constant + `stepStepState()` prerequisite gating
-  - `computeActivationChecklist()` function
-  - Activation confirmation dialog
-  - `HelpDrawer` wired
-- Does **not** use `AdminPageShell` — the compact workspace replaces it entirely
 - Prints all the same snippets as generic
 - Prints the route import and `<Route>` element to add to `adminRoutes.tsx`
 
@@ -576,7 +490,7 @@ See `CodeGenerationPolicyPage.tsx` `renderList()` for a complete worked example.
 
 ---
 
-## 8. AI prompts
+## 7. AI prompts
 
 Use these prompts with GitHub Copilot or any AI tool when the generator script alone is
 not sufficient (e.g. when adding domain-specific fields to a specialized page, or auditing
@@ -681,74 +595,4 @@ QUALITY VIOLATIONS (should fix):
 10. Does the form view pass statusLabel and statusTone to AdminPageShell? If not, add them.
 
 Do NOT run any commands. Report all violations found and apply fixes for each one.
-```
-
-### 8d. Add a guided create/edit admin master
-
-Use this when the form has 4+ dependent steps and a Draft → Active lifecycle (Code Generation
-Policy, Numbering Policy, Document Template Policy, Workflow Rule Setup, etc.).
-
-```
-Add a new guided create/edit admin master to IDMS-UI following the Guided Admin Create/Edit
-Standard (docs/admin-page-structure-standard.md §10).
-
-Master details:
-- key: [kebab-case-key]
-- label: [Title Case Label]
-- description: [one sentence, no period]
-- groupKey: [group]
-- steps: [comma-separated step names, e.g. Basic, Applicability, Config, Format, Review]
-- generatesOutput: [yes/no — does this form produce a code, number, or label?]
-
-Tasks:
-1. Create src/admin/masters/[Pascal]Page.tsx using the Compact Form Workspace layout:
-   a. Outer container: height: 100%, display: flex, flexDirection: column,
-      overflow: hidden, background: var(--color-surface).
-   b. Compact Form Header (flexShrink: 0, minHeight: 64px):
-      - Left: breadcrumb (11px muted) / title (16px bold) + status badge / description (12px)
-      - Right: "← Back to [label] List" outline button + "How this works" ghost button
-      - Do NOT include Save Draft or Activate here.
-   c. Workflow Bar (flexShrink: 0, height: 44px):
-      - Step pills with state: inprogress | complete | partial | attention | notstarted
-      - If generatesOutput: right-aligned live preview chip (green when ready, muted when not)
-   d. Scrollable Form Body (flex: 1, overflowY: auto):
-      - One section panel per step (show only activeSection)
-      - Alert banners at top if needed (validation errors, lock notices)
-      - section panels use padding: 16px 20px (not 24px)
-   e. Fixed Footer (flexShrink: 0, height: 60px):
-      - Setup steps: ← Previous | Step X of N | [spacer] | Save Draft | Continue →
-      - Review step: ← Previous | [spacer] | Save Draft | Preview | Activate
-      - View-only: ← Back to List | Edit
-      - Active policy: Save Changes only
-   f. Activation confirmation dialog (fixed overlay, zIndex 1300):
-      - Summary grid: name, scope, key config, sample output
-      - Consequence warning: what gets locked on activation
-      - Activate + Cancel buttons
-
-2. Implement these required functions/constants:
-   - EMPTY_FORM: all fields with safe defaults
-   - CGP_FORM_STEPS (or equivalent): ordered array of step keys
-   - stepStepState(key): returns step state; gates downstream steps on prerequisite fields
-   - computeActivationChecklist(form): returns Array<{id, label, passed, detail}>
-   - validateForDraftSave(form): returns string[] of error messages
-   - validateForActivation(form, existing, editingId): returns string[] of error messages
-   - buildSamplePreview(form): returns preview string or '—' when incomplete
-   - isLocked(field): returns true when active policy edit locks this field
-
-3. Follow all layout rules from docs/admin-page-structure-standard.md §10b.
-4. Follow all action rules from §10c.
-5. Follow all step rules from §10d.
-6. Add entry to adminNavConfig.ts, helpTopics.ts, check-help-topics.js.
-7. Add route to src/routes/adminRoutes.tsx before the /:masterKey wildcard.
-8. Do NOT use AdminPageShell for the form view — it is replaced by the compact workspace.
-9. Do NOT put Save Draft in secondaryActions of any header.
-10. Do NOT run npm install, npm run dev, npm run build, or npm test.
-
-Verify (static only):
-- header + workflow bar combined ≤ 136px
-- footer uses flexShrink: 0, not position: sticky
-- Activate button disabled when !checklistAllPassed
-- Activate opens confirmation dialog (renderActivateConfirm)
-- Save Draft present only in footer, not in any header prop
-- helpTopicId wired correctly and help topic exists in helpTopics.ts
 ```

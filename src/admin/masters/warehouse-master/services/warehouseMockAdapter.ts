@@ -8,6 +8,16 @@ import type { WarehouseService } from './warehouseService';
 import type {
   AuditQuery,
   BulkLocationInput,
+  LocationIdentifierConflict,
+  LocationIdentifierPreviewInput,
+  LocationIdentifierPreviewResult,
+  QuickHierarchyCommitRequest,
+  QuickHierarchyCommitResult,
+  QuickHierarchyPattern,
+  QuickHierarchyPatternLevel,
+  QuickHierarchyPreviewInput,
+  QuickHierarchyPreviewResult,
+  QuickHierarchyPreviewRow,
   BulkPreview,
   BulkPreviewRow,
   BulkResult,
@@ -19,6 +29,7 @@ import type {
   ImportCommitRequest,
   ImportResult,
   ImportValidationRequest,
+  ImportValidationRow,
   ImportValidationResult,
   PagedResult,
   StatusChangeRequest,
@@ -37,7 +48,7 @@ import type {
   WarehouseLocation,
   WarehouseSummary,
 } from '../types/warehouse.types';
-import type { WarehouseStatus } from '../types/warehouse.enums';
+import type { HierarchyTemplateStatus, WarehouseStatus } from '../types/warehouse.enums';
 
 import {
   SEED_WAREHOUSES,
@@ -55,12 +66,20 @@ import {
 import {
   buildFullLocationCodeFromParent,
   buildHierarchyTree,
-  getAllowedChildTemplateLevels,
+  deriveFullLocationIdentifier,
+  deriveLocationCodingPolicy,
+  generateNodeCode,
+  resolveLocationTypeForLevel,
+  resolveTemplateLevelForInput,
 } from '../utils/hierarchyUtils';
-import { validateWarehouseForActivation, canActivateWarehouse } from '../validation/activationValidation';
+import { validateWarehouseForActivation } from '../validation/activationValidation';
 import { validateWarehouseInput } from '../validation/warehouseValidation';
 import { validateLocationForSave } from '../validation/locationValidation';
-import { validateHierarchyTemplateForActivation, validateHierarchyTemplateForSave } from '../validation/hierarchyValidation';
+import {
+  validateHierarchyTemplateForActivation,
+  validateHierarchyTemplateForSave,
+  validateHierarchyTemplateLifecycleAction,
+} from '../validation/hierarchyValidation';
 import { warehouseMapper } from './warehouseMapper';
 
 // ─── Module-level in-memory stores ────────────────────────────────────────────
@@ -70,6 +89,12 @@ let templateStore = [...SEED_HIERARCHY_TEMPLATES];
 let locationStore: WarehouseLocation[] = [...SEED_LOCATIONS];
 let auditStore: AuditEvent[] = [...SEED_AUDIT_EVENTS];
 let bulkPreviewStore = new Map<string, { warehouseId: string; input: BulkLocationInput; paramsHash: string; rows: BulkPreviewRow[] }>();
+let quickHierarchyPreviewStore = new Map<string, {
+  warehouseId: string;
+  input: QuickHierarchyPreviewInput;
+  paramsHash: string;
+  rows: QuickHierarchyPreviewRow[];
+}>();
 let importValidationStore = new Map<string, ImportValidationResult>();
 let committedImportKeys = new Set<string>();
 
@@ -100,6 +125,18 @@ function simpleHash(value: string): string {
   return `H${Math.abs(hash)}`;
 }
 
+function hasTemplateDependencies(warehouseId: string): { hasNodes: boolean; hasStock: boolean; hasTransactions: boolean } {
+  const warehouseLocations = locationStore.filter((location) => location.warehouseId === warehouseId);
+  const hasNodes = warehouseLocations.length > 0;
+  const hasStock = warehouseLocations.some((location) =>
+    (location.capacity?.currentUnits ?? 0) > 0 ||
+    (location.capacity?.currentWeightKg ?? 0) > 0 ||
+    (location.capacity?.currentVolumeM3 ?? 0) > 0,
+  );
+  const hasTransactions = warehouseLocations.some((location) => location.updatedAt !== location.createdAt);
+  return { hasNodes, hasStock, hasTransactions };
+}
+
 function buildDetails(warehouse: Warehouse): WarehouseDetails {
   const templates = templateStore.filter((t) => t.warehouseId === warehouse.id);
   const locations = locationStore.filter((l) => l.warehouseId === warehouse.id);
@@ -117,23 +154,10 @@ function computeLocationLevelFromParent(parentLocationId: string | undefined): n
   return parent ? parent.profile.level + 1 : 1;
 }
 
-function computeFullLocationCode(
-  warehouseCode: string,
-  locationCode: string,
-  parentLocationId?: string,
-): string {
-  const codeParts: string[] = [];
-  let currentParentId = parentLocationId;
-
-  while (currentParentId) {
-    const parent = locationStore.find((location) => location.id === currentParentId);
-    if (!parent) break;
-    codeParts.unshift(parent.locationCode);
-    currentParentId = parent.parentLocationId;
-  }
-
-  codeParts.push(locationCode.trim().toUpperCase());
-  return [warehouseCode, ...codeParts].join('-');
+function listSiblingCodes(warehouseId: string, parentLocationId?: string): string[] {
+  return locationStore
+    .filter((location) => location.warehouseId === warehouseId && location.parentLocationId === parentLocationId)
+    .map((location) => location.locationCode);
 }
 
 function recomputeDerivedLocationState(
@@ -165,33 +189,6 @@ function recomputeDerivedLocationState(
   });
 }
 
-function getLocationTypeForTemplateLevel(levelCode: string): WarehouseLocation['profile']['locationType'] {
-  switch (levelCode.trim().toUpperCase()) {
-    case 'ZONE':
-      return 'Zone';
-    case 'AISLE':
-      return 'Aisle';
-    case 'RACK':
-      return 'Rack';
-    case 'SHELF':
-      return 'Shelf';
-    case 'BIN':
-      return 'BIN';
-    case 'DOCK':
-      return 'Dock';
-    case 'STAGING':
-      return 'Staging';
-    case 'QC':
-      return 'QC';
-    case 'SCRAP':
-      return 'Scrap';
-    case 'VIRTUAL':
-      return 'Virtual';
-    default:
-      return 'General';
-  }
-}
-
 function applyPagination<T>(items: T[], page: number, pageSize: number): PagedResult<T> {
   const totalItems = items.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
@@ -204,6 +201,111 @@ function applyPagination<T>(items: T[], page: number, pageSize: number): PagedRe
     totalItems,
     totalPages,
   };
+}
+
+const QUICK_HIERARCHY_PATTERNS: QuickHierarchyPattern[] = [
+  {
+    key: 'simple-root-bin',
+    label: 'Warehouse -> BIN',
+    description: 'Fastest setup with direct BIN endpoints below warehouse root.',
+    levels: [
+      { levelCode: 'BIN', levelName: 'Bin', sequence: 1, leafEligible: true, inventoryEndpointEligible: true, defaultLocationType: 'BIN' },
+    ],
+  },
+  {
+    key: 'zone-bin',
+    label: 'Zone -> BIN',
+    description: 'Operational zoning with BIN endpoints under each zone.',
+    levels: [
+      { levelCode: 'ZONE', levelName: 'Zone', sequence: 1, leafEligible: false, inventoryEndpointEligible: false, defaultLocationType: 'Zone' },
+      { levelCode: 'BIN', levelName: 'Bin', sequence: 2, leafEligible: true, inventoryEndpointEligible: true, defaultLocationType: 'BIN' },
+    ],
+  },
+  {
+    key: 'standard-distribution',
+    label: 'Standard Distribution',
+    description: 'ZONE -> AISLE -> RACK -> BIN standard WMS layout.',
+    levels: [
+      { levelCode: 'ZONE', levelName: 'Zone', sequence: 1, leafEligible: false, inventoryEndpointEligible: false, defaultLocationType: 'Zone' },
+      { levelCode: 'AISLE', levelName: 'Aisle', sequence: 2, leafEligible: false, inventoryEndpointEligible: false, defaultLocationType: 'Aisle' },
+      { levelCode: 'RACK', levelName: 'Rack', sequence: 3, leafEligible: false, inventoryEndpointEligible: false, defaultLocationType: 'Rack' },
+      { levelCode: 'BIN', levelName: 'Bin', sequence: 4, leafEligible: true, inventoryEndpointEligible: true, defaultLocationType: 'BIN' },
+    ],
+  },
+  {
+    key: 'floor-room-shelf',
+    label: 'Floor -> Room -> Shelf',
+    description: 'Multi-floor building model with room and shelf endpoints.',
+    levels: [
+      { levelCode: 'FLOOR', levelName: 'Floor', sequence: 1, leafEligible: false, inventoryEndpointEligible: false, defaultLocationType: 'General' },
+      { levelCode: 'ROOM', levelName: 'Room', sequence: 2, leafEligible: false, inventoryEndpointEligible: false, defaultLocationType: 'General' },
+      { levelCode: 'SHELF', levelName: 'Shelf', sequence: 3, leafEligible: true, inventoryEndpointEligible: true, defaultLocationType: 'Shelf' },
+    ],
+  },
+  {
+    key: 'yard-lane-bay',
+    label: 'Yard -> Lane -> Bay',
+    description: 'Outdoor staging hierarchy for yard operations.',
+    levels: [
+      { levelCode: 'YARD', levelName: 'Yard', sequence: 1, leafEligible: false, inventoryEndpointEligible: false, defaultLocationType: 'Staging' },
+      { levelCode: 'LANE', levelName: 'Lane', sequence: 2, leafEligible: false, inventoryEndpointEligible: false, defaultLocationType: 'Staging' },
+      { levelCode: 'BAY', levelName: 'Bay', sequence: 3, leafEligible: true, inventoryEndpointEligible: true, defaultLocationType: 'Staging' },
+    ],
+  },
+  {
+    key: 'cold-room-chamber-position',
+    label: 'Cold Room -> Chamber -> Position',
+    description: 'Temperature-controlled model for cold-chain storage.',
+    levels: [
+      { levelCode: 'COLDROOM', levelName: 'Cold Room', sequence: 1, leafEligible: false, inventoryEndpointEligible: false, defaultLocationType: 'General' },
+      { levelCode: 'CHAMBER', levelName: 'Chamber', sequence: 2, leafEligible: false, inventoryEndpointEligible: false, defaultLocationType: 'General' },
+      { levelCode: 'POSITION', levelName: 'Position', sequence: 3, leafEligible: true, inventoryEndpointEligible: true, defaultLocationType: 'BIN' },
+    ],
+  },
+  {
+    key: 'custom-pattern',
+    label: 'Custom Pattern',
+    description: 'Custom levels selected through quick wizard configuration.',
+    levels: [
+      { levelCode: 'L1', levelName: 'Level 1', sequence: 1, leafEligible: false, inventoryEndpointEligible: false, defaultLocationType: 'General' },
+      { levelCode: 'L2', levelName: 'Level 2', sequence: 2, leafEligible: true, inventoryEndpointEligible: true, defaultLocationType: 'BIN' },
+    ],
+  },
+];
+
+function toParamsHash(input: QuickHierarchyPreviewInput): string {
+  return btoa(JSON.stringify(input));
+}
+
+function createDefaultCoding(level: QuickHierarchyPatternLevel) {
+  const compactCode = level.levelCode.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+  return {
+    levelCode: level.levelCode,
+    codePrefix: compactCode.slice(0, Math.min(compactCode.length, 3)) || 'LVL',
+    startSequence: 1,
+    sequenceLength: 2,
+    separator: '',
+    suffix: '',
+  };
+}
+
+function buildNodeCode(prefix: string, sequence: number, length: number, separator?: string, suffix?: string): string {
+  return [
+    prefix.trim().toUpperCase(),
+    String(sequence).padStart(length, '0'),
+    (suffix ?? '').trim().toUpperCase(),
+  ].filter(Boolean).join(separator ?? '');
+}
+
+function resolveQuickLocationType(levelCode: string, inventoryEndpointEligible: boolean): WarehouseLocation['profile']['locationType'] {
+  const normalized = levelCode.toUpperCase();
+  if (normalized.includes('ZONE')) return 'Zone';
+  if (normalized.includes('AISLE')) return 'Aisle';
+  if (normalized.includes('RACK')) return 'Rack';
+  if (normalized.includes('SHELF')) return 'Shelf';
+  if (normalized.includes('BIN') || normalized.includes('POSITION') || inventoryEndpointEligible) return 'BIN';
+  if (normalized.includes('YARD') || normalized.includes('LANE') || normalized.includes('BAY')) return 'Staging';
+  return 'General';
 }
 
 // ─── Mock adapter ─────────────────────────────────────────────────────────────
@@ -263,13 +365,15 @@ export const warehouseMockAdapter: WarehouseService = {
     const timestamp = now();
     const selectedBranchCodes =
       input.ownershipScope === 'Branch'
-        ? input.owningBranchCodes?.length
-          ? input.owningBranchCodes
-          : input.owningBranchCode
-            ? [input.owningBranchCode]
-            : []
-        : input.sharedBranchCodes ?? [];
-    const branchOwnershipSource = input.branchOwnershipRows?.[0];
+        ? [input.owningBranchCode ?? input.owningBranchCodes?.[0]].filter(
+            (branchCode): branchCode is string => Boolean(branchCode?.trim()),
+          )
+        : (input.sharedBranchCodes ?? []).filter((branchCode) => branchCode.trim().length > 0);
+    const branchOwnershipSource = input.branchOwnershipRows?.find(
+      (row) =>
+        row.branchCode.trim().toUpperCase() ===
+        (selectedBranchCodes[0]?.trim().toUpperCase() ?? ''),
+    ) ?? input.branchOwnershipRows?.[0];
     const inventoryOwnerCode = input.inventoryOwnerCode ?? branchOwnershipSource?.inventoryOwnerCode;
     const newWarehouse: Warehouse = {
       id,
@@ -289,7 +393,8 @@ export const warehouseMockAdapter: WarehouseService = {
       status: 'Draft',
       creationSource: 'Manual',
       assignmentProfile: {
-        assignments: selectedBranchCodes.map((branchCode) => ({
+        assignments: selectedBranchCodes.map((branchCode, assignmentIndex) => ({
+          id: `ASSIGN-${String(assignmentIndex + 1).padStart(4, '0')}`,
           branchCode,
           branchName: branchCode,
           assignmentStatus: 'Active',
@@ -305,7 +410,7 @@ export const warehouseMockAdapter: WarehouseService = {
           ? {
               ownerCode: inventoryOwnerCode,
               ownerName: inventoryOwnerCode,
-              ownerType: input.ownershipScope === 'Branch' ? 'Branch' : 'Company',
+              ownerType: input.ownershipScope === 'Branch' ? 'Branch' : 'LegalEntity',
             }
           : undefined,
       },
@@ -355,17 +460,17 @@ export const warehouseMockAdapter: WarehouseService = {
     appendAudit({
       entityType: 'Warehouse',
       entityId: id,
-      action: 'Update',
-      performedBy: 'current-user',
-      performedAt: updated.updatedAt,
-      source: 'Manual',
-      recordVersion: updated.version,
-      fieldChanges: Object.keys(input).map((field) => ({
-        field,
-        previousValue: String((existing as Record<string, unknown>)[field] ?? ''),
-        newValue: String((updated as Record<string, unknown>)[field] ?? ''),
-      })),
-    });
+        action: 'Update',
+        performedBy: 'current-user',
+        performedAt: updated.updatedAt,
+        source: 'Manual',
+        recordVersion: updated.version,
+        fieldChanges: Object.keys(input).map((field) => ({
+          field,
+          previousValue: String((existing as unknown as Record<string, unknown>)[field] ?? ''),
+          newValue: String((updated as unknown as Record<string, unknown>)[field] ?? ''),
+        })),
+      });
     return buildDetails(updated);
   },
 
@@ -490,31 +595,51 @@ export const warehouseMockAdapter: WarehouseService = {
     const parentLocation = input.parentLocationId
       ? warehouseLocations.find((location) => location.id === input.parentLocationId) ?? null
       : null;
-    const allowedTemplateLevels = getAllowedChildTemplateLevels(parentLocation, activeTemplate);
-    const matchedTemplateLevel = allowedTemplateLevels.find((levelDef) => {
-      const upperLocationType = input.locationType.toUpperCase();
-      return (
-        levelDef.levelCode.toUpperCase() === upperLocationType ||
-        levelDef.levelName.toUpperCase() === upperLocationType
-      );
-    });
-    const level = matchedTemplateLevel?.sequence ?? computeLocationLevelFromParent(input.parentLocationId);
-    const fullCode = buildFullLocationCodeFromParent(
-      warehouse.warehouseCode,
-      input.locationCode,
-      input.parentLocationId,
-      warehouseLocations,
+    const matchedTemplateLevel = resolveTemplateLevelForInput(
+      activeTemplate,
+      parentLocation,
+      input,
     );
+    if (activeTemplate && !matchedTemplateLevel) {
+      throw new Error('Selected child level is not allowed under the selected parent by the active template.');
+    }
+    const level = matchedTemplateLevel?.sequence ?? computeLocationLevelFromParent(input.parentLocationId);
+    const locationType = matchedTemplateLevel
+      ? resolveLocationTypeForLevel(matchedTemplateLevel)
+      : input.locationType;
+    const policy = deriveLocationCodingPolicy(activeTemplate, matchedTemplateLevel);
+    const normalizedCode = input.locationCode.trim().toUpperCase();
+    const resolvedCode = normalizedCode || generateNodeCode({
+      policy,
+      existingSiblingCodes: listSiblingCodes(warehouseId, input.parentLocationId),
+      autoGenerate: true,
+    }).nodeCode;
+    const fullCode = deriveFullLocationIdentifier({
+      warehouseCode: warehouse.warehouseCode,
+      activeTemplate,
+      parentLocationId: input.parentLocationId,
+      allLocations: warehouseLocations,
+      nodeCode: resolvedCode,
+    });
+    const fullCodeExists = warehouseLocations.some(
+      (location) => location.profile.fullCode.toUpperCase() === fullCode.toUpperCase(),
+    );
+    if (fullCodeExists) {
+      throw new Error(`Full location identifier "${fullCode}" already exists in this warehouse.`);
+    }
 
     const newLocation: WarehouseLocation = {
       id,
       warehouseId,
-      locationCode: input.locationCode.trim().toUpperCase(),
+      locationCode: resolvedCode,
       locationName: input.locationName.trim(),
       parentLocationId: input.parentLocationId,
       status: 'Draft',
       profile: {
-        locationType: input.locationType,
+        locationType,
+        templateLevelId: matchedTemplateLevel?.levelId,
+        templateLevelCode: matchedTemplateLevel?.levelCode,
+        locationRole: matchedTemplateLevel?.defaultLocationRole,
         binType: input.binType as WarehouseLocation['profile']['binType'],
         barcodeValue: input.barcodeValue,
         level,
@@ -542,6 +667,457 @@ export const warehouseMockAdapter: WarehouseService = {
     return locationStore.find((location) => location.id === id) ?? newLocation;
   },
 
+  async previewLocationIdentifier(warehouseId: string, input: LocationIdentifierPreviewInput): Promise<LocationIdentifierPreviewResult> {
+    const warehouse = warehouseStore.find((item) => item.id === warehouseId);
+    if (!warehouse) throw new Error(`Warehouse not found: ${warehouseId}`);
+    const activeTemplate = templateStore.find((template) => template.warehouseId === warehouseId && template.status === 'Active');
+    const warehouseLocations = locationStore.filter((location) => location.warehouseId === warehouseId);
+    const parent = input.parentLocationId
+      ? warehouseLocations.find((location) => location.id === input.parentLocationId)
+      : undefined;
+    const matchedLevel = resolveTemplateLevelForInput(activeTemplate, parent ?? null, {
+      templateLevelCode: input.templateLevelCode,
+      templateLevelId: input.templateLevelId,
+      locationType: 'BIN',
+    });
+    const policy = deriveLocationCodingPolicy(activeTemplate, matchedLevel);
+    const generated = generateNodeCode({
+      policy,
+      existingSiblingCodes: listSiblingCodes(warehouseId, input.parentLocationId),
+      manualCode: input.nodeCode,
+      autoGenerate: input.autoGenerate ?? !input.manualOverride,
+    });
+    const fullLocationIdentifier = deriveFullLocationIdentifier({
+      warehouseCode: warehouse.warehouseCode,
+      activeTemplate,
+      parentLocationId: input.parentLocationId,
+      allLocations: warehouseLocations,
+      nodeCode: generated.nodeCode,
+    });
+    const conflict = warehouseLocations.some(
+      (location) => location.profile.fullCode.toUpperCase() === fullLocationIdentifier.toUpperCase(),
+    );
+    return {
+      nodeCode: generated.nodeCode,
+      fullLocationIdentifier,
+      conflict,
+      conflictReason: conflict ? `Full location identifier "${fullLocationIdentifier}" already exists.` : undefined,
+    };
+  },
+
+  async previewBulkLocationIdentifiers(warehouseId: string, input: BulkLocationInput): Promise<BulkPreview> {
+    return this.bulkPreviewLocations(warehouseId, input);
+  },
+
+  async validateLocationIdentifier(warehouseId: string, input: LocationIdentifierPreviewInput): Promise<ValidationResult> {
+    const preview = await this.previewLocationIdentifier(warehouseId, input);
+    return {
+      valid: !preview.conflict,
+      issues: preview.conflict
+        ? [{ field: 'locationCode', severity: 'error', category: 'DuplicateCode', message: preview.conflictReason ?? 'Identifier conflict detected.' }]
+        : [],
+    };
+  },
+
+  async listQuickHierarchyPatterns(): Promise<QuickHierarchyPattern[]> {
+    return QUICK_HIERARCHY_PATTERNS;
+  },
+
+  async previewQuickHierarchy(warehouseId: string, input: QuickHierarchyPreviewInput): Promise<QuickHierarchyPreviewResult> {
+    const warehouse = warehouseStore.find((item) => item.id === warehouseId);
+    if (!warehouse) throw new Error(`Warehouse not found: ${warehouseId}`);
+
+    const issues: string[] = [];
+    if (warehouse.inventoryControlMode !== 'Location-BIN-Level') {
+      issues.push('Quick hierarchy wizard is available only for Location-BIN-Level warehouses.');
+    }
+
+    const pattern = QUICK_HIERARCHY_PATTERNS.find((item) => item.key === input.patternKey);
+    if (!pattern) {
+      throw new Error(`Unsupported quick hierarchy pattern: ${input.patternKey}`);
+    }
+
+    const activeTemplate = templateStore.find(
+      (template) => template.warehouseId === warehouseId && template.status === 'Active',
+    );
+    if (input.templateAction === 'reuse-active' && !activeTemplate) {
+      issues.push('No active hierarchy template found. Select Create from pattern or activate a template first.');
+    }
+
+    const levels = pattern.levels;
+    const codingByLevel = new Map(
+      input.codingByLevel.map((coding) => [coding.levelCode.toUpperCase(), coding]),
+    );
+
+    for (const level of levels) {
+      const count = input.countsByLevel[level.levelCode] ?? 0;
+      if (!Number.isFinite(count) || count < 1) {
+        issues.push(`Count for level ${level.levelCode} must be at least 1.`);
+      }
+      if (count > 500) {
+        issues.push(`Count for level ${level.levelCode} exceeds limit (500).`);
+      }
+      const coding = codingByLevel.get(level.levelCode.toUpperCase()) ?? createDefaultCoding(level);
+      if (!coding.codePrefix.trim()) {
+        issues.push(`Code prefix for level ${level.levelCode} is required.`);
+      }
+      if (coding.sequenceLength < 1 || coding.sequenceLength > 6) {
+        issues.push(`Sequence length for level ${level.levelCode} must be between 1 and 6.`);
+      }
+    }
+
+    const warehouseLocations = locationStore.filter((location) => location.warehouseId === warehouseId);
+    const existingFullCodes = new Set(warehouseLocations.map((location) => location.profile.fullCode.toUpperCase()));
+    const pathSeparator = activeTemplate?.defaultPathSeparator ?? '-';
+
+    type ParentNode = {
+      tempNodeId: string;
+      nodeCode: string;
+      fullLocationIdentifier: string;
+    };
+    let parentNodes: ParentNode[] = [{
+      tempNodeId: 'ROOT',
+      nodeCode: warehouse.warehouseCode,
+      fullLocationIdentifier: warehouse.warehouseCode,
+    }];
+    const rows: QuickHierarchyPreviewRow[] = [];
+    const seenFullCodes = new Set<string>();
+
+    for (const level of levels) {
+      const count = input.countsByLevel[level.levelCode] ?? 1;
+      const coding = codingByLevel.get(level.levelCode.toUpperCase()) ?? createDefaultCoding(level);
+      const nextParents: ParentNode[] = [];
+
+      for (const parent of parentNodes) {
+        const siblingCodes = new Set<string>();
+        for (let index = 0; index < count; index++) {
+          const sequence = coding.startSequence + index;
+          const nodeCode = buildNodeCode(
+            coding.codePrefix,
+            sequence,
+            coding.sequenceLength,
+            coding.separator,
+            coding.suffix,
+          );
+          const fullLocationIdentifier = `${parent.fullLocationIdentifier}${pathSeparator}${nodeCode}`.toUpperCase();
+          let conflictReason: string | undefined;
+          if (siblingCodes.has(nodeCode.toUpperCase())) {
+            conflictReason = `Duplicate node code ${nodeCode} generated under parent ${parent.nodeCode}.`;
+          } else if (seenFullCodes.has(fullLocationIdentifier)) {
+            conflictReason = `Duplicate full location identifier ${fullLocationIdentifier} generated in preview.`;
+          } else if (existingFullCodes.has(fullLocationIdentifier)) {
+            conflictReason = `Full location identifier ${fullLocationIdentifier} already exists.`;
+          }
+
+          siblingCodes.add(nodeCode.toUpperCase());
+          seenFullCodes.add(fullLocationIdentifier);
+          const tempNodeId = `TMP-${level.levelCode}-${parent.tempNodeId}-${index + 1}`;
+          rows.push({
+            tempNodeId,
+            parentTempNodeId: parent.tempNodeId === 'ROOT' ? undefined : parent.tempNodeId,
+            level: level.sequence,
+            levelCode: level.levelCode,
+            levelName: level.levelName,
+            parentCode: parent.tempNodeId === 'ROOT' ? warehouse.warehouseCode : parent.nodeCode,
+            nodeCode,
+            nodeName: `${level.levelName} ${String(sequence).padStart(coding.sequenceLength, '0')}`,
+            fullLocationIdentifier,
+            leafEndpointPreview: level.leafEligible,
+            inventoryEndpointEligible: level.inventoryEndpointEligible,
+            capacityApplicable: false,
+            itemEligibilityApplicable: false,
+            responsibilityApplicable: false,
+            status: 'Draft',
+            validationStatus: conflictReason ? 'Conflict' : 'Valid',
+            conflictReason,
+          });
+          nextParents.push({ tempNodeId, nodeCode, fullLocationIdentifier });
+        }
+      }
+
+      parentNodes = nextParents;
+    }
+
+    const previewToken = `QPREV-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    const paramsHash = toParamsHash(input);
+    quickHierarchyPreviewStore.set(previewToken, {
+      warehouseId,
+      input,
+      paramsHash,
+      rows,
+    });
+
+    const conflictCount = rows.filter((row) => row.validationStatus === 'Conflict').length;
+    return {
+      previewToken,
+      warehouseId,
+      patternKey: input.patternKey,
+      rows,
+      totalGeneratedNodes: rows.length,
+      conflictCount,
+      validCount: rows.length - conflictCount,
+      generatedAt: now(),
+      paramsHash,
+      warnings: issues,
+    };
+  },
+
+  async validateQuickHierarchy(warehouseId: string, input: QuickHierarchyPreviewInput): Promise<ValidationResult> {
+    const preview = await this.previewQuickHierarchy(warehouseId, input);
+    const issues = [
+      ...preview.warnings.map((message) => ({
+        field: 'quickHierarchy',
+        severity: 'error' as const,
+        category: 'SystemConstraint' as const,
+        message,
+      })),
+      ...preview.rows
+        .filter((row) => row.validationStatus === 'Conflict')
+        .slice(0, 25)
+        .map((row) => ({
+          field: row.levelCode,
+          severity: 'error' as const,
+          category: 'DuplicateCode' as const,
+          message: row.conflictReason ?? `Conflict detected for ${row.fullLocationIdentifier}.`,
+        })),
+    ];
+
+    return {
+      valid: issues.length === 0,
+      issues,
+    };
+  },
+
+  async commitQuickHierarchy(warehouseId: string, request: QuickHierarchyCommitRequest): Promise<QuickHierarchyCommitResult> {
+    const warehouse = warehouseStore.find((item) => item.id === warehouseId);
+    if (!warehouse) throw new Error(`Warehouse not found: ${warehouseId}`);
+
+    const preview = quickHierarchyPreviewStore.get(request.previewToken);
+    if (!preview || preview.warehouseId !== warehouseId) {
+      return {
+        success: false,
+        createdCount: 0,
+        failedCount: 0,
+        createdFullIdentifiers: [],
+        errors: [{ code: 'PREVIEW', name: 'Preview', reason: 'Quick hierarchy preview not found or expired.' }],
+        correlationId: `COR-QH-${Date.now()}`,
+      };
+    }
+
+    if (preview.paramsHash !== request.paramsHash) {
+      return {
+        success: false,
+        createdCount: 0,
+        failedCount: 0,
+        createdFullIdentifiers: [],
+        errors: [{ code: 'STALE', name: 'Preview', reason: 'Quick hierarchy preview is stale. Generate a new preview.' }],
+        correlationId: `COR-QH-${Date.now()}`,
+      };
+    }
+
+    const conflictRows = preview.rows.filter((row) => row.validationStatus === 'Conflict');
+    if (preview.input.templateAction === 'reuse-active') {
+      const activeTemplate = templateStore.find((template) => template.warehouseId === warehouseId && template.status === 'Active');
+      if (!activeTemplate) {
+        conflictRows.push({
+          tempNodeId: 'TEMPLATE',
+          level: 0,
+          levelCode: 'TEMPLATE',
+          levelName: 'Template',
+          nodeCode: 'TEMPLATE',
+          nodeName: 'Template',
+          fullLocationIdentifier: warehouse.warehouseCode,
+          leafEndpointPreview: false,
+          inventoryEndpointEligible: false,
+          capacityApplicable: false,
+          itemEligibilityApplicable: false,
+          responsibilityApplicable: false,
+          status: 'Draft',
+          validationStatus: 'Conflict',
+          conflictReason: 'No active hierarchy template available for reuse.',
+        });
+      }
+    }
+    if (conflictRows.length > 0) {
+      return {
+        success: false,
+        createdCount: 0,
+        failedCount: conflictRows.length,
+        createdFullIdentifiers: [],
+        errors: conflictRows.map((row) => ({
+          code: row.nodeCode,
+          name: row.nodeName,
+          reason: row.conflictReason ?? 'Conflict detected.',
+        })),
+        correlationId: `COR-QH-${Date.now()}`,
+      };
+    }
+
+    const timestamp = now();
+    if (preview.input.templateAction === 'create-from-pattern') {
+      const existingTemplate = templateStore.find((template) => template.warehouseId === warehouseId && template.status === 'Active');
+      if (!existingTemplate || preview.input.activateTemplateOnCommit) {
+        const pattern = QUICK_HIERARCHY_PATTERNS.find((item) => item.key === preview.input.patternKey)!;
+        const createdTemplate = await createHierarchyTemplateMock({
+          warehouseId,
+          templateCode: `QH-${pattern.key.slice(0, 10).toUpperCase()}`,
+          templateName: `Quick ${pattern.label}`,
+          effectiveFrom: timestamp.slice(0, 10),
+          defaultPathSeparator: '-',
+          includeWarehouseCodeInIdentifier: true,
+          defaultSequenceLength: 2,
+          levels: pattern.levels.map((level, index) => ({
+            levelId: `QH-${level.levelCode}-${index + 1}`,
+            levelCode: level.levelCode,
+            levelName: level.levelName,
+            sequence: index + 1,
+            mandatory: true,
+            allowSkipLevel: false,
+            allowedParentLevels: index === 0 ? ['WAREHOUSE'] : [pattern.levels[index - 1].levelCode],
+            allowedChildLevels: index < pattern.levels.length - 1 ? [pattern.levels[index + 1].levelCode] : [],
+            autoGenerateCode: true,
+            codePrefix: level.levelCode.slice(0, 2).toUpperCase(),
+            startSequence: 1,
+            sequenceLength: 2,
+            separator: '-',
+            leafEligible: level.leafEligible,
+            inventoryEndpointEligible: level.inventoryEndpointEligible,
+            capacityApplicable: level.inventoryEndpointEligible,
+            itemEligibilityApplicable: level.inventoryEndpointEligible,
+            responsibilityApplicable: true,
+            barcodeApplicable: false,
+            qrApplicable: false,
+            transactionPurposes: ['Storage'],
+            capacityEnforcementMode: 'None',
+            capacityRollupMode: 'None',
+            allowCapabilityOverride: false,
+            defaultLocationRole: level.inventoryEndpointEligible ? 'InventoryEndpoint' : 'Structural',
+            defaultLocationType: level.defaultLocationType ?? resolveQuickLocationType(level.levelCode, level.inventoryEndpointEligible),
+          })),
+          flexiblePathEnabled: false,
+        });
+        await activateHierarchyTemplateMock(warehouseId, createdTemplate.id);
+      }
+    }
+
+    const existingWarehouseLocations = locationStore.filter((location) => location.warehouseId === warehouseId);
+    const existingFullCodes = new Set(existingWarehouseLocations.map((location) => location.profile.fullCode.toUpperCase()));
+    const newLocations: WarehouseLocation[] = [];
+    const createdFullIdentifiers: string[] = [];
+    const idMap = new Map<string, string>();
+
+    for (const row of preview.rows.sort((left, right) => left.level - right.level)) {
+      const parentLocationId = row.parentTempNodeId ? idMap.get(row.parentTempNodeId) : undefined;
+      const fullCode = deriveFullLocationIdentifier({
+        warehouseCode: warehouse.warehouseCode,
+        activeTemplate: templateStore.find((template) => template.warehouseId === warehouseId && template.status === 'Active'),
+        parentLocationId,
+        allLocations: [...existingWarehouseLocations, ...newLocations],
+        nodeCode: row.nodeCode,
+      }).toUpperCase();
+      if (existingFullCodes.has(fullCode)) {
+        return {
+          success: false,
+          createdCount: 0,
+          failedCount: 1,
+          createdFullIdentifiers: [],
+          errors: [{ code: row.nodeCode, name: row.nodeName, reason: `Full location path ${fullCode} already exists.` }],
+          correlationId: `COR-QH-${Date.now()}`,
+        };
+      }
+
+      const locationId = nextId('LOC', [...locationStore, ...newLocations]);
+      idMap.set(row.tempNodeId, locationId);
+      existingFullCodes.add(fullCode);
+      createdFullIdentifiers.push(fullCode);
+      newLocations.push({
+        id: locationId,
+        warehouseId,
+        locationCode: row.nodeCode,
+        locationName: row.nodeName,
+        parentLocationId,
+        status: 'Draft',
+        profile: {
+          locationType: resolveQuickLocationType(row.levelCode, row.inventoryEndpointEligible),
+          templateLevelCode: row.levelCode,
+          locationRole: row.inventoryEndpointEligible ? 'InventoryEndpoint' : 'Structural',
+          level: row.level,
+          fullCode,
+          isLeafEndpoint: row.leafEndpointPreview,
+          inventoryAllowed: false,
+        },
+        putawayBlocked: false,
+        pickingBlocked: false,
+        movementState: 'Idle',
+        commitmentState: 'Uncommitted',
+        stockStatuses: [],
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        version: 1,
+      });
+    }
+
+    const recomputedWarehouseLocations = recomputeDerivedLocationState(
+      warehouseId,
+      [...existingWarehouseLocations, ...newLocations],
+    );
+    locationStore = [
+      ...recomputedWarehouseLocations,
+      ...locationStore.filter((location) => location.warehouseId !== warehouseId),
+    ];
+
+    const correlationId = `COR-QH-${Date.now()}`;
+    appendAudit({
+      entityType: 'Warehouse',
+      entityId: warehouseId,
+      action: 'QuickHierarchyCommit',
+      performedBy: 'current-user',
+      performedAt: timestamp,
+      source: 'Manual',
+      correlationId,
+      snapshot: {
+        patternKey: preview.input.patternKey,
+        createdCount: newLocations.length,
+      },
+    });
+    quickHierarchyPreviewStore.delete(request.previewToken);
+
+    return {
+      success: true,
+      createdCount: newLocations.length,
+      failedCount: 0,
+      firstCreatedLocationId: newLocations[0]?.id,
+      createdFullIdentifiers,
+      errors: [],
+      correlationId,
+    };
+  },
+
+  async listLocationIdentifierConflicts(warehouseId: string): Promise<LocationIdentifierConflict[]> {
+    const scoped = locationStore.filter((location) => location.warehouseId === warehouseId);
+    const grouped = scoped.reduce<Map<string, WarehouseLocation[]>>((acc, location) => {
+      const key = location.profile.fullCode.toUpperCase();
+      const current = acc.get(key) ?? [];
+      current.push(location);
+      acc.set(key, current);
+      return acc;
+    }, new Map());
+
+    const conflicts: LocationIdentifierConflict[] = [];
+    grouped.forEach((locations, fullCode) => {
+      if (locations.length < 2) return;
+      locations.forEach((location) => {
+        conflicts.push({
+          locationId: location.id,
+          locationCode: location.locationCode,
+          fullLocationIdentifier: fullCode,
+          reason: 'Duplicate full location identifier detected.',
+        });
+      });
+    });
+    return conflicts;
+  },
+
   async bulkPreviewLocations(warehouseId: string, input: BulkLocationInput): Promise<BulkPreview> {
     const warehouse = warehouseStore.find((w) => w.id === warehouseId);
     if (!warehouse) throw new Error(`Warehouse not found: ${warehouseId}`);
@@ -550,52 +1126,70 @@ export const warehouseMockAdapter: WarehouseService = {
     const parentLocation = input.parentLocationId
       ? warehouseLocations.find((location) => location.id === input.parentLocationId) ?? null
       : null;
-    const allowedTemplateLevels = getAllowedChildTemplateLevels(parentLocation, activeTemplate);
-    const matchedLevel = allowedTemplateLevels.find(
-      (level) => getLocationTypeForTemplateLevel(level.levelCode) === input.locationType,
-    );
+    const matchedLevel = resolveTemplateLevelForInput(activeTemplate, parentLocation, input);
     if (activeTemplate && !matchedLevel) {
       throw new Error('Bulk create child level is not allowed under the selected parent by the active template.');
     }
 
     const existingFullCodes = new Set(
-      locationStore.filter((l) => l.warehouseId === warehouseId).map((l) => l.profile.fullCode.toUpperCase()),
+      warehouseLocations.map((location) => location.profile.fullCode.toUpperCase()),
+    );
+    const existingCodes = new Set(
+      warehouseLocations.map((location) => location.locationCode.toUpperCase()),
     );
 
     const paramsHash = btoa(JSON.stringify({ ...input, warehouseId }));
     const rows: BulkPreviewRow[] = [];
     const seenCodes = new Set<string>();
-    const separator = input.separator ?? '';
-    const suffix = input.suffix ?? '';
+    const seenFullCodes = new Set<string>();
     const level = matchedLevel?.sequence ?? input.level ?? computeLocationLevelFromParent(input.parentLocationId);
 
     for (let i = 0; i < input.count; i++) {
       const seq = input.startSequence + i;
-      const seqStr = String(seq).padStart(input.sequenceLength, '0');
-      const code = `${input.codePrefix}${separator}${seqStr}${suffix}`.toUpperCase();
-      const name = `${input.namePrefix}${separator}${seqStr}${suffix}`.trim();
-      const fullCode = buildFullLocationCodeFromParent(
-        warehouse.warehouseCode,
-        code,
-        input.parentLocationId,
-        warehouseLocations,
-      ).toUpperCase();
+      const code = [
+        input.codePrefix.trim().toUpperCase(),
+        String(seq).padStart(input.sequenceLength, '0'),
+        (input.suffix ?? '').trim().toUpperCase(),
+      ].filter(Boolean).join(input.separator ?? '');
+      const name = `${input.namePrefix}${input.separator ?? ''}${String(seq).padStart(input.sequenceLength, '0')}${input.suffix ?? ''}`.trim();
+      const fullCode = deriveFullLocationIdentifier({
+        warehouseCode: warehouse.warehouseCode,
+        activeTemplate,
+        parentLocationId: input.parentLocationId,
+        allLocations: warehouseLocations,
+        nodeCode: code,
+      }).toUpperCase();
       let conflict = false;
       let conflictReason: string | undefined;
 
       if (seenCodes.has(code)) {
         conflict = true;
         conflictReason = `Duplicate code "${code}" generated within this batch.`;
+      } else if (existingCodes.has(code)) {
+        conflict = true;
+        conflictReason = `Location code "${code}" already exists in this warehouse.`;
+      } else if (seenFullCodes.has(fullCode)) {
+        conflict = true;
+        conflictReason = `Duplicate full location identifier "${fullCode}" generated within this batch.`;
       } else if (existingFullCodes.has(fullCode)) {
         conflict = true;
         conflictReason = `Full location path "${fullCode}" already exists in this warehouse.`;
       }
 
       seenCodes.add(code);
+      seenFullCodes.add(fullCode);
       rows.push({
         sequenceNumber: seq,
+        levelCode: matchedLevel?.levelCode,
+        parentCode: parentLocation?.locationCode,
+        parentFullLocationIdentifier: parentLocation?.profile.fullCode,
         proposedCode: code,
         proposedName: name,
+        fullLocationIdentifier: fullCode,
+        leafEndpointPreview: matchedLevel?.leafEligible,
+        inventoryEndpointEligible: matchedLevel?.inventoryEndpointEligible,
+        inventoryAllowedPreview: false,
+        validationStatus: conflict ? 'Conflict' : 'Valid',
         conflict,
         conflictReason,
       });
@@ -607,7 +1201,9 @@ export const warehouseMockAdapter: WarehouseService = {
       input: {
         ...input,
         level,
-        locationType: matchedLevel ? getLocationTypeForTemplateLevel(matchedLevel.levelCode) : input.locationType,
+        templateLevelId: matchedLevel?.levelId ?? input.templateLevelId,
+        templateLevelCode: matchedLevel?.levelCode ?? input.templateLevelCode,
+        locationType: matchedLevel ? resolveLocationTypeForLevel(matchedLevel) : input.locationType,
       },
       paramsHash,
       rows,
@@ -669,14 +1265,44 @@ export const warehouseMockAdapter: WarehouseService = {
     const parentLocationId = preview.input.parentLocationId;
     const locationType = preview.input.locationType;
     const binType = preview.input.binType;
+    const templateLevelCode = preview.input.templateLevelCode;
+    const templateLevelId = preview.input.templateLevelId;
+    const activeTemplate = templateStore.find(
+      (template) => template.warehouseId === warehouseId && template.status === 'Active',
+    );
+    const matchedLevel = resolveTemplateLevelForInput(
+      activeTemplate,
+      parentLocationId
+        ? locationStore.find((location) => location.id === parentLocationId) ?? null
+        : null,
+      preview.input,
+    );
     const timestamp = now();
     const existingFullCodes = new Set(
       locationStore.filter((location) => location.warehouseId === warehouseId).map((location) => location.profile.fullCode.toUpperCase()),
     );
+    const existingCodes = new Set(
+      locationStore.filter((location) => location.warehouseId === warehouseId).map((location) => location.locationCode.toUpperCase()),
+    );
     const newLocations: WarehouseLocation[] = [];
 
     for (const row of preview.rows) {
-      const fullCode = computeFullLocationCode(warehouse.warehouseCode, row.proposedCode, parentLocationId).toUpperCase();
+      if (existingCodes.has(row.proposedCode.toUpperCase())) {
+        return {
+          success: false,
+          createdCount: 0,
+          failedCount: 1,
+          errors: [{ code: row.proposedCode, name: row.proposedName, reason: `Location code "${row.proposedCode}" already exists.` }],
+          correlationId: `COR-BULK-${Date.now()}`,
+        };
+      }
+      const fullCode = deriveFullLocationIdentifier({
+        warehouseCode: warehouse.warehouseCode,
+        activeTemplate,
+        parentLocationId,
+        allLocations: [...locationStore, ...newLocations],
+        nodeCode: row.proposedCode,
+      }).toUpperCase();
       if (existingFullCodes.has(fullCode)) {
         return {
           success: false,
@@ -697,6 +1323,9 @@ export const warehouseMockAdapter: WarehouseService = {
         status: 'Draft',
         profile: {
           locationType,
+          templateLevelId: templateLevelId ?? matchedLevel?.levelId,
+          templateLevelCode: templateLevelCode ?? matchedLevel?.levelCode,
+          locationRole: matchedLevel?.defaultLocationRole,
           binType: binType as WarehouseLocation['profile']['binType'],
           level,
           fullCode,
@@ -715,6 +1344,7 @@ export const warehouseMockAdapter: WarehouseService = {
 
       newLocations.push(location);
       existingFullCodes.add(fullCode);
+      existingCodes.add(row.proposedCode.toUpperCase());
     }
 
     const recomputedWarehouseLocations = recomputeDerivedLocationState(
@@ -1000,11 +1630,20 @@ export async function createHierarchyTemplateMock(
     warehouseId: input.warehouseId,
     templateCode: input.templateCode.trim().toUpperCase(),
     templateName: input.templateName.trim(),
+    templateSource: input.templateSource ?? 'UserDefined',
+    templateScope: input.templateScope ?? 'Warehouse',
+    defaultPathSeparator: input.defaultPathSeparator ?? '-',
+    includeWarehouseCodeInIdentifier: input.includeWarehouseCodeInIdentifier ?? true,
+    defaultSequenceLength: input.defaultSequenceLength ?? 3,
+    manualNodeCodeAllowed: input.manualNodeCodeAllowed ?? true,
+    autoGenerateNodeCodeAllowed: input.autoGenerateNodeCodeAllowed ?? true,
+    codeLockedAfterActivation: input.codeLockedAfterActivation ?? true,
+    dependencyMarker: input.dependencyMarker ?? hasTemplateDependencies(input.warehouseId),
     status: 'Draft',
     flexiblePathEnabled: input.flexiblePathEnabled,
     levels: [...input.levels].sort((left, right) => left.sequence - right.sequence),
     currentVersion: { versionNumber },
-    versionHistory: [{ versionNumber, changeDescription: 'Initial version' }],
+    versionHistory: [{ versionNumber, changeDescription: input.changeDescription ?? 'Initial version' }],
     effectiveFrom: input.effectiveFrom,
     effectiveTo: input.effectiveTo,
     createdAt: timestamp,
@@ -1050,6 +1689,8 @@ export async function activateHierarchyTemplateMock(
       return {
         ...template,
         status: 'Active',
+        codeLockedAfterActivation: template.codeLockedAfterActivation ?? true,
+        dependencyMarker: hasTemplateDependencies(warehouseId),
         currentVersion: {
           versionNumber: nextVersionNumber,
           activatedAt: timestamp,
@@ -1103,12 +1744,70 @@ export async function activateHierarchyTemplateMock(
   return activeTemplate;
 }
 
+export async function updateHierarchyTemplateStatusMock(
+  warehouseId: string,
+  templateId: string,
+  targetStatus: Extract<HierarchyTemplateStatus, 'Active' | 'Blocked' | 'Inactive'>,
+  reason?: string,
+): Promise<HierarchyTemplate> {
+  const target = templateStore.find((template) => template.id === templateId && template.warehouseId === warehouseId);
+  if (!target) {
+    throw new Error(`Hierarchy template not found: ${templateId}`);
+  }
+
+  if (targetStatus === 'Active') {
+    return activateHierarchyTemplateMock(warehouseId, templateId);
+  }
+
+  const dependencies = hasTemplateDependencies(warehouseId);
+  const lifecycleError = validateHierarchyTemplateLifecycleAction(
+    target.status,
+    targetStatus,
+    dependencies.hasNodes || dependencies.hasStock || dependencies.hasTransactions,
+  );
+  if (lifecycleError) {
+    throw new Error(lifecycleError);
+  }
+
+  if (targetStatus === 'Blocked' && !reason?.trim()) {
+    throw new Error('Reason is required to set template status to Blocked.');
+  }
+
+  const timestamp = now();
+  templateStore = templateStore.map((template) => {
+    if (template.id !== templateId) return template;
+    return {
+      ...template,
+      status: targetStatus,
+      dependencyMarker: dependencies,
+      updatedAt: timestamp,
+      version: template.version + 1,
+    };
+  });
+
+  const updated = templateStore.find((template) => template.id === templateId)!;
+  appendAudit({
+    entityType: 'HierarchyTemplate',
+    entityId: templateId,
+    action: `SetStatus:${targetStatus}`,
+    performedBy: 'current-user',
+    performedAt: timestamp,
+    previousStatus: target.status,
+    newStatus: targetStatus,
+    reasonDescription: reason?.trim(),
+    source: 'Manual',
+    recordVersion: updated.version,
+  });
+  return updated;
+}
+
 export function __resetMockStores(): void {
   warehouseStore = [...SEED_WAREHOUSES];
   templateStore = [...SEED_HIERARCHY_TEMPLATES];
   locationStore = [...SEED_LOCATIONS];
   auditStore = [...SEED_AUDIT_EVENTS];
   bulkPreviewStore = new Map();
+  quickHierarchyPreviewStore = new Map();
   importValidationStore = new Map();
   committedImportKeys = new Set();
 }

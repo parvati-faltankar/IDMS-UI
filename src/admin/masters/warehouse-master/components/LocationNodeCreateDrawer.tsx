@@ -5,8 +5,12 @@ import type { CreateLocationInput } from '../types/warehouse.dto';
 import type { BinType, LocationType } from '../types/warehouse.enums';
 import type { HierarchyTemplate, Warehouse, WarehouseLocation } from '../types/warehouse.types';
 import {
+  deriveFullLocationIdentifier,
+  deriveLocationCodingPolicy,
   explainChildLevelAllowance,
+  generateNodeCode,
   getAllowedChildTemplateLevels,
+  resolveLocationTypeForLevel,
 } from '../utils/hierarchyUtils';
 
 interface LocationNodeCreateDrawerProps {
@@ -35,6 +39,7 @@ export function LocationNodeCreateDrawer({
   const [selectedLevelCode, setSelectedLevelCode] = useState('');
   const [locationCode, setLocationCode] = useState('');
   const [locationName, setLocationName] = useState('');
+  const [manualOverride, setManualOverride] = useState(false);
   const [binType, setBinType] = useState<BinType | ''>('');
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -45,6 +50,7 @@ export function LocationNodeCreateDrawer({
     setSelectedLevelCode(firstLevel?.levelCode ?? '');
     setLocationCode('');
     setLocationName('');
+    setManualOverride(false);
     setBinType('');
     setMessage(null);
   }, [allowedLevels, open]);
@@ -52,14 +58,30 @@ export function LocationNodeCreateDrawer({
   const selectedLevel = allowedLevels.find((level) => level.levelCode === selectedLevelCode);
   const selectedLocationType = useMemo<LocationType | null>(() => {
     if (!selectedLevel) return null;
-    const normal = selectedLevel.levelCode.toUpperCase();
-    if (normal === 'ZONE') return 'Zone';
-    if (normal === 'AISLE') return 'Aisle';
-    if (normal === 'RACK') return 'Rack';
-    if (normal === 'SHELF') return 'Shelf';
-    if (normal === 'BIN') return 'BIN';
-    return 'General';
+    return resolveLocationTypeForLevel(selectedLevel);
   }, [selectedLevel]);
+  const codingPolicy = useMemo(
+    () => deriveLocationCodingPolicy(template, selectedLevel),
+    [selectedLevel, template],
+  );
+  const autoGenerateEnabled = codingPolicy.autoGenerateNodeCodeAllowed && !manualOverride;
+  const previewCode = useMemo(() => {
+    if (manualOverride) return locationCode.trim().toUpperCase();
+    return generateNodeCode({
+      policy: codingPolicy,
+      existingSiblingCodes: locations
+        .filter((location) => location.parentLocationId === parentLocation?.id)
+        .map((location) => location.locationCode),
+      autoGenerate: true,
+    }).nodeCode;
+  }, [codingPolicy, locationCode, locations, manualOverride, parentLocation?.id]);
+  const previewIdentifier = useMemo(() => deriveFullLocationIdentifier({
+    warehouseCode: warehouse.warehouseCode,
+    activeTemplate: template,
+    parentLocationId: parentLocation?.id,
+    allLocations: locations,
+    nodeCode: previewCode,
+  }), [locations, parentLocation?.id, previewCode, template, warehouse.warehouseCode]);
 
   if (!open) return null;
 
@@ -78,13 +100,27 @@ export function LocationNodeCreateDrawer({
     const payload: CreateLocationInput = {
       warehouseId: warehouse.id,
       parentLocationId: parentLocation?.id,
-      locationCode,
+      locationCode: manualOverride ? locationCode : previewCode,
       locationName,
       locationType: selectedLocationType,
       binType: selectedLocationType === 'BIN' ? (binType || 'Standard') : undefined,
     };
 
     try {
+      const validation = await warehouseMockAdapter.validateLocationIdentifier(warehouse.id, {
+        warehouseId: warehouse.id,
+        parentLocationId: parentLocation?.id,
+        templateLevelCode: selectedLevel?.levelCode,
+        templateLevelId: selectedLevel?.levelId,
+        nodeCode: payload.locationCode,
+        autoGenerate: !manualOverride,
+        manualOverride,
+      });
+      if (!validation.valid) {
+        setMessage(validation.issues[0]?.message ?? 'Location identifier validation failed.');
+        setSubmitting(false);
+        return;
+      }
       const result = await warehouseMockAdapter.createLocation(warehouse.id, payload);
       setMessage(`Created ${result.locationCode} as Draft.`);
       await onCreated(result.id);
@@ -111,6 +147,12 @@ export function LocationNodeCreateDrawer({
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '18px' }}>
+          <div style={{ padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--color-border)', background: 'var(--color-surface-subtle)', marginBottom: '12px', fontSize: '12px', color: 'var(--color-text-muted)' }}>
+            <div>Selected parent: <strong style={{ color: 'var(--color-text)' }}>{parentLocation?.locationCode ?? warehouse.warehouseCode}</strong></div>
+            <div>Parent full identifier: <strong style={{ color: 'var(--color-text)' }}>{parentLocation?.profile.fullCode ?? warehouse.warehouseCode}</strong></div>
+            <div>Allowed child levels: <strong style={{ color: 'var(--color-text)' }}>{allowedLevels.map((level) => `${level.levelName} (${level.levelCode})`).join(', ') || 'none'}</strong></div>
+          </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
             <div>
               <label style={labelStyle}>Parent Level</label>
@@ -133,9 +175,46 @@ export function LocationNodeCreateDrawer({
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
-            <Field label="Location Code" value={locationCode} onChange={setLocationCode} />
+            <Field label="Location Code" value={locationCode} onChange={setLocationCode} readOnly={!manualOverride} />
             <Field label="Location Name" value={locationName} onChange={setLocationName} />
           </div>
+
+          <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <input
+              id="manual-code-toggle"
+              type="checkbox"
+              checked={manualOverride}
+              disabled={!codingPolicy.manualNodeCodeAllowed}
+              onChange={(event) => {
+                setManualOverride(event.target.checked);
+                if (!event.target.checked) setLocationCode(previewCode);
+              }}
+            />
+            <label htmlFor="manual-code-toggle" style={{ ...labelStyle, marginBottom: 0 }}>
+              Manual node code override
+            </label>
+          </div>
+
+          <div style={{ padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--color-border)', marginBottom: '12px', fontSize: '12px' }}>
+            <div>Node code preview: <strong>{previewCode || '—'}</strong></div>
+            <div>Full identifier preview: <strong>{previewIdentifier || '—'}</strong></div>
+            <div>Path separator: <strong>{codingPolicy.pathSeparator}</strong></div>
+            <div>Identifier includes warehouse code: <strong>{codingPolicy.includeWarehouseCodeInIdentifier ? 'Yes' : 'No'}</strong></div>
+            <div>Auto-generation: <strong>{autoGenerateEnabled ? 'Enabled' : 'Disabled'}</strong></div>
+            <div>Code lock after activation: <strong>{codingPolicy.codeLockedAfterActivation ? 'Enabled' : 'Disabled'}</strong></div>
+          </div>
+
+          {selectedLevel && (
+            <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'var(--color-surface-subtle)', border: '1px solid var(--color-border)', fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '12px' }}>
+              <div style={{ fontWeight: 700, color: 'var(--color-text)', marginBottom: '6px' }}>Capability preview</div>
+              <div>Selected child level: {selectedLevel.levelName} ({selectedLevel.levelCode})</div>
+              <div>Leaf endpoint eligible: {selectedLevel.leafEligible ? 'Yes' : 'No'}</div>
+              <div>Inventory endpoint eligible: {selectedLevel.inventoryEndpointEligible ? 'Yes' : 'No'}</div>
+              <div>Capacity applicable: {selectedLevel.capacityApplicable ? 'Yes' : 'No'}</div>
+              <div>Item eligibility applicable: {selectedLevel.itemEligibilityApplicable ? 'Yes' : 'No'}</div>
+              <div>Responsibility applicable: {selectedLevel.responsibilityApplicable ? 'Yes' : 'No'}</div>
+            </div>
+          )}
 
           {selectedLocationType === 'BIN' && (
             <div style={{ marginBottom: '12px' }}>
@@ -184,15 +263,17 @@ function Field({
   label,
   value,
   onChange,
+  readOnly,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  readOnly?: boolean;
 }) {
   return (
     <div>
       <label style={labelStyle}>{label}</label>
-      <input value={value} onChange={(event) => onChange(event.target.value)} style={inputStyle} />
+      <input value={value} readOnly={readOnly} onChange={(event) => onChange(event.target.value)} style={{ ...inputStyle, background: readOnly ? 'var(--color-surface-subtle)' : inputStyle.background }} />
     </div>
   );
 }

@@ -68,21 +68,43 @@ export function validateWarehouseForSave(
     errors.legalEntityCode = 'Legal Entity is required for Org-level warehouses.';
   } else if (input.ownershipScope === 'Organization' && !input.inventoryOwnerCode?.trim()) {
     errors.inventoryOwnerCode = 'Inventory Owner is required for Org-level warehouses.';
-  } else if (
-    input.ownershipScope === 'Branch' &&
-    !(input.owningBranchCodes?.length || input.owningBranchCode?.trim())
-  ) {
-    errors.owningBranchCodes = 'At least one Owning Branch is required for Branch-level warehouses.';
   } else if (input.ownershipScope === 'Branch') {
-    const branchRows = input.branchOwnershipRows ?? [];
-    const incompleteRow = branchRows.find(
-      (row) =>
-        !row.businessUnit?.trim() ||
-        !row.legalEntityCode?.trim() ||
-        !row.inventoryOwnerCode?.trim(),
+    const normalizedOwningBranchCode = input.owningBranchCode?.trim();
+    const normalizedOwningBranchCodes = (input.owningBranchCodes ?? [])
+      .map((branchCode) => branchCode.trim())
+      .filter(Boolean);
+    const submittedBranchCodes = Array.from(
+      new Set(
+        [
+          ...(normalizedOwningBranchCode ? [normalizedOwningBranchCode] : []),
+          ...normalizedOwningBranchCodes,
+        ].map((branchCode) => branchCode.toUpperCase()),
+      ),
     );
-    if (incompleteRow) {
-      errors.branchOwnershipRows = `Complete Business Unit, Legal Entity, and Inventory Owner for ${incompleteRow.branchCode}.`;
+
+    if (submittedBranchCodes.length === 0) {
+      errors.owningBranchCode = 'Exactly one Owning Branch is required for Branch-level warehouses.';
+    } else if (submittedBranchCodes.length > 1) {
+      errors.owningBranchCodes = 'Branch-level warehouses can have only one owning branch.';
+    }
+
+    const branchRows = input.branchOwnershipRows ?? [];
+    if (branchRows.length > 1) {
+      errors.branchOwnershipRows = 'Branch-level warehouses support exactly one primary owning branch row.';
+    } else if (branchRows.length === 1) {
+      const branchRow = branchRows[0];
+      if (
+        !branchRow.businessUnit?.trim() ||
+        !branchRow.legalEntityCode?.trim() ||
+        !branchRow.inventoryOwnerCode?.trim()
+      ) {
+        errors.branchOwnershipRows = `Complete Business Unit, Legal Entity, and Inventory Owner for ${branchRow.branchCode}.`;
+      } else if (
+        submittedBranchCodes.length === 1 &&
+        branchRow.branchCode.trim().toUpperCase() !== submittedBranchCodes[0]
+      ) {
+        errors.branchOwnershipRows = 'Owning Branch row must match the primary Owning Branch.';
+      }
     }
   }
 

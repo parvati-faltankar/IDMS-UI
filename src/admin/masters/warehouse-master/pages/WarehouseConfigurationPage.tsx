@@ -8,7 +8,7 @@
 //
 // All pure logic functions exported for testing.
 
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import AdminShell from '../../../AdminShell';
 import { HelpDrawer } from '../../../../experience/components/HelpDrawer';
@@ -79,7 +79,7 @@ export function isInventoryModeChangeLocked(warehouse: Pick<Warehouse, 'status'>
 export function computeSectionStatuses(
   warehouse: Warehouse,
   templates: HierarchyTemplate[],
-  locations: WarehouseLocation[],
+  _locations: WarehouseLocation[],
 ): Record<ConfigSectionKey, WarehouseSectionStatus> {
   const isBinLevel = warehouse.inventoryControlMode === 'Location-BIN-Level';
   const isLocked = isInventoryModeChangeLocked(warehouse);
@@ -392,12 +392,6 @@ export default function WarehouseConfigurationPage() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const reload = useCallback(async () => {
-    if (!warehouseId) return;
-    const d = await warehouseMockAdapter.getWarehouse(warehouseId);
-    setDetails(d);
-  }, [warehouseId]);
-
   const handleSave = useCallback(
     async (payload: SectionSavePayload) => {
       if (!details || !warehouseId) return;
@@ -470,7 +464,7 @@ export default function WarehouseConfigurationPage() {
   // ── Section renderer ──────────────────────────────────────────────────────
   function renderSection() {
     switch (activeSection) {
-      case 'overview': return <OverviewSection warehouse={warehouse} details={details!} onJumpToSection={setActiveSection} />;
+      case 'overview': return <OverviewSection details={details!} onJumpToSection={setActiveSection} />;
       case 'ownership': return <OwnershipSection {...sectionProps} />;
       case 'branchAccess': return <BranchAccessSection {...sectionProps} />;
       case 'inventoryControl': return <InventoryControlSection {...sectionProps} />;
@@ -642,11 +636,9 @@ export default function WarehouseConfigurationPage() {
 // ─── Overview section (inline, display-only) ──────────────────────────────────
 
 function OverviewSection({
-  warehouse,
   details,
   onJumpToSection,
 }: {
-  warehouse: Warehouse;
   details: WarehouseDetails;
   onJumpToSection: (section: ConfigSectionKey) => void;
 }) {

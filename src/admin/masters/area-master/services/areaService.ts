@@ -133,13 +133,6 @@ export const areaService = {
     // Identify which level ids map to which roles by inspecting the store
     // Convention from seed: levelSequence 1=Country, 2=State, 3=City, 4=Area
     // We find by levelSequence to be seed-independent
-    const levelById: Record<string, number> = {};
-    store.forEach((a) => {
-      // We need the AreaLevel sequence — look it up from areaLevelService lazily
-      // to avoid circular imports. Instead, use the hierarchyPath depth as proxy:
-      // deepest non-self ancestor is the area itself; its ancestors by depth.
-    });
-
     // Simpler: sort hierarchy entries by hierarchyPath depth (number of " > " separators)
     const sorted = Object.values(hierarchy).sort(
       (a, b) => (a.hierarchyPath.split(' > ').length) - (b.hierarchyPath.split(' > ').length),

@@ -65,11 +65,6 @@ const ServiceRegistryList: React.FC = () => {
   const [filterActive, setFilterActive] = useState('');
   const [preview,      setPreview]      = useState<ServiceConfig | null>(null);
   const [previewOpen,  setPreviewOpen]  = useState(false);
-  const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
-
-  function showToast(message: string, tone: 'success' | 'error') {
-    setToast({ message, tone }); setTimeout(() => setToast(null), 3500);
-  }
 
   const fetchRecords = useCallback(async () => {
     setIsLoading(true);
@@ -141,7 +136,6 @@ const ServiceRegistryList: React.FC = () => {
 
   return (
     <AdminShell>
-      {toast && <div style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 9999, background: toast.tone === 'success' ? '#111827' : '#DC2626', color: '#fff', padding: '12px 20px', borderRadius: '10px', fontSize: '13px', fontWeight: 500, boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>{toast.message}</div>}
       <AdminListPageShell
         title="Service Registry"
         description="Manage backend service registrations including endpoints, timeouts, retry policies, and action codes."

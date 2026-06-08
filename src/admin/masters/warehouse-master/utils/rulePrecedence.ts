@@ -8,7 +8,6 @@ import type {
   EligibilityPolicy,
   EligibilityRule,
   ReservationPolicy,
-  AllocationPolicy,
 } from '../types/warehouse.types';
 import type { ValidationIssue } from '../types/warehouse.types';
 
@@ -60,7 +59,7 @@ export function resolveEligibility(
   let lastAllowed: EligibilityResolution | null = null;
 
   for (const entry of sorted) {
-    const { policy, source, result } = evaluateSinglePolicy(
+    const { result } = evaluateSinglePolicy(
       itemCode,
       categoryCode,
       entry.rule,

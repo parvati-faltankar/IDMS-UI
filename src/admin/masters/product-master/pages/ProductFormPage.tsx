@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AlertCircle, ChevronRight, Info, Plus, Trash2 } from 'lucide-react';
 import AdminShell from '../../../AdminShell';
@@ -8,17 +8,9 @@ import type {
   ProductMaster,
   ProductType,
   ProductStatus,
-  ScopeType,
-  ScopeDimension,
-  ScopeActivationStatus,
   ConsumptionStrategy,
   SalesDiscontinuationBehavior,
   PurchaseDiscontinuationBehavior,
-  PackType,
-  PackMaterial,
-  IdentifierType,
-  AssociationType,
-  OrgType,
   ProductScopeMapping,
   ProductUOMRow,
   ProductPackagingRow,
@@ -83,10 +75,6 @@ const inputReadOnly: React.CSSProperties = {
 const labelBase: React.CSSProperties = {
   fontSize: '12px', fontWeight: 600, color: 'var(--color-text)',
   display: 'block', marginBottom: '6px',
-};
-const labelMuted: React.CSSProperties = {
-  fontSize: '11px', fontWeight: 500, color: 'var(--color-text-muted)',
-  display: 'block', marginBottom: '5px',
 };
 const fieldErrTxt: React.CSSProperties = { fontSize: '11px', color: '#DC2626', marginTop: '4px' };
 const btnBase: React.CSSProperties = {
@@ -389,7 +377,11 @@ const ProductFormPage: React.FC = () => {
   // ── Field helpers ──────────────────────────────────────────────────────────
   function setField<K extends keyof CoreForm>(k: K, v: CoreForm[K]) {
     setForm((f) => ({ ...f, [k]: v }));
-    setFieldErrors((e) => ({ ...e, [k]: undefined }));
+    setFieldErrors((previous) => {
+      const next = { ...previous };
+      delete next[String(k)];
+      return next;
+    });
   }
 
   // ── Build product ──────────────────────────────────────────────────────────

@@ -5,21 +5,32 @@ import type {
   ApprovalStatus,
   AssignmentStatus,
   BinType,
+  CapacityConsumptionSource,
+  CapacityEnforcementMode,
+  CapacityRollupMode,
   CommitmentState,
   ConfigurationSectionKey,
   CreationSource,
   CycleCountFrequency,
   CycleCountScope,
   DefaultLocationPurpose,
+  EligibilityRuleDirection,
+  EligibilityScopeType,
+  EligibilitySubjectType,
   EligibilityMode,
+  HierarchyLevelRole,
   HierarchyTemplateStatus,
   InventoryControlMode,
+  LocationTransactionPurpose,
   LocationStatus,
   LocationType,
   MovementState,
   PickingStrategy,
   PutawayStrategy,
   ReservationLevel,
+  ResponsibilityMode,
+  ResponsibilityRole,
+  ResponsibilityStatus,
   SetupHealthTone,
   StockAvailabilityStatus,
   ValidationCategory,
@@ -239,6 +250,34 @@ export interface EligibilityPolicy {
   readonly defaultFallback: 'Allow' | 'Block';
 }
 
+export interface EligibilityEffectiveScope {
+  readonly scopeType: EligibilityScopeType;
+  readonly warehouseId: string;
+  readonly locationId?: string;
+  readonly templateLevelCode?: string;
+  readonly locationProfileCode?: string;
+  readonly scopeLabel: string;
+  readonly applicable: boolean;
+}
+
+export interface ItemEligibilityMapping {
+  readonly id: string;
+  readonly warehouseId: string;
+  readonly scopeType: EligibilityScopeType;
+  readonly scopeId: string;
+  readonly scopeLabel: string;
+  readonly templateLevelCode?: string;
+  readonly subjectType: EligibilitySubjectType;
+  readonly subjectCode: string;
+  readonly subjectLabel?: string;
+  readonly ruleDirection: EligibilityRuleDirection;
+  readonly effectiveFrom: string;
+  readonly effectiveTo?: string;
+  readonly reasonCode?: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
 // ─── Reservation / allocation ─────────────────────────────────────────────────
 
 export interface ReservationPolicy {
@@ -265,18 +304,89 @@ export interface CycleCountPolicy {
   readonly varianceUnit: 'Percent' | 'Units';
 }
 
+export interface ResponsibleEmployeeRef {
+  readonly employeeCode: string;
+  readonly employeeName: string;
+  readonly employeeEmail?: string;
+  readonly employeeMasterId?: string;
+  readonly sourceSystem?: 'EmployeeMaster' | 'Fixture';
+}
+
+export interface ResponsibilityAssignment {
+  readonly mode: ResponsibilityMode;
+  readonly role?: ResponsibilityRole;
+  readonly employee?: ResponsibleEmployeeRef;
+  readonly inheritedFromLocationId?: string;
+  readonly effectiveFrom?: string;
+  readonly effectiveTo?: string;
+}
+
+export interface EffectiveResponsibility {
+  readonly mode: ResponsibilityMode;
+  readonly role?: ResponsibilityRole;
+  readonly employee?: ResponsibleEmployeeRef;
+  readonly source: 'Direct' | 'Inherited' | 'NotApplicable' | 'Unassigned';
+  readonly sourceLocationId?: string;
+  readonly status: ResponsibilityStatus;
+}
+
+export interface EffectiveNodeCapabilities {
+  readonly capacityApplicable: boolean;
+  readonly itemEligibilityApplicable: boolean;
+  readonly responsibilityApplicable: boolean;
+  readonly inventoryEndpointEligible: boolean;
+  readonly barcodeApplicable: boolean;
+  readonly qrApplicable: boolean;
+  readonly transactionPurposes: LocationTransactionPurpose[];
+  readonly capacityEnforcementMode: CapacityEnforcementMode;
+  readonly capacityRollupMode: CapacityRollupMode;
+  readonly allowCapabilityOverride: boolean;
+  readonly defaultResponsibilityRole?: ResponsibilityRole;
+  readonly defaultLocationRole: HierarchyLevelRole;
+  readonly defaultLocationType?: LocationType;
+}
+
+export interface EffectiveCapacityPolicy {
+  readonly applicable: boolean;
+  readonly enforcementMode: CapacityEnforcementMode;
+  readonly rollupMode: CapacityRollupMode;
+  readonly consumptionSources: CapacityConsumptionSource[];
+}
+
 // ─── Hierarchy template ───────────────────────────────────────────────────────
 
 export interface HierarchyLevel {
+  readonly levelId?: string;
   readonly levelCode: string;
   readonly levelName: string;
   readonly sequence: number;
+  readonly levelRole?: HierarchyLevelRole;
   readonly mandatory: boolean;
   readonly leafEligible: boolean;
   readonly allowSkipLevel: boolean;
   readonly allowedParentLevels?: string[];
   readonly allowedChildLevels?: string[];
+  readonly autoGenerateCode?: boolean;
+  readonly codePrefix?: string;
+  readonly startSequence?: number;
+  readonly sequenceLength?: number;
+  readonly separator?: string;
+  readonly suffix?: string;
   readonly description?: string;
+  readonly capacityApplicable?: boolean;
+  readonly itemEligibilityApplicable?: boolean;
+  readonly responsibilityApplicable?: boolean;
+  readonly inventoryEndpointEligible?: boolean;
+  readonly barcodeApplicable?: boolean;
+  readonly qrApplicable?: boolean;
+  readonly transactionPurposes?: LocationTransactionPurpose[];
+  readonly capacityEnforcementMode?: CapacityEnforcementMode;
+  readonly capacityRollupMode?: CapacityRollupMode;
+  readonly capacityConsumptionSources?: CapacityConsumptionSource[];
+  readonly allowCapabilityOverride?: boolean;
+  readonly defaultResponsibilityRole?: ResponsibilityRole;
+  readonly defaultLocationRole?: HierarchyLevelRole;
+  readonly defaultLocationType?: LocationType;
 }
 
 export interface HierarchyTemplateVersion {
@@ -291,6 +401,19 @@ export interface HierarchyTemplate {
   readonly warehouseId: string;
   readonly templateCode: string;
   readonly templateName: string;
+  readonly templateSource?: 'System' | 'UserDefined' | 'Imported' | 'Cloned';
+  readonly templateScope?: 'Warehouse' | 'Organization';
+  readonly defaultPathSeparator?: string;
+  readonly includeWarehouseCodeInIdentifier?: boolean;
+  readonly defaultSequenceLength?: number;
+  readonly manualNodeCodeAllowed?: boolean;
+  readonly autoGenerateNodeCodeAllowed?: boolean;
+  readonly codeLockedAfterActivation?: boolean;
+  readonly dependencyMarker?: {
+    readonly hasNodes?: boolean;
+    readonly hasStock?: boolean;
+    readonly hasTransactions?: boolean;
+  };
   readonly status: HierarchyTemplateStatus;
   readonly flexiblePathEnabled: boolean;
   readonly levels: HierarchyLevel[];
@@ -333,8 +456,12 @@ export interface LocationCapacity {
 
 export interface LocationProfile {
   readonly locationType: LocationType;
+  readonly templateLevelId?: string;
+  readonly templateLevelCode?: string;
+  readonly locationRole?: HierarchyLevelRole;
   readonly binType?: BinType;
   readonly barcodeValue?: string;
+  readonly qrValue?: string;
   readonly rfidTag?: string;
   /** Derived from hierarchy level: never editable */
   readonly level: number;
@@ -357,6 +484,9 @@ export interface WarehouseLocation {
   readonly capacity?: LocationCapacity;
   readonly storageConstraints?: StorageConstraints;
   readonly eligibilityPolicy?: EligibilityPolicy;
+  readonly eligibilityMappings?: ItemEligibilityMapping[];
+  readonly responsibilityAssignment?: ResponsibilityAssignment;
+  readonly effectiveResponsibility?: EffectiveResponsibility;
   readonly putawayBlocked: boolean;
   readonly pickingBlocked: boolean;
   readonly movementState: MovementState;
@@ -481,6 +611,7 @@ export interface WarehouseDetails {
   readonly warehouse: Warehouse;
   readonly hierarchyTemplates: HierarchyTemplate[];
   readonly locations: WarehouseLocation[];
+  readonly itemEligibilityMappings?: ItemEligibilityMapping[];
   readonly setupHealth: SetupHealth;
   readonly recentAuditEvents: AuditEvent[];
 }

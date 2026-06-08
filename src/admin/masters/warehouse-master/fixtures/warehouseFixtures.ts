@@ -2,8 +2,8 @@
 
 import type {
   AuditEvent,
-  BranchAssignment,
   HierarchyTemplate,
+  ResponsibleEmployeeRef,
   Warehouse,
   WarehouseLocation,
   ValidationIssue,
@@ -268,11 +268,11 @@ export const SEED_HIERARCHY_TEMPLATES: HierarchyTemplate[] = [
     status: 'Active',
     flexiblePathEnabled: false,
     levels: [
-      { levelCode: 'ZONE', levelName: 'Zone', sequence: 1, mandatory: true, leafEligible: false, allowSkipLevel: false, allowedParentLevels: ['WAREHOUSE'], allowedChildLevels: ['AISLE', 'BIN'] },
-      { levelCode: 'AISLE', levelName: 'Aisle', sequence: 2, mandatory: true, leafEligible: false, allowSkipLevel: false, allowedParentLevels: ['ZONE'], allowedChildLevels: ['RACK'] },
-      { levelCode: 'RACK', levelName: 'Rack', sequence: 3, mandatory: true, leafEligible: false, allowSkipLevel: false, allowedParentLevels: ['AISLE'], allowedChildLevels: ['SHELF', 'BIN'] },
-      { levelCode: 'SHELF', levelName: 'Shelf', sequence: 4, mandatory: false, leafEligible: false, allowSkipLevel: true, allowedParentLevels: ['RACK'], allowedChildLevels: ['BIN'] },
-      { levelCode: 'BIN', levelName: 'BIN', sequence: 5, mandatory: true, leafEligible: true, allowSkipLevel: false, allowedParentLevels: ['WAREHOUSE', 'ZONE', 'RACK', 'SHELF'], allowedChildLevels: [] },
+      { levelId: 'LVL-ZONE', levelCode: 'ZONE', levelName: 'Zone', sequence: 1, mandatory: true, leafEligible: false, allowSkipLevel: false, allowedParentLevels: ['WAREHOUSE'], allowedChildLevels: ['AISLE', 'BIN'], capacityApplicable: false, itemEligibilityApplicable: false, responsibilityApplicable: true, inventoryEndpointEligible: false, barcodeApplicable: false, qrApplicable: false, transactionPurposes: ['Storage'], capacityEnforcementMode: 'None', capacityRollupMode: 'None', allowCapabilityOverride: false, defaultResponsibilityRole: 'ZoneSupervisor', defaultLocationRole: 'Structural', defaultLocationType: 'Zone' },
+      { levelId: 'LVL-AISLE', levelCode: 'AISLE', levelName: 'Aisle', sequence: 2, mandatory: true, leafEligible: false, allowSkipLevel: false, allowedParentLevels: ['ZONE'], allowedChildLevels: ['RACK'], capacityApplicable: false, itemEligibilityApplicable: false, responsibilityApplicable: true, inventoryEndpointEligible: false, barcodeApplicable: false, qrApplicable: false, transactionPurposes: ['Storage'], capacityEnforcementMode: 'None', capacityRollupMode: 'None', allowCapabilityOverride: false, defaultResponsibilityRole: 'AreaSupervisor', defaultLocationRole: 'Structural', defaultLocationType: 'Aisle' },
+      { levelId: 'LVL-RACK', levelCode: 'RACK', levelName: 'Rack', sequence: 3, mandatory: true, leafEligible: false, allowSkipLevel: false, allowedParentLevels: ['AISLE'], allowedChildLevels: ['SHELF', 'BIN'], capacityApplicable: true, itemEligibilityApplicable: false, responsibilityApplicable: true, inventoryEndpointEligible: false, barcodeApplicable: true, qrApplicable: false, transactionPurposes: ['Storage', 'Replenishment'], capacityEnforcementMode: 'Warning', capacityRollupMode: 'RollupFromChildren', allowCapabilityOverride: false, defaultResponsibilityRole: 'RackCustodian', defaultLocationRole: 'Structural', defaultLocationType: 'Rack' },
+      { levelId: 'LVL-SHELF', levelCode: 'SHELF', levelName: 'Shelf', sequence: 4, mandatory: false, leafEligible: false, allowSkipLevel: true, allowedParentLevels: ['RACK'], allowedChildLevels: ['BIN'], capacityApplicable: true, itemEligibilityApplicable: true, responsibilityApplicable: true, inventoryEndpointEligible: false, barcodeApplicable: true, qrApplicable: true, transactionPurposes: ['Storage', 'Picking'], capacityEnforcementMode: 'Warning', capacityRollupMode: 'RollupFromChildren', allowCapabilityOverride: true, defaultResponsibilityRole: 'RackCustodian', defaultLocationRole: 'Picking', defaultLocationType: 'Shelf' },
+      { levelId: 'LVL-BIN', levelCode: 'BIN', levelName: 'BIN', sequence: 5, mandatory: true, leafEligible: true, allowSkipLevel: false, allowedParentLevels: ['WAREHOUSE', 'ZONE', 'RACK', 'SHELF'], allowedChildLevels: [], capacityApplicable: true, itemEligibilityApplicable: true, responsibilityApplicable: true, inventoryEndpointEligible: true, barcodeApplicable: true, qrApplicable: true, transactionPurposes: ['Storage', 'Putaway', 'Picking'], capacityEnforcementMode: 'HardBlock', capacityRollupMode: 'OwnCapacityOnly', allowCapabilityOverride: true, defaultResponsibilityRole: 'BinCustodian', defaultLocationRole: 'InventoryEndpoint', defaultLocationType: 'BIN' },
     ],
     currentVersion: { versionNumber: 1, activatedAt: '2024-03-15T00:00:00.000Z' },
     versionHistory: [{ versionNumber: 1, activatedAt: '2024-03-15T00:00:00.000Z' }],
@@ -289,8 +289,8 @@ export const SEED_HIERARCHY_TEMPLATES: HierarchyTemplate[] = [
     status: 'Draft',
     flexiblePathEnabled: true,
     levels: [
-      { levelCode: 'ZONE', levelName: 'Temperature Zone', sequence: 1, mandatory: true, leafEligible: false, allowSkipLevel: false, allowedParentLevels: ['WAREHOUSE'], allowedChildLevels: ['BIN'] },
-      { levelCode: 'BIN', levelName: 'Cold BIN', sequence: 2, mandatory: true, leafEligible: true, allowSkipLevel: false, allowedParentLevels: ['WAREHOUSE', 'ZONE'], allowedChildLevels: [] },
+      { levelId: 'LVL-TEMP-ZONE', levelCode: 'ZONE', levelName: 'Temperature Zone', sequence: 1, mandatory: true, leafEligible: false, allowSkipLevel: false, allowedParentLevels: ['WAREHOUSE'], allowedChildLevels: ['BIN'], capacityApplicable: true, itemEligibilityApplicable: false, responsibilityApplicable: true, inventoryEndpointEligible: false, barcodeApplicable: true, qrApplicable: false, transactionPurposes: ['Storage'], capacityEnforcementMode: 'Informational', capacityRollupMode: 'RollupFromChildren', allowCapabilityOverride: false, defaultResponsibilityRole: 'ZoneSupervisor', defaultLocationRole: 'Structural', defaultLocationType: 'Zone' },
+      { levelId: 'LVL-COLD-BIN', levelCode: 'BIN', levelName: 'Cold BIN', sequence: 2, mandatory: true, leafEligible: true, allowSkipLevel: false, allowedParentLevels: ['WAREHOUSE', 'ZONE'], allowedChildLevels: [], capacityApplicable: true, itemEligibilityApplicable: true, responsibilityApplicable: true, inventoryEndpointEligible: true, barcodeApplicable: true, qrApplicable: true, transactionPurposes: ['Storage', 'Putaway', 'Picking'], capacityEnforcementMode: 'HardBlock', capacityRollupMode: 'OwnCapacityOnly', allowCapabilityOverride: true, defaultResponsibilityRole: 'BinCustodian', defaultLocationRole: 'InventoryEndpoint', defaultLocationType: 'BIN' },
     ],
     currentVersion: { versionNumber: 1 },
     versionHistory: [],
@@ -300,6 +300,50 @@ export const SEED_HIERARCHY_TEMPLATES: HierarchyTemplate[] = [
     version: 1,
   },
 ];
+
+export const MOCK_RESPONSIBLE_EMPLOYEES: ResponsibleEmployeeRef[] = [
+  { employeeCode: 'EMP-FLR-001', employeeName: 'Floor Supervisor', employeeEmail: 'floor.supervisor@example.com', employeeMasterId: 'EMPMASTER-001', sourceSystem: 'Fixture' },
+  { employeeCode: 'EMP-RM-001', employeeName: 'Room Custodian', employeeEmail: 'room.custodian@example.com', employeeMasterId: 'EMPMASTER-002', sourceSystem: 'Fixture' },
+  { employeeCode: 'EMP-SHF-001', employeeName: 'Shelf Incharge', employeeEmail: 'shelf.incharge@example.com', employeeMasterId: 'EMPMASTER-003', sourceSystem: 'Fixture' },
+];
+
+export const CUSTOM_HIERARCHY_TEMPLATE: HierarchyTemplate = {
+  id: 'HTPL-CUSTOM-0001',
+  warehouseId: 'WH-CUSTOM-0001',
+  templateCode: 'CUSTOM-FLR',
+  templateName: 'Warehouse Floor Room Shelf',
+  status: 'Active',
+  flexiblePathEnabled: true,
+  levels: [
+    { levelId: 'LVL-FLOOR', levelCode: 'FLOOR', levelName: 'Floor', sequence: 1, mandatory: true, leafEligible: false, allowSkipLevel: false, allowedParentLevels: ['WAREHOUSE'], allowedChildLevels: ['ROOM', 'SHELF'], capacityApplicable: true, itemEligibilityApplicable: false, responsibilityApplicable: true, inventoryEndpointEligible: false, barcodeApplicable: true, qrApplicable: false, transactionPurposes: ['Storage', 'Custom'], capacityEnforcementMode: 'Warning', capacityRollupMode: 'SharedParentPool', allowCapabilityOverride: true, defaultResponsibilityRole: 'AreaSupervisor', defaultLocationRole: 'Structural', defaultLocationType: 'General' },
+    { levelId: 'LVL-ROOM', levelCode: 'ROOM', levelName: 'Room', sequence: 2, mandatory: true, leafEligible: false, allowSkipLevel: false, allowedParentLevels: ['FLOOR'], allowedChildLevels: ['SHELF'], capacityApplicable: true, itemEligibilityApplicable: true, responsibilityApplicable: true, inventoryEndpointEligible: false, barcodeApplicable: true, qrApplicable: true, transactionPurposes: ['Storage', 'Inspection'], capacityEnforcementMode: 'ApprovalRequired', capacityRollupMode: 'RollupFromChildren', allowCapabilityOverride: true, defaultResponsibilityRole: 'AreaSupervisor', defaultLocationRole: 'Custom', defaultLocationType: 'General' },
+    { levelId: 'LVL-SHELF-CUSTOM', levelCode: 'SHELF', levelName: 'Shelf', sequence: 3, mandatory: true, leafEligible: true, allowSkipLevel: false, allowedParentLevels: ['WAREHOUSE', 'FLOOR', 'ROOM'], allowedChildLevels: [], capacityApplicable: true, itemEligibilityApplicable: true, responsibilityApplicable: true, inventoryEndpointEligible: true, barcodeApplicable: true, qrApplicable: true, transactionPurposes: ['Storage', 'Picking'], capacityEnforcementMode: 'HardBlock', capacityRollupMode: 'OwnCapacityOnly', allowCapabilityOverride: true, defaultResponsibilityRole: 'RackCustodian', defaultLocationRole: 'InventoryEndpoint', defaultLocationType: 'General' },
+  ],
+  currentVersion: { versionNumber: 1, activatedAt: '2026-06-08T00:00:00.000Z' },
+  versionHistory: [{ versionNumber: 1, activatedAt: '2026-06-08T00:00:00.000Z' }],
+  effectiveFrom: '2026-06-08',
+  createdAt: '2026-06-08T00:00:00.000Z',
+  updatedAt: '2026-06-08T00:00:00.000Z',
+  version: 1,
+};
+
+export const SIMPLE_ROOT_BIN_TEMPLATE: HierarchyTemplate = {
+  id: 'HTPL-SIMPLE-0001',
+  warehouseId: 'WH-SIMPLE-0001',
+  templateCode: 'ROOT-BIN',
+  templateName: 'Warehouse Root BIN',
+  status: 'Active',
+  flexiblePathEnabled: true,
+  levels: [
+    { levelId: 'LVL-BIN-ROOT', levelCode: 'BIN', levelName: 'BIN', sequence: 1, mandatory: true, leafEligible: true, allowSkipLevel: false, allowedParentLevels: ['WAREHOUSE'], allowedChildLevels: [], capacityApplicable: true, itemEligibilityApplicable: true, responsibilityApplicable: true, inventoryEndpointEligible: true, barcodeApplicable: true, qrApplicable: true, transactionPurposes: ['Storage', 'Putaway', 'Picking'], capacityEnforcementMode: 'HardBlock', capacityRollupMode: 'OwnCapacityOnly', allowCapabilityOverride: true, defaultResponsibilityRole: 'BinCustodian', defaultLocationRole: 'InventoryEndpoint', defaultLocationType: 'BIN' },
+  ],
+  currentVersion: { versionNumber: 1, activatedAt: '2026-06-08T00:00:00.000Z' },
+  versionHistory: [{ versionNumber: 1, activatedAt: '2026-06-08T00:00:00.000Z' }],
+  effectiveFrom: '2026-06-08',
+  createdAt: '2026-06-08T00:00:00.000Z',
+  updatedAt: '2026-06-08T00:00:00.000Z',
+  version: 1,
+};
 
 // ─── Location fixtures (for WH-0002 only) ────────────────────────────────────
 

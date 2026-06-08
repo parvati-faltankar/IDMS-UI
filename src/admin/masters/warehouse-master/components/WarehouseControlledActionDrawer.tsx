@@ -1,4 +1,3 @@
-import React from 'react';
 import { SmartReviewDrawer } from '../../../../experience/components/SmartReviewDrawer';
 import type { ControlledActionPlan } from '../utils/governanceUtils';
 
