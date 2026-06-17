@@ -393,10 +393,10 @@ export const WarehousePreviewDrawer: React.FC<WarehousePreviewDrawerProps> = ({
       }
       sections={sections}
       primaryAction={{
-        label: 'Open Configuration',
+        label: 'Open Setup',
         onClick: () => {
           if (!details) return;
-          navigate(WAREHOUSE_ROUTES.detail(details.warehouse.id));
+          navigate(WAREHOUSE_ROUTES.setup(details.warehouse.id));
           onClose();
         },
       }}
@@ -405,7 +405,7 @@ export const WarehousePreviewDrawer: React.FC<WarehousePreviewDrawerProps> = ({
           ? [{
               label: 'Manage Hierarchy',
               onClick: () => {
-                navigate(`${WAREHOUSE_ROUTES.detail(details.warehouse.id)}/hierarchy`);
+                navigate(WAREHOUSE_ROUTES.hierarchy(details.warehouse.id));
                 onClose();
               },
             }]
@@ -423,7 +423,7 @@ export const WarehousePreviewDrawer: React.FC<WarehousePreviewDrawerProps> = ({
           ? [{
               label: 'View Audit',
               onClick: () => {
-                navigate(`${WAREHOUSE_ROUTES.detail(details.warehouse.id)}/audit`);
+                navigate(WAREHOUSE_ROUTES.audit(details.warehouse.id));
                 onClose();
               },
             }]

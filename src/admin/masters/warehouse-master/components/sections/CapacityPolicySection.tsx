@@ -17,11 +17,21 @@ import {
 
 const HAZMAT_CLASSES = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX'];
 const FIRE_CLASSES = ['A', 'B', 'C', 'D', 'K'];
+const ENFORCEMENT_MODES = ['None', 'Informational', 'Warning', 'HardBlock', 'ApprovalRequired'] as const;
+const ROLLUP_MODES = ['None', 'OwnCapacityOnly', 'RollupFromChildren', 'SharedParentPool'] as const;
 
 function toLocal(warehouse: ConfigSectionProps['warehouse']) {
   return {
     cap: warehouse.capacityPolicy ?? {
       trackingEnabled: false,
+      defaultEnforcementMode: 'Informational',
+      defaultRollupMode: 'OwnCapacityOnly',
+      defaultConsumptionSource: 'DirectStock',
+      warningThresholdPercent: 80,
+      overrideAllowed: false,
+      overrideApprovalRequired: false,
+      overrideReasonRequired: false,
+      requireCapacityOnApplicableLevels: false,
       temperatureControlled: false,
       hazardousStorage: false,
     } as CapacityPolicy,
@@ -65,7 +75,7 @@ export function CapacityPolicySection({ warehouse, readOnly, saving, onSave }: C
 
   const capacityModeLabel = warehouse.inventoryControlMode === 'Warehouse-Level'
     ? 'Warehouse-level capacity is soft and advisory.'
-    : 'Warehouse-level capacity is advisory; Location/BIN capacity is hard where enabled.';
+    : 'Warehouse-level capacity is advisory; any template level with Capacity Applicable = Yes can enforce node capacity.';
 
   return (
     <div data-testid="section-capacity">
@@ -86,6 +96,24 @@ export function CapacityPolicySection({ warehouse, readOnly, saving, onSave }: C
         <div style={sBody}>
           <div style={{ marginBottom: '14px', padding: '12px 14px', borderRadius: '8px', border: '1px solid #BFDBFE', background: '#EFF6FF', color: '#1D4ED8', fontSize: '12px' }}>
             {capacityModeLabel}
+          </div>
+          <div style={{ ...threeCol, marginBottom: '14px' }}>
+            <div>
+              <label style={labelBase}>Default Enforcement Mode</label>
+              <select value={local.cap.defaultEnforcementMode ?? 'Informational'} onChange={(event) => setCap('defaultEnforcementMode', event.target.value as CapacityPolicy['defaultEnforcementMode'])} style={readOnly ? inputRO : inputBase} disabled={readOnly}>
+                {ENFORCEMENT_MODES.map((mode) => <option key={mode} value={mode}>{mode}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={labelBase}>Default Rollup Mode</label>
+              <select value={local.cap.defaultRollupMode ?? 'OwnCapacityOnly'} onChange={(event) => setCap('defaultRollupMode', event.target.value as CapacityPolicy['defaultRollupMode'])} style={readOnly ? inputRO : inputBase} disabled={readOnly}>
+                {ROLLUP_MODES.map((mode) => <option key={mode} value={mode}>{mode}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={labelBase}>Warning Threshold (%)</label>
+              <input type="number" value={local.cap.warningThresholdPercent ?? ''} onChange={(event) => setCap('warningThresholdPercent', Number(event.target.value) || undefined)} style={readOnly ? inputRO : inputBase} disabled={readOnly} />
+            </div>
           </div>
           <div style={{ ...twoCol, marginBottom: '14px', opacity: local.cap.trackingEnabled ? 1 : 0.55 }}>
             <div>
@@ -120,6 +148,25 @@ export function CapacityPolicySection({ warehouse, readOnly, saving, onSave }: C
               <input type="checkbox" checked={local.cap.hazardousStorage} onChange={(event) => setCap('hazardousStorage', event.target.checked)} disabled={readOnly} style={{ accentColor: 'var(--color-primary)' }} />
               Hazardous storage
             </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '12px', cursor: 'pointer' }}>
+              <input type="checkbox" checked={local.cap.requireCapacityOnApplicableLevels ?? false} onChange={(event) => setCap('requireCapacityOnApplicableLevels', event.target.checked)} disabled={readOnly} style={{ accentColor: 'var(--color-primary)' }} />
+              Capacity setup required on applicable levels
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '12px', cursor: 'pointer' }}>
+              <input type="checkbox" checked={local.cap.overrideAllowed ?? false} onChange={(event) => setCap('overrideAllowed', event.target.checked)} disabled={readOnly} style={{ accentColor: 'var(--color-primary)' }} />
+              Override allowed
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '12px', cursor: 'pointer' }}>
+              <input type="checkbox" checked={local.cap.overrideApprovalRequired ?? false} onChange={(event) => setCap('overrideApprovalRequired', event.target.checked)} disabled={readOnly || !(local.cap.overrideAllowed ?? false)} style={{ accentColor: 'var(--color-primary)' }} />
+              Override requires approval
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '12px', cursor: 'pointer' }}>
+              <input type="checkbox" checked={local.cap.overrideReasonRequired ?? false} onChange={(event) => setCap('overrideReasonRequired', event.target.checked)} disabled={readOnly || !(local.cap.overrideAllowed ?? false)} style={{ accentColor: 'var(--color-primary)' }} />
+              Override reason required
+            </label>
+          </div>
+          <div style={{ marginTop: '10px', fontSize: '12px', color: 'var(--color-text-muted)' }}>
+            Level capability note: these defaults apply to all active template levels where Capacity Applicable is enabled; level-specific overrides can tighten enforcement.
           </div>
         </div>
       </div>

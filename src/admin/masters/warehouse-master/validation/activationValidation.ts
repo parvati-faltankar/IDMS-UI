@@ -1,6 +1,11 @@
 // ─── Warehouse Master — Activation Validation ────────────────────────────────
 
 import type { HierarchyTemplate, Warehouse, WarehouseLocation, ValidationIssue } from '../types/warehouse.types';
+import {
+  deriveCapacityStatus,
+  deriveEffectiveCapacityPolicy,
+  deriveHierarchyCompletionModel,
+} from '../utils/warehouseDerivations';
 
 /**
  * Returns all issues that block a warehouse from being activated.
@@ -68,33 +73,63 @@ export function validateWarehouseForActivation(
 
   // ── BIN-Level specific requirements ───────────────────────────────────
   if (warehouse.inventoryControlMode === 'Location-BIN-Level') {
-    // Must have an active hierarchy template
-    const hasActiveTemplate = templates.some(
-      (t) => t.warehouseId === warehouse.id && t.status === 'Active',
+    const completion = deriveHierarchyCompletionModel(
+      warehouse,
+      locations.filter((location) => location.warehouseId === warehouse.id),
+      templates.filter((template) => template.warehouseId === warehouse.id),
     );
-    if (!hasActiveTemplate) {
+
+    for (const blocker of completion.blockers) {
       issues.push({
-        section: 'hierarchyTemplate',
+        section: blocker.actionTarget === 'Template' ? 'hierarchyTemplate' : 'locations',
         severity: 'error',
         category: 'DependencyMissing',
-        message: 'An Active hierarchy template is required before activating a Location/BIN-Level warehouse.',
+        message: blocker.issueMessage,
+        detail: blocker.recommendedAction,
       });
     }
 
-    // Must have at least one active, inventory-allowed location
-    const hasActiveInventoryLocation = locations.some(
-      (l) =>
-        l.warehouseId === warehouse.id &&
-        l.status === 'Active' &&
-        l.profile.inventoryAllowed,
-    );
-    if (!hasActiveInventoryLocation) {
+    for (const warning of completion.warnings) {
       issues.push({
-        section: 'locations',
-        severity: 'error',
-        category: 'DependencyMissing',
-        message: 'At least one Active, inventory-allowed location is required before activating a Location/BIN-Level warehouse.',
+        section: warning.actionTarget === 'Template' ? 'hierarchyTemplate' : 'locations',
+        severity: 'warning',
+        category: 'PolicyConflict',
+        message: warning.issueMessage,
+        detail: warning.recommendedAction,
       });
+    }
+
+    const activeTemplate = templates.find((template) => template.warehouseId === warehouse.id && template.status === 'Active');
+    const scopedLocations = locations.filter((location) => location.warehouseId === warehouse.id);
+    for (const location of scopedLocations) {
+      const capacityPolicy = deriveEffectiveCapacityPolicy(warehouse, location, activeTemplate);
+      const capacityStatus = deriveCapacityStatus(location, scopedLocations, warehouse, activeTemplate);
+      if (
+        location.status === 'Active'
+        && location.profile.inventoryAllowed
+        && capacityStatus === 'Exceeded'
+        && capacityPolicy.enforcementMode === 'HardBlock'
+      ) {
+        issues.push({
+          field: 'capacity',
+          section: 'capacityStorage',
+          severity: 'error',
+          category: 'CapacityExceeded',
+          message: `Capacity exceeded for inventory endpoint ${location.locationCode} under hard-block enforcement.`,
+          detail: 'Open Capacity View and resolve exceeded node capacity before activation.',
+        });
+      }
+
+      if (capacityStatus === 'NotConfigured') {
+        issues.push({
+          field: 'capacity',
+          section: 'capacityStorage',
+          severity: warehouse.capacityPolicy?.requireCapacityOnApplicableLevels ? 'error' : 'warning',
+          category: 'DependencyMissing',
+          message: `Capacity is not configured for applicable node ${location.locationCode}.`,
+          detail: 'Open Capacity View to configure max values and enforcement settings.',
+        });
+      }
     }
 
     // Auto Putaway / Picking cannot be enabled without strategies

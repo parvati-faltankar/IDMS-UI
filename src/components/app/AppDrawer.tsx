@@ -7,6 +7,7 @@ interface AppDrawerProps {
   width?: number;
   children: React.ReactNode;
   paperSx?: SxProps<Theme>;
+  backdropColor?: string;
 }
 
 export default function AppDrawer({
@@ -15,6 +16,7 @@ export default function AppDrawer({
   width = 960,
   children,
   paperSx,
+  backdropColor = 'rgb(24, 24, 24)',
 }: AppDrawerProps) {
   return (
     <Drawer
@@ -25,7 +27,7 @@ export default function AppDrawer({
       slotProps={{
         backdrop: {
           sx: {
-            backgroundColor: 'rgb(15 23 42 / 24%)',
+            backgroundColor: backdropColor,
           },
         },
         paper: {

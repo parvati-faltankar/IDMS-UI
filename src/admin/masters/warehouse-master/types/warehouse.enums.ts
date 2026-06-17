@@ -200,6 +200,27 @@ export type CapacityConsumptionSource =
   | 'ReservedInbound'
   | 'PlannedOnly';
 
+export type CapacityStatus =
+  | 'NotApplicable'
+  | 'NotConfigured'
+  | 'WithinCapacity'
+  | 'NearCapacity'
+  | 'Exceeded'
+  | 'RequiresApproval';
+
+export type CapacityProjectedDecision =
+  | 'allowed'
+  | 'warning'
+  | 'blocked'
+  | 'approval-required';
+
+export type TemperatureZone =
+  | 'Ambient'
+  | 'Cold'
+  | 'Frozen'
+  | 'ControlledRange'
+  | 'NotApplicable';
+
 // ─── Stock status ─────────────────────────────────────────────────────────────
 
 export type StockAvailabilityStatus =

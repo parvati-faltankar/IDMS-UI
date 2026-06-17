@@ -7,7 +7,9 @@ import type {
   BinType,
   CapacityConsumptionSource,
   CapacityEnforcementMode,
+  CapacityProjectedDecision,
   CapacityRollupMode,
+  CapacityStatus,
   CommitmentState,
   ConfigurationSectionKey,
   CreationSource,
@@ -33,6 +35,7 @@ import type {
   ResponsibilityStatus,
   SetupHealthTone,
   StockAvailabilityStatus,
+  TemperatureZone,
   ValidationCategory,
   ValidationSeverity,
   WarehouseLifecycleAction,
@@ -117,6 +120,85 @@ export interface SetupHealth {
   readonly blockingIssues: ValidationIssue[];
 }
 
+export type HierarchyCompletionSeverity = 'Complete' | 'Incomplete' | 'Blocked' | 'Warning';
+export type HierarchyChecklistStatus = 'Passed' | 'Failed' | 'Warning' | 'Not Applicable';
+export type HierarchyIssueSeverity = 'Blocker' | 'Warning' | 'Info';
+
+export type HierarchyIssueType =
+  | 'Missing Active Template'
+  | 'No Actual Nodes'
+  | 'No Leaf Endpoint'
+  | 'No Inventory Endpoint'
+  | 'No Inventory Allowed Node'
+  | 'Duplicate Identifier'
+  | 'Invalid Parent Path'
+  | 'Parent Blocked'
+  | 'Node Blocked'
+  | 'Node Inactive'
+  | 'Capacity Required Missing'
+  | 'Capacity Exceeded Hard Block'
+  | 'Capacity Approval Required'
+  | 'Item Eligibility Required Missing'
+  | 'Responsibility Required Missing'
+  | 'Identifier Locked'
+  | 'Lifecycle Action Blocked';
+
+export interface HierarchyCompletionIssue {
+  readonly issueId: string;
+  readonly severity: HierarchyIssueSeverity;
+  readonly issueType: HierarchyIssueType;
+  readonly nodeId?: string;
+  readonly fullLocationIdentifier?: string;
+  readonly issueMessage: string;
+  readonly recommendedAction: string;
+  readonly actionTarget?: ConfigurationSectionKey | 'Hierarchy' | 'Locations' | 'Template' | 'CapacityView';
+}
+
+export interface HierarchyCompletionChecklistItem {
+  readonly key:
+    | 'active-template-exists'
+    | 'valid-hierarchy-path-exists'
+    | 'actual-nodes-created'
+    | 'leaf-endpoint-exists'
+    | 'inventory-endpoint-eligible-exists'
+    | 'active-inventory-allowed-node-exists'
+    | 'full-identifiers-valid-unique'
+    | 'required-capacity-setup-complete'
+    | 'required-item-eligibility-setup-complete'
+    | 'required-responsibility-setup-complete'
+    | 'blocked-parent-path-issues-resolved';
+  readonly label: string;
+  readonly status: HierarchyChecklistStatus;
+  readonly severity: HierarchyIssueSeverity | 'None';
+  readonly affectedCount: number;
+  readonly actionLabel?: string;
+  readonly actionTarget?: ConfigurationSectionKey | 'Hierarchy' | 'Locations' | 'Template' | 'CapacityView';
+}
+
+export interface HierarchyCompletionModel {
+  readonly status: HierarchyCompletionSeverity;
+  readonly hierarchyApplicable: boolean;
+  readonly activeTemplateExists: boolean;
+  readonly templateValid: boolean;
+  readonly templateVersion?: number;
+  readonly hasActualRootOrVirtualRoot: boolean;
+  readonly actualNodeCount: number;
+  readonly leafEndpointCount: number;
+  readonly inventoryEndpointEligibleCount: number;
+  readonly inventoryAllowedCount: number;
+  readonly blockedOrInactiveNodeCount: number;
+  readonly identifierIssueCount: number;
+  readonly missingCapacitySetupCount: number;
+  readonly missingItemEligibilitySetupCount: number;
+  readonly missingResponsibilitySetupCount: number;
+  readonly defaultLocationsConfigured: boolean;
+  readonly blockers: HierarchyCompletionIssue[];
+  readonly warnings: HierarchyCompletionIssue[];
+  readonly infos: HierarchyCompletionIssue[];
+  readonly checklist: HierarchyCompletionChecklistItem[];
+  readonly nextRecommendedAction: string;
+}
+
 // ─── Inventory owner ──────────────────────────────────────────────────────────
 
 export interface InventoryOwner {
@@ -198,6 +280,14 @@ export interface PickingPolicy {
 
 export interface CapacityPolicy {
   readonly trackingEnabled: boolean;
+  readonly defaultEnforcementMode?: CapacityEnforcementMode;
+  readonly defaultRollupMode?: CapacityRollupMode;
+  readonly defaultConsumptionSource?: CapacityConsumptionSource;
+  readonly warningThresholdPercent?: number;
+  readonly overrideAllowed?: boolean;
+  readonly overrideApprovalRequired?: boolean;
+  readonly overrideReasonRequired?: boolean;
+  readonly requireCapacityOnApplicableLevels?: boolean;
   readonly squareFootage?: number;
   readonly heightMeters?: number;
   readonly floorLoadKgPerSqm?: number;
@@ -208,16 +298,21 @@ export interface CapacityPolicy {
 }
 
 export interface StorageConstraints {
+  readonly temperatureZone?: TemperatureZone;
   readonly minTempCelsius?: number;
   readonly maxTempCelsius?: number;
   readonly humidityPercent?: number;
+  readonly hazardAllowed?: boolean;
+  readonly hazardClassAllowed?: string[];
   readonly fireClass?: string;
   readonly hazmatClass?: string;
   readonly allowMixedItemStorage?: boolean;
   readonly allowMixedLotStorage?: boolean;
   readonly allowMixedOwnerStorage?: boolean;
+  readonly inheritedFromLocationId?: string;
   readonly complianceLockRequired?: boolean;
   readonly complianceLockCode?: string;
+  readonly storageConditionNotes?: string;
 }
 
 // ─── Timing / calendar ───────────────────────────────────────────────────────
@@ -438,7 +533,19 @@ export interface HierarchyNode {
   readonly parentId?: string;
   readonly children: HierarchyNode[];
   readonly isLeaf: boolean;
+  readonly inventoryEndpointEligible?: boolean;
   readonly inventoryAllowed: boolean;
+  readonly effectiveStatus?: LocationStatus;
+  readonly capabilitySummary?: {
+    readonly capacityApplicable?: boolean;
+    readonly itemEligibilityApplicable?: boolean;
+    readonly responsibilityApplicable?: boolean;
+    readonly capacityStatus?: CapacityStatus;
+    readonly capacityHardBlocked?: boolean;
+    readonly capacityApprovalRequired?: boolean;
+    readonly capacityRollupWarning?: boolean;
+    readonly utilizationPercent?: number;
+  };
   readonly status: LocationStatus;
   readonly fullCode: string;
 }
@@ -446,12 +553,77 @@ export interface HierarchyNode {
 // ─── Location / BIN ───────────────────────────────────────────────────────────
 
 export interface LocationCapacity {
+  readonly trackingEnabled?: boolean;
+  readonly enforcementMode?: CapacityEnforcementMode;
+  readonly rollupMode?: CapacityRollupMode;
+  readonly consumptionSource?: CapacityConsumptionSource;
+  readonly palletPositions?: number;
   readonly maxWeightKg?: number;
   readonly maxVolumeM3?: number;
   readonly maxUnits?: number;
   readonly currentWeightKg?: number;
   readonly currentVolumeM3?: number;
   readonly currentUnits?: number;
+  readonly reservedWeightKg?: number;
+  readonly reservedVolumeM3?: number;
+  readonly reservedUnits?: number;
+  readonly availableWeightKg?: number;
+  readonly availableVolumeM3?: number;
+  readonly availableUnits?: number;
+  readonly utilizationPercent?: number;
+  readonly warningThresholdPercent?: number;
+  readonly status?: CapacityStatus;
+  readonly overrideAllowed?: boolean;
+  readonly overrideApprovalRequired?: boolean;
+  readonly overrideReasonRequired?: boolean;
+  readonly overrideReason?: string;
+}
+
+export interface CapacityUsageSnapshot {
+  readonly currentUnits: number;
+  readonly currentWeightKg: number;
+  readonly currentVolumeM3: number;
+  readonly reservedUnits: number;
+  readonly reservedWeightKg: number;
+  readonly reservedVolumeM3: number;
+  readonly availableUnits?: number;
+  readonly availableWeightKg?: number;
+  readonly availableVolumeM3?: number;
+  readonly utilizationPercent?: number;
+}
+
+export interface CapacityRollupResult {
+  readonly nodeId: string;
+  readonly ownUsage: CapacityUsageSnapshot;
+  readonly rolledChildUsage: CapacityUsageSnapshot;
+  readonly totalUsage: CapacityUsageSnapshot;
+  readonly warning?: string;
+}
+
+export interface ProjectedPostingCapacityInput {
+  readonly warehouse: Warehouse;
+  readonly targetNode: WarehouseLocation;
+  readonly allLocations: WarehouseLocation[];
+  readonly activeTemplate?: HierarchyTemplate;
+  readonly quantity?: number;
+  readonly weightKg?: number;
+  readonly volumeM3?: number;
+  readonly inboundReservation?: boolean;
+  readonly itemAttributes?: {
+    readonly temperatureZone?: TemperatureZone;
+    readonly hazardClass?: string;
+    readonly complianceClass?: string;
+  };
+}
+
+export interface ProjectedPostingCapacityResult {
+  readonly decision: CapacityProjectedDecision;
+  readonly allowed: boolean;
+  readonly warning: boolean;
+  readonly blocked: boolean;
+  readonly approvalRequired: boolean;
+  readonly affectedCapacityScopes: string[];
+  readonly reasons: string[];
 }
 
 export interface LocationProfile {

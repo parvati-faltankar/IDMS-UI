@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { AlertCircle, ChevronRight, Info } from 'lucide-react';
+import { AlertCircle, Info } from 'lucide-react';
 import AdminShell from '../../../AdminShell';
 import AppDialog from '../../../../components/app/AppDialog';
+import { MasterFormStepper } from '../../../../experience/components';
 import { findGroupForMasterKey, findMasterByKey } from '../../../adminNavConfig';
 import { recordRecentAdminMaster } from '../../../adminStorage';
 import type { Customer, CustomerType } from '../types/customerMaster.types';
@@ -54,7 +55,6 @@ export default function CustomerFormPage() {
   const [existing, setExisting]   = useState<Customer | null>(null);
   const [notFound, setNotFound]   = useState(false);
   const [activeStep, setActiveStep] = useState(0);
-  const [hoveredStep, setHoveredStep] = useState<number | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const [form, setForm] = useState<Customer>(() => ({
@@ -105,7 +105,6 @@ export default function CustomerFormPage() {
   const isInactive = !isNew && (status === 'Inactive' || status === 'Blocked');
   const isViewOnly = isInactive;
   const canDelete = !isNew && status === 'Draft';
-
   const customerType = form.customerType;
   const typeMeta     = customerType ? CUSTOMER_TYPE_META[customerType] : null;
 
@@ -149,6 +148,16 @@ export default function CustomerFormPage() {
   const currentStepPos = steps.findIndex((s) => s.index === activeStep);
   const canPrev = currentStepPos > 0;
   const canNext = currentStepPos < steps.length - 1;
+  const stepperSteps = steps.map((step) => {
+    const count = getStepCount(step.index);
+
+    return {
+      id: String(step.index),
+      label: step.label,
+      count: count > 0 ? count : undefined,
+      state: activeStep === step.index ? 'current' : stepHasData(step.index) ? 'complete' : 'default',
+    };
+  });
 
   function goPrev() { if (canPrev) setActiveStep(steps[currentStepPos - 1].index); }
   function goNext() { if (canNext) setActiveStep(steps[currentStepPos + 1].index); }
@@ -276,37 +285,13 @@ export default function CustomerFormPage() {
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
           {/* ── Left Step Sidebar (220px) ────────────────────────────────────── */}
-          <nav style={{ width: '220px', flexShrink: 0, background: 'var(--color-surface)', borderRight: '1px solid var(--color-border)', overflowY: 'auto', display: 'flex', flexDirection: 'column', paddingTop: '8px' }}>
-            {steps.map((s) => {
-              const isAct    = activeStep === s.index;
-              const hasData  = stepHasData(s.index);
-              const count    = getStepCount(s.index);
-              const isHover  = hoveredStep === s.index;
-              const dotColor = isAct ? 'var(--color-primary)' : hasData ? '#16A34A' : '#CBD5E1';
-              return (
-                <button
-                  key={s.index}
-                  type="button"
-                  onClick={() => setActiveStep(s.index)}
-                  onMouseEnter={() => setHoveredStep(s.index)}
-                  onMouseLeave={() => setHoveredStep(null)}
-                  style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 12px 12px 20px', border: 'none', borderBottom: '1px solid var(--color-border)', background: isAct ? 'color-mix(in srgb, var(--color-primary) 6%, white)' : isHover ? 'color-mix(in srgb, var(--color-primary) 3%, white)' : 'transparent', cursor: 'pointer', textAlign: 'left', transition: 'background 0.1s', width: '100%' }}
-                >
-                  {isAct && <span style={{ position: 'absolute', left: 0, top: '8px', bottom: '8px', width: '3px', borderRadius: '0 3px 3px 0', background: 'var(--color-primary)' }} />}
-                  <span style={{ width: '10px', height: '10px', borderRadius: '50%', flexShrink: 0, background: dotColor, transition: 'background 0.15s' }} />
-                  <span style={{ flex: 1, fontSize: '12px', fontWeight: isAct ? 600 : 500, color: isAct ? 'var(--color-primary)' : hasData ? 'var(--color-text)' : 'var(--color-text-muted)', lineHeight: 1.3, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {s.label}
-                  </span>
-                  {count > 0 && (
-                    <span style={{ fontSize: '10px', fontWeight: 700, minWidth: '18px', height: '18px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '9px', padding: '0 4px', background: isAct ? 'var(--color-primary)' : 'color-mix(in srgb, var(--color-primary) 12%, white)', color: isAct ? 'white' : 'var(--color-primary)', flexShrink: 0 }}>
-                      {count}
-                    </span>
-                  )}
-                  <ChevronRight size={13} style={{ flexShrink: 0, color: 'var(--color-text-muted)', opacity: isHover ? 0.7 : 0, transition: 'opacity 0.15s' }} />
-                </button>
-              );
-            })}
-          </nav>
+          <div style={{ width: '220px', flexShrink: 0, background: 'var(--color-surface)', borderRight: '1px solid var(--color-border)', overflowY: 'auto' }}>
+            <MasterFormStepper
+              steps={stepperSteps}
+              activeStepId={String(activeStep)}
+              onStepChange={(stepId) => setActiveStep(Number(stepId))}
+            />
+          </div>
 
           {/* ── 3. Form Body ─────────────────────────────────────────────────── */}
           <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '16px 24px', background: 'var(--color-surface-subtle)' }}>

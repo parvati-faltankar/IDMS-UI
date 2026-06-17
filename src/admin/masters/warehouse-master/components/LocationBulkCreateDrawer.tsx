@@ -92,6 +92,9 @@ export function LocationBulkCreateDrawer({
     () => getAllowedChildTemplateLevels(parentLocation, template),
     [parentLocation, template],
   );
+  const selectedTemplateLevel = allowedLevels.find((level) => level.levelCode === form.childLevelCode) ?? allowedLevels[0];
+  const childLevelLabel = selectedTemplateLevel?.levelName ?? 'child nodes';
+  const singleAllowedLevel = allowedLevels.length <= 1;
 
   useEffect(() => {
     if (open) {
@@ -183,7 +186,9 @@ export function LocationBulkCreateDrawer({
       <div style={{ width: '560px', maxWidth: '100%', height: '100%', background: 'var(--color-surface)', borderLeft: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 18px', borderBottom: '1px solid var(--color-border)' }}>
           <div>
-            <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text)' }}>Bulk Create Locations</div>
+            <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text)' }}>
+              Bulk Create {childLevelLabel}
+            </div>
             <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
               Parent: {parentLocation
                 ? `${parentLocation.locationCode} · ${parentLocation.profile.fullCode} · Level ${form.level}`
@@ -196,7 +201,7 @@ export function LocationBulkCreateDrawer({
         </div>
 
         <div style={{ display: 'flex', gap: '6px', padding: '12px 18px', borderBottom: '1px solid var(--color-border)', background: 'var(--color-surface-subtle)' }}>
-          {['Configure', 'Generate preview', 'Validate', 'Review conflicts', 'Commit'].map((label, index) => (
+          {['Set up', 'Preview', 'Validate', 'Review', 'Create'].map((label, index) => (
             <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <div style={{
                 width: '22px',
@@ -218,6 +223,10 @@ export function LocationBulkCreateDrawer({
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '18px' }}>
+          <div style={{ padding: '10px 12px', borderRadius: '10px', background: '#EFF6FF', color: '#1D4ED8', fontSize: '12px', marginBottom: '14px', lineHeight: 1.6 }}>
+            Create many {childLevelLabel.toLowerCase()} at once under {parentLocation?.locationCode ?? warehouse.warehouseCode}. Set the naming pattern first, then preview before creating anything.
+          </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
             <div>
               <label style={labelStyle}>Parent</label>
@@ -255,7 +264,7 @@ export function LocationBulkCreateDrawer({
             <Field label="Code Prefix" value={form.codePrefix} onChange={(value) => setForm((state) => ({ ...state, codePrefix: value }))} />
             <Field label="Name Prefix" value={form.namePrefix} onChange={(value) => setForm((state) => ({ ...state, namePrefix: value }))} />
             <NumberField label="Start Sequence" value={form.startSequence} onChange={(value) => setForm((state) => ({ ...state, startSequence: value }))} />
-            <NumberField label="Count" value={form.count} onChange={(value) => setForm((state) => ({ ...state, count: value }))} />
+            <NumberField label={`How Many ${childLevelLabel}`} value={form.count} onChange={(value) => setForm((state) => ({ ...state, count: value }))} />
             <NumberField label="Sequence Length" value={form.sequenceLength} onChange={(value) => setForm((state) => ({ ...state, sequenceLength: value }))} />
             <Field label="Separator" value={form.separator} onChange={(value) => setForm((state) => ({ ...state, separator: value }))} />
             <Field label="Suffix" value={form.suffix} onChange={(value) => setForm((state) => ({ ...state, suffix: value }))} />
@@ -311,10 +320,10 @@ export function LocationBulkCreateDrawer({
           <button type="button" onClick={onClose} style={secondaryBtn}>Close</button>
           <div style={{ display: 'flex', gap: '10px' }}>
             <button type="button" onClick={generatePreview} style={secondaryBtn}>
-              Generate preview
+              Preview {childLevelLabel}
             </button>
             <button type="button" onClick={commitBulk} disabled={!preview || previewStale || committing} style={{ ...primaryBtn, opacity: !preview || previewStale || committing ? 0.5 : 1 }}>
-              Commit
+              Create {childLevelLabel}
             </button>
           </div>
         </div>

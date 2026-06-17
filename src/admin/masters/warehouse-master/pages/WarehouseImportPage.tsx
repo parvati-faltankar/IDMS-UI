@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Download, FileUp, RefreshCcw, Send, ShieldAlert } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import AdminShell from '../../../AdminShell';
-import { AdminListPageShell } from '../../../../experience/components/AdminListPageShell';
+import { AdminListPageShell, AdminListToolbarButton } from '../../../../experience/components/AdminListPageShell';
 import { warehouseMockAdapter } from '../services/warehouseMockAdapter';
 import { WAREHOUSE_ROUTES } from '../utils/routeUtils';
 import { buildImportCommitPayload, detectPermissionDenied, getReasonCodesForAction, parseWarehouseServiceError, requiresControlledChangeApproval } from '../utils/governanceUtils';
@@ -138,18 +138,20 @@ export default function WarehouseImportPage() {
         title="Warehouse Import"
         description="Validate, review, and submit warehouse-related import batches with governance controls."
         breadcrumbs={['Admin', 'Warehouse & Inventory', 'Warehouse Master', 'Import']}
-        primaryAction={{ label: 'Back to Warehouse', onClick: () => navigate(WAREHOUSE_ROUTES.configuration(warehouseId)) }}
-        summaryItems={validation ? [
-          { label: 'Valid', value: validation.validRows, tone: 'success' },
-          { label: 'Warnings', value: validation.warningRows, tone: validation.warningRows > 0 ? 'warning' : 'neutral' },
-          { label: 'Errors', value: validation.errorRows, tone: validation.errorRows > 0 ? 'danger' : 'neutral' },
-        ] : []}
+        secondaryActions={[
+          {
+            label: 'Back to Warehouse',
+            tone: 'secondary',
+            onClick: () => navigate(WAREHOUSE_ROUTES.configuration(warehouseId)),
+          },
+        ]}
         toolbarActions={
           <div style={{ display: 'flex', gap: '8px' }}>
-            <button type="button" onClick={runValidation} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '7px 12px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'var(--color-surface)', cursor: 'pointer' }}>
-              <RefreshCcw size={13} />
-              Validate
-            </button>
+            <AdminListToolbarButton
+              label="Validate"
+              icon={<RefreshCcw size={13} />}
+              onClick={runValidation}
+            />
             <button type="button" onClick={() => setApprovalOpen(true)} disabled={!canSubmitImport(validation, reasonCode, reasonDescription)} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '7px 12px', borderRadius: '8px', border: 'none', background: 'var(--color-primary)', color: 'white', cursor: canSubmitImport(validation, reasonCode, reasonDescription) ? 'pointer' : 'not-allowed', opacity: canSubmitImport(validation, reasonCode, reasonDescription) ? 1 : 0.5 }}>
               <Send size={13} />
               Submit
@@ -186,14 +188,16 @@ export default function WarehouseImportPage() {
                 <input type="number" value={fileSize} onChange={(event) => setFileSize(parseInt(event.target.value, 10) || 0)} style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--color-border)' }} />
               </div>
               <div style={{ display: 'flex', alignItems: 'end', gap: '8px' }}>
-                <button type="button" onClick={() => setCommitResult(`Template ready for ${entityType}: ${templateVersion}`)} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'var(--color-surface)' }}>
-                  <Download size={13} />
-                  Download Template
-                </button>
-                <button type="button" onClick={() => setCommitResult(`Upload staged for ${fileName}`)} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'var(--color-surface)' }}>
-                  <FileUp size={13} />
-                  Upload
-                </button>
+                <AdminListToolbarButton
+                  label="Download Template"
+                  icon={<Download size={13} />}
+                  onClick={() => setCommitResult(`Template ready for ${entityType}: ${templateVersion}`)}
+                />
+                <AdminListToolbarButton
+                  label="Upload"
+                  icon={<FileUp size={13} />}
+                  onClick={() => setCommitResult(`Upload staged for ${fileName}`)}
+                />
               </div>
             </div>
           </div>
@@ -227,10 +231,11 @@ export default function WarehouseImportPage() {
             <div style={{ border: '1px solid var(--color-border)', borderRadius: '12px', background: 'var(--color-surface)' }}>
               <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: '13px', fontWeight: 700 }}>Row Review</span>
-                <button type="button" onClick={downloadErrorFile} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 10px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'var(--color-surface)' }}>
-                  <Download size={13} />
-                  Download Error File
-                </button>
+                <AdminListToolbarButton
+                  label="Download Error File"
+                  icon={<Download size={13} />}
+                  onClick={downloadErrorFile}
+                />
               </div>
               <div style={{ padding: '10px 18px 18px', display: 'grid', gap: '8px' }}>
                 {validation.rows.map((row) => (

@@ -15,6 +15,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { MapPin, Lock, AlertTriangle, X, Search } from 'lucide-react';
 import { areaService } from '../../../admin/masters/area-master/services/areaService';
 import type { Area } from '../../../admin/masters/area-master/types/areaMaster.types';
+import { SmartDrawer } from '../SmartDrawer';
 
 // ─── Public surface ───────────────────────────────────────────────────────────
 
@@ -365,42 +366,18 @@ export function AddressPickerDrawer({
   const drawerTitle = title ?? (editingValue ? 'Edit Address' : 'Add Address');
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        onClick={onClose}
-        style={{
-          position: 'fixed', inset: 0, zIndex: 1200,
-          background: 'rgba(0,0,0,0.35)',
-        }}
-      />
-
-      {/* Drawer panel */}
-      <div style={{
-        position: 'fixed', top: 0, right: 0, bottom: 0, zIndex: 1201,
-        width: '520px', maxWidth: '95vw',
-        background: 'var(--color-surface)',
-        boxShadow: '-4px 0 32px rgba(0,0,0,0.16)',
-        display: 'flex', flexDirection: 'column',
-      }}>
-        {/* Header */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '16px 20px', borderBottom: '1px solid var(--color-border)',
-          background: 'var(--color-surface)',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <MapPin size={18} style={{ color: 'var(--color-primary)' }} />
-            <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text)' }}>{drawerTitle}</span>
-            <VerificationBadge isManual={form.isManualEntry} />
-          </div>
-          <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center' }}>
-            <X size={18} />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+    <SmartDrawer
+      open={open}
+      onClose={onClose}
+      title={drawerTitle}
+      footerActions={[{
+        label: editingValue ? 'Save Changes' : 'Add Address',
+        onClick: handleSave,
+        tone: 'primary',
+        fullWidth: true,
+      }]}
+    >
+      <div style={{ padding: '20px' }}>
           <div style={grid2}>
 
             {/* Address Type */}
@@ -670,40 +647,8 @@ export function AddressPickerDrawer({
                 <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text)' }}>Set as Default Address</span>
               </label>
             </div>
-
           </div>
-        </div>
-
-        {/* Footer */}
-        <div style={{
-          padding: '14px 20px', borderTop: '1px solid var(--color-border)',
-          display: 'flex', justifyContent: 'flex-end', gap: '10px',
-          background: 'var(--color-surface)',
-        }}>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              height: '36px', padding: '0 18px', fontSize: '13px', fontWeight: 600,
-              borderRadius: '8px', background: 'transparent', border: '1px solid var(--color-border)',
-              color: 'var(--color-text)', cursor: 'pointer',
-            }}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            style={{
-              height: '36px', padding: '0 20px', fontSize: '13px', fontWeight: 700,
-              borderRadius: '8px', background: 'var(--color-primary)', border: 'none',
-              color: '#fff', cursor: 'pointer',
-            }}
-          >
-            {editingValue ? 'Save Changes' : 'Add Address'}
-          </button>
-        </div>
       </div>
-    </>
+    </SmartDrawer>
   );
 }

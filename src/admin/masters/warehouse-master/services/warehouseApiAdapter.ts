@@ -26,9 +26,13 @@ import type {
   ImportResult,
   ImportValidationRequest,
   ImportValidationResult,
+  ListCapacityIssuesQuery,
+  PreviewCapacityImpactInput,
   PagedResult,
   StatusChangeRequest,
+  UpdateLocationCapacityInput,
   UpdateWarehouseInput,
+  ValidateLocationCapacityInput,
   WarehouseListQuery,
   WarehouseValidationInput,
 } from '../types/warehouse.dto';
@@ -36,6 +40,7 @@ import type {
   ActionResult,
   AuditEvent,
   HierarchyNode,
+  ProjectedPostingCapacityResult,
   ValidationResult,
   WarehouseDetails,
   WarehouseLocation,
@@ -181,6 +186,36 @@ export const warehouseApiAdapter: WarehouseService = {
 
   async listLocationIdentifierConflicts(warehouseId: string): Promise<LocationIdentifierConflict[]> {
     return apiFetch(`${API_BASE}/${warehouseId}/locations/identifier-conflicts`);
+  },
+
+  async getLocationCapacity(warehouseId: string, locationId: string): Promise<WarehouseLocation['capacity'] | undefined> {
+    return apiFetch(`${API_BASE}/${warehouseId}/locations/${locationId}/capacity`);
+  },
+
+  async updateLocationCapacity(warehouseId: string, input: UpdateLocationCapacityInput): Promise<WarehouseLocation> {
+    return apiFetch(`${API_BASE}/${warehouseId}/locations/${input.locationId}/capacity`, {
+      method: 'PUT',
+      headers: { 'If-Match': String(input.version) },
+      body: JSON.stringify(input),
+    });
+  },
+
+  async validateLocationCapacity(warehouseId: string, input: ValidateLocationCapacityInput): Promise<ValidationResult> {
+    return apiFetch(`${API_BASE}/${warehouseId}/locations/${input.locationId}/capacity/validate`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  },
+
+  async previewCapacityImpact(warehouseId: string, input: PreviewCapacityImpactInput): Promise<ProjectedPostingCapacityResult> {
+    return apiFetch(`${API_BASE}/${warehouseId}/capacity/preview-impact`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  },
+
+  async listCapacityIssues(query: ListCapacityIssuesQuery): Promise<ValidationResult> {
+    return apiFetch(`${API_BASE}/${query.warehouseId}/capacity/issues${buildQuery({ ...query })}`);
   },
 
   async bulkPreviewLocations(warehouseId: string, input: BulkLocationInput): Promise<BulkPreview> {

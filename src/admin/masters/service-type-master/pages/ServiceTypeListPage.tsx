@@ -1,8 +1,6 @@
-// ─── Service Type Master — List Page ─────────────────────────────────────────
-
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle2, XCircle } from 'lucide-react';
+import { Edit2, Eye, Filter } from 'lucide-react';
 import AdminShell from '../../../AdminShell';
 import { AdminListPageShell } from '../../../../experience/components/AdminListPageShell';
 import { SmartPreviewDrawer } from '../../../../experience/components/SmartPreviewDrawer';
@@ -15,8 +13,17 @@ import type { ServiceTypeRecord, STStatus } from '../types/serviceTypeMaster.typ
 import { serviceTypeService } from '../services/serviceTypeService';
 import { MASTER_KEY } from '../constants/serviceTypeMaster.constants';
 import ServiceTypePickerDialog from '../components/ServiceTypePickerDialog';
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+import {
+  createMasterActionsColumn,
+  createMasterIdentifierColumn,
+  createMasterStatusColumn,
+  createMasterTextColumn,
+  MasterDataTable,
+  MasterTableBooleanValue,
+  MasterTableTruncate,
+} from '../../../../components/common/MasterDataTable';
+import MasterFilterDrawer from '../../../../components/common/MasterFilterDrawer';
+import type { DataGridColumn } from '../../../../components/common/dataGridTypes';
 
 function statusTone(status: STStatus): 'active' | 'draft' | 'inactive' {
   if (status === 'Active') return 'active';
@@ -24,62 +31,27 @@ function statusTone(status: STStatus): 'active' | 'draft' | 'inactive' {
   return 'draft';
 }
 
-function statusStyle(status: STStatus): React.CSSProperties {
-  if (status === 'Active') return { background: '#DCFCE7', color: '#15803D' };
-  if (status === 'Inactive') return { background: '#FEF2F2', color: '#DC2626' };
-  return { background: '#F1F5F9', color: '#64748B' };
-}
-
-const BADGE_BASE: React.CSSProperties = {
-  display: 'inline-flex', alignItems: 'center', padding: '2px 8px',
-  fontSize: '11px', fontWeight: 600, borderRadius: '6px', whiteSpace: 'nowrap',
-};
-
-const GRID_COLS = '90px minmax(180px,1fr) 130px 80px 80px 80px 90px';
-const COL_HEADERS = [
-  { label: 'Code',              align: 'left'   },
-  { label: 'Name',              align: 'left'   },
-  { label: 'Posting Type',      align: 'left'   },
-  { label: 'Saleable',          align: 'center' },
-  { label: 'Contract Req.',     align: 'center' },
-  { label: 'Active',            align: 'center' },
-  { label: 'Status',            align: 'left'   },
-];
-
-type QuickFilter = 'all' | 'active' | 'draft' | 'inactive' | 'saleable' | 'contract';
-
-const QUICK_FILTER_ITEMS = [
-  { key: 'all',      label: 'All'              },
-  { key: 'active',   label: 'Active'           },
-  { key: 'draft',    label: 'Draft'            },
-  { key: 'inactive', label: 'Inactive'         },
-  { key: 'saleable', label: 'Saleable'         },
-  { key: 'contract', label: 'Contract Required'},
-];
-
-// ─── Preview builder ──────────────────────────────────────────────────────────
-
-function buildPreviewSections(r: ServiceTypeRecord): PreviewSection[] {
+function buildPreviewSections(record: ServiceTypeRecord): PreviewSection[] {
   const flags: string[] = [];
-  if (r.saleable) flags.push('Saleable');
-  if (r.taxExempted) flags.push('Tax Exempt');
-  if (r.contractRequired) flags.push('Contract Req.');
-  if (r.subscriptionApplicable) flags.push('Subscription');
-  if (r.active) flags.push('Active');
-  if (r.isHeader) flags.push('Is Header');
-  if (r.isLine) flags.push('Is Line');
+  if (record.saleable) flags.push('Saleable');
+  if (record.taxExempted) flags.push('Tax Exempt');
+  if (record.contractRequired) flags.push('Contract Req.');
+  if (record.subscriptionApplicable) flags.push('Subscription');
+  if (record.active) flags.push('Active');
+  if (record.isHeader) flags.push('Is Header');
+  if (record.isLine) flags.push('Is Line');
 
   const sections: PreviewSection[] = [
     {
       title: 'Details',
       fields: [
-        { label: 'Code',         value: r.code,                mono: true },
-        { label: 'Name',         value: r.name },
-        { label: 'Posting Type', value: r.postingType || '—' },
-        { label: 'Status',       value: r.status },
-        ...(r.serviceDeliveryMode ? [{ label: 'Delivery Mode', value: r.serviceDeliveryMode }] : []),
-        ...(r.billingResponsibility ? [{ label: 'Billing Responsibility', value: r.billingResponsibility }] : []),
-        ...(r.description ? [{ label: 'Description', value: r.description, span: 2 as const }] : []),
+        { label: 'Code', value: record.code, mono: true },
+        { label: 'Name', value: record.name },
+        { label: 'Posting Type', value: record.postingType || '-' },
+        { label: 'Status', value: record.status },
+        ...(record.serviceDeliveryMode ? [{ label: 'Delivery Mode', value: record.serviceDeliveryMode }] : []),
+        ...(record.billingResponsibility ? [{ label: 'Billing Responsibility', value: record.billingResponsibility }] : []),
+        ...(record.description ? [{ label: 'Description', value: record.description, span: 2 as const }] : []),
       ],
     },
   ];
@@ -87,61 +59,54 @@ function buildPreviewSections(r: ServiceTypeRecord): PreviewSection[] {
   if (flags.length > 0) {
     sections.push({
       title: 'Configuration Flags',
-      fields: flags.map((f) => ({ label: f, value: '✓' })),
+      fields: flags.map((flag) => ({ label: flag, value: 'Yes' })),
     });
   }
 
-  if (r.labourRows.length > 0 || r.partRows.length > 0) {
+  if (record.labourRows.length > 0 || record.partRows.length > 0) {
     sections.push({
       title: 'Contract Relation',
       fields: [
-        { label: 'Labour Rows', value: String(r.labourRows.length) },
-        { label: 'Part Rows',   value: String(r.partRows.length)   },
+        { label: 'Labour Rows', value: String(record.labourRows.length) },
+        { label: 'Part Rows', value: String(record.partRows.length) },
       ],
     });
   }
 
-  if (r.productApplicabilityRows.length > 0) {
+  if (record.productApplicabilityRows.length > 0) {
     sections.push({
       title: 'Product Applicability',
-      fields: [{ label: 'Products', value: String(r.productApplicabilityRows.length) }],
+      fields: [{ label: 'Products', value: String(record.productApplicabilityRows.length) }],
     });
   }
 
   sections.push({
     title: 'Audit',
     fields: [
-      { label: 'Created By',    value: r.createdBy },
-      { label: 'Created',       value: r.createdDate },
-      { label: 'Last Modified', value: r.lastModifiedDate },
+      { label: 'Created By', value: record.createdBy },
+      { label: 'Created', value: record.createdDate },
+      { label: 'Last Modified', value: record.lastModifiedDate },
     ],
   });
 
   return sections;
 }
 
-// ─── Icon helpers ─────────────────────────────────────────────────────────────
-
-function BoolIcon({ value }: { value: boolean }) {
-  return value
-    ? <CheckCircle2 size={14} color="#15803D" />
-    : <XCircle size={14} color="#CBD5E1" />;
-}
-
-// ─── Component ────────────────────────────────────────────────────────────────
-
 const ServiceTypeListPage: React.FC = () => {
   const navigate = useNavigate();
 
   const [records, setRecords] = useState<ServiceTypeRecord[]>(() => serviceTypeService.getAll());
   const [searchQuery, setSearchQuery] = useState('');
-  const [quickFilter, setQuickFilter] = useState<QuickFilter>('all');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterSaleable, setFilterSaleable] = useState('');
+  const [filterContractRequired, setFilterContractRequired] = useState('');
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [previewRecord, setPreviewRecord] = useState<ServiceTypeRecord | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
 
-  const group  = findGroupForMasterKey(MASTER_KEY);
+  const group = findGroupForMasterKey(MASTER_KEY);
 
   function showToast(message: string, tone: 'success' | 'error') {
     setToast({ message, tone });
@@ -149,60 +114,168 @@ const ServiceTypeListPage: React.FC = () => {
   }
 
   useEffect(() => {
-    const m = findMasterByKey(MASTER_KEY);
-    const g  = findGroupForMasterKey(MASTER_KEY);
-    if (m && g) {
+    const master = findMasterByKey(MASTER_KEY);
+    const masterGroup = findGroupForMasterKey(MASTER_KEY);
+    if (master && masterGroup) {
       recordRecentAdminMaster({
-        key: m.key, label: m.label, path: m.path,
-        groupLabel: g.label, groupIconBg: g.iconBg, groupIconColor: g.iconColor,
+        key: master.key,
+        label: master.label,
+        path: master.path,
+        groupLabel: masterGroup.label,
+        groupIconBg: masterGroup.iconBg,
+        groupIconColor: masterGroup.iconColor,
       });
     }
   }, []);
 
-  // ── Filtering ────────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     let list = records;
-    if (quickFilter === 'active')   list = list.filter((r) => r.status === 'Active');
-    if (quickFilter === 'draft')    list = list.filter((r) => r.status === 'Draft');
-    if (quickFilter === 'inactive') list = list.filter((r) => r.status === 'Inactive');
-    if (quickFilter === 'saleable') list = list.filter((r) => r.saleable);
-    if (quickFilter === 'contract') list = list.filter((r) => r.contractRequired);
+    if (filterStatus) list = list.filter((record) => record.status === filterStatus);
+    if (filterSaleable === 'yes') list = list.filter((record) => record.saleable);
+    if (filterSaleable === 'no') list = list.filter((record) => !record.saleable);
+    if (filterContractRequired === 'yes') list = list.filter((record) => record.contractRequired);
+    if (filterContractRequired === 'no') list = list.filter((record) => !record.contractRequired);
+
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      list = list.filter((r) =>
-        r.code.toLowerCase().includes(q) ||
-        r.name.toLowerCase().includes(q) ||
-        r.postingType.toLowerCase().includes(q)
+      const query = searchQuery.toLowerCase();
+      list = list.filter((record) =>
+        record.code.toLowerCase().includes(query) ||
+        record.name.toLowerCase().includes(query) ||
+        record.postingType.toLowerCase().includes(query)
       );
     }
+
     return list;
-  }, [records, quickFilter, searchQuery]);
+  }, [filterContractRequired, filterSaleable, filterStatus, records, searchQuery]);
 
-  // ── Preview drawer actions ────────────────────────────────────────────────────
-  function handleActivate(r: ServiceTypeRecord) {
-    const updated = serviceTypeService.changeStatus(r.id, 'Active');
+  function handleActivate(record: ServiceTypeRecord) {
+    const updated = serviceTypeService.changeStatus(record.id, 'Active');
     if (updated) {
       setRecords(serviceTypeService.getAll());
       setPreviewRecord(updated);
-      showToast(`${r.name} activated`, 'success');
+      showToast(`${record.name} activated`, 'success');
     }
   }
 
-  function handleDeactivate(r: ServiceTypeRecord) {
-    const updated = serviceTypeService.changeStatus(r.id, 'Inactive');
+  function handleDeactivate(record: ServiceTypeRecord) {
+    const updated = serviceTypeService.changeStatus(record.id, 'Inactive');
     if (updated) {
       setRecords(serviceTypeService.getAll());
       setPreviewRecord(updated);
-      showToast(`${r.name} deactivated`, 'success');
+      showToast(`${record.name} deactivated`, 'success');
     }
   }
 
-  // ── Summary items ────────────────────────────────────────────────────────────
-  const summaryItems = [
-    { label: 'Total',    value: String(records.length) },
-    { label: 'Active',   value: String(records.filter((r) => r.status === 'Active').length) },
-    { label: 'Draft',    value: String(records.filter((r) => r.status === 'Draft').length) },
-    { label: 'Saleable', value: String(records.filter((r) => r.saleable).length) },
+  const hasFilters = Boolean(filterStatus || filterSaleable || filterContractRequired);
+
+  const gridColumns: DataGridColumn<ServiceTypeRecord>[] = [
+    createMasterIdentifierColumn<ServiceTypeRecord>({
+      id: 'code',
+      label: 'Code',
+      getValue: (record) => record.code,
+      onClick: (record) => setPreviewRecord(record),
+      width: 112,
+      minWidth: 96,
+    }),
+    createMasterTextColumn<ServiceTypeRecord>({
+      id: 'name',
+      label: 'Name',
+      primary: (record) => record.name,
+      secondary: (record) => record.description || undefined,
+      title: (record) => record.name,
+      width: 260,
+      minWidth: 220,
+      hideable: false,
+    }),
+    {
+      id: 'postingType',
+      label: 'Posting Type',
+      type: 'text',
+      width: 156,
+      minWidth: 136,
+      getValue: (record) => record.postingType,
+      renderCell: (record) => <MasterTableTruncate value={record.postingType || '-'} />,
+    },
+    {
+      id: 'saleable',
+      label: 'Saleable',
+      type: 'boolean',
+      width: 128,
+      minWidth: 118,
+      getValue: (record) => record.saleable,
+      options: [
+        { value: 'true', label: 'Yes' },
+        { value: 'false', label: 'No' },
+      ],
+      renderCell: (record) => <MasterTableBooleanValue value={record.saleable} />,
+    },
+    {
+      id: 'contractRequired',
+      label: 'Contract Req.',
+      type: 'boolean',
+      width: 146,
+      minWidth: 132,
+      getValue: (record) => record.contractRequired,
+      options: [
+        { value: 'true', label: 'Yes' },
+        { value: 'false', label: 'No' },
+      ],
+      renderCell: (record) => <MasterTableBooleanValue value={record.contractRequired} />,
+    },
+    {
+      id: 'active',
+      label: 'Active Flag',
+      type: 'boolean',
+      width: 126,
+      minWidth: 112,
+      getValue: (record) => record.active,
+      options: [
+        { value: 'true', label: 'Yes' },
+        { value: 'false', label: 'No' },
+      ],
+      renderCell: (record) => <MasterTableBooleanValue value={record.active} />,
+    },
+    createMasterStatusColumn<ServiceTypeRecord>({
+      getStatus: (record) => record.status,
+      width: 126,
+      minWidth: 112,
+      options: ['Draft', 'Active', 'Inactive'],
+    }),
+    createMasterActionsColumn<ServiceTypeRecord>({
+      rowLabel: (record) => record.code,
+      inlineAction: (record) => ({
+        label: 'Edit service type',
+        onClick: () => navigate(`/admin/master/service-type-master/${record.id}`),
+        icon: <Edit2 size={13} />,
+      }),
+      menuActions: (record) => [
+        {
+          label: 'Preview details',
+          onSelect: () => setPreviewRecord(record),
+          icon: <Eye size={13} />,
+        },
+        {
+          label: 'Edit service type',
+          onSelect: () => navigate(`/admin/master/service-type-master/${record.id}`),
+          icon: <Edit2 size={13} />,
+        },
+        ...(record.status === 'Draft' || record.status === 'Inactive'
+          ? [{
+              label: 'Activate',
+              onSelect: () => handleActivate(record),
+              dividerBefore: true,
+            }]
+          : []),
+        ...(record.status === 'Active'
+          ? [{
+              label: 'Deactivate',
+              onSelect: () => handleDeactivate(record),
+              tone: 'warning' as const,
+              dividerBefore: true,
+            }]
+          : []),
+      ],
+    }),
   ];
 
   const helpTopic = getHelpTopic('service-type-master');
@@ -214,68 +287,81 @@ const ServiceTypeListPage: React.FC = () => {
         description="Define service types with posting rules, contract configuration, billing ratios, and product applicability."
         breadcrumbs={['Admin', group?.label ?? 'Service', 'Service Type Master']}
         primaryAction={{ label: '+ New Service Type', tone: 'primary', onClick: () => setPickerOpen(true) }}
+        secondaryActions={[{
+          label: 'Filters',
+          onClick: () => setFilterDrawerOpen(true),
+          icon: <Filter size={13} />,
+          iconOnly: true,
+          title: 'Open filters',
+          active: hasFilters,
+        }]}
         searchValue={searchQuery}
         searchPlaceholder="Search by code, name or posting type..."
         onSearchChange={setSearchQuery}
-        quickFilterItems={QUICK_FILTER_ITEMS}
-        activeQuickFilter={quickFilter}
-        onQuickFilterChange={(k) => setQuickFilter(k as QuickFilter)}
-        summaryItems={summaryItems}
         helpTopicId="service-type-master"
         onHelpClick={() => setHelpOpen(true)}
       >
-        {/* Table */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid var(--color-border)', borderRadius: '12px', background: 'var(--color-surface)' }}>
-          {/* Header row */}
-          <div style={{ display: 'grid', gridTemplateColumns: GRID_COLS, gap: '12px', padding: '0 16px', height: '36px', alignItems: 'center', background: 'var(--color-surface-subtle)', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
-            {COL_HEADERS.map(({ label, align }) => (
-              <div key={label} style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: align as React.CSSProperties['textAlign'] }}>
-                {label}
-              </div>
-            ))}
-          </div>
-
-          {/* Scrollable body */}
-          <div style={{ flex: 1, overflowY: 'auto' }}>
-            {filtered.length === 0 && (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '120px', fontSize: '13px', color: 'var(--color-text-muted)' }}>
-                No service types found.
-              </div>
-            )}
-            {filtered.map((r) => (
-              <div
-                key={r.id}
-                onClick={() => setPreviewRecord(r)}
-                style={{ display: 'grid', gridTemplateColumns: GRID_COLS, gap: '12px', padding: '0 16px', height: '56px', alignItems: 'center', borderBottom: '1px solid var(--color-border)', cursor: 'pointer', transition: 'background 0.1s' }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'var(--color-surface-subtle)'; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = ''; }}
-              >
-                {/* Code */}
-                <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-primary)', fontFamily: 'monospace' }}>{r.code}</div>
-                {/* Name */}
-                <div>
-                  <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-text)' }}>{r.name}</div>
-                  {r.description && (
-                    <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '300px' }}>{r.description}</div>
-                  )}
-                </div>
-                {/* Posting Type */}
-                <div style={{ fontSize: '12px', color: 'var(--color-text)' }}>{r.postingType || '—'}</div>
-                {/* Saleable */}
-                <div style={{ display: 'flex', justifyContent: 'center' }}><BoolIcon value={r.saleable} /></div>
-                {/* Contract Req. */}
-                <div style={{ display: 'flex', justifyContent: 'center' }}><BoolIcon value={r.contractRequired} /></div>
-                {/* Active */}
-                <div style={{ display: 'flex', justifyContent: 'center' }}><BoolIcon value={r.active} /></div>
-                {/* Status */}
-                <div><span style={{ ...BADGE_BASE, ...statusStyle(r.status) }}>{r.status}</span></div>
-              </div>
-            ))}
-          </div>
-        </div>
+        <MasterDataTable
+          gridId="service-type-master-table"
+          rows={filtered}
+          columns={gridColumns}
+          rowId={(record) => record.id}
+          totalCount={records.length}
+          emptyState={{
+            title: records.length === 0 ? 'No service types yet' : 'No service types match the current filters',
+            description: records.length === 0
+              ? 'Create your first service type to define posting rules, flags, and product applicability.'
+              : 'Try adjusting your search or quick filters.',
+            ...(records.length === 0
+              ? { action: { label: 'New Service Type', onClick: () => setPickerOpen(true) } }
+              : {}),
+          }}
+        />
       </AdminListPageShell>
 
-      {/* Preview Drawer */}
+      <MasterFilterDrawer
+        open={filterDrawerOpen}
+        onClose={() => setFilterDrawerOpen(false)}
+        onReset={() => {
+          setFilterStatus('');
+          setFilterSaleable('');
+          setFilterContractRequired('');
+        }}
+        description="Filter service types by status and configuration flags."
+        fields={[
+          {
+            id: 'service-type-status',
+            label: 'Status',
+            value: filterStatus,
+            placeholder: 'All statuses',
+            options: ['Active', 'Draft', 'Inactive'].map((status) => ({ value: status, label: status })),
+            onChange: setFilterStatus,
+          },
+          {
+            id: 'service-type-saleable',
+            label: 'Saleable',
+            value: filterSaleable,
+            placeholder: 'All values',
+            options: [
+              { value: 'yes', label: 'Yes' },
+              { value: 'no', label: 'No' },
+            ],
+            onChange: setFilterSaleable,
+          },
+          {
+            id: 'service-type-contract',
+            label: 'Contract Required',
+            value: filterContractRequired,
+            placeholder: 'All values',
+            options: [
+              { value: 'yes', label: 'Yes' },
+              { value: 'no', label: 'No' },
+            ],
+            onChange: setFilterContractRequired,
+          },
+        ]}
+      />
+
       {previewRecord && (
         <SmartPreviewDrawer
           open={!!previewRecord}
@@ -285,15 +371,19 @@ const ServiceTypeListPage: React.FC = () => {
           statusLabel={previewRecord.status}
           statusTone={statusTone(previewRecord.status)}
           summaryFields={[
-            { label: 'Code',         value: previewRecord.code,                mono: true },
-            { label: 'Posting Type', value: previewRecord.postingType || '—' },
-            { label: 'Saleable',     value: previewRecord.saleable ? 'Yes' : 'No' },
-            { label: 'Contract Req.',value: previewRecord.contractRequired ? 'Yes' : 'No' },
-            { label: 'Tax Exempt',   value: previewRecord.taxExempted ? 'Yes' : 'No' },
-            { label: 'Active',       value: previewRecord.active ? 'Yes' : 'No' },
+            { label: 'Code', value: previewRecord.code, mono: true },
+            { label: 'Posting Type', value: previewRecord.postingType || '-' },
+            { label: 'Saleable', value: previewRecord.saleable ? 'Yes' : 'No' },
+            { label: 'Contract Req.', value: previewRecord.contractRequired ? 'Yes' : 'No' },
+            { label: 'Tax Exempt', value: previewRecord.taxExempted ? 'Yes' : 'No' },
+            { label: 'Active', value: previewRecord.active ? 'Yes' : 'No' },
           ]}
           sections={buildPreviewSections(previewRecord)}
-          primaryAction={{ label: 'Edit', tone: 'primary', onClick: () => navigate(`/admin/master/service-type-master/${previewRecord.id}`) }}
+          primaryAction={{
+            label: 'Edit',
+            tone: 'primary',
+            onClick: () => navigate(`/admin/master/service-type-master/${previewRecord.id}`),
+          }}
           secondaryActions={[
             ...(previewRecord.status === 'Draft' || previewRecord.status === 'Inactive'
               ? [{ label: 'Activate', tone: 'outline' as const, onClick: () => handleActivate(previewRecord) }]
@@ -305,17 +395,29 @@ const ServiceTypeListPage: React.FC = () => {
         />
       )}
 
-      {/* Profile Picker Dialog */}
       <ServiceTypePickerDialog open={pickerOpen} onClose={() => setPickerOpen(false)} />
 
-      {/* Help Drawer */}
       {helpTopic && (
         <HelpDrawer open={helpOpen} onClose={() => setHelpOpen(false)} topic={helpTopic} />
       )}
 
-      {/* Toast */}
       {toast && (
-        <div style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 9999, padding: '12px 20px', borderRadius: '10px', fontSize: '13px', fontWeight: 500, color: 'white', background: toast.tone === 'success' ? '#15803D' : '#DC2626', boxShadow: '0 4px 16px rgba(0,0,0,0.15)', transition: 'all 0.2s' }}>
+        <div
+          style={{
+            position: 'fixed',
+            bottom: '24px',
+            right: '24px',
+            zIndex: 9999,
+            padding: '12px 20px',
+            borderRadius: '10px',
+            fontSize: '13px',
+            fontWeight: 500,
+            color: 'white',
+            background: toast.tone === 'success' ? '#15803D' : '#DC2626',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+            transition: 'all 0.2s',
+          }}
+        >
           {toast.message}
         </div>
       )}

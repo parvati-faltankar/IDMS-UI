@@ -4,6 +4,8 @@ import {
   buildHierarchyTreeWithWarehouseRoot,
   canAddChildUnderNode,
   collectHierarchyIssueNodeIds,
+  resolveQuickWizardPermission,
+  shouldShowQuickWizardEmptyStateCta,
 } from '../pages/WarehouseHierarchyPage';
 import { WH_BIN_LEVEL_ACTIVE } from '../fixtures/warehouseFixtures';
 import type { HierarchyTemplate, WarehouseLocation } from '../types/warehouse.types';
@@ -136,5 +138,17 @@ describe('WarehouseHierarchyPage helpers', () => {
     const result = canAddChildUnderNode(terminalNode, 'Location-BIN-Level', terminalTemplate, [terminalNode]);
     expect(result.allowed).toBe(false);
     expect(result.reason).toContain('No valid child levels remain');
+  });
+
+  it('shows explicit quick wizard empty-state CTA only when no nodes exist', () => {
+    expect(shouldShowQuickWizardEmptyStateCta(0)).toBe(true);
+    expect(shouldShowQuickWizardEmptyStateCta(1)).toBe(false);
+  });
+
+  it('resolves permission simulation for quick wizard action', () => {
+    expect(resolveQuickWizardPermission(false).canManageHierarchy).toBe(true);
+    const denied = resolveQuickWizardPermission(true);
+    expect(denied.canManageHierarchy).toBe(false);
+    expect(denied.reason).toContain('permission');
   });
 });

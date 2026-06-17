@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type {
+  QuickHierarchyDefaultsInput,
   QuickHierarchyCodingPolicyInput,
   QuickHierarchyCommitResult,
   QuickHierarchyPattern,
+  QuickHierarchyPreviewRow,
   QuickHierarchyPreviewInput,
   QuickHierarchyPreviewResult,
 } from '../types/warehouse.dto';
@@ -15,6 +17,10 @@ interface QuickHierarchyWizardProps {
   readonly onClose: () => void;
   readonly onCommitted?: (result: QuickHierarchyCommitResult) => void;
   readonly service?: WarehouseService;
+  readonly permission?: {
+    readonly canManageHierarchy: boolean;
+    readonly reason?: string;
+  };
 }
 
 const STEPS = [
@@ -44,12 +50,47 @@ function createCountDefaults(pattern: QuickHierarchyPattern): Record<string, num
   }, {});
 }
 
+function createDefaultsInput(): QuickHierarchyDefaultsInput {
+  return {
+    status: 'Draft',
+    levelRole: 'Structural',
+    inventoryEndpointEligible: true,
+    capacityApplicable: true,
+    itemEligibilityApplicable: true,
+    responsibilityApplicable: true,
+    barcodeApplicable: false,
+    qrApplicable: false,
+    transactionPurposes: ['Storage'],
+    capacityEnforcementMode: 'None',
+    defaultResponsibilityRole: 'AreaSupervisor',
+  };
+}
+
+export function buildQuickPreviewFingerprint(input: QuickHierarchyPreviewInput): string {
+  return JSON.stringify(input);
+}
+
+export function isQuickPreviewInvalidated(previousFingerprint: string | null, currentInput: QuickHierarchyPreviewInput): boolean {
+  if (!previousFingerprint) return false;
+  return previousFingerprint !== buildQuickPreviewFingerprint(currentInput);
+}
+
+export function buildQuickPreviewTree(rows: QuickHierarchyPreviewRow[]) {
+  const byParent = new Map<string, QuickHierarchyPreviewRow[]>();
+  for (const row of rows) {
+    const key = row.parentTempNodeId ?? 'ROOT';
+    byParent.set(key, [...(byParent.get(key) ?? []), row]);
+  }
+  return byParent;
+}
+
 export const QuickHierarchyWizard: React.FC<QuickHierarchyWizardProps> = ({
   open,
   warehouseId,
   onClose,
   onCommitted,
   service = warehouseMockAdapter,
+  permission = { canManageHierarchy: true },
 }) => {
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -59,6 +100,10 @@ export const QuickHierarchyWizard: React.FC<QuickHierarchyWizardProps> = ({
   const [countsByLevel, setCountsByLevel] = useState<Record<string, number>>({});
   const [codingByLevel, setCodingByLevel] = useState<QuickHierarchyCodingPolicyInput[]>([]);
   const [preview, setPreview] = useState<QuickHierarchyPreviewResult | null>(null);
+  const [previewFingerprint, setPreviewFingerprint] = useState<string | null>(null);
+  const [previewMode, setPreviewMode] = useState<'tree' | 'table'>('tree');
+  const [activateTemplateOnCommit, setActivateTemplateOnCommit] = useState(true);
+  const [defaults, setDefaults] = useState<QuickHierarchyDefaultsInput>(createDefaultsInput());
   const [commitResult, setCommitResult] = useState<QuickHierarchyCommitResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -68,6 +113,8 @@ export const QuickHierarchyWizard: React.FC<QuickHierarchyWizardProps> = ({
     setError(null);
     setCommitResult(null);
     setPreview(null);
+    setPreviewFingerprint(null);
+    setDefaults(createDefaultsInput());
     setStep(0);
     service.listQuickHierarchyPatterns(warehouseId)
       .then((items) => {
@@ -95,6 +142,7 @@ export const QuickHierarchyWizard: React.FC<QuickHierarchyWizardProps> = ({
     setCountsByLevel(createCountDefaults(selectedPattern));
     setCodingByLevel(createCodingDefaults(selectedPattern));
     setPreview(null);
+    setPreviewFingerprint(null);
     setCommitResult(null);
   }, [selectedPattern]);
 
@@ -111,25 +159,33 @@ export const QuickHierarchyWizard: React.FC<QuickHierarchyWizardProps> = ({
     return total;
   }, [selectedPattern, countsByLevel]);
 
+  const currentInput: QuickHierarchyPreviewInput | null = useMemo(() => {
+    if (!selectedPattern) return null;
+    return {
+      warehouseId,
+      patternKey: selectedPattern.key,
+      templateAction,
+      activateTemplateOnCommit,
+      countsByLevel,
+      codingByLevel,
+      defaults,
+      permissionGranted: permission.canManageHierarchy,
+    };
+  }, [selectedPattern, warehouseId, templateAction, activateTemplateOnCommit, countsByLevel, codingByLevel, defaults, permission.canManageHierarchy]);
+
+  const previewStale = currentInput ? isQuickPreviewInvalidated(previewFingerprint, currentInput) : false;
+
   if (!open) return null;
 
   async function handleGeneratePreview() {
-    if (!selectedPattern) return;
+    if (!selectedPattern || !currentInput) return;
     setLoading(true);
     setError(null);
     setPreview(null);
     try {
-      const payload: QuickHierarchyPreviewInput = {
-        warehouseId,
-        patternKey: selectedPattern.key,
-        templateAction,
-        activateTemplateOnCommit: true,
-        countsByLevel,
-        codingByLevel,
-        defaults: { status: 'Draft' },
-      };
-      const result = await service.previewQuickHierarchy(warehouseId, payload);
+      const result = await service.previewQuickHierarchy(warehouseId, currentInput);
       setPreview(result);
+      setPreviewFingerprint(buildQuickPreviewFingerprint(currentInput));
       setStep(5);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate preview.');
@@ -139,20 +195,15 @@ export const QuickHierarchyWizard: React.FC<QuickHierarchyWizardProps> = ({
   }
 
   async function handleValidateAndCommit() {
-    if (!preview || !selectedPattern) return;
+    if (!preview || !selectedPattern || !currentInput) return;
+    if (previewStale) {
+      setError('Preview is outdated. Regenerate preview before commit.');
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const payload: QuickHierarchyPreviewInput = {
-        warehouseId,
-        patternKey: selectedPattern.key,
-        templateAction,
-        activateTemplateOnCommit: true,
-        countsByLevel,
-        codingByLevel,
-        defaults: { status: 'Draft' },
-      };
-      const validation = await service.validateQuickHierarchy(warehouseId, payload);
+      const validation = await service.validateQuickHierarchy(warehouseId, currentInput);
       if (!validation.valid) {
         setError(validation.issues.map((issue) => issue.message).join(' | '));
         return;
@@ -200,6 +251,11 @@ export const QuickHierarchyWizard: React.FC<QuickHierarchyWizardProps> = ({
         <div style={{ padding: '16px 18px', overflow: 'auto', flex: 1 }}>
           {loading && <p style={{ fontSize: '12px', color: '#6B7280' }}>Working...</p>}
           {error && <div style={{ marginBottom: '12px', fontSize: '12px', color: '#B91C1C', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '8px', padding: '8px 10px' }}>{error}</div>}
+          {!permission.canManageHierarchy && (
+            <div style={{ marginBottom: '12px', fontSize: '12px', color: '#92400E', background: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: '8px', padding: '8px 10px' }}>
+              {permission.reason ?? 'You do not have permission to manage hierarchy setup for this warehouse.'}
+            </div>
+          )}
 
           {step === 0 && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '10px' }}>
@@ -237,7 +293,6 @@ export const QuickHierarchyWizard: React.FC<QuickHierarchyWizardProps> = ({
                     onChange={(event) => {
                       const count = Number(event.target.value || 1);
                       setCountsByLevel((current) => ({ ...current, [level.levelCode]: count }));
-                      setPreview(null);
                     }}
                     style={{ border: '1px solid #D1D5DB', borderRadius: '8px', padding: '8px' }}
                   />
@@ -279,6 +334,14 @@ export const QuickHierarchyWizard: React.FC<QuickHierarchyWizardProps> = ({
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <input
+                  type="checkbox"
+                  checked={activateTemplateOnCommit}
+                  onChange={(event) => setActivateTemplateOnCommit(event.target.checked)}
+                />
+                <span style={{ fontSize: '12px' }}>Activate template on commit</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input
                   type="radio"
                   checked={templateAction === 'reuse-active'}
                   onChange={() => setTemplateAction('reuse-active')}
@@ -288,13 +351,68 @@ export const QuickHierarchyWizard: React.FC<QuickHierarchyWizardProps> = ({
               <p style={{ margin: 0, fontSize: '12px', color: '#6B7280' }}>
                 Scope note: item mapping, capacity details, responsibility assignment, and import/export alignment are intentionally excluded.
               </p>
+              <div style={{ border: '1px solid #E5E7EB', borderRadius: '10px', padding: '10px', display: 'grid', gap: '8px' }}>
+                <p style={{ margin: 0, fontSize: '12px', fontWeight: 700 }}>Defaults configuration</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px' }}>
+                  <label style={{ display: 'grid', gap: '4px' }}>
+                    <span style={{ fontSize: '12px' }}>Default location type</span>
+                    <select value={defaults.defaultLocationType ?? ''} onChange={(event) => setDefaults((current) => ({ ...current, defaultLocationType: event.target.value ? event.target.value as QuickHierarchyDefaultsInput['defaultLocationType'] : undefined }))} style={{ border: '1px solid #D1D5DB', borderRadius: '8px', padding: '8px' }}>
+                      <option value="">Pattern default</option>
+                      <option value="BIN">BIN</option>
+                      <option value="Zone">Zone</option>
+                      <option value="Aisle">Aisle</option>
+                      <option value="Rack">Rack</option>
+                      <option value="Shelf">Shelf</option>
+                      <option value="Staging">Staging</option>
+                      <option value="General">General</option>
+                    </select>
+                  </label>
+                  <label style={{ display: 'grid', gap: '4px' }}>
+                    <span style={{ fontSize: '12px' }}>Level role</span>
+                    <select value={defaults.levelRole ?? 'Structural'} onChange={(event) => setDefaults((current) => ({ ...current, levelRole: event.target.value as QuickHierarchyDefaultsInput['levelRole'] }))} style={{ border: '1px solid #D1D5DB', borderRadius: '8px', padding: '8px' }}>
+                      <option value="Structural">Structural</option>
+                      <option value="InventoryEndpoint">Inventory Endpoint</option>
+                    </select>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input type="checkbox" checked={defaults.capacityApplicable ?? true} onChange={(event) => setDefaults((current) => ({ ...current, capacityApplicable: event.target.checked }))} />
+                    <span style={{ fontSize: '12px' }}>Capacity applicable</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input type="checkbox" checked={defaults.itemEligibilityApplicable ?? true} onChange={(event) => setDefaults((current) => ({ ...current, itemEligibilityApplicable: event.target.checked }))} />
+                    <span style={{ fontSize: '12px' }}>Item eligibility applicable</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input type="checkbox" checked={defaults.responsibilityApplicable ?? true} onChange={(event) => setDefaults((current) => ({ ...current, responsibilityApplicable: event.target.checked }))} />
+                    <span style={{ fontSize: '12px' }}>Responsibility applicable</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input type="checkbox" checked={defaults.barcodeApplicable ?? false} onChange={(event) => setDefaults((current) => ({ ...current, barcodeApplicable: event.target.checked }))} />
+                    <span style={{ fontSize: '12px' }}>Barcode applicable</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input type="checkbox" checked={defaults.qrApplicable ?? false} onChange={(event) => setDefaults((current) => ({ ...current, qrApplicable: event.target.checked }))} />
+                    <span style={{ fontSize: '12px' }}>QR applicable</span>
+                  </label>
+                  <label style={{ display: 'grid', gap: '4px' }}>
+                    <span style={{ fontSize: '12px' }}>Capacity enforcement</span>
+                    <select value={defaults.capacityEnforcementMode ?? 'None'} onChange={(event) => setDefaults((current) => ({ ...current, capacityEnforcementMode: event.target.value as QuickHierarchyDefaultsInput['capacityEnforcementMode'] }))} style={{ border: '1px solid #D1D5DB', borderRadius: '8px', padding: '8px' }}>
+                      <option value="None">None</option>
+                      <option value="Informational">Informational</option>
+                      <option value="Warning">Warning</option>
+                      <option value="HardBlock">HardBlock</option>
+                      <option value="ApprovalRequired">ApprovalRequired</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
             </div>
           )}
 
           {step === 4 && (
             <div style={{ display: 'grid', gap: '10px' }}>
               <p style={{ margin: 0, fontSize: '12px', color: '#6B7280' }}>Preview uses deterministic generation and duplicate checks against existing hierarchy.</p>
-              <button type="button" onClick={handleGeneratePreview} disabled={loading || !selectedPattern} style={{ justifySelf: 'start', border: '1px solid #2563EB', background: '#2563EB', color: 'white', borderRadius: '8px', padding: '8px 12px', cursor: 'pointer' }}>
+              <button type="button" onClick={handleGeneratePreview} disabled={loading || !selectedPattern || !permission.canManageHierarchy} style={{ justifySelf: 'start', border: '1px solid #2563EB', background: '#2563EB', color: 'white', borderRadius: '8px', padding: '8px 12px', cursor: 'pointer' }}>
                 Generate Preview
               </button>
               {preview && (
@@ -309,13 +427,32 @@ export const QuickHierarchyWizard: React.FC<QuickHierarchyWizardProps> = ({
             <div style={{ display: 'grid', gap: '10px' }}>
               {preview ? (
                 <>
-                  <div style={{ maxHeight: '300px', overflow: 'auto', border: '1px solid #E5E7EB', borderRadius: '8px' }}>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button type="button" onClick={() => setPreviewMode('tree')} style={{ border: '1px solid #D1D5DB', borderRadius: '8px', padding: '6px 10px', background: previewMode === 'tree' ? '#EEF2FF' : 'white' }}>Tree Preview</button>
+                    <button type="button" onClick={() => setPreviewMode('table')} style={{ border: '1px solid #D1D5DB', borderRadius: '8px', padding: '6px 10px', background: previewMode === 'table' ? '#EEF2FF' : 'white' }}>Table Preview</button>
+                  </div>
+                  {previewStale && (
+                    <div style={{ fontSize: '12px', color: '#B45309', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '8px', padding: '8px 10px' }}>
+                      Preview is outdated. Regenerate preview before commit.
+                    </div>
+                  )}
+                  {previewMode === 'tree' && (
+                    <div style={{ maxHeight: '280px', overflow: 'auto', border: '1px solid #E5E7EB', borderRadius: '8px', padding: '10px' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 700, marginBottom: '6px' }}>Warehouse Root</div>
+                      <TreePreviewList parentId="ROOT" rows={preview.rows} />
+                    </div>
+                  )}
+                  {previewMode === 'table' && (
+                    <div style={{ maxHeight: '300px', overflow: 'auto', border: '1px solid #E5E7EB', borderRadius: '8px' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead>
                         <tr>
                           <th style={{ textAlign: 'left', fontSize: '11px', padding: '8px', borderBottom: '1px solid #E5E7EB' }}>Level</th>
                           <th style={{ textAlign: 'left', fontSize: '11px', padding: '8px', borderBottom: '1px solid #E5E7EB' }}>Code</th>
                           <th style={{ textAlign: 'left', fontSize: '11px', padding: '8px', borderBottom: '1px solid #E5E7EB' }}>Full Identifier</th>
+                          <th style={{ textAlign: 'left', fontSize: '11px', padding: '8px', borderBottom: '1px solid #E5E7EB' }}>Type</th>
+                          <th style={{ textAlign: 'left', fontSize: '11px', padding: '8px', borderBottom: '1px solid #E5E7EB' }}>Role</th>
+                          <th style={{ textAlign: 'left', fontSize: '11px', padding: '8px', borderBottom: '1px solid #E5E7EB' }}>Capabilities</th>
                           <th style={{ textAlign: 'left', fontSize: '11px', padding: '8px', borderBottom: '1px solid #E5E7EB' }}>Status</th>
                         </tr>
                       </thead>
@@ -325,6 +462,11 @@ export const QuickHierarchyWizard: React.FC<QuickHierarchyWizardProps> = ({
                             <td style={{ fontSize: '12px', padding: '8px', borderBottom: '1px solid #F3F4F6' }}>{row.levelCode}</td>
                             <td style={{ fontSize: '12px', padding: '8px', borderBottom: '1px solid #F3F4F6' }}>{row.nodeCode}</td>
                             <td style={{ fontSize: '12px', padding: '8px', borderBottom: '1px solid #F3F4F6' }}>{row.fullLocationIdentifier}</td>
+                            <td style={{ fontSize: '12px', padding: '8px', borderBottom: '1px solid #F3F4F6' }}>{row.locationType}</td>
+                            <td style={{ fontSize: '12px', padding: '8px', borderBottom: '1px solid #F3F4F6' }}>{row.levelRole}</td>
+                            <td style={{ fontSize: '12px', padding: '8px', borderBottom: '1px solid #F3F4F6' }}>
+                              {row.inventoryEndpointEligible ? 'Endpoint' : 'Non-endpoint'} | Cap:{String(row.capacityApplicable)} | Item:{String(row.itemEligibilityApplicable)} | Resp:{String(row.responsibilityApplicable)}
+                            </td>
                             <td style={{ fontSize: '12px', padding: '8px', borderBottom: '1px solid #F3F4F6', color: row.validationStatus === 'Conflict' ? '#B91C1C' : '#166534' }}>
                               {row.validationStatus}
                             </td>
@@ -333,7 +475,8 @@ export const QuickHierarchyWizard: React.FC<QuickHierarchyWizardProps> = ({
                       </tbody>
                     </table>
                   </div>
-                  <button type="button" onClick={handleValidateAndCommit} disabled={loading || preview.conflictCount > 0} style={{ justifySelf: 'start', border: '1px solid #166534', background: '#166534', color: 'white', borderRadius: '8px', padding: '8px 12px', cursor: 'pointer' }}>
+                  )}
+                  <button type="button" onClick={handleValidateAndCommit} disabled={loading || preview.conflictCount > 0 || previewStale || !permission.canManageHierarchy} style={{ justifySelf: 'start', border: '1px solid #166534', background: '#166534', color: 'white', borderRadius: '8px', padding: '8px 12px', cursor: 'pointer' }}>
                     Validate and Commit
                   </button>
                 </>
@@ -361,5 +504,25 @@ export const QuickHierarchyWizard: React.FC<QuickHierarchyWizardProps> = ({
     </div>
   );
 };
+
+function TreePreviewList({ parentId, rows }: { parentId: string; rows: QuickHierarchyPreviewRow[] }) {
+  const children = rows.filter((row) => (row.parentTempNodeId ?? 'ROOT') === parentId);
+  if (children.length === 0) return null;
+  return (
+    <ul style={{ margin: 0, paddingLeft: '18px' }}>
+      {children.map((row) => (
+        <li key={row.tempNodeId} style={{ marginBottom: '6px', fontSize: '12px' }}>
+          <div>
+            <strong>{row.nodeCode}</strong> · {row.nodeName} · {row.fullLocationIdentifier}
+          </div>
+          <div style={{ fontSize: '11px', color: '#6B7280' }}>
+            {row.levelName} | {row.inventoryEndpointEligible ? 'Endpoint' : 'Non-endpoint'} | Capacity: {String(row.capacityApplicable)} | Item: {String(row.itemEligibilityApplicable)} | Responsibility: {String(row.responsibilityApplicable)} | {row.validationStatus}
+          </div>
+          <TreePreviewList parentId={row.tempNodeId} rows={rows} />
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 export default QuickHierarchyWizard;

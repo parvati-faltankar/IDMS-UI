@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useParams } from 'react-router-dom';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import AdminShell from '../../../../AdminShell';
+import { MasterFormStepper } from '../../../../../experience/components';
 import type { RuleSetConfig, RuleDefinition } from '../../../../../engine/types/configuration';
 import type { RuleType, RuleAction, RuleOwner } from '../../../../../engine/types/configuration';
 import { loadRuleSets, persistRuleSet } from '../services/ruleSetService';
@@ -125,6 +126,11 @@ const RuleSetEditor: React.FC = () => {
     !!form.ruleSetCode.trim() && !!form.ruleSetName.trim(),
     form.rules.length > 0,
   ], [form]);
+  const stepperSteps = STEPS.map((step) => ({
+    id: String(step.index),
+    label: step.label,
+    state: activeStep === step.index ? 'current' : stepHasData[step.index] ? 'complete' : 'default',
+  }));
 
   const inputBase: React.CSSProperties = {
     width: '100%', padding: '7px 10px', fontSize: '13px',
@@ -185,33 +191,12 @@ const RuleSetEditor: React.FC = () => {
       {/* Body */}
       <div style={{ display: 'flex', height: 'calc(100vh - 57px)', overflow: 'hidden' }}>
         {/* Step sidebar */}
-        <div style={{ width: '220px', borderRight: '1px solid var(--color-border)', padding: '20px 0', flexShrink: 0, background: 'var(--color-surface)' }}>
-          {STEPS.map((step) => {
-            const active = activeStep === step.index;
-            const done   = stepHasData[step.index];
-            return (
-              <button key={step.index} type="button" onClick={() => setActiveStep(step.index)}
-                style={{
-                  width: '100%', textAlign: 'left', padding: '10px 20px', border: 'none', cursor: 'pointer',
-                  background: active ? 'color-mix(in srgb, var(--color-primary) 8%, var(--color-surface))' : 'transparent',
-                  borderLeft: active ? '3px solid var(--color-primary)' : '3px solid transparent',
-                  display: 'flex', alignItems: 'center', gap: '8px',
-                }}>
-                <div style={{
-                  width: '20px', height: '20px', borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '11px', fontWeight: 700,
-                  background: done ? '#DCFCE7' : active ? 'var(--color-primary)' : 'var(--color-surface-subtle)',
-                  color: done ? '#15803D' : active ? 'white' : 'var(--color-text-muted)',
-                  border: `1px solid ${done ? '#86EFAC' : active ? 'var(--color-primary)' : 'var(--color-border)'}`,
-                }}>
-                  {done ? '✓' : step.index + 1}
-                </div>
-                <span style={{ fontSize: '13px', fontWeight: active ? 600 : 400, color: active ? 'var(--color-primary)' : 'var(--color-text)' }}>
-                  {step.label}
-                </span>
-              </button>
-            );
-          })}
+        <div style={{ width: '220px', borderRight: '1px solid var(--color-border)', flexShrink: 0, background: 'var(--color-surface)' }}>
+          <MasterFormStepper
+            steps={stepperSteps}
+            activeStepId={String(activeStep)}
+            onStepChange={(stepId) => setActiveStep(Number(stepId))}
+          />
         </div>
 
         {/* Main content */}

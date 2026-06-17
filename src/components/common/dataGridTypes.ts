@@ -94,6 +94,7 @@ export interface CommonDataGridProps<TData, TSortKey extends string = string> {
   rows: TData[];
   columns: DataGridColumn<TData>[];
   rowId: (row: TData) => string;
+  variant?: 'default' | 'master';
   rowClassName?: (row: TData) => string | undefined;
   emptyLabel?: string;
   selectable?: boolean;
@@ -105,9 +106,12 @@ export interface CommonDataGridProps<TData, TSortKey extends string = string> {
   incrementalRenderingThreshold?: number;
   onSelectionChange?: (rowIds: string[]) => void;
   bulkActions?: (selectedRows: TData[]) => React.ReactNode;
+  showToolbar?: boolean;
+  showChartAction?: boolean;
+  showViewConfiguratorAction?: boolean;
+  showResetAction?: boolean;
   toolbarEndSlot?: React.ReactNode;
   toolbarLabel?: string;
   chartTitle?: string;
   exportFileName?: string;
 }
-

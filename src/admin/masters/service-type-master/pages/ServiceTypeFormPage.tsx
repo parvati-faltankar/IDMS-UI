@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AlertCircle, ChevronDown, ChevronRight } from 'lucide-react';
 import AdminShell from '../../../AdminShell';
+import { MasterFormStepper } from '../../../../experience/components';
 import { HelpDrawer } from '../../../../experience/components/HelpDrawer';
 import { getHelpTopic } from '../../../../experience/help/helpTopics';
 import { findGroupForMasterKey, findMasterByKey } from '../../../adminNavConfig';
@@ -208,7 +209,6 @@ const ServiceTypeFormPage: React.FC = () => {
   const [stepDone, setStepDone] = useState<Set<number>>(new Set());
   const [fieldErrors, setFieldErrors] = useState<STFieldErrors>({});
   const [helpOpen, setHelpOpen] = useState(false);
-  const [hoveredStep, setHoveredStep] = useState<number | null>(null);
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
 
   useEffect(() => {
@@ -939,6 +939,17 @@ const ServiceTypeFormPage: React.FC = () => {
 
   const stepContent = [renderStep0, renderStep1, renderStep2, renderStep3, renderStep4, renderStep5];
   const isLastStep  = activeStep === 5;
+  const stepperSteps = WIZARD_STEPS.map((step) => ({
+    id: String(step.index),
+    label: step.label,
+    state: activeStep === step.index
+      ? 'current'
+      : skippedSteps.has(step.index)
+        ? 'disabled'
+        : stepDone.has(step.index)
+          ? 'complete'
+          : 'default',
+  }));
 
   return (
     <AdminShell>
@@ -971,31 +982,20 @@ const ServiceTypeFormPage: React.FC = () => {
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
           {/* Left step sidebar (220px) */}
-          <nav style={{ width: '220px', flexShrink: 0, background: 'var(--color-surface)', borderRight: '1px solid var(--color-border)', overflowY: 'auto', display: 'flex', flexDirection: 'column', paddingTop: '8px' }}>
-            {WIZARD_STEPS.map((s) => {
-              const isAct     = activeStep === s.index;
-              const isDone    = stepDone.has(s.index);
-              const isSkipped = skippedSteps.has(s.index);
-              const isHov     = hoveredStep === s.index;
-              const dotColor  = isAct ? 'var(--color-primary)' : isDone ? '#16A34A' : '#CBD5E1';
-              return (
-                <button key={s.index} type="button"
-                  onClick={() => isSkipped ? unSkipStep(s.index) : setActiveStep(s.index)}
-                  onMouseEnter={() => setHoveredStep(s.index)}
-                  onMouseLeave={() => setHoveredStep(null)}
-                  style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 12px 12px 20px', border: 'none', borderBottom: '1px solid var(--color-border)', background: isAct ? 'color-mix(in srgb, var(--color-primary) 6%, white)' : isHov ? 'color-mix(in srgb, var(--color-primary) 3%, white)' : 'transparent', cursor: 'pointer', textAlign: 'left', opacity: isSkipped ? 0.45 : 1, transition: 'background 0.1s', width: '100%' }}
-                >
-                  {isAct && <span style={{ position: 'absolute', left: 0, top: '8px', bottom: '8px', width: '3px', borderRadius: '0 3px 3px 0', background: 'var(--color-primary)' }} />}
-                  <span style={{ width: '10px', height: '10px', borderRadius: '50%', flexShrink: 0, background: dotColor, transition: 'background 0.15s' }} />
-                  <span style={{ flex: 1, fontSize: '12px', fontWeight: isAct ? 600 : 500, color: isAct ? 'var(--color-primary)' : isDone ? 'var(--color-text)' : 'var(--color-text-muted)', lineHeight: 1.3, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {s.label}
-                  </span>
-                  {isSkipped && <span style={{ fontSize: '10px', color: 'var(--color-text-muted)', fontStyle: 'italic', flexShrink: 0 }}>skipped</span>}
-                  <ChevronRight size={13} style={{ flexShrink: 0, color: 'var(--color-text-muted)', opacity: isHov ? 0.7 : 0, transition: 'opacity 0.15s' }} />
-                </button>
-              );
-            })}
-          </nav>
+          <div style={{ width: '220px', flexShrink: 0, background: 'var(--color-surface)', borderRight: '1px solid var(--color-border)', overflowY: 'auto' }}>
+            <MasterFormStepper
+              steps={stepperSteps}
+              activeStepId={String(activeStep)}
+              onStepChange={(stepId) => {
+                const nextStep = Number(stepId);
+                if (skippedSteps.has(nextStep)) {
+                  unSkipStep(nextStep);
+                  return;
+                }
+                setActiveStep(nextStep);
+              }}
+            />
+          </div>
 
           {/* Form body */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '28px 24px', background: 'var(--color-surface-subtle)' }}>

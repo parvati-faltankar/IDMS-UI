@@ -49,7 +49,7 @@ export default function AppDialog({
       slotProps={{
         backdrop: {
           sx: {
-            backgroundColor: 'rgb(15 23 42 / 30%)',
+            backgroundColor: 'rgb(24, 24, 24)',
           },
         },
         paper: {

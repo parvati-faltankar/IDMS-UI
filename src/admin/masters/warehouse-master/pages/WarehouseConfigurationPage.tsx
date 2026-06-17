@@ -497,11 +497,11 @@ export default function WarehouseConfigurationPage() {
         {/* Back */}
         <button
           type="button"
-          onClick={() => navigate(WAREHOUSE_ROUTES.detail(warehouse.id))}
+          onClick={() => navigate(WAREHOUSE_ROUTES.setup(warehouse.id))}
           style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--color-text-muted)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px' }}
         >
           <ArrowLeft size={14} />
-          Back
+          Back to Setup
         </button>
         <div style={{ width: '1px', height: '22px', background: 'var(--color-border)' }} />
 

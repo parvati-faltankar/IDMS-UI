@@ -6,6 +6,7 @@ export interface SmartDrawerAction {
   tone?:     'primary' | 'danger' | 'outline';
   disabled?: boolean;
   title?:    string;
+  fullWidth?: boolean;
 }
 
 export interface SmartDrawerProps {
@@ -13,6 +14,7 @@ export interface SmartDrawerProps {
   onClose:           () => void;
   title:             string;
   subtitle?:         string;
+  headerMeta?:       React.ReactNode;
   statusLabel?:      string;
   statusTone?:       'active' | 'draft' | 'inactive' | 'warning';
   width?:            SmartDrawerWidth;

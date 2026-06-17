@@ -2,6 +2,7 @@
 
 import type { CreateLocationInput } from '../types/warehouse.dto';
 import type {
+  LocationCapacity,
   HierarchyTemplate,
   ItemEligibilityMapping,
   ResponsibilityAssignment,
@@ -17,6 +18,7 @@ import {
   deriveEffectiveNodeCapabilities,
   resolveTemplateLevelForInput,
 } from '../utils/hierarchyUtils';
+import { deriveCapacityValidationIssues } from '../utils/warehouseDerivations';
 
 // ─── Field-level save validation ──────────────────────────────────────────────
 
@@ -148,11 +150,89 @@ export function validateLocationForSave(
     }
   }
 
+  const minTemp = input.storageConstraints?.minTempCelsius;
+  const maxTemp = input.storageConstraints?.maxTempCelsius;
+  if (minTemp !== undefined && maxTemp !== undefined && minTemp > maxTemp) {
+    errors.capacity = 'Minimum temperature cannot be greater than maximum temperature.';
+  }
+
   if (input.eligibilityPolicy && template && !effectiveCapabilities.itemEligibilityApplicable) {
     errors.eligibilityPolicy = 'Item eligibility cannot be configured for this hierarchy level because Item Eligibility Applicable is disabled in the active template.';
   }
 
   return errors;
+}
+
+export function validateLocationCapacityForUpdate(
+  location: WarehouseLocation,
+  warehouse: Warehouse,
+  allLocations: WarehouseLocation[],
+  nextCapacity: Partial<LocationCapacity>,
+  template?: HierarchyTemplate,
+): ValidationIssue[] {
+  const merged: WarehouseLocation = {
+    ...location,
+    capacity: {
+      ...(location.capacity ?? {}),
+      ...nextCapacity,
+    },
+  };
+
+  const issues = deriveCapacityValidationIssues(merged, allLocations, warehouse, template);
+  const checkNegative = (
+    field: keyof LocationCapacity,
+    label: string,
+  ) => {
+    const value = merged.capacity?.[field];
+    if (typeof value === 'number' && value < 0) {
+      issues.push({
+        field: `capacity.${field}`,
+        section: 'capacityStorage',
+        severity: 'error',
+        category: 'FieldFormat',
+        message: `${label} cannot be negative.`,
+      });
+    }
+  };
+
+  checkNegative('maxUnits', 'Maximum units');
+  checkNegative('maxWeightKg', 'Maximum weight');
+  checkNegative('maxVolumeM3', 'Maximum volume');
+  checkNegative('currentUnits', 'Current units');
+  checkNegative('currentWeightKg', 'Current weight');
+  checkNegative('currentVolumeM3', 'Current volume');
+  checkNegative('reservedUnits', 'Reserved units');
+  checkNegative('reservedWeightKg', 'Reserved weight');
+  checkNegative('reservedVolumeM3', 'Reserved volume');
+
+  if (
+    merged.capacity?.maxUnits !== undefined &&
+    merged.capacity.currentUnits !== undefined &&
+    merged.capacity.maxUnits < merged.capacity.currentUnits
+  ) {
+    issues.push({
+      field: 'capacity.maxUnits',
+      section: 'capacityStorage',
+      severity: 'error',
+      category: 'CapacityExceeded',
+      message: 'Maximum units cannot be lower than current units.',
+    });
+  }
+  if (
+    merged.capacity?.maxUnits !== undefined &&
+    merged.capacity.reservedUnits !== undefined &&
+    merged.capacity.maxUnits < merged.capacity.reservedUnits
+  ) {
+    issues.push({
+      field: 'capacity.maxUnits',
+      section: 'capacityStorage',
+      severity: 'error',
+      category: 'CapacityExceeded',
+      message: 'Maximum units cannot be lower than reserved units.',
+    });
+  }
+
+  return issues;
 }
 
 // ─── Activation validation ────────────────────────────────────────────────────

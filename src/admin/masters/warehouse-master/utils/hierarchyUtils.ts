@@ -368,8 +368,33 @@ export function buildHierarchyTree(
 ): HierarchyNode[] {
   const nodeMap = new Map<string, HierarchyNode>();
 
+  const resolveCapacityStatus = (location: WarehouseLocation): 'NotApplicable' | 'NotConfigured' | 'WithinCapacity' | 'NearCapacity' | 'Exceeded' | 'RequiresApproval' => {
+    if (!deriveEffectiveNodeCapabilities(template, getTemplateLevelForLocation(location, template)).capacityApplicable) {
+      return 'NotApplicable';
+    }
+    const maxConfigured =
+      location.capacity?.maxUnits !== undefined ||
+      location.capacity?.maxWeightKg !== undefined ||
+      location.capacity?.maxVolumeM3 !== undefined;
+    if (!maxConfigured) return 'NotConfigured';
+    const utilization = location.capacity?.utilizationPercent
+      ?? (location.capacity?.maxUnits && location.capacity.currentUnits !== undefined
+        ? Math.round(((location.capacity.currentUnits + (location.capacity.reservedUnits ?? 0)) / location.capacity.maxUnits) * 100)
+        : undefined);
+    if (utilization === undefined) return 'WithinCapacity';
+    if (utilization > 100) {
+      return location.capacity?.enforcementMode === 'ApprovalRequired' ? 'RequiresApproval' : 'Exceeded';
+    }
+    if (utilization >= (location.capacity?.warningThresholdPercent ?? 80)) {
+      return location.capacity?.enforcementMode === 'ApprovalRequired' ? 'RequiresApproval' : 'NearCapacity';
+    }
+    return 'WithinCapacity';
+  };
+
   for (const location of locations) {
     const level = getTemplateLevelForLocation(location, template);
+    const capabilities = deriveEffectiveNodeCapabilities(template, level);
+    const capacityStatus = resolveCapacityStatus(location);
     nodeMap.set(location.id, {
       id: location.id,
       locationId: location.id,
@@ -380,8 +405,20 @@ export function buildHierarchyTree(
       parentId: location.parentLocationId,
       children: [],
       isLeaf: location.profile.isLeafEndpoint,
+      inventoryEndpointEligible: capabilities.inventoryEndpointEligible,
       inventoryAllowed: location.profile.inventoryAllowed,
       status: location.status,
+      effectiveStatus: location.status,
+      capabilitySummary: {
+        capacityApplicable: capabilities.capacityApplicable,
+        itemEligibilityApplicable: capabilities.itemEligibilityApplicable,
+        responsibilityApplicable: capabilities.responsibilityApplicable,
+        capacityStatus,
+        capacityHardBlocked: capacityStatus === 'Exceeded' && location.capacity?.enforcementMode === 'HardBlock',
+        capacityApprovalRequired: capacityStatus === 'RequiresApproval',
+        capacityRollupWarning: location.capacity?.rollupMode === 'RollupFromChildren' || location.capacity?.rollupMode === 'SharedParentPool',
+        utilizationPercent: location.capacity?.utilizationPercent,
+      },
       fullCode: location.profile.fullCode,
     });
   }

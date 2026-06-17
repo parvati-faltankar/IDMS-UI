@@ -3,7 +3,7 @@ import { ArrowLeft, Edit2, Hash, Plus, Save, Trash2, X } from 'lucide-react';
 import AdminShell from '../AdminShell';
 import { findGroupForMasterKey, findMasterByKey } from '../adminNavConfig';
 import { recordRecentAdminMaster } from '../adminStorage';
-import { AdminPageShell } from '../../experience/components/AdminPageShell';
+import { AdminListPageShell } from '../../experience/components/AdminListPageShell';
 import { HelpDrawer } from '../../experience/components/HelpDrawer';
 import { getHelpTopic } from '../../experience/help/helpTopics';
 
@@ -173,9 +173,9 @@ const NumberingSettingsPage: React.FC = () => {
   const master = findMasterByKey(MASTER_KEY);
   const group  = findGroupForMasterKey(MASTER_KEY);
 
-  const [activeSection, setActiveSection] = useState<SectionKey>('numbering');
   const [helpOpen, setHelpOpen] = useState(false);
   const [helpTopicId, setHelpTopicId] = useState('numbering-code-setup');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // ── Prefix entries ─────────────────────────────────────────────
   const [entries,       setEntries]       = useState<PrefixEntry[]>(INITIAL_ENTRIES);
@@ -268,69 +268,55 @@ const NumberingSettingsPage: React.FC = () => {
   if (!master || !group) return null;
 
   const numberingHelpTopic = useMemo(() => getHelpTopic(helpTopicId), [helpTopicId]);
-  const summaryItems = useMemo(() => [
-    { label: 'Prefix Configs', value: entries.length },
-    { label: 'Code Gen Rules', value: codeGenEntries.length },
-  ], [entries, codeGenEntries]);
+  const filteredEntries = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return entries;
+    return entries.filter((entry) =>
+      [
+        entry.prefixCode,
+        entry.prefixName,
+        entry.displayName,
+        entry.applicableFor,
+        entry.entity,
+        entry.prefixValue,
+      ]
+        .filter(Boolean)
+        .some((value) => value.toLowerCase().includes(query))
+    );
+  }, [entries, searchQuery]);
 
   return (
     <AdminShell>
-      <AdminPageShell
+      <AdminListPageShell
         title={master.label}
-        description={master.description}
+        description="Configure document numbering prefixes for each entity."
         breadcrumbs={['Admin', group.label]}
-        primaryAction={activeSection === 'numbering'
-          ? { label: 'New Prefix', tone: 'primary', onClick: openDrawerForCreate }
-          : { label: 'New Rule', tone: 'primary', onClick: openCodeGenDrawerForCreate }
-        }
-        secondaryActions={[{ label: 'How this works', tone: 'secondary', onClick: () => setHelpOpen(true) }]}
+        primaryAction={{ label: 'New Prefix', tone: 'primary', onClick: openDrawerForCreate }}
         helpTopicId="numbering-code-setup"
         onHelpClick={(id) => { setHelpTopicId(id); setHelpOpen(true); }}
-        summaryItems={summaryItems}
-        toolbar={
-          <div style={{ display: 'flex', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
-            {SECTIONS.map((s, i) => {
-              const isActive = activeSection === s.key;
-              return (
-                <button
-                  key={s.key}
-                  type="button"
-                  onClick={() => setActiveSection(s.key)}
-                  style={{
-                    padding: '6px 16px',
-                    fontSize: '13px',
-                    fontWeight: isActive ? 600 : 400,
-                    border: 'none',
-                    borderRight: i < SECTIONS.length - 1 ? '1px solid var(--color-border)' : 'none',
-                    background: isActive ? 'var(--color-primary)' : 'transparent',
-                    color: isActive ? 'white' : 'var(--color-text)',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  {s.label}
-                </button>
-              );
-            })}
-          </div>
-        }
+        searchValue={searchQuery}
+        searchPlaceholder="Search prefix, entity, code…"
+        onSearchChange={setSearchQuery}
       >
-
-            {/* ── Code Prefix Master ───────────────────────────────── */}
-            {activeSection === 'numbering' && (
-              entries.length === 0 ? (
+            {filteredEntries.length === 0 ? (
                   <div style={{ padding: '64px 28px', textAlign: 'center', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px' }}>
                     <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--color-surface-subtle)', border: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
                       <Hash size={22} style={{ color: 'var(--color-text-muted)' }} />
                     </div>
-                    <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text)', marginBottom: '6px' }}>No prefix configurations yet</div>
-                    <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '24px', maxWidth: '320px', margin: '0 auto 24px', lineHeight: 1.6 }}>
-                      Create a prefix for each document type to control how document numbers are generated.
+                    <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text)', marginBottom: '6px' }}>
+                      {entries.length === 0 ? 'No prefix configurations yet' : 'No prefixes match the current search'}
                     </div>
-                    <button type="button" onClick={openDrawerForCreate} style={btnPrimary}>
-                      <Plus size={13} />
-                      Create First Prefix
-                    </button>
+                    <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '24px', maxWidth: '320px', margin: '0 auto 24px', lineHeight: 1.6 }}>
+                      {entries.length === 0
+                        ? 'Create a prefix for each document type to control how document numbers are generated.'
+                        : 'Try adjusting your search to find the prefix configuration you are looking for.'}
+                    </div>
+                    {entries.length === 0 && (
+                      <button type="button" onClick={openDrawerForCreate} style={btnPrimary}>
+                        <Plus size={13} />
+                        Create First Prefix
+                      </button>
+                    )}
                   </div>
                 ) : (
                   /* ── Table ── */
@@ -351,9 +337,9 @@ const NumberingSettingsPage: React.FC = () => {
                     </div>
 
                     {/* Data rows */}
-                    {entries.map((entry, idx) => {
+                    {filteredEntries.map((entry, idx) => {
                       const color = getApplicableColor(entry.applicableFor);
-                      const isLast = idx === entries.length - 1;
+                      const isLast = idx === filteredEntries.length - 1;
                       return (
                         <div
                           key={entry.id}
@@ -433,135 +419,12 @@ const NumberingSettingsPage: React.FC = () => {
                     {/* Footer — "Showing X of Y records" like reference */}
                     <div style={{ padding: '10px 20px', borderTop: '1px solid var(--color-border)', background: 'var(--color-surface-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
                       <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                        Showing <strong style={{ color: 'var(--color-text)', fontWeight: 600 }}>1–{entries.length}</strong> of <strong style={{ color: 'var(--color-text)', fontWeight: 600 }}>{entries.length}</strong> {entries.length === 1 ? 'record' : 'records'}
+                        Showing <strong style={{ color: 'var(--color-text)', fontWeight: 600 }}>1–{filteredEntries.length}</strong> of <strong style={{ color: 'var(--color-text)', fontWeight: 600 }}>{entries.length}</strong> {entries.length === 1 ? 'record' : 'records'}
                       </span>
                     </div>
                   </div>
-                )
-            )}
-
-            {/* ── Code Generation Policy ──────────────────────────── */}
-            {activeSection === 'codegen' && (
-              codeGenEntries.length === 0 ? (
-                  <div style={{ padding: '64px 28px', textAlign: 'center', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px' }}>
-                    <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--color-surface-subtle)', border: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-                      <Hash size={22} style={{ color: 'var(--color-text-muted)' }} />
-                    </div>
-                    <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text)', marginBottom: '6px' }}>No code generation policies yet</div>
-                    <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', maxWidth: '320px', margin: '0 auto 24px', lineHeight: 1.6 }}>
-                      Add a rule for each entity type to control how codes are automatically generated.
-                    </div>
-                    <button type="button" onClick={openCodeGenDrawerForCreate} style={btnPrimary}>
-                      <Plus size={13} />
-                      Create First Rule
-                    </button>
-                  </div>
-                ) : (
-                  /* ── Table */
-                  <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px', overflow: 'hidden' }}>
-
-                    {/* Column headers */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr 120px 120px 120px 88px', alignItems: 'center', padding: '10px 20px', background: 'var(--color-surface-subtle)', borderBottom: '1.5px solid var(--color-border)' }}>
-                      {[
-                        { label: 'Sample Code',    align: 'left'  },
-                        { label: 'Setting Name',   align: 'left'  },
-                        { label: 'Applicable For', align: 'left'  },
-                        { label: 'Series Type',    align: 'left'  },
-                        { label: 'Status',         align: 'left'  },
-                        { label: 'Actions',        align: 'right' },
-                      ].map(({ label, align }) => (
-                        <div key={label} style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text)', textAlign: align as React.CSSProperties['textAlign'] }}>{label}</div>
-                      ))}
-                    </div>
-
-                    {/* Data rows */}
-                    {codeGenEntries.map((entry, idx) => {
-                      const isLast = idx === codeGenEntries.length - 1;
-                      const appColor = getApplicableColor(entry.applicableFor);
-                      return (
-                        <div
-                          key={entry.id}
-                          style={{ display: 'grid', gridTemplateColumns: '150px 1fr 120px 120px 120px 88px', alignItems: 'center', padding: '14px 20px', borderBottom: isLast ? 'none' : '1px solid var(--color-border)', transition: 'background 0.1s', cursor: 'default' }}
-                          onMouseEnter={(e) => { e.currentTarget.style.background = '#F8FAFC'; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-                        >
-                          {/* Sample Code */}
-                          <div>
-                            <span style={{ fontFamily: 'monospace', fontSize: '15px', fontWeight: 800, color: 'var(--color-primary)', letterSpacing: '0.03em' }}>
-                              {buildCodePreview(entry)}
-                            </span>
-                            <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', marginTop: '2px', fontFamily: 'inherit' }}>
-                              {entry.settingCode || '—'}
-                            </div>
-                          </div>
-
-                          {/* Setting Name */}
-                          <div style={{ minWidth: 0, paddingRight: '16px' }}>
-                            <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {entry.settingName || '—'}
-                            </div>
-                            <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {[entry.entity, entry.entityType].filter(Boolean).join(' · ') || '—'}
-                            </div>
-                          </div>
-
-                          {/* Applicable For */}
-                          <div>
-                            <span style={{ display: 'inline-block', fontSize: '11px', fontWeight: 700, padding: '4px 10px', borderRadius: '6px', background: appColor.bg, color: appColor.text, letterSpacing: '0.02em', whiteSpace: 'nowrap' }}>
-                              {(entry.applicableFor || '—').toUpperCase()}
-                            </span>
-                          </div>
-
-                          {/* Series Type */}
-                          <div>
-                            <span style={{ display: 'inline-block', fontSize: '11px', fontWeight: 700, padding: '4px 10px', borderRadius: '6px', background: '#F5F3FF', color: '#6D28D9', letterSpacing: '0.02em', whiteSpace: 'nowrap' }}>
-                              {(entry.seriesType || 'SEQ').toUpperCase()}
-                            </span>
-                          </div>
-
-                          {/* Status */}
-                          <div>
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, padding: '4px 12px', borderRadius: '9999px', background: entry.activeStatus ? 'color-mix(in srgb, #10b981 15%, var(--color-surface))' : 'var(--color-surface-subtle)', color: entry.activeStatus ? 'color-mix(in srgb, #10b981 85%, var(--color-text))' : 'var(--color-text-muted)' }}>
-                              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: entry.activeStatus ? 'color-mix(in srgb, #10b981 90%, var(--color-text))' : 'var(--color-border)', flexShrink: 0 }} />
-                              {entry.activeStatus ? 'Active' : 'Inactive'}
-                            </span>
-                          </div>
-
-                          {/* Actions */}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '2px', justifyContent: 'flex-end' }}>
-                            <button
-                              type="button"
-                              onClick={() => openCodeGenDrawerForEdit(entry)}
-                              title="Edit"
-                              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '34px', height: '34px', border: 'none', borderRadius: '8px', background: 'transparent', color: 'var(--color-text-muted)', cursor: 'pointer', transition: 'background 0.1s, color 0.1s' }}
-                              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-surface-subtle)'; e.currentTarget.style.color = 'var(--color-text)'; }}
-                              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-text-muted)'; }}
-                            >
-                              <Edit2 size={14} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => deleteCodeGenEntry(entry.id)}
-                              title="Delete"
-                              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '34px', height: '34px', border: 'none', borderRadius: '8px', background: 'transparent', color: 'var(--color-danger)', cursor: 'pointer', transition: 'background 0.1s' }}
-                              onMouseEnter={(e) => { e.currentTarget.style.background = 'color-mix(in srgb, var(--color-danger) 10%, var(--color-surface))'; }}
-                              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                    <div style={{ padding: '10px 20px', borderTop: '1px solid var(--color-border)', background: 'var(--color-surface-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-                      <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                        Showing <strong style={{ color: 'var(--color-text)', fontWeight: 600 }}>1–{codeGenEntries.length}</strong> of <strong style={{ color: 'var(--color-text)', fontWeight: 600 }}>{codeGenEntries.length}</strong> {codeGenEntries.length === 1 ? 'record' : 'records'}
-                      </span>
-                    </div>
-                  </div>
-                )
-            )}
-      </AdminPageShell>
+                )}
+      </AdminListPageShell>
 
       {/* ── Drawer ──────────────────────────────────────────────── */}
       {drawerOpen && (
@@ -575,16 +438,6 @@ const NumberingSettingsPage: React.FC = () => {
         />
       )}
 
-      {codeGenDrawerOpen && (
-        <CodeGenDrawer
-          visible={codeGenDrawerVisible}
-          isEdit={!!editingCodeGen}
-          formData={codeGenDrawerForm}
-          onClose={closeCodeGenDrawer}
-          onChangeField={(field, value) => setCodeGenDrawerForm((prev) => ({ ...prev, [field]: value } as Omit<CodeGenEntry, 'id'>))}
-          onSave={saveCodeGenEntry}
-        />
-      )}
       {numberingHelpTopic && (
         <HelpDrawer open={helpOpen} topic={numberingHelpTopic} onClose={() => setHelpOpen(false)} onTopicChange={(id) => setHelpTopicId(id)} />
       )}

@@ -1,6 +1,6 @@
 // ─── WarehouseCreateWorkspace ─────────────────────────────────────────────────
 //
-// 6-step guided workspace for creating a new warehouse.
+// 5-step guided workspace for creating a new warehouse.
 //
 // Pattern: Compact Form Workspace — fixed header + step indicator,
 // scrollable body, fixed footer. Does NOT wrap AdminPageShell.
@@ -33,6 +33,8 @@ import { warehouseMockAdapter } from '../services/warehouseMockAdapter';
 import { WAREHOUSE_ROUTES } from '../utils/routeUtils';
 import type {
   InventoryControlMode,
+  HierarchyLevelRole,
+  LocationType,
   WarehouseOwnershipScope,
   WarehouseType,
   PutawayStrategy,
@@ -49,6 +51,13 @@ import {
   buildActivationChecks,
 } from '../components/WarehouseActivationReview';
 import type { ActivationCheckInput } from '../components/WarehouseActivationReview';
+import { WarehouseTemplateTreeBuilder } from '../components/WarehouseTemplateTreeBuilder';
+import { WarehouseTemplateLevelDrawer } from '../components/WarehouseTemplateLevelDrawer';
+import type {
+  WarehouseTemplateLevelDraft,
+  WarehouseTemplateTreeNode,
+} from '../components/warehouseTemplateSetup.types';
+import { WAREHOUSE_ROOT_LEVEL_CODE } from '../utils/hierarchyUtils';
 
 export { buildActivationChecks as buildActivationChecksFromState };
 
@@ -60,17 +69,19 @@ const STEPS = [
   { index: 0, label: 'Identity' },
   { index: 1, label: 'Ownership & Scope' },
   { index: 2, label: 'Inventory Model' },
-  { index: 3, label: 'Structure' },
-  { index: 4, label: 'Operational Defaults' },
-  { index: 5, label: 'Review & Activate' },
+  { index: 3, label: 'Level Builder' },
+  { index: 4, label: 'Code Generation' },
+  { index: 5, label: 'Level Configuration' },
+  { index: 6, label: 'Review & Activate' },
 ];
 
 const STEP_DESCRIPTIONS = [
   'Name, code, type, and facility reference for this warehouse.',
   'Define who owns this warehouse and which branches can access it.',
   'Choose whether inventory is controlled at warehouse level or at location and BIN level.',
-  'Set up hierarchy expectations and location structure requirements for this warehouse.',
-  'Configure putaway, picking, reservation, and storage policies.',
+  'Design the full hierarchy stack quickly with minimal fields and live preview.',
+  'Refine code generation row by row only for the levels you created in the level builder.',
+  'Configure each designed level in detail inside the warehouse tree.',
   'Review setup health, resolve blockers, and save or activate with confidence.',
 ];
 
@@ -78,8 +89,9 @@ const STEP_HELP_TOPICS = [
   'warehouse-create',
   'warehouse-ownership',
   'warehouse-inventory-control',
-  'warehouse-hierarchy',
-  'warehouse-defaults',
+  'warehouse-structure',
+  'warehouse-structure',
+  'warehouse-structure',
   'warehouse-activation',
 ] as const;
 
@@ -137,6 +149,10 @@ const HIERARCHY_OPTIONS = [
 
 type HierarchyChoice = (typeof HIERARCHY_OPTIONS)[number]['key'];
 
+export function resolveQuickWizardLaunchMode(savedDraftWarehouseId: string | null): 'requires-save-draft' | 'ready' {
+  return savedDraftWarehouseId ? 'ready' : 'requires-save-draft';
+}
+
 export type OperationalPreset =
   | 'simple'
   | 'standard-distribution'
@@ -150,6 +166,54 @@ export interface BranchOwnershipRow {
   businessUnit: string;
   legalEntityCode: string;
   inventoryOwnerCode: string;
+}
+
+interface LevelBuilderRow {
+  id: string;
+  levelName: string;
+  levelCode: string;
+  sequence: number;
+  role: HierarchyLevelRole;
+  locationType: LocationType;
+  mandatory: boolean;
+  leafEligible: boolean;
+  inventoryEndpointEligible: boolean;
+}
+
+interface LevelCodeGenerationRow {
+  id: string;
+  levelRowId: string;
+  levelName: string;
+  levelCode: string;
+  prefixStrategy: 'WarehouseCode' | 'LevelCode' | 'Custom';
+  prefix: string;
+  startSequence: string;
+  sequenceLength: string;
+  separator: string;
+  suffix: string;
+  manualOverrideAllowed: boolean;
+  barcodeDefault: boolean;
+  qrDefault: boolean;
+}
+
+interface ActualNodeComposerState {
+  mode: 'single' | 'bulk';
+  parentId: string;
+  parentLabel: string;
+  parentCode: string;
+  parentLevelCode: string;
+  childLevelName: string;
+  childLevelCode: string;
+  childLevelRowId: string;
+  name: string;
+  code: string;
+  count: string;
+  namePrefix: string;
+  codePrefix: string;
+  startSequence: string;
+  sequenceLength: string;
+  separator: string;
+  suffix: string;
 }
 
 // ─── Form state ───────────────────────────────────────────────────────────────
@@ -180,7 +244,19 @@ export interface CreateFormState {
   // Step 2 — Inventory Model
   inventoryControlMode: InventoryControlMode | '';
 
-  // Step 3 — Structure
+  // Step 3 — Code Generation
+  autoGenerateLevelCodes: boolean;
+  defaultCodePrefixStrategy: 'WarehouseCode' | 'LevelCode' | 'Custom';
+  defaultCodePrefix: string;
+  defaultStartSequence: string;
+  defaultSequenceLength: string;
+  defaultSeparator: string;
+  defaultSuffix: string;
+  allowManualCodeOverride: boolean;
+  barcodeApplicableByDefault: boolean;
+  qrApplicableByDefault: boolean;
+
+  // Legacy structure fields kept for compatibility
   hierarchyChoice: HierarchyChoice | '';
   copyFromWarehouseId: string;
 
@@ -214,7 +290,7 @@ const EMPTY_STATE: CreateFormState = {
   facilityReference: '',
   timezone: '',
 
-  ownershipScope: '',
+  ownershipScope: 'Organization',
   owningOrgCode: '',
   owningBranchCode: '',
   companyCode: '',
@@ -227,6 +303,17 @@ const EMPTY_STATE: CreateFormState = {
   sharedBranchCodes: [],
 
   inventoryControlMode: '',
+
+  autoGenerateLevelCodes: true,
+  defaultCodePrefixStrategy: 'WarehouseCode',
+  defaultCodePrefix: '',
+  defaultStartSequence: '1',
+  defaultSequenceLength: '3',
+  defaultSeparator: '-',
+  defaultSuffix: '',
+  allowManualCodeOverride: true,
+  barcodeApplicableByDefault: false,
+  qrApplicableByDefault: false,
 
   hierarchyChoice: '',
   copyFromWarehouseId: '',
@@ -250,6 +337,430 @@ const EMPTY_STATE: CreateFormState = {
   temperatureControlled: false,
   wmsEnabled: false,
 };
+
+const LEVEL_ROLE_OPTIONS: HierarchyLevelRole[] = [
+  'Structural',
+  'InventoryEndpoint',
+  'Picking',
+  'Staging',
+  'Dock',
+  'QC',
+  'Returns',
+  'Damage',
+  'Scrap',
+  'Yard',
+  'Reporting',
+  'Custom',
+];
+
+const LEVEL_LOCATION_TYPE_OPTIONS: LocationType[] = [
+  'Zone',
+  'Aisle',
+  'Rack',
+  'Shelf',
+  'BIN',
+  'Dock',
+  'Staging',
+  'QC',
+  'Scrap',
+  'Virtual',
+  'General',
+];
+
+function makeLevelBuilderRow(sequence: number): LevelBuilderRow {
+  return {
+    id: `level-row-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    levelName: '',
+    levelCode: '',
+    sequence,
+    role: 'Structural',
+    locationType: 'General',
+    mandatory: sequence === 1,
+    leafEligible: false,
+    inventoryEndpointEligible: false,
+  };
+}
+
+function makeTemplateNodeId() {
+  return `template-node-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function resolveCodeRowPrefix(
+  row: Pick<LevelBuilderRow, 'levelCode'>,
+  warehouseCode: string,
+  strategy: LevelCodeGenerationRow['prefixStrategy'],
+  customPrefix: string,
+): string {
+  if (strategy === 'WarehouseCode') return warehouseCode.trim().toUpperCase();
+  if (strategy === 'LevelCode') return row.levelCode.trim().toUpperCase();
+  return customPrefix.trim().toUpperCase();
+}
+
+function buildDefaultCodeGenerationRow(
+  row: LevelBuilderRow,
+  state: CreateFormState,
+): LevelCodeGenerationRow {
+  return {
+    id: `code-row-${row.id}`,
+    levelRowId: row.id,
+    levelName: row.levelName,
+    levelCode: row.levelCode.trim().toUpperCase(),
+    prefixStrategy: state.defaultCodePrefixStrategy,
+    prefix: resolveCodeRowPrefix(row, state.warehouseCode, state.defaultCodePrefixStrategy, state.defaultCodePrefix),
+    startSequence: state.defaultStartSequence,
+    sequenceLength: state.defaultSequenceLength,
+    separator: state.defaultSeparator,
+    suffix: state.defaultSuffix,
+    manualOverrideAllowed: state.allowManualCodeOverride,
+    barcodeDefault: state.barcodeApplicableByDefault,
+    qrDefault: state.qrApplicableByDefault,
+  };
+}
+
+function buildLevelDraftFromRow(
+  row: LevelBuilderRow,
+  codeRow: LevelCodeGenerationRow,
+  parentLevelCode: string,
+  allowedChildLevels: string[],
+): WarehouseTemplateLevelDraft {
+  return {
+    name: row.levelName,
+    code: row.levelCode,
+    status: 'Active',
+    levelName: row.levelName,
+    levelCode: row.levelCode,
+    description: '',
+    role: row.role,
+    locationType: row.locationType,
+    mandatory: row.mandatory,
+    allowSkipLevel: false,
+    leafEligible: row.leafEligible,
+    inventoryEndpointEligible: row.inventoryEndpointEligible,
+    capacityApplicable: row.inventoryEndpointEligible,
+    itemEligibilityApplicable: row.inventoryEndpointEligible,
+    responsibilityApplicable: row.sequence <= 2,
+    barcodeApplicable: codeRow.barcodeDefault,
+    qrApplicable: codeRow.qrDefault,
+    autoGenerateCode: true,
+    codePrefix: codeRow.prefix,
+    startSequence: Math.max(1, Number(codeRow.startSequence) || 1),
+    sequenceLength: Math.max(1, Number(codeRow.sequenceLength) || 3),
+    separator: codeRow.separator,
+    suffix: codeRow.suffix,
+    capacityEnforcementMode: row.inventoryEndpointEligible ? 'HardBlock' : 'None',
+    capacityRollupMode: row.inventoryEndpointEligible ? 'OwnCapacityOnly' : 'None',
+    defaultResponsibilityRole: undefined,
+    transactionPurposes: row.inventoryEndpointEligible ? ['Storage', 'Putaway', 'Picking'] : ['Storage'],
+    allowedParentLevels: [parentLevelCode],
+    allowedChildLevels,
+    eligibilityMode: row.inventoryEndpointEligible ? 'Restricted' : 'Open',
+    eligibilityDefaultFallback: 'Allow',
+    eligibilityRulesSummary: '',
+    putawayEnabled: row.inventoryEndpointEligible,
+    putawayStrategySequence: row.inventoryEndpointEligible ? ['FEFO'] : [],
+    putawayOverrideAllowed: false,
+    pickingEnabled: row.inventoryEndpointEligible,
+    pickingStrategySequence: row.inventoryEndpointEligible ? ['FEFO'] : [],
+    pickingOverrideAllowed: false,
+    cycleCountEnabled: false,
+    cycleCountScope: 'Full',
+    cycleCountFrequency: 'Monthly',
+    cycleCountVarianceTolerance: 0,
+    cycleCountVarianceUnit: 'Units',
+    cycleCountFreezeEnabled: false,
+    maxStorageQuantity: 0,
+    maxWeight: 0,
+    maxVolume: 0,
+    maxWidth: 0,
+    maxHeight: 0,
+    maxLengthDepth: 0,
+    floorLoad: 0,
+    rackStructuralLoad: 0,
+    temperatureControlled: false,
+    minTemperature: 0,
+    maxTemperature: 0,
+    humidity: 0,
+    hazmatClass: '',
+    fireClass: '',
+    mixedItemAllowed: false,
+    mixedLotAllowed: false,
+    mixedOwnerAllowed: false,
+    complianceLockRequired: false,
+    itemMappings: [],
+    currentVersion: 1,
+    lastUpdatedOn: '',
+    lastUpdatedBy: '',
+    changeSummary: '',
+    previousSnapshotSummary: '',
+  };
+}
+
+function buildTemplateTreeFromRows(
+  rows: LevelBuilderRow[],
+  codeRows: LevelCodeGenerationRow[],
+): WarehouseTemplateTreeNode[] {
+  const orderedRows = [...rows]
+    .filter((row) => row.levelName.trim() && row.levelCode.trim())
+    .sort((left, right) => left.sequence - right.sequence);
+  const codeRowMap = new Map(codeRows.map((row) => [row.levelRowId, row]));
+  const nodes = orderedRows.map((row, index) => {
+    const nextLevelCode = orderedRows[index + 1]?.levelCode?.trim().toUpperCase();
+    const parentLevelCode = index === 0 ? WAREHOUSE_ROOT_LEVEL_CODE : orderedRows[index - 1].levelCode.trim().toUpperCase();
+    const codeRow = codeRowMap.get(row.id) ?? {
+      ...buildDefaultCodeGenerationRow(row, EMPTY_STATE),
+      levelName: row.levelName,
+      levelCode: row.levelCode.trim().toUpperCase(),
+    };
+    const draft = buildLevelDraftFromRow(
+      {
+        ...row,
+        levelCode: row.levelCode.trim().toUpperCase(),
+      },
+      codeRow,
+      parentLevelCode,
+      nextLevelCode ? [nextLevelCode] : [],
+    );
+
+    return {
+      id: `seed-${row.id}`,
+      parentId: index === 0 ? 'root' : `seed-${orderedRows[index - 1].id}`,
+      ...draft,
+      children: [],
+    };
+  });
+
+  const rootNodes: WarehouseTemplateTreeNode[] = [];
+  const nodeMap = new Map<string, WarehouseTemplateTreeNode>();
+  nodes.forEach((node) => nodeMap.set(node.id, { ...node, children: [] }));
+  nodes.forEach((node, index) => {
+    const current = nodeMap.get(node.id);
+    if (!current) return;
+    if (index === 0) {
+      rootNodes.push(current);
+      return;
+    }
+    const parent = nodeMap.get(node.parentId);
+    if (parent) {
+      parent.children.push(current);
+    }
+  });
+  return rootNodes;
+}
+
+function getOrderedLevelBuilderRows(rows: LevelBuilderRow[]): LevelBuilderRow[] {
+  return [...rows]
+    .filter((row) => row.levelName.trim() && row.levelCode.trim())
+    .sort((left, right) => left.sequence - right.sequence);
+}
+
+function findLevelBuilderRowByLevelCode(
+  rows: LevelBuilderRow[],
+  levelCode: string,
+): LevelBuilderRow | undefined {
+  return getOrderedLevelBuilderRows(rows).find(
+    (row) => row.levelCode.trim().toUpperCase() === levelCode.trim().toUpperCase(),
+  );
+}
+
+function findNextLevelBuilderRow(
+  rows: LevelBuilderRow[],
+  parentLevelCode: string,
+): LevelBuilderRow | undefined {
+  const orderedRows = getOrderedLevelBuilderRows(rows);
+  if (parentLevelCode === WAREHOUSE_ROOT_LEVEL_CODE) {
+    return orderedRows[0];
+  }
+  const parentIndex = orderedRows.findIndex(
+    (row) => row.levelCode.trim().toUpperCase() === parentLevelCode.trim().toUpperCase(),
+  );
+  if (parentIndex < 0) return undefined;
+  return orderedRows[parentIndex + 1];
+}
+
+function countChildNodesAtParent(
+  nodes: WarehouseTemplateTreeNode[],
+  parentId: string,
+  childLevelCode: string,
+): number {
+  if (parentId === 'root') {
+    return nodes.filter((node) => node.levelCode === childLevelCode).length;
+  }
+  const parentNode = findTemplateNode(nodes, parentId);
+  return parentNode
+    ? parentNode.children.filter((node) => node.levelCode === childLevelCode).length
+    : 0;
+}
+
+function buildNodeCodePreview(
+  prefix: string,
+  separator: string,
+  sequence: number,
+  sequenceLength: number,
+  suffix: string,
+): string {
+  const safeSequence = String(Math.max(1, sequence)).padStart(Math.max(1, sequenceLength), '0');
+  if (!prefix.trim()) {
+    return `${safeSequence}${suffix || ''}`;
+  }
+  return `${prefix}${separator || ''}${safeSequence}${suffix || ''}`;
+}
+
+function buildNodeComposerState(
+  nodes: WarehouseTemplateTreeNode[],
+  rows: LevelBuilderRow[],
+  codeRows: LevelCodeGenerationRow[],
+  parentId: string,
+  parentLabel: string,
+  parentCode: string,
+  parentLevelCode: string,
+  mode: 'single' | 'bulk',
+  warehouseCode: string,
+): ActualNodeComposerState | null {
+  const childLevelRow = findNextLevelBuilderRow(rows, parentLevelCode);
+  if (!childLevelRow) return null;
+  const codeRow =
+    codeRows.find((row) => row.levelRowId === childLevelRow.id) ??
+    buildDefaultCodeGenerationRow(childLevelRow, {
+      ...EMPTY_STATE,
+      warehouseCode,
+    });
+  const siblingCount = countChildNodesAtParent(
+    nodes,
+    parentId,
+    childLevelRow.levelCode.trim().toUpperCase(),
+  );
+  const sequenceBase = Math.max(1, Number(codeRow.startSequence) || 1) + siblingCount;
+  const sequenceLength = Math.max(1, Number(codeRow.sequenceLength) || 3);
+  const childLevelName = childLevelRow.levelName.trim();
+  const childLevelCode = childLevelRow.levelCode.trim().toUpperCase();
+  const namePrefix = childLevelName || 'Node';
+  const codePrefix = codeRow.prefix || childLevelCode || warehouseCode.trim().toUpperCase();
+
+  return {
+    mode,
+    parentId,
+    parentLabel,
+    parentCode,
+    parentLevelCode,
+    childLevelName,
+    childLevelCode,
+    childLevelRowId: childLevelRow.id,
+    name: `${namePrefix} ${String(siblingCount + 1).padStart(2, '0')}`,
+    code: buildNodeCodePreview(
+      codePrefix,
+      codeRow.separator,
+      sequenceBase,
+      sequenceLength,
+      codeRow.suffix,
+    ),
+    count: '3',
+    namePrefix,
+    codePrefix,
+    startSequence: String(sequenceBase),
+    sequenceLength: String(sequenceLength),
+    separator: codeRow.separator,
+    suffix: codeRow.suffix,
+  };
+}
+
+function buildBootstrapLevelsFromRows(
+  rows: LevelBuilderRow[],
+  codeRows: LevelCodeGenerationRow[],
+  warehouseCode: string,
+): CreateWarehouseInput['hierarchyTemplateBootstrap'] extends { levels: infer T } ? T : never {
+  const orderedRows = getOrderedLevelBuilderRows(rows);
+  const codeRowMap = new Map(codeRows.map((row) => [row.levelRowId, row]));
+  return orderedRows.map((row, index) => {
+    const codeRow =
+      codeRowMap.get(row.id) ??
+      buildDefaultCodeGenerationRow(row, {
+        ...EMPTY_STATE,
+        warehouseCode,
+      });
+    const nextLevelCode = orderedRows[index + 1]?.levelCode?.trim().toUpperCase();
+    return {
+      levelCode: row.levelCode.trim().toUpperCase(),
+      levelName: row.levelName.trim(),
+      sequence: index + 1,
+      levelRole: row.role,
+      locationType: row.locationType,
+      mandatory: row.mandatory,
+      allowSkipLevel: false,
+      leafEligible: row.leafEligible,
+      allowedParentLevels: [index === 0 ? WAREHOUSE_ROOT_LEVEL_CODE : orderedRows[index - 1].levelCode.trim().toUpperCase()],
+      allowedChildLevels: nextLevelCode ? [nextLevelCode] : [],
+      capacityApplicable: row.inventoryEndpointEligible,
+      itemEligibilityApplicable: row.inventoryEndpointEligible,
+      responsibilityApplicable: row.sequence <= 2,
+      barcodeApplicable: codeRow.barcodeDefault,
+      qrApplicable: codeRow.qrDefault,
+      codeGenerationPattern: buildNodeCodePreview(
+        codeRow.prefix,
+        codeRow.separator,
+        Math.max(1, Number(codeRow.startSequence) || 1),
+        Math.max(1, Number(codeRow.sequenceLength) || 3),
+        codeRow.suffix,
+      ),
+      parentLevelRestrictions: [index === 0 ? WAREHOUSE_ROOT_LEVEL_CODE : orderedRows[index - 1].levelCode.trim().toUpperCase()],
+      childLevelRestrictions: nextLevelCode ? [nextLevelCode] : [],
+    };
+  }) as CreateWarehouseInput['hierarchyTemplateBootstrap'] extends { levels: infer T } ? T : never;
+}
+
+function collectTemplateLevelOptions(nodes: WarehouseTemplateTreeNode[]): string[] {
+  const seen = new Set<string>([WAREHOUSE_ROOT_LEVEL_CODE]);
+  const walk = (items: WarehouseTemplateTreeNode[]) => {
+    items.forEach((item) => {
+      if (item.levelCode) seen.add(item.levelCode);
+      if (item.children.length > 0) walk(item.children);
+    });
+  };
+  walk(nodes);
+  return Array.from(seen);
+}
+
+function findTemplateNode(nodes: WarehouseTemplateTreeNode[], nodeId: string): WarehouseTemplateTreeNode | null {
+  for (const node of nodes) {
+    if (node.id === nodeId) return node;
+    const childMatch = findTemplateNode(node.children, nodeId);
+    if (childMatch) return childMatch;
+  }
+  return null;
+}
+
+function addTemplateChild(nodes: WarehouseTemplateTreeNode[], parentId: string, child: WarehouseTemplateTreeNode): WarehouseTemplateTreeNode[] {
+  if (parentId === 'root') return [...nodes, child];
+  return nodes.map((node) => (
+    node.id === parentId
+      ? { ...node, children: [...node.children, child] }
+      : { ...node, children: addTemplateChild(node.children, parentId, child) }
+  ));
+}
+
+function updateTemplateNode(
+  nodes: WarehouseTemplateTreeNode[],
+  nodeId: string,
+  draft: WarehouseTemplateLevelDraft,
+): WarehouseTemplateTreeNode[] {
+  return nodes.map((node) => {
+    if (node.id === nodeId) {
+      return { ...node, ...draft };
+    }
+    return { ...node, children: updateTemplateNode(node.children, nodeId, draft) };
+  });
+}
+
+function flattenTemplateLevels(nodes: WarehouseTemplateTreeNode[]): WarehouseTemplateTreeNode[] {
+  const rows: WarehouseTemplateTreeNode[] = [];
+  const walk = (items: WarehouseTemplateTreeNode[]) => {
+    items.forEach((item) => {
+      rows.push(item);
+      if (item.children.length > 0) walk(item.children);
+    });
+  };
+  walk(nodes);
+  return rows;
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -275,6 +786,10 @@ export function validateStep(
   state: CreateFormState,
 ): Record<string, string> {
   const errs: Record<string, string> = {};
+  const normalizedOwningBranchCodes = Array.from(new Set([
+    ...((state.owningBranchCodes ?? []).map((branchCode) => branchCode.trim()).filter(Boolean)),
+    ...(state.owningBranchCode.trim() ? [state.owningBranchCode.trim()] : []),
+  ].map((branchCode) => branchCode.toUpperCase())));
   if (step === 0) {
     if (!state.warehouseName.trim()) errs.warehouseName = 'Enter the warehouse name used by operations and reporting.';
     if (!state.warehouseCode.trim()) errs.warehouseCode = 'Enter a warehouse code before moving to ownership and inventory setup.';
@@ -284,16 +799,15 @@ export function validateStep(
     if (!state.ownershipScope) errs.ownershipScope = 'Choose whether this warehouse is governed at organisation scope or branch scope.';
     if (state.ownershipScope === 'Organization' && !state.owningOrgCode)
       errs.owningOrgCode = 'Select the owning organisation for this shared warehouse.';
-    if (state.ownershipScope === 'Organization' && !state.businessUnit)
-      errs.businessUnit = 'Select the business unit that governs this warehouse.';
-    if (state.ownershipScope === 'Organization' && !state.legalEntityCode)
-      errs.legalEntityCode = 'Select the legal entity for organisation-level ownership.';
     if (state.ownershipScope === 'Organization' && !state.inventoryOwnerCode)
       errs.inventoryOwnerCode = 'Select the inventory owner for this warehouse.';
-    if (state.ownershipScope === 'Branch' && state.owningBranchCodes.length === 0)
-      errs.owningBranchCodes = 'Select at least one owning branch before continuing.';
+    if (state.ownershipScope === 'Branch' && normalizedOwningBranchCodes.length === 0)
+      errs.owningBranchCode = 'Select one owning branch before continuing.';
+    if (state.ownershipScope === 'Branch' && normalizedOwningBranchCodes.length > 1)
+      errs.owningBranchCodes = 'Branch-level warehouses can have only one owning branch.';
     if (state.ownershipScope === 'Branch') {
-      const incompleteRow = state.branchOwnershipRows.find(
+      const branchRows = state.branchOwnershipRows ?? [];
+      const incompleteRow = branchRows.find(
         (row) =>
           !row.businessUnit.trim() ||
           !row.legalEntityCode.trim() ||
@@ -457,6 +971,8 @@ const sHead: React.CSSProperties = {
 };
 const sBody: React.CSSProperties = { padding: '20px 24px', background: 'var(--color-surface)' };
 const twoCol: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px' };
+const gridThreeComposer: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '14px' };
+const gridFourComposer: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '14px' };
 const fw: React.CSSProperties = { marginBottom: '14px' };
 const btnPrimary: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: '6px',
@@ -475,6 +991,98 @@ const btnGhost: React.CSSProperties = {
   padding: '9px 16px', fontSize: '13px', fontWeight: 500,
   borderRadius: '8px', border: 'none',
   background: 'transparent', color: 'var(--color-text-muted)', cursor: 'pointer',
+};
+const miniOutlineBtn: React.CSSProperties = {
+  padding: '6px 10px',
+  fontSize: '11px',
+  fontWeight: 600,
+  borderRadius: '8px',
+  border: '1px solid var(--color-border)',
+  background: 'var(--color-surface)',
+  color: 'var(--color-text)',
+  cursor: 'pointer',
+};
+const miniDangerBtn: React.CSSProperties = {
+  ...miniOutlineBtn,
+  border: '1px solid #FCA5A5',
+  background: '#FEF2F2',
+  color: '#B91C1C',
+};
+const checkboxCardStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'flex-start',
+  gap: '10px',
+  padding: '12px 14px',
+  border: '1px solid var(--color-border)',
+  borderRadius: '10px',
+  background: 'var(--color-surface)',
+};
+const checkboxTitleStyle: React.CSSProperties = {
+  fontSize: '12px',
+  fontWeight: 700,
+  color: 'var(--color-text)',
+};
+const checkboxHintStyle: React.CSSProperties = {
+  fontSize: '11px',
+  color: 'var(--color-text-muted)',
+  marginTop: '2px',
+};
+const checkboxPillStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '8px',
+  padding: '8px 12px',
+  border: '1px solid var(--color-border)',
+  borderRadius: '999px',
+  fontSize: '12px',
+  background: 'var(--color-surface)',
+};
+const previewRootStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '10px',
+  padding: '12px 14px',
+  borderRadius: '10px',
+  border: '1px solid var(--color-border)',
+  background: 'var(--color-surface-subtle)',
+};
+const previewNodeStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '10px',
+  padding: '10px 14px',
+  borderRadius: '10px',
+  border: '1px solid var(--color-border)',
+  background: 'var(--color-surface)',
+};
+const codeGridCell: React.CSSProperties = {
+  padding: '8px 10px',
+  borderRight: '1px solid var(--color-border)',
+};
+const codeGridReadonlyCell: React.CSSProperties = {
+  ...codeGridCell,
+  display: 'flex',
+  alignItems: 'center',
+  fontSize: '12px',
+  color: 'var(--color-text)',
+};
+const codeGridInput: React.CSSProperties = {
+  width: '100%',
+  padding: '7px 8px',
+  fontSize: '12px',
+  border: '1px solid var(--color-border)',
+  borderRadius: '8px',
+  background: 'var(--color-surface)',
+  color: 'var(--color-text)',
+  boxSizing: 'border-box',
+};
+const codeGridToggleCell: React.CSSProperties = {
+  ...codeGridCell,
+  display: 'flex',
+  alignItems: 'center',
+  gap: '6px',
+  fontSize: '12px',
+  color: 'var(--color-text)',
 };
 
 function labelWithHelp(label: string, helpKey?: string, required = false) {
@@ -627,6 +1235,41 @@ const WarehouseCreateWorkspace: React.FC = () => {
   const [helpOpen, setHelpOpen] = useState(false);
   const [isNarrow, setIsNarrow] = useState(() => window.innerWidth < 1024);
   const [savedDraftWarehouseId, setSavedDraftWarehouseId] = useState<string | null>(null);
+  const [levelBuilderRows, setLevelBuilderRows] = useState<LevelBuilderRow[]>([
+    {
+      ...makeLevelBuilderRow(1),
+      levelName: 'Zone',
+      levelCode: 'ZONE',
+      role: 'Structural',
+      locationType: 'Zone',
+      mandatory: true,
+    },
+    {
+      ...makeLevelBuilderRow(2),
+      levelName: 'BIN',
+      levelCode: 'BIN',
+      role: 'InventoryEndpoint',
+      locationType: 'BIN',
+      mandatory: true,
+      leafEligible: true,
+      inventoryEndpointEligible: true,
+    },
+  ]);
+  const [dragLevelRowId, setDragLevelRowId] = useState<string | null>(null);
+  const [levelCodeGenerationRows, setLevelCodeGenerationRows] = useState<LevelCodeGenerationRow[]>([]);
+  const [templateTreeNodes, setTemplateTreeNodes] = useState<WarehouseTemplateTreeNode[]>([]);
+  const [expandedTemplateNodeIds, setExpandedTemplateNodeIds] = useState<Set<string>>(new Set(['root']));
+  const [nodeComposerState, setNodeComposerState] = useState<ActualNodeComposerState | null>(null);
+  const [levelDrawerState, setLevelDrawerState] = useState<{
+    mode: 'edit';
+    parentId: string;
+    parentLabel: string;
+    parentCode: string;
+    parentLevelCode: string;
+    titleLabel: string;
+    initialValue: WarehouseTemplateLevelDraft;
+    editNodeId?: string;
+  } | null>(null);
   const codeCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const branchRowCache = useRef<Record<string, BranchOwnershipRow>>({});
 
@@ -687,6 +1330,282 @@ const WarehouseCreateWorkspace: React.FC = () => {
   function setField<K extends keyof CreateFormState>(key: K, value: CreateFormState[K]) {
     setState((s) => ({ ...s, [key]: value }));
     setFieldErrors((e) => ({ ...e, [key]: undefined as unknown as string }));
+    setIsDirty(true);
+  }
+
+  useEffect(() => {
+    setLevelCodeGenerationRows((current) => {
+      const existingMap = new Map(current.map((row) => [row.levelRowId, row]));
+      return levelBuilderRows
+        .filter((levelRow) => levelRow.levelName.trim() && levelRow.levelCode.trim())
+        .map((levelRow) => {
+        const existing = existingMap.get(levelRow.id);
+        if (!existing) {
+          return buildDefaultCodeGenerationRow(levelRow, state);
+        }
+
+        return {
+          ...existing,
+          levelName: levelRow.levelName,
+          levelCode: levelRow.levelCode.trim().toUpperCase(),
+          prefix:
+            existing.prefixStrategy === 'WarehouseCode'
+              ? state.warehouseCode.trim().toUpperCase()
+              : existing.prefixStrategy === 'LevelCode'
+                ? levelRow.levelCode.trim().toUpperCase()
+                : existing.prefix,
+        };
+      });
+    });
+  }, [
+    levelBuilderRows,
+    state.warehouseCode,
+    state.defaultCodePrefixStrategy,
+    state.defaultCodePrefix,
+    state.defaultStartSequence,
+    state.defaultSequenceLength,
+    state.defaultSeparator,
+    state.defaultSuffix,
+    state.allowManualCodeOverride,
+    state.barcodeApplicableByDefault,
+    state.qrApplicableByDefault,
+  ]);
+
+  function updateLevelBuilderRow(id: string, field: keyof Omit<LevelBuilderRow, 'id'>, value: string | number | boolean) {
+    setLevelBuilderRows((current) =>
+      current.map((row) => (row.id === id ? { ...row, [field]: value } as LevelBuilderRow : row)),
+    );
+    setIsDirty(true);
+  }
+
+  function addLevelBuilderRow() {
+    setLevelBuilderRows((current) => [...current, makeLevelBuilderRow(current.length + 1)]);
+    setIsDirty(true);
+  }
+
+  function removeLevelBuilderRow(id: string) {
+    setLevelBuilderRows((current) =>
+      current
+        .filter((row) => row.id !== id)
+        .map((row, index) => ({ ...row, sequence: index + 1 })),
+    );
+    setIsDirty(true);
+  }
+
+  function moveLevelBuilderRow(id: string, direction: 'up' | 'down') {
+    setLevelBuilderRows((current) => {
+      const index = current.findIndex((row) => row.id === id);
+      if (index < 0) return current;
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= current.length) return current;
+      const next = [...current];
+      const [moved] = next.splice(index, 1);
+      next.splice(targetIndex, 0, moved);
+      return next.map((row, rowIndex) => ({ ...row, sequence: rowIndex + 1 }));
+    });
+    setIsDirty(true);
+  }
+
+  function reorderLevelBuilderRows(sourceId: string, targetId: string) {
+    setLevelBuilderRows((current) => {
+      const sourceIndex = current.findIndex((row) => row.id === sourceId);
+      const targetIndex = current.findIndex((row) => row.id === targetId);
+      if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return current;
+      const next = [...current];
+      const [moved] = next.splice(sourceIndex, 1);
+      next.splice(targetIndex, 0, moved);
+      return next.map((row, rowIndex) => ({ ...row, sequence: rowIndex + 1 }));
+    });
+    setDragLevelRowId(null);
+    setIsDirty(true);
+  }
+
+  function updateCodeGenerationRow(
+    levelRowId: string,
+    field: keyof Omit<LevelCodeGenerationRow, 'id' | 'levelRowId' | 'levelName' | 'levelCode'>,
+    value: string | boolean,
+  ) {
+    setLevelCodeGenerationRows((current) =>
+      current.map((row) => {
+        if (row.levelRowId !== levelRowId) return row;
+        const nextRow = { ...row, [field]: value } as LevelCodeGenerationRow;
+        if (field === 'prefixStrategy') {
+          nextRow.prefix = resolveCodeRowPrefix(
+            {
+              levelCode: row.levelCode,
+            } as Pick<LevelBuilderRow, 'levelCode'>,
+            state.warehouseCode,
+            value as LevelCodeGenerationRow['prefixStrategy'],
+            row.prefix,
+          );
+        }
+        if (field === 'prefix' && nextRow.prefixStrategy !== 'Custom') {
+          nextRow.prefix = resolveCodeRowPrefix(
+            {
+              levelCode: row.levelCode,
+            } as Pick<LevelBuilderRow, 'levelCode'>,
+            state.warehouseCode,
+            nextRow.prefixStrategy,
+            String(value),
+          );
+        }
+        return nextRow;
+      }),
+    );
+    setIsDirty(true);
+  }
+
+  const templateLevelOptions = collectTemplateLevelOptions(templateTreeNodes);
+
+  function openCreateConfiguredLevel(parentId: string) {
+    const parentNode = parentId === 'root' ? null : findTemplateNode(templateTreeNodes, parentId);
+    const composer = buildNodeComposerState(
+      templateTreeNodes,
+      levelBuilderRows,
+      levelCodeGenerationRows,
+      parentId,
+      parentNode?.name ?? state.warehouseName ?? 'Warehouse',
+      parentNode?.code ?? state.warehouseCode,
+      parentNode?.levelCode ?? WAREHOUSE_ROOT_LEVEL_CODE,
+      'single',
+      state.warehouseCode,
+    );
+    if (!composer) {
+      showToast('No child level is defined for this parent. Update the level pattern in Level Builder first.', 'error');
+      return;
+    }
+    setNodeComposerState(composer);
+  }
+
+  function openBulkCreateConfiguredLevel(parentId: string) {
+    const parentNode = parentId === 'root' ? null : findTemplateNode(templateTreeNodes, parentId);
+    const composer = buildNodeComposerState(
+      templateTreeNodes,
+      levelBuilderRows,
+      levelCodeGenerationRows,
+      parentId,
+      parentNode?.name ?? state.warehouseName ?? 'Warehouse',
+      parentNode?.code ?? state.warehouseCode,
+      parentNode?.levelCode ?? WAREHOUSE_ROOT_LEVEL_CODE,
+      'bulk',
+      state.warehouseCode,
+    );
+    if (!composer) {
+      showToast('No child level is defined for this parent. Update the level pattern in Level Builder first.', 'error');
+      return;
+    }
+    setNodeComposerState(composer);
+  }
+
+  function openEditConfiguredLevel(nodeId: string) {
+    const targetNode = findTemplateNode(templateTreeNodes, nodeId);
+    if (!targetNode) return;
+    const parentNode = targetNode.parentId === 'root' ? null : findTemplateNode(templateTreeNodes, targetNode.parentId);
+    setLevelDrawerState({
+      mode: 'edit',
+      parentId: targetNode.parentId,
+      parentLabel: parentNode?.name ?? state.warehouseName ?? 'Warehouse',
+      parentCode: parentNode?.code ?? state.warehouseCode,
+      parentLevelCode: parentNode?.levelCode ?? WAREHOUSE_ROOT_LEVEL_CODE,
+      titleLabel: targetNode.levelName || targetNode.name,
+      initialValue: { ...targetNode },
+      editNodeId: targetNode.id,
+    });
+  }
+
+  function submitConfiguredLevel(nextDraft: WarehouseTemplateLevelDraft) {
+    if (!levelDrawerState) return;
+    if (levelDrawerState.editNodeId) {
+      setTemplateTreeNodes((current) => updateTemplateNode(current, levelDrawerState.editNodeId!, nextDraft));
+    }
+    setLevelDrawerState(null);
+    setIsDirty(true);
+  }
+
+  function updateNodeComposerField<K extends keyof ActualNodeComposerState>(
+    key: K,
+    value: ActualNodeComposerState[K],
+  ) {
+    setNodeComposerState((current) => (current ? { ...current, [key]: value } : current));
+  }
+
+  function submitActualNodeComposer() {
+    if (!nodeComposerState) return;
+    const childLevelRow = levelBuilderRows.find((row) => row.id === nodeComposerState.childLevelRowId);
+    if (!childLevelRow) {
+      showToast('The selected child level is no longer available. Please review the level pattern first.', 'error');
+      return;
+    }
+    const codeRow =
+      levelCodeGenerationRows.find((row) => row.levelRowId === childLevelRow.id) ??
+      buildDefaultCodeGenerationRow(childLevelRow, state);
+    const orderedRows = getOrderedLevelBuilderRows(levelBuilderRows);
+    const rowIndex = orderedRows.findIndex((row) => row.id === childLevelRow.id);
+    const nextLevelCode = orderedRows[rowIndex + 1]?.levelCode?.trim().toUpperCase();
+    const baseDraft = buildLevelDraftFromRow(
+      {
+        ...childLevelRow,
+        levelCode: childLevelRow.levelCode.trim().toUpperCase(),
+      },
+      codeRow,
+      nodeComposerState.parentLevelCode,
+      nextLevelCode ? [nextLevelCode] : [],
+    );
+
+    if (nodeComposerState.mode === 'single') {
+      if (!nodeComposerState.name.trim() || !nodeComposerState.code.trim()) {
+        showToast(`Enter ${nodeComposerState.childLevelName} name and code before saving.`, 'error');
+        return;
+      }
+      const nextNode: WarehouseTemplateTreeNode = {
+        id: makeTemplateNodeId(),
+        parentId: nodeComposerState.parentId,
+        ...baseDraft,
+        name: nodeComposerState.name.trim(),
+        code: nodeComposerState.code.trim().toUpperCase(),
+        status: 'Active',
+        children: [],
+      };
+      setTemplateTreeNodes((current) => addTemplateChild(current, nodeComposerState.parentId, nextNode));
+      setExpandedTemplateNodeIds((current) => new Set([...current, 'root', nodeComposerState.parentId]));
+      setNodeComposerState(null);
+      setIsDirty(true);
+      return;
+    }
+
+    const total = Math.max(1, Number(nodeComposerState.count) || 0);
+    if (!nodeComposerState.namePrefix.trim() || !nodeComposerState.codePrefix.trim() || total <= 0) {
+      showToast(`Complete the ${nodeComposerState.childLevelName} bulk-create inputs before saving.`, 'error');
+      return;
+    }
+    const startingSequence = Math.max(1, Number(nodeComposerState.startSequence) || 1);
+    const sequenceLength = Math.max(1, Number(nodeComposerState.sequenceLength) || 3);
+    const createdNodes: WarehouseTemplateTreeNode[] = Array.from({ length: total }, (_, index) => {
+      const sequence = startingSequence + index;
+      return {
+        id: makeTemplateNodeId(),
+        parentId: nodeComposerState.parentId,
+        ...baseDraft,
+        name: `${nodeComposerState.namePrefix.trim()} ${String(sequence).padStart(2, '0')}`,
+        code: buildNodeCodePreview(
+          nodeComposerState.codePrefix.trim(),
+          nodeComposerState.separator,
+          sequence,
+          sequenceLength,
+          nodeComposerState.suffix,
+        ),
+        status: 'Active',
+        children: [],
+      };
+    });
+    setTemplateTreeNodes((current) =>
+      createdNodes.reduce(
+        (nodes, nextNode) => addTemplateChild(nodes, nodeComposerState.parentId, nextNode),
+        current,
+      ),
+    );
+    setExpandedTemplateNodeIds((current) => new Set([...current, 'root', nodeComposerState.parentId]));
+    setNodeComposerState(null);
     setIsDirty(true);
   }
 
@@ -844,6 +1763,7 @@ const WarehouseCreateWorkspace: React.FC = () => {
 
   const isBinLevel = state.inventoryControlMode === 'Location-BIN-Level';
   const isWhLevel = state.inventoryControlMode === 'Warehouse-Level';
+  const configuredTemplateLevels = flattenTemplateLevels(templateTreeNodes);
 
   // ── Step validation and advance ────────────────────────────────────────────
   function advanceStep() {
@@ -851,6 +1771,30 @@ const WarehouseCreateWorkspace: React.FC = () => {
     if (Object.keys(errs).length > 0) {
       setFieldErrors(errs);
       showToast('Complete the required fields in this step before continuing. Each highlighted field explains what is missing.', 'error');
+      return;
+    }
+    if (step === 3) {
+      const hasValidLevelRows = levelBuilderRows.some(
+        (row) => row.levelName.trim() && row.levelCode.trim(),
+      );
+      if (!hasValidLevelRows) {
+        showToast('Add at least one hierarchy level with Level Name and Level Code before continuing.', 'error');
+        return;
+      }
+    }
+    if (step === 4) {
+      const invalidCodeRow = levelCodeGenerationRows.find((row) =>
+        !row.startSequence.trim() ||
+        !row.sequenceLength.trim() ||
+        (row.prefixStrategy === 'Custom' && !row.prefix.trim()),
+      );
+      if (invalidCodeRow) {
+        showToast(`Complete code generation fields for ${invalidCodeRow.levelName || invalidCodeRow.levelCode || 'the affected level'} before continuing.`, 'error');
+        return;
+      }
+    }
+    if (step === 5 && templateTreeNodes.length === 0) {
+      showToast('Design at least one configured level before moving to Review & Activate.', 'error');
       return;
     }
     setCompletedSteps((prev) => new Set(prev).add(step));
@@ -877,6 +1821,11 @@ const WarehouseCreateWorkspace: React.FC = () => {
   function buildInput(): CreateWarehouseInput {
     const mode = state.inventoryControlMode as InventoryControlMode;
     const primaryBranchRow = state.branchOwnershipRows[0];
+    const bootstrapLevels = buildBootstrapLevelsFromRows(
+      levelBuilderRows,
+      levelCodeGenerationRows,
+      state.warehouseCode,
+    );
     const autoPutaway = mode === 'Location-BIN-Level'
       ? {
           enabled: state.autoPutawayEnabled,
@@ -952,6 +1901,15 @@ const WarehouseCreateWorkspace: React.FC = () => {
         varianceTolerance: parseFloat(state.cycleCountVarianceTolerance) || 2,
         varianceUnit: 'Percent',
       },
+      hierarchyTemplateBootstrap:
+        bootstrapLevels.length > 0
+          ? {
+              templateCode: `${state.warehouseCode.trim().toUpperCase() || 'WH'}-TPL`,
+              templateName: `${state.warehouseName.trim() || 'Warehouse'} Template`,
+              flexiblePathEnabled: true,
+              levels: bootstrapLevels,
+            }
+          : undefined,
     };
   }
 
@@ -1026,9 +1984,11 @@ const WarehouseCreateWorkspace: React.FC = () => {
   const activationCheckInput: ActivationCheckInput = {
     warehouseName: state.warehouseName,
     warehouseCode: state.warehouseCode,
+    timezone: state.timezone,
     warehouseType: state.warehouseType,
     ownershipScope: state.ownershipScope,
     owningOrgCode: state.owningOrgCode,
+    owningBranchCode: state.owningBranchCode,
     businessUnit: state.businessUnit,
     legalEntityCode: state.legalEntityCode,
     inventoryOwnerCode: state.inventoryOwnerCode,
@@ -1044,13 +2004,17 @@ const WarehouseCreateWorkspace: React.FC = () => {
     inventoryControlMode: state.inventoryControlMode,
     // For new warehouse creation, there are no templates or locations yet.
     // Warehouse-Level skips these checks; BIN-Level warns user (cannot be truly validated
-    // until after save + hierarchy setup, so we use hierarchyChoice as a proxy).
+    // until after save + hierarchy setup, so we use create-time level design as a proxy.
     hasActiveTemplate:
-      !isBinLevel ||
-      (state.hierarchyChoice === 'quick' || state.hierarchyChoice === 'recommended' || state.hierarchyChoice === 'copy'),
-    hasActiveInventoryLocation: !isBinLevel || state.hierarchyChoice === 'later' ? false : !isBinLevel,
+      !isBinLevel || templateTreeNodes.length > 0,
+    hasActiveInventoryLocation: !isBinLevel ? true : configuredTemplateLevels.some((node) => node.inventoryEndpointEligible),
     codeIsUnique,
     hasPermission: true, // Phase 3: mock permissions always granted
+    timezonePolicy: {
+      // Current product model does not yet expose timing-governance policy flags in this create flow.
+      // Keep timezone non-blocking by default until an explicit policy requires it.
+      timezoneRequiredForActivation: false,
+    },
   };
 
   const activationChecks = buildActivationChecks(activationCheckInput);
@@ -1182,12 +2146,12 @@ const WarehouseCreateWorkspace: React.FC = () => {
                 {fieldErrors.warehouseType && <p style={errTxt}>{fieldErrors.warehouseType}</p>}
                 {state.warehouseType === 'Cold-Chain' && (
                   <p style={{ ...hintTxt, color: '#0891B2' }}>
-                    Cold-Chain type will enable temperature-control fields in Operational Defaults.
+                    Cold-Chain type will keep temperature-control defaults enabled in the warehouse setup.
                   </p>
                 )}
                 {state.warehouseType === 'Hazardous' && (
                   <p style={{ ...hintTxt, color: '#D97706' }}>
-                    Hazardous type will enable hazard-control fields in Operational Defaults.
+                    Hazardous type will keep hazard-control defaults enabled in the warehouse setup.
                   </p>
                 )}
               </div>
@@ -1780,9 +2744,11 @@ const WarehouseCreateWorkspace: React.FC = () => {
 
             {state.hierarchyChoice === 'quick' && (
               <div style={{ marginBottom: '16px', display: 'grid', gap: '10px' }}>
+                {resolveQuickWizardLaunchMode(savedDraftWarehouseId) === 'requires-save-draft' && (
                 <div style={{ padding: '10px 14px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '8px', fontSize: '12px', color: '#1D4ED8' }}>
                   Quick wizard requires a saved draft warehouse first. This keeps hierarchy creation tied to a concrete warehouse ID.
                 </div>
+                )}
                 <button
                   type="button"
                   onClick={async () => {
@@ -2262,62 +3228,13 @@ const WarehouseCreateWorkspace: React.FC = () => {
   }
 
   function renderStep1Modern() {
-    const showOrgFields = state.ownershipScope === 'Organization';
-    const showBranchFields = state.ownershipScope === 'Branch';
-
     return (
       <div>
         <div style={sCard}>
           <div style={sHead}>
-            <span style={{ fontSize: '13px', fontWeight: 600 }}>Ownership Scope</span>
-            <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
-              Choose whether ownership is shared across the organisation or defined branch by branch
-            </span>
+            <span style={{ fontSize: '13px', fontWeight: 600 }}>Organisation Ownership</span>
           </div>
           <div style={sBody}>
-            <div style={{ display: 'grid', gridTemplateColumns: isNarrow ? '1fr' : 'repeat(2, minmax(0, 1fr))', gap: '12px' }}>
-              {(['Organization', 'Branch'] as WarehouseOwnershipScope[]).map((scope) => (
-                <label
-                  key={scope}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: '10px',
-                    padding: '14px 16px',
-                    border: `2px solid ${state.ownershipScope === scope ? 'var(--color-primary)' : 'var(--color-border)'}`,
-                    borderRadius: '12px',
-                    background: state.ownershipScope === scope ? 'color-mix(in srgb, var(--color-primary) 6%, white)' : 'var(--color-surface)',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <input
-                    type="radio"
-                    name="ownershipScopeModern"
-                    checked={state.ownershipScope === scope}
-                    onChange={() => setField('ownershipScope', scope)}
-                    style={{ marginTop: '2px', accentColor: 'var(--color-primary)' }}
-                  />
-                  <div>
-                    <p style={{ margin: 0, fontSize: '13px', fontWeight: 700 }}>{scope} Level</p>
-                    <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--color-text-muted)', lineHeight: 1.45 }}>
-                      {scope === 'Organization'
-                        ? 'Use one shared ownership set and optionally share warehouse access across branches.'
-                        : 'Select multiple owning branches and capture BU, legal entity, and inventory owner per branch row.'}
-                    </p>
-                  </div>
-                </label>
-              ))}
-            </div>
-            {fieldErrors.ownershipScope && <p style={errTxt}>{fieldErrors.ownershipScope}</p>}
-          </div>
-        </div>
-
-        {showOrgFields && (
-          <div style={sCard}>
-            <div style={sHead}>
-              <span style={{ fontSize: '13px', fontWeight: 600 }}>Organisation Ownership</span>
-            </div>
-            <div style={sBody}>
               <div style={{ ...twoCol, ...fw }}>
                 <div>
                   <label style={labelBase}>Owning Organization <span style={{ color: '#DC2626' }}>*</span></label>
@@ -2326,24 +3243,6 @@ const WarehouseCreateWorkspace: React.FC = () => {
                     {MOCK_ORG_CODES.map((code) => <option key={code} value={code}>{code}</option>)}
                   </select>
                   {fieldErrors.owningOrgCode && <p style={errTxt}>{fieldErrors.owningOrgCode}</p>}
-                </div>
-                <div>
-                  <label style={labelBase}>Business Unit <span style={{ color: '#DC2626' }}>*</span></label>
-                  <select value={state.businessUnit} onChange={(e) => setField('businessUnit', e.target.value)} style={fieldErrors.businessUnit ? inputErr : inputBase}>
-                    <option value="">Select BU...</option>
-                    {MOCK_BU_CODES.map((code) => <option key={code} value={code}>{code}</option>)}
-                  </select>
-                  {fieldErrors.businessUnit && <p style={errTxt}>{fieldErrors.businessUnit}</p>}
-                </div>
-              </div>
-              <div style={twoCol}>
-                <div>
-                  <label style={labelBase}>Legal Entity <span style={{ color: '#DC2626' }}>*</span></label>
-                  <select value={state.legalEntityCode} onChange={(e) => setField('legalEntityCode', e.target.value)} style={fieldErrors.legalEntityCode ? inputErr : inputBase}>
-                    <option value="">Select legal entity...</option>
-                    {MOCK_LEGAL_ENTITIES.map((code) => <option key={code} value={code}>{code}</option>)}
-                  </select>
-                  {fieldErrors.legalEntityCode && <p style={errTxt}>{fieldErrors.legalEntityCode}</p>}
                 </div>
                 <div>
                   <label style={labelBase}>Inventory Owner <span style={{ color: '#DC2626' }}>*</span></label>
@@ -2356,14 +3255,12 @@ const WarehouseCreateWorkspace: React.FC = () => {
               </div>
             </div>
           </div>
-        )}
 
-        {showOrgFields && (
-          <div style={sCard}>
-            <div style={sHead}>
-              <span style={{ fontSize: '13px', fontWeight: 600 }}>Branch Access</span>
-            </div>
-            <div style={sBody}>
+        <div style={sCard}>
+          <div style={sHead}>
+            <span style={{ fontSize: '13px', fontWeight: 600 }}>Branch Access</span>
+          </div>
+          <div style={sBody}>
               <div style={{ padding: '12px 14px', background: 'var(--color-surface-subtle)', border: '1px solid var(--color-border)', borderRadius: '10px', marginBottom: '14px' }}>
                 <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
                   <input type="checkbox" checked={state.sharedWithAllBranches} onChange={(e) => setField('sharedWithAllBranches', e.target.checked)} style={{ marginTop: '3px', accentColor: 'var(--color-primary)' }} />
@@ -2404,9 +3301,8 @@ const WarehouseCreateWorkspace: React.FC = () => {
               )}
             </div>
           </div>
-        )}
 
-        {showBranchFields && (
+        {false && (
           <div style={sCard}>
             <div style={sHead}>
               <span style={{ fontSize: '13px', fontWeight: 600 }}>Branch Ownership Grid</span>
@@ -2589,9 +3485,11 @@ const WarehouseCreateWorkspace: React.FC = () => {
 
             {state.hierarchyChoice === 'quick' && (
               <div style={{ marginBottom: '16px', display: 'grid', gap: '10px' }}>
+                {resolveQuickWizardLaunchMode(savedDraftWarehouseId) === 'requires-save-draft' && (
                 <div style={{ padding: '10px 14px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '8px', fontSize: '12px', color: '#1D4ED8' }}>
                   Quick wizard requires a draft warehouse ID. Save draft first, then launch directly into hierarchy quick creation.
                 </div>
+                )}
                 <button
                   type="button"
                   onClick={async () => {
@@ -2624,10 +3522,336 @@ const WarehouseCreateWorkspace: React.FC = () => {
     );
   }
 
+  function renderStep3CodeGeneration() {
+    return (
+      <div style={{ display: 'grid', gap: '16px' }}>
+        <div style={sCard}>
+          <div style={sHead}>
+            <span style={{ fontSize: '13px', fontWeight: 600 }}>Code Generation</span>
+            <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+              Configure code generation only for the levels you created in Level Builder.
+            </span>
+          </div>
+          <div style={sBody}>
+            <div style={{ padding: '10px 14px', borderRadius: '10px', background: 'var(--color-surface-subtle)', border: '1px solid var(--color-border)', fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '14px' }}>
+              Each row is created from the levels in <strong>Level Builder</strong>. Changes stay attached to the same designed level even if you reorder the level stack.
+            </div>
+
+            <div style={{ overflowX: 'auto' }}>
+              <div style={{ minWidth: '1380px', border: '1px solid var(--color-border)', borderRadius: '12px', overflow: 'hidden' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '140px 120px 130px 120px 110px 120px 90px 90px 130px 110px 100px 180px', background: 'var(--color-surface-subtle)', borderBottom: '1px solid var(--color-border)' }}>
+                  {['Level Name', 'Level Code', 'Prefix Strategy', 'Prefix', 'Start Sequence', 'Sequence Length', 'Separator', 'Suffix', 'Manual Override', 'Barcode', 'QR', 'Generated Example'].map((header) => (
+                    <div key={header} style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', borderRight: '1px solid var(--color-border)' }}>
+                      {header}
+                    </div>
+                  ))}
+                </div>
+                {levelCodeGenerationRows.map((row) => {
+                  const generatedExample = `${row.prefix}${row.separator}${String(Math.max(1, Number(row.startSequence) || 1)).padStart(Math.max(1, Number(row.sequenceLength) || 3), '0')}${row.suffix}`;
+                  return (
+                    <div
+                      key={row.id}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '140px 120px 130px 120px 110px 120px 90px 90px 130px 110px 100px 180px',
+                        borderBottom: '1px solid var(--color-border)',
+                        background: 'var(--color-surface)',
+                      }}
+                    >
+                      <div style={codeGridReadonlyCell}>{row.levelName || 'Unnamed level'}</div>
+                      <div style={codeGridReadonlyCell}>{row.levelCode || 'LEVEL'}</div>
+                      <div style={codeGridCell}>
+                        <select
+                          value={row.prefixStrategy}
+                          onChange={(event) => updateCodeGenerationRow(row.levelRowId, 'prefixStrategy', event.target.value as LevelCodeGenerationRow['prefixStrategy'])}
+                          style={codeGridInput}
+                        >
+                          <option value="WarehouseCode">Warehouse Code</option>
+                          <option value="LevelCode">Level Code</option>
+                          <option value="Custom">Custom</option>
+                        </select>
+                      </div>
+                      <div style={codeGridCell}>
+                        <input
+                          type="text"
+                          value={row.prefix}
+                          onChange={(event) => updateCodeGenerationRow(row.levelRowId, 'prefix', event.target.value.toUpperCase())}
+                          style={{ ...codeGridInput, background: row.prefixStrategy === 'Custom' ? 'var(--color-surface)' : 'var(--color-surface-subtle)' }}
+                          readOnly={row.prefixStrategy !== 'Custom'}
+                        />
+                      </div>
+                      <div style={codeGridCell}>
+                        <input
+                          type="number"
+                          min="1"
+                          value={row.startSequence}
+                          onChange={(event) => updateCodeGenerationRow(row.levelRowId, 'startSequence', event.target.value)}
+                          style={codeGridInput}
+                        />
+                      </div>
+                      <div style={codeGridCell}>
+                        <input
+                          type="number"
+                          min="1"
+                          value={row.sequenceLength}
+                          onChange={(event) => updateCodeGenerationRow(row.levelRowId, 'sequenceLength', event.target.value)}
+                          style={codeGridInput}
+                        />
+                      </div>
+                      <div style={codeGridCell}>
+                        <input
+                          type="text"
+                          value={row.separator}
+                          onChange={(event) => updateCodeGenerationRow(row.levelRowId, 'separator', event.target.value)}
+                          style={codeGridInput}
+                        />
+                      </div>
+                      <div style={codeGridCell}>
+                        <input
+                          type="text"
+                          value={row.suffix}
+                          onChange={(event) => updateCodeGenerationRow(row.levelRowId, 'suffix', event.target.value.toUpperCase())}
+                          style={codeGridInput}
+                        />
+                      </div>
+                      <label style={codeGridToggleCell}>
+                        <input
+                          type="checkbox"
+                          checked={row.manualOverrideAllowed}
+                          onChange={(event) => updateCodeGenerationRow(row.levelRowId, 'manualOverrideAllowed', event.target.checked)}
+                        />
+                        Allow
+                      </label>
+                      <label style={codeGridToggleCell}>
+                        <input
+                          type="checkbox"
+                          checked={row.barcodeDefault}
+                          onChange={(event) => updateCodeGenerationRow(row.levelRowId, 'barcodeDefault', event.target.checked)}
+                        />
+                        Yes
+                      </label>
+                      <label style={codeGridToggleCell}>
+                        <input
+                          type="checkbox"
+                          checked={row.qrDefault}
+                          onChange={(event) => updateCodeGenerationRow(row.levelRowId, 'qrDefault', event.target.checked)}
+                        />
+                        Yes
+                      </label>
+                      <div style={codeGridReadonlyCell}>
+                        <span style={{ fontFamily: 'monospace', fontSize: '11px', fontWeight: 700, color: 'var(--color-primary)' }}>
+                          {generatedExample}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderStep4LevelBuilder() {
+    return (
+      <div style={{ display: 'grid', gap: '16px' }}>
+        <div style={sCard}>
+          <div style={sHead}>
+            <span style={{ fontSize: '13px', fontWeight: 600 }}>Level Builder</span>
+            <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+              Design the full level stack once, then fine-tune each level in the next step.
+            </span>
+          </div>
+          <div style={sBody}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                Add levels with only the minimum fields needed to create the hierarchy skeleton. The grid below stays as the single source for level creation.
+              </div>
+              <button type="button" onClick={addLevelBuilderRow} style={btnPrimary}>
+                Add Level
+              </button>
+            </div>
+
+            <div style={{ border: '1px solid var(--color-border)', borderRadius: '12px', overflow: 'hidden', background: 'var(--color-surface)' }}>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '88px minmax(170px, 1.3fr) minmax(130px, 1fr) 96px minmax(150px, 1fr) minmax(150px, 1fr) 110px 110px 150px 190px',
+                  background: 'var(--color-surface-subtle)',
+                  borderBottom: '1px solid var(--color-border)',
+                }}
+              >
+                {['Order', 'Level Name', 'Level Code', 'Sequence', 'Level Role', 'Location Type', 'Mandatory', 'Leaf', 'Inventory Endpoint', 'Actions'].map((label, index, array) => (
+                  <div
+                    key={label}
+                    style={{
+                      ...codeGridReadonlyCell,
+                      fontWeight: 700,
+                      background: 'transparent',
+                      borderRight: index === array.length - 1 ? 'none' : codeGridCell.borderRight,
+                    }}
+                  >
+                    {label}
+                  </div>
+                ))}
+              </div>
+
+              {levelBuilderRows.map((row, index) => (
+                <div
+                  key={row.id}
+                  draggable
+                  onDragStart={() => setDragLevelRowId(row.id)}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={() => dragLevelRowId && reorderLevelBuilderRows(dragLevelRowId, row.id)}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '88px minmax(170px, 1.3fr) minmax(130px, 1fr) 96px minmax(150px, 1fr) minmax(150px, 1fr) 110px 110px 150px 190px',
+                    borderBottom: index === levelBuilderRows.length - 1 ? 'none' : '1px solid var(--color-border)',
+                    background: 'var(--color-surface)',
+                  }}
+                >
+                  <div style={{ ...codeGridReadonlyCell, gap: '8px' }}>
+                    <span style={{ cursor: 'grab', color: 'var(--color-text-muted)', fontSize: '14px' }} title="Drag to reorder">::</span>
+                    <span>Level {index + 1}</span>
+                  </div>
+                  <div style={codeGridCell}>
+                    <input
+                      type="text"
+                      value={row.levelName}
+                      onChange={(event) => updateLevelBuilderRow(row.id, 'levelName', event.target.value)}
+                      style={codeGridInput}
+                      placeholder="e.g. Zone"
+                    />
+                  </div>
+                  <div style={codeGridCell}>
+                    <input
+                      type="text"
+                      value={row.levelCode}
+                      onChange={(event) => updateLevelBuilderRow(row.id, 'levelCode', event.target.value.toUpperCase())}
+                      style={codeGridInput}
+                      placeholder="e.g. ZONE"
+                    />
+                  </div>
+                  <div style={codeGridCell}>
+                    <input
+                      type="number"
+                      value={row.sequence}
+                      onChange={(event) => updateLevelBuilderRow(row.id, 'sequence', Number(event.target.value || index + 1))}
+                      style={codeGridInput}
+                      min={1}
+                    />
+                  </div>
+                  <div style={codeGridCell}>
+                    <select
+                      value={row.role}
+                      onChange={(event) => updateLevelBuilderRow(row.id, 'role', event.target.value as HierarchyLevelRole)}
+                      style={codeGridInput}
+                    >
+                      {LEVEL_ROLE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+                    </select>
+                  </div>
+                  <div style={codeGridCell}>
+                    <select
+                      value={row.locationType}
+                      onChange={(event) => updateLevelBuilderRow(row.id, 'locationType', event.target.value as LocationType)}
+                      style={codeGridInput}
+                    >
+                      {LEVEL_LOCATION_TYPE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+                    </select>
+                  </div>
+                  <label style={{ ...codeGridToggleCell, justifyContent: 'center' }}>
+                    <input
+                      type="checkbox"
+                      checked={row.mandatory}
+                      onChange={(event) => updateLevelBuilderRow(row.id, 'mandatory', event.target.checked)}
+                    />
+                  </label>
+                  <label style={{ ...codeGridToggleCell, justifyContent: 'center' }}>
+                    <input
+                      type="checkbox"
+                      checked={row.leafEligible}
+                      onChange={(event) => updateLevelBuilderRow(row.id, 'leafEligible', event.target.checked)}
+                    />
+                  </label>
+                  <label style={{ ...codeGridToggleCell, justifyContent: 'center' }}>
+                    <input
+                      type="checkbox"
+                      checked={row.inventoryEndpointEligible}
+                      onChange={(event) => updateLevelBuilderRow(row.id, 'inventoryEndpointEligible', event.target.checked)}
+                    />
+                  </label>
+                  <div style={{ ...codeGridCell, borderRight: 'none', display: 'flex', gap: '6px', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap' }}>
+                    <button type="button" onClick={() => moveLevelBuilderRow(row.id, 'up')} style={miniOutlineBtn} disabled={index === 0}>Up</button>
+                    <button type="button" onClick={() => moveLevelBuilderRow(row.id, 'down')} style={miniOutlineBtn} disabled={index === levelBuilderRows.length - 1}>Down</button>
+                    <button type="button" onClick={() => removeLevelBuilderRow(row.id)} style={miniDangerBtn} disabled={levelBuilderRows.length === 1}>Remove</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div style={sCard}>
+          <div style={sHead}>
+            <span style={{ fontSize: '13px', fontWeight: 600 }}>Live Structure Preview</span>
+            <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+              This preview will seed the next step for detailed level configuration.
+            </span>
+          </div>
+          <div style={sBody}>
+            <div style={{ display: 'grid', gap: '10px' }}>
+              <div style={previewRootStyle}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '999px', background: 'var(--color-primary)' }} />
+                <strong>{state.warehouseName || 'New Warehouse'}</strong>
+                <span style={{ fontFamily: 'monospace', fontSize: '11px', color: 'var(--color-text-muted)' }}>{state.warehouseCode || 'WH-CODE'}</span>
+              </div>
+              {levelBuilderRows.map((row, index) => (
+                <div key={row.id} style={{ ...previewNodeStyle, marginLeft: `${index * 22}px` }}>
+                  <span style={{ width: '8px', height: '8px', borderRadius: '999px', background: row.inventoryEndpointEligible ? '#16A34A' : '#CBD5E1' }} />
+                  <span style={{ fontWeight: 600 }}>{row.levelName || `Level ${index + 1}`}</span>
+                  <span style={{ fontFamily: 'monospace', fontSize: '11px', color: 'var(--color-text-muted)' }}>{row.levelCode || 'LEVEL'}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderStep5LevelConfiguration() {
+    return (
+      <WarehouseTemplateTreeBuilder
+        warehouseName={state.warehouseName || 'New Warehouse'}
+        warehouseCode={state.warehouseCode || 'WH-CODE'}
+        nodes={templateTreeNodes}
+        expandedIds={expandedTemplateNodeIds}
+        onToggle={(id) =>
+          setExpandedTemplateNodeIds((current) => {
+            const next = new Set(current);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+          })
+        }
+        rootCanAdd={getOrderedLevelBuilderRows(levelBuilderRows).length > 0}
+        rootCanBulk={getOrderedLevelBuilderRows(levelBuilderRows).length > 0}
+        onAdd={openCreateConfiguredLevel}
+        onBulk={openBulkCreateConfiguredLevel}
+        onEdit={openEditConfiguredLevel}
+      />
+    );
+  }
+
   void renderStep0;
   void renderStep1;
   void renderStep2;
   void renderStep3;
+  void renderStep3Modern;
+  void renderStep4;
+  void openCreateConfiguredLevel;
   void STEP_DESCRIPTIONS;
 
   function renderStep5() {
@@ -2898,19 +4122,8 @@ const WarehouseCreateWorkspace: React.FC = () => {
                     <span style={{ display: 'block', fontSize: '12px', fontWeight: isActive ? 700 : 500, color: isActive ? 'var(--color-primary)' : 'var(--color-text)' }}>
                       {stepItem.label}
                     </span>
-                    {(issueCount > 0 || isDone) && (
-                      <span style={{ display: 'block', fontSize: '10px', color: issueCount > 0 ? '#B45309' : 'var(--color-text-muted)', marginTop: '2px' }}>
-                        {issueCount > 0 ? `${issueCount} issue${issueCount > 1 ? 's' : ''}` : 'Ready'}
-                      </span>
-                    )}
                   </span>
-                  {issueCount > 0 ? (
-                    <span style={{ fontSize: '10px', fontWeight: 700, minWidth: '18px', height: '18px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '999px', padding: '0 4px', background: '#FEF3C7', color: '#92400E', flexShrink: 0 }}>
-                      {issueCount}
-                    </span>
-                  ) : (
-                    <ChevronRight size={12} style={{ color: isActive ? 'var(--color-primary)' : 'var(--color-text-muted)', flexShrink: 0, opacity: 0.7 }} />
-                  )}
+                  <ChevronRight size={12} style={{ color: isActive ? 'var(--color-primary)' : 'var(--color-text-muted)', flexShrink: 0, opacity: 0.7 }} />
                 </button>
               );
             })}
@@ -2948,12 +4161,7 @@ const WarehouseCreateWorkspace: React.FC = () => {
           </div>
         )}
 
-        {/* Step heading */}
-        <div style={{ marginBottom: '20px' }}>
-          <h2 style={{ margin: '0 0 4px', fontSize: '18px', fontWeight: 700, color: 'var(--color-text)' }}>
-            {STEPS[step].label}
-          </h2>
-          <p style={{ margin: 0, fontSize: '13px', color: 'var(--color-text-muted)' }}>
+          {false && (<>
             {step === 0 && 'Name, code, type, and facility reference for this warehouse.'}
             {step === 1 && 'Define who owns this warehouse and which branches can access it.'}
             {step === 2 && 'Choose how inventory will be tracked — warehouse-level or at individual locations/BINs.'}
@@ -2961,25 +4169,210 @@ const WarehouseCreateWorkspace: React.FC = () => {
               (isWhLevel
                 ? 'Warehouse-Level warehouses do not need a location hierarchy.'
                 : 'Set up the location hierarchy structure for this warehouse.')}
-            {step === 4 && 'Configure putaway, picking, reservation, and storage policies.'}
-            {step === 5 && 'Review all settings and activate the warehouse or save as draft.'}
-          </p>
-        </div>
+            {step === 4 && 'Refine level code generation only for the designed levels.'}
+            {step === 5 && 'Configure the designed levels in detail before final review.'}
+            {step === 6 && 'Review all settings and activate the warehouse or save as draft.'}
+          </>)}
 
         {/* Step content */}
         {step === 0 && renderStep0Modern()}
         {step === 1 && renderStep1Modern()}
         {step === 2 && renderStep2Modern()}
-        {step === 3 && renderStep3Modern()}
-        {step === 4 && renderStep4()}
-        {step === 5 && renderStep5()}
+        {step === 3 && renderStep4LevelBuilder()}
+        {step === 4 && renderStep3CodeGeneration()}
+        {step === 5 && renderStep5LevelConfiguration()}
+        {step === 6 && renderStep5()}
       </div>
       </div>
 
       {/* ── Fixed footer ── */}
       {renderFooter()}
 
+      {levelDrawerState && (
+        <WarehouseTemplateLevelDrawer
+          open={Boolean(levelDrawerState)}
+          mode={levelDrawerState.mode}
+          parentLabel={levelDrawerState.parentLabel}
+          parentCode={levelDrawerState.parentCode}
+          parentLevelCode={levelDrawerState.parentLevelCode}
+          levelOptions={templateLevelOptions}
+          titleLabel={levelDrawerState.titleLabel}
+          initialValue={levelDrawerState.initialValue}
+          onClose={() => setLevelDrawerState(null)}
+          onSubmit={submitConfiguredLevel}
+        />
+      )}
+
       {/* ── Toast ── */}
+      {nodeComposerState && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1850,
+            background: 'rgba(15, 23, 42, 0.28)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '24px',
+          }}
+        >
+          <div
+            style={{
+              width: 'min(760px, 100%)',
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
+              borderRadius: '16px',
+              boxShadow: '0 24px 64px rgba(15, 23, 42, 0.16)',
+              overflow: 'hidden',
+            }}
+          >
+            <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--color-border)' }}>
+              <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text)' }}>
+                {nodeComposerState.mode === 'single'
+                  ? `Add ${nodeComposerState.childLevelName}`
+                  : `Bulk Create ${nodeComposerState.childLevelName}`}
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
+                Parent: {nodeComposerState.parentLabel} / {nodeComposerState.parentCode}
+              </div>
+            </div>
+
+            <div style={{ padding: '18px', display: 'grid', gap: '16px' }}>
+              <div
+                style={{
+                  padding: '12px 14px',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: '12px',
+                  background: 'var(--color-surface-subtle)',
+                  fontSize: '12px',
+                  color: 'var(--color-text-muted)',
+                }}
+              >
+                Next allowed level: <strong style={{ color: 'var(--color-text)' }}>{nodeComposerState.childLevelName}</strong>
+              </div>
+
+              {nodeComposerState.mode === 'single' ? (
+                <div style={twoCol}>
+                  <div>
+                    <label style={labelBase}>Node Name</label>
+                    <input
+                      type="text"
+                      value={nodeComposerState.name}
+                      onChange={(event) => updateNodeComposerField('name', event.target.value)}
+                      style={inputBase}
+                      placeholder={`${nodeComposerState.childLevelName} 01`}
+                    />
+                  </div>
+                  <div>
+                    <label style={labelBase}>Node Code</label>
+                    <input
+                      type="text"
+                      value={nodeComposerState.code}
+                      onChange={(event) => updateNodeComposerField('code', event.target.value.toUpperCase())}
+                      style={inputBase}
+                      placeholder={nodeComposerState.childLevelCode}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gap: '14px' }}>
+                  <div style={gridThreeComposer}>
+                    <div>
+                      <label style={labelBase}>How Many</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={nodeComposerState.count}
+                        onChange={(event) => updateNodeComposerField('count', event.target.value)}
+                        style={inputBase}
+                      />
+                    </div>
+                    <div>
+                      <label style={labelBase}>Name Prefix</label>
+                      <input
+                        type="text"
+                        value={nodeComposerState.namePrefix}
+                        onChange={(event) => updateNodeComposerField('namePrefix', event.target.value)}
+                        style={inputBase}
+                      />
+                    </div>
+                    <div>
+                      <label style={labelBase}>Code Prefix</label>
+                      <input
+                        type="text"
+                        value={nodeComposerState.codePrefix}
+                        onChange={(event) => updateNodeComposerField('codePrefix', event.target.value.toUpperCase())}
+                        style={inputBase}
+                      />
+                    </div>
+                  </div>
+                  <div style={gridFourComposer}>
+                    <div>
+                      <label style={labelBase}>Start Sequence</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={nodeComposerState.startSequence}
+                        onChange={(event) => updateNodeComposerField('startSequence', event.target.value)}
+                        style={inputBase}
+                      />
+                    </div>
+                    <div>
+                      <label style={labelBase}>Sequence Length</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={nodeComposerState.sequenceLength}
+                        onChange={(event) => updateNodeComposerField('sequenceLength', event.target.value)}
+                        style={inputBase}
+                      />
+                    </div>
+                    <div>
+                      <label style={labelBase}>Separator</label>
+                      <input
+                        type="text"
+                        value={nodeComposerState.separator}
+                        onChange={(event) => updateNodeComposerField('separator', event.target.value)}
+                        style={inputBase}
+                      />
+                    </div>
+                    <div>
+                      <label style={labelBase}>Suffix</label>
+                      <input
+                        type="text"
+                        value={nodeComposerState.suffix}
+                        onChange={(event) => updateNodeComposerField('suffix', event.target.value.toUpperCase())}
+                        style={inputBase}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '14px 18px',
+                borderTop: '1px solid var(--color-border)',
+              }}
+            >
+              <button type="button" onClick={() => setNodeComposerState(null)} style={btnOutline}>
+                <ArrowLeft size={14} /> Cancel
+              </button>
+              <button type="button" onClick={submitActualNodeComposer} style={btnPrimary}>
+                {nodeComposerState.mode === 'single'
+                  ? `Create ${nodeComposerState.childLevelName}`
+                  : `Create ${nodeComposerState.childLevelName}s`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {toast && (
         <div
           style={{

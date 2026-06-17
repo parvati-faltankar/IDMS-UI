@@ -1,13 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  Check,
-  ChevronDown,
-  Edit2,
-  Filter,
-  Trash2,
-  X,
-} from 'lucide-react';
+import { Check, Edit2, Eye, Filter, Trash2, X } from 'lucide-react';
 import AdminShell from '../../../AdminShell';
 import { AdminListPageShell } from '../../../../experience/components/AdminListPageShell';
 import { SmartFormDrawer } from '../../../../experience/components/SmartFormDrawer';
@@ -18,79 +11,43 @@ import { HelpDrawer } from '../../../../experience/components/HelpDrawer';
 import { getHelpTopic } from '../../../../experience/help/helpTopics';
 import { findGroupForMasterKey, findMasterByKey } from '../../../adminNavConfig';
 import { recordRecentAdminMaster } from '../../../adminStorage';
+import {
+  createMasterActionsColumn,
+  createMasterIdentifierColumn,
+  createMasterStatusColumn,
+  createMasterTextColumn,
+  MasterDataTable,
+  MasterTableBooleanValue,
+  MasterTablePill,
+  MasterTableTagList,
+  MasterTableTextCell,
+  MasterTableTruncate,
+} from '../../../../components/common/MasterDataTable';
+import MasterFilterDrawer from '../../../../components/common/MasterFilterDrawer';
+import type { DataGridColumn } from '../../../../components/common/dataGridTypes';
 import type { AreaLevel, AreaLevelRole, AreaLevelStatus } from '../types/areaMaster.types';
 import { areaLevelService } from '../services/areaLevelService';
 import { canDeleteAreaLevel } from '../utils/areaLevelUsage';
 import { validateAreaLevelForActivation } from '../utils/areaLevelValidation';
 import { AREA_LEVEL_ROLES } from '../constants/areaMaster.constants';
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function getStatusStyle(status: AreaLevelStatus): React.CSSProperties {
-  if (status === 'Active')   return { background: '#DCFCE7', color: '#15803D' };
-  if (status === 'Inactive') return { background: '#FEF2F2', color: '#DC2626' };
-  return { background: '#F1F5F9', color: '#64748B' };
-}
-
-function getRoleStyle(_role: AreaLevelRole): React.CSSProperties {
-  return { background: '#EFF6FF', color: '#1D4ED8' };
-}
-
-const BADGE_BASE: React.CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  padding: '2px 8px',
-  fontSize: '11px',
-  fontWeight: 600,
-  borderRadius: '6px',
-  whiteSpace: 'nowrap',
-};
-
-const TAG_PILL: React.CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  padding: '2px 7px',
-  fontSize: '10px',
-  fontWeight: 500,
-  borderRadius: '4px',
-  background: '#F1F5F9',
-  color: '#475569',
-  whiteSpace: 'nowrap',
-};
-
-const GRID_COLUMNS =
-  '88px minmax(130px, 1.5fr) minmax(110px, 1fr) 56px 150px 88px minmax(130px, 1fr) 80px 80px';
-
-const COL_HEADERS = [
-  { label: 'Code',         align: 'left'  },
-  { label: 'Name',         align: 'left'  },
-  { label: 'Display / Short', align: 'left' },
-  { label: 'Seq',          align: 'center'},
-  { label: 'Role',         align: 'left'  },
-  { label: 'Parent Req.',  align: 'left'  },
-  { label: 'Usage Tags',   align: 'left'  },
-  { label: 'Status',       align: 'left'  },
-  { label: 'Actions',      align: 'right' },
-];
-
 const MASTER_KEY = 'area-master';
-
-// ─── Preview section builder ──────────────────────────────────────────────────
 
 function buildLevelPreviewSections(level: AreaLevel, allLevels: AreaLevel[]): PreviewSection[] {
   const allowedParentNames = level.allowedParentLevelIds.length > 0
-    ? level.allowedParentLevelIds.map((id) => allLevels.find((l) => l.id === id)?.areaLevelName ?? id).join(', ')
+    ? level.allowedParentLevelIds.map((id) => allLevels.find((candidate) => candidate.id === id)?.areaLevelName ?? id).join(', ')
     : 'None';
+
   return [
     {
       title: 'Basic Information',
       fields: [
         { label: 'Code', value: level.areaLevelCode, mono: true },
         { label: 'Name', value: level.areaLevelName },
-        { label: 'Display Name', value: level.displayName || '—' },
-        { label: 'Short Code', value: level.shortCode || '—', mono: true },
-        { label: 'Level Sequence', value: level.levelSequence ? String(level.levelSequence) : '—' },
-        { label: 'Role', value: level.areaLevelRole || '—' },
+        { label: 'Display Name', value: level.displayName || '-' },
+        { label: 'Short Code', value: level.shortCode || '-', mono: true },
+        { label: 'Level Sequence', value: level.levelSequence ? String(level.levelSequence) : '-' },
+        { label: 'Role', value: level.areaLevelRole || '-' },
       ],
     },
     {
@@ -108,50 +65,53 @@ function buildLevelPreviewSections(level: AreaLevel, allLevels: AreaLevel[]): Pr
         { label: 'Mandatory', value: level.mandatoryUsageTags.join(', ') || 'None', span: 2 },
       ],
     },
-    ...(level.description || level.remarks ? [{
-      title: 'Notes',
-      fields: [
-        ...(level.description ? [{ label: 'Description', value: level.description, span: 2 as const }] : []),
-        ...(level.remarks ? [{ label: 'Remarks', value: level.remarks, span: 2 as const }] : []),
-      ],
-    }] : []),
+    ...(level.description || level.remarks
+      ? [{
+          title: 'Notes',
+          fields: [
+            ...(level.description ? [{ label: 'Description', value: level.description, span: 2 as const }] : []),
+            ...(level.remarks ? [{ label: 'Remarks', value: level.remarks, span: 2 as const }] : []),
+          ],
+        }]
+      : []),
   ];
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+function getPreviewStatusTone(status?: AreaLevelStatus): 'active' | 'draft' | 'inactive' {
+  if (status === 'Active') return 'active';
+  if (status === 'Inactive') return 'inactive';
+  return 'draft';
+}
+
+function getRoleTone(role: AreaLevelRole): 'neutral' | 'info' {
+  return role ? 'info' : 'neutral';
+}
 
 const AreaLevelListPage: React.FC = () => {
   const navigate = useNavigate();
 
-  // ── Data ──────────────────────────────────────────────────────────────
   const [levels, setLevels] = useState<AreaLevel[]>(() => areaLevelService.getAll());
 
-  // ── Filters ───────────────────────────────────────────────────────────
-  const [searchQuery, setSearchQuery]           = useState('');
-  const [filterStatus, setFilterStatus]         = useState('');
-  const [filterRole, setFilterRole]             = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterRole, setFilterRole] = useState('');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
-  // ── Activate flow ─────────────────────────────────────────────────────
-  const [activateTarget, setActivateTarget]     = useState<AreaLevel | null>(null);
-  const [activateErrors, setActivateErrors]     = useState<string[]>([]);
-  const [activateOpen, setActivateOpen]         = useState(false);
+  const [activateTarget, setActivateTarget] = useState<AreaLevel | null>(null);
+  const [activateErrors, setActivateErrors] = useState<string[]>([]);
+  const [activateOpen, setActivateOpen] = useState(false);
 
-  // ── Inactivate flow ───────────────────────────────────────────────────
   const [inactivateTarget, setInactivateTarget] = useState<AreaLevel | null>(null);
   const [inactivateReason, setInactivateReason] = useState('');
-  const [inactivateOpen, setInactivateOpen]     = useState(false);
+  const [inactivateOpen, setInactivateOpen] = useState(false);
 
-  // ── Delete flow ───────────────────────────────────────────────────────
-  const [deleteTarget, setDeleteTarget]         = useState<AreaLevel | null>(null);
-  const [deleteOpen, setDeleteOpen]             = useState(false);
-  // ── Preview ───────────────────────────────────────────────────────────
+  const [deleteTarget, setDeleteTarget] = useState<AreaLevel | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
   const [previewLevel, setPreviewLevel] = useState<AreaLevel | null>(null);
-  const [previewOpen, setPreviewOpen]   = useState(false);
-
-  // ── Help ─────────────────────────────────────────────────────────────
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
-  // ── Toast ─────────────────────────────────────────────────────────────
+
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
 
   function showToast(message: string, tone: 'success' | 'error') {
@@ -159,46 +119,36 @@ const AreaLevelListPage: React.FC = () => {
     setTimeout(() => setToast(null), 3500);
   }
 
-  // ── Recent admin master tracking ──────────────────────────────────────
   useEffect(() => {
     const master = findMasterByKey(MASTER_KEY);
-    const group  = findGroupForMasterKey(MASTER_KEY);
+    const group = findGroupForMasterKey(MASTER_KEY);
     if (master && group) {
       recordRecentAdminMaster({
-        key:            master.key,
-        label:          master.label,
-        path:           master.path,
-        groupLabel:     group.label,
-        groupIconBg:    group.iconBg,
+        key: master.key,
+        label: master.label,
+        path: master.path,
+        groupLabel: group.label,
+        groupIconBg: group.iconBg,
         groupIconColor: group.iconColor,
       });
     }
   }, []);
 
-  // ── Filtered list ──────────────────────────────────────────────────────
   const filtered = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    return levels.filter((l) => {
-      if (filterStatus && l.status !== filterStatus) return false;
-      if (filterRole && l.areaLevelRole !== filterRole) return false;
-      if (q) {
-        const haystack =
-          `${l.areaLevelCode} ${l.areaLevelName} ${l.displayName} ${l.shortCode}`.toLowerCase();
-        if (!haystack.includes(q)) return false;
+    const query = searchQuery.trim().toLowerCase();
+
+    return levels.filter((level) => {
+      if (filterStatus && level.status !== filterStatus) return false;
+      if (filterRole && level.areaLevelRole !== filterRole) return false;
+
+      if (query) {
+        const haystack = `${level.areaLevelCode} ${level.areaLevelName} ${level.displayName} ${level.shortCode}`.toLowerCase();
+        if (!haystack.includes(query)) return false;
       }
+
       return true;
     });
   }, [levels, searchQuery, filterStatus, filterRole]);
-
-  // ── Quick filter counts ────────────────────────────────────────────────
-  const counts = useMemo(() => ({
-    all:      levels.length,
-    Active:   levels.filter((l) => l.status === 'Active').length,
-    Draft:    levels.filter((l) => l.status === 'Draft').length,
-    Inactive: levels.filter((l) => l.status === 'Inactive').length,
-  }), [levels]);
-
-  // ── Actions ───────────────────────────────────────────────────────────
 
   function handleQuickFilter(key: string) {
     setFilterStatus(key === 'all' ? '' : key);
@@ -206,7 +156,7 @@ const AreaLevelListPage: React.FC = () => {
 
   function handleActivateClick(level: AreaLevel) {
     const allLevels = areaLevelService.getAll();
-    const others = allLevels.filter((l) => l.id !== level.id);
+    const others = allLevels.filter((candidate) => candidate.id !== level.id);
     const errors = validateAreaLevelForActivation(level, others);
     setActivateTarget(level);
     setActivateErrors(errors);
@@ -217,6 +167,9 @@ const AreaLevelListPage: React.FC = () => {
     if (!activateTarget) return;
     areaLevelService.activate(activateTarget.id);
     setLevels(areaLevelService.getAll());
+    if (previewLevel?.id === activateTarget.id) {
+      setPreviewLevel(areaLevelService.getById(activateTarget.id) ?? null);
+    }
     setActivateOpen(false);
     setActivateTarget(null);
     setActivateErrors([]);
@@ -233,6 +186,9 @@ const AreaLevelListPage: React.FC = () => {
     if (!inactivateTarget || !inactivateReason.trim()) return;
     areaLevelService.inactivate(inactivateTarget.id, inactivateReason.trim());
     setLevels(areaLevelService.getAll());
+    if (previewLevel?.id === inactivateTarget.id) {
+      setPreviewLevel(areaLevelService.getById(inactivateTarget.id) ?? null);
+    }
     setInactivateOpen(false);
     setInactivateTarget(null);
     setInactivateReason('');
@@ -248,6 +204,10 @@ const AreaLevelListPage: React.FC = () => {
     if (!deleteTarget) return;
     areaLevelService.delete(deleteTarget.id);
     setLevels(areaLevelService.getAll());
+    if (previewLevel?.id === deleteTarget.id) {
+      setPreviewOpen(false);
+      setPreviewLevel(null);
+    }
     setDeleteOpen(false);
     showToast(`"${deleteTarget.areaLevelName}" deleted.`, 'success');
     setDeleteTarget(null);
@@ -258,348 +218,262 @@ const AreaLevelListPage: React.FC = () => {
     setPreviewOpen(true);
   }
 
-  // ─── Styles ──────────────────────────────────────────────────────────────────
+  const hasFilters = Boolean(filterStatus || filterRole);
 
-  const inputBase: React.CSSProperties = {
-    width: '100%', padding: '6px 10px', fontSize: '13px',
-    border: '1px solid var(--color-border)', borderRadius: '8px',
-    background: 'var(--color-surface)', color: 'var(--color-text)',
-    outline: 'none', boxSizing: 'border-box',
-  };
+  const gridColumns: DataGridColumn<AreaLevel>[] = [
+    createMasterIdentifierColumn<AreaLevel>({
+      id: 'areaLevelCode',
+      label: 'Code',
+      getValue: (level) => level.areaLevelCode,
+      onClick: handlePreviewClick,
+      width: 132,
+      minWidth: 120,
+    }),
+    createMasterTextColumn<AreaLevel>({
+      id: 'areaLevelName',
+      label: 'Name',
+      primary: (level) => level.areaLevelName,
+      secondary: (level) => level.description || undefined,
+      title: (level) => level.areaLevelName,
+      width: 240,
+      minWidth: 220,
+      hideable: false,
+    }),
+    {
+      id: 'displayShort',
+      label: 'Display / Short',
+      type: 'text',
+      width: 190,
+      minWidth: 168,
+      getValue: (level) => `${level.displayName || '-'} ${level.shortCode || ''}`.trim(),
+      renderCell: (level) => (
+        <MasterTableTextCell
+          primary={level.displayName || '-'}
+          secondary={level.shortCode || undefined}
+          title={level.displayName || level.areaLevelName}
+        />
+      ),
+    },
+    {
+      id: 'levelSequence',
+      label: 'Seq',
+      type: 'number',
+      width: 92,
+      minWidth: 84,
+      getValue: (level) => level.levelSequence ?? 0,
+      renderCell: (level) => <MasterTableTruncate value={level.levelSequence ? String(level.levelSequence) : '-'} />,
+    },
+    {
+      id: 'areaLevelRole',
+      label: 'Role',
+      type: 'text',
+      width: 170,
+      minWidth: 150,
+      getValue: (level) => level.areaLevelRole || '-',
+      renderCell: (level) => (
+        level.areaLevelRole
+          ? <MasterTablePill label={level.areaLevelRole} tone={getRoleTone(level.areaLevelRole)} />
+          : <MasterTableTruncate value="-" />
+      ),
+    },
+    {
+      id: 'parentRequired',
+      label: 'Parent Req.',
+      type: 'boolean',
+      width: 142,
+      minWidth: 128,
+      getValue: (level) => level.parentRequired,
+      options: [
+        { value: 'true', label: 'Yes' },
+        { value: 'false', label: 'No' },
+      ],
+      renderCell: (level) => <MasterTableBooleanValue value={level.parentRequired} />,
+    },
+    {
+      id: 'allowedUsageTags',
+      label: 'Usage Tags',
+      type: 'text',
+      width: 196,
+      minWidth: 168,
+      getValue: (level) => level.allowedUsageTags.join(', '),
+      renderCell: (level) => <MasterTableTagList labels={level.allowedUsageTags} />,
+    },
+    createMasterStatusColumn<AreaLevel>({
+      getStatus: (level) => level.status,
+      width: 128,
+      minWidth: 116,
+    }),
+    createMasterActionsColumn<AreaLevel>({
+      rowLabel: (level) => level.areaLevelName,
+      inlineAction: (level) => ({
+        label: 'Edit area level',
+        onClick: () => navigate(`/admin/area-levels/${level.id}`),
+        icon: <Edit2 size={13} />,
+      }),
+      menuActions: (level) => {
+        const canDelete = level.status === 'Draft' && canDeleteAreaLevel(level.id);
 
-  // ─── Render ──────────────────────────────────────────────────────────────────
-
-  const activeFilter = filterStatus || 'all';
-
-  const quickFilterItems = [
-    { key: 'all',      label: 'All',      count: counts.all },
-    { key: 'Active',   label: 'Active',   count: counts.Active },
-    { key: 'Draft',    label: 'Draft',    count: counts.Draft },
-    { key: 'Inactive', label: 'Inactive', count: counts.Inactive },
+        return [
+          {
+            label: 'Preview',
+            onSelect: () => handlePreviewClick(level),
+            icon: <Eye size={13} />,
+          },
+          {
+            label: 'Edit',
+            onSelect: () => navigate(`/admin/area-levels/${level.id}`),
+            icon: <Edit2 size={13} />,
+          },
+          {
+            label: 'Activate',
+            onSelect: () => handleActivateClick(level),
+            icon: <Check size={13} />,
+            hidden: level.status !== 'Draft',
+          },
+          {
+            label: 'Inactivate',
+            onSelect: () => handleInactivateClick(level),
+            icon: <X size={13} />,
+            hidden: level.status !== 'Active',
+          },
+          {
+            label: 'Delete',
+            onSelect: () => handleDeleteClick(level),
+            icon: <Trash2 size={13} />,
+            tone: 'danger',
+            dividerBefore: true,
+            hidden: !canDelete,
+          },
+        ];
+      },
+      width: 120,
+      minWidth: 108,
+    }),
   ];
 
-  const advancedFilterPanel = showAdvancedFilters ? (
-    <div
-      style={{
-        position: 'absolute', top: '100%', right: 0, zIndex: 200,
-        background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-        borderRadius: '12px', boxShadow: '0 8px 24px rgba(0,0,0,0.10)',
-        padding: '16px 20px', minWidth: '260px', marginTop: '6px',
-      }}
-    >
-      <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>
-        Advanced Filters
-      </p>
-      <label style={{ fontSize: '12px', fontWeight: 500, color: 'var(--color-text-muted)', display: 'block', marginBottom: '6px' }}>
-        Area Level Role
-      </label>
-      <select
-        value={filterRole}
-        onChange={(e) => setFilterRole(e.target.value)}
-        style={{ ...inputBase, marginBottom: '16px' }}
-      >
-        <option value="">All roles</option>
-        {AREA_LEVEL_ROLES.map((r) => (
-          <option key={r} value={r}>{r}</option>
-        ))}
-      </select>
-      <button
-        type="button"
-        onClick={() => { setFilterRole(''); setShowAdvancedFilters(false); }}
-        style={{ fontSize: '12px', color: 'var(--color-text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-      >
-        Clear filters
-      </button>
-    </div>
-  ) : null;
-
-  const toolbarActions = (
-    <div style={{ position: 'relative' }}>
-      <button
-        type="button"
-        onClick={() => setShowAdvancedFilters((v) => !v)}
-        style={{
-          display: 'inline-flex', alignItems: 'center', gap: '5px',
-          padding: '0 10px', height: '30px', fontSize: '12px', fontWeight: 500,
-          border: `1px solid ${filterRole ? 'var(--color-primary)' : 'var(--color-border)'}`,
-          borderRadius: '8px',
-          background: filterRole ? 'color-mix(in srgb, var(--color-primary) 8%, var(--color-surface))' : 'transparent',
-          color: filterRole ? 'var(--color-primary)' : 'var(--color-text-muted)',
-          cursor: 'pointer', transition: 'all 0.12s', whiteSpace: 'nowrap',
-        }}
-      >
-        <Filter size={11} />
-        Filters
-        {filterRole && <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'var(--color-primary)', flexShrink: 0 }} />}
-        <ChevronDown size={10} style={{ transform: showAdvancedFilters ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
-      </button>
-      {advancedFilterPanel}
-    </div>
-  );
-
-  const tableHeader = (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: GRID_COLUMNS,
-        alignItems: 'center',
-        height: '36px',
-        padding: '0 16px',
-        borderBottom: '1.5px solid var(--color-border)',
-        background: 'var(--color-surface-subtle)',
-        position: 'sticky', top: 0, zIndex: 10,
-      }}
-    >
-      {COL_HEADERS.map(({ label, align }, i) => (
-        <div
-          key={i}
-          style={{
-            fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)',
-            textTransform: 'uppercase', letterSpacing: '0.05em',
-            textAlign: align as React.CSSProperties['textAlign'],
-            paddingRight: i < COL_HEADERS.length - 1 ? '8px' : '0',
-          }}
-        >
-          {label}
-        </div>
-      ))}
-    </div>
-  );
-
-  const tableBody = filtered.length === 0 ? (
-    <div style={{ padding: '64px 28px', textAlign: 'center', background: 'var(--color-surface)' }}>
-      <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--color-surface-subtle)', border: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-        <Filter size={20} style={{ color: 'var(--color-text-muted)' }} />
-      </div>
-      <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text)', marginBottom: '6px' }}>
-        {levels.length === 0 ? 'No area levels yet' : 'No area levels match the current filters'}
-      </div>
-      <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', maxWidth: '340px', margin: '0 auto 24px', lineHeight: 1.6 }}>
-        {levels.length === 0
-          ? 'Create an Area Level to define the hierarchy structure for your geographic master data.'
-          : 'Try adjusting your search or filters to find what you\'re looking for.'}
-      </div>
-      {levels.length === 0 && (
-        <button type="button" onClick={() => navigate('/admin/area-levels/new')} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '0 14px', height: '32px', fontSize: '13px', fontWeight: 600, borderRadius: '8px', border: 'none', background: 'var(--color-primary)', color: 'white', cursor: 'pointer' }}>
-          + New Area Level
-        </button>
-      )}
-    </div>
-  ) : (
-    <>
-      {filtered.map((level, idx) => {
-        const isLast = idx === filtered.length - 1;
-        const canDel = level.status === 'Draft' && canDeleteAreaLevel(level.id);
-        return (
-          <div
-            key={level.id}
-            style={{
-              display: 'grid',
-              gridTemplateColumns: GRID_COLUMNS,
-              alignItems: 'center',
-              height: '44px',
-              padding: '0 16px',
-              borderBottom: isLast ? 'none' : '1px solid var(--color-border)',
-              transition: 'background 0.1s',
-              cursor: 'pointer',
-            }}
-            onClick={() => handlePreviewClick(level)}
-            onMouseEnter={(e) => { e.currentTarget.style.background = '#F8FAFC'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-          >
-            {/* Code */}
-            <div style={{ paddingRight: '8px', overflow: 'hidden' }}>
-              <span style={{ fontFamily: 'monospace', fontSize: '11px', fontWeight: 700, color: 'var(--color-primary)', letterSpacing: '0.03em', whiteSpace: 'nowrap' }}>
-                {level.areaLevelCode}
-              </span>
-            </div>
-
-            {/* Name */}
-            <div style={{ minWidth: 0, paddingRight: '8px', overflow: 'hidden' }}>
-              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {level.areaLevelName}
-              </span>
-            </div>
-
-            {/* Display / Short */}
-            <div style={{ paddingRight: '8px', overflow: 'hidden' }}>
-              <div style={{ fontSize: '12px', color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.3 }}>
-                {level.displayName || <span style={{ color: 'var(--color-text-muted)' }}>—</span>}
-              </div>
-              <div style={{ fontFamily: 'monospace', fontSize: '10px', color: 'var(--color-text-muted)', lineHeight: 1.3 }}>
-                {level.shortCode}
-              </div>
-            </div>
-
-            {/* Seq */}
-            <div style={{ paddingRight: '8px', textAlign: 'center' }}>
-              <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text)' }}>
-                {level.levelSequence || <span style={{ color: 'var(--color-text-muted)' }}>—</span>}
-              </span>
-            </div>
-
-            {/* Role */}
-            <div style={{ paddingRight: '8px' }}>
-              <span style={{ ...BADGE_BASE, ...getRoleStyle(level.areaLevelRole), fontSize: '10px' }}>
-                {level.areaLevelRole || '—'}
-              </span>
-            </div>
-
-            {/* Parent Required */}
-            <div style={{ paddingRight: '8px' }}>
-              <span style={{
-                ...BADGE_BASE, fontSize: '11px',
-                background: level.parentRequired ? '#F0FDF4' : '#F8FAFC',
-                color: level.parentRequired ? '#15803D' : '#64748B',
-              }}>
-                {level.parentRequired ? 'Yes' : 'No'}
-              </span>
-            </div>
-
-            {/* Usage Tags */}
-            <div style={{ paddingRight: '8px', display: 'flex', flexWrap: 'nowrap', gap: '4px', alignItems: 'center', overflow: 'hidden' }}>
-              {level.allowedUsageTags.length === 0 ? (
-                <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>—</span>
-              ) : (
-                <>
-                  {level.allowedUsageTags.slice(0, 2).map((t) => (
-                    <span key={t} style={TAG_PILL}>{t}</span>
-                  ))}
-                  {level.allowedUsageTags.length > 2 && (
-                    <span style={{ ...TAG_PILL, background: '#E0E7FF', color: '#3730A3' }}>
-                      +{level.allowedUsageTags.length - 2}
-                    </span>
-                  )}
-                </>
-              )}
-            </div>
-
-            {/* Status */}
-            <div style={{ paddingRight: '8px' }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: '9999px', whiteSpace: 'nowrap', ...getStatusStyle(level.status) }}>
-                {level.status}
-              </span>
-            </div>
-
-            {/* Actions */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-end' }} onClick={(e) => e.stopPropagation()}>
-              <button
-                type="button" title="Edit"
-                onClick={() => navigate(`/admin/area-levels/${level.id}`)}
-                style={{ display: 'inline-flex', padding: '5px', border: '1px solid var(--color-border)', borderRadius: '6px', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-muted)' }}
-              >
-                <Edit2 size={13} />
-              </button>
-              {level.status === 'Draft' && (
-                <button
-                  type="button" title="Activate"
-                  onClick={() => handleActivateClick(level)}
-                  style={{ display: 'inline-flex', padding: '5px', border: '1px solid #BBFFD8', borderRadius: '6px', background: '#F0FDF4', cursor: 'pointer', color: '#15803D' }}
-                >
-                  <Check size={13} />
-                </button>
-              )}
-              {level.status === 'Active' && (
-                <button
-                  type="button" title="Inactivate"
-                  onClick={() => handleInactivateClick(level)}
-                  style={{ display: 'inline-flex', padding: '5px', border: '1px solid #FCA5A5', borderRadius: '6px', background: '#FEF2F2', cursor: 'pointer', color: '#DC2626' }}
-                >
-                  <X size={13} />
-                </button>
-              )}
-              {canDel && (
-                <button
-                  type="button" title="Delete"
-                  onClick={() => handleDeleteClick(level)}
-                  style={{ display: 'inline-flex', padding: '5px', border: '1px solid var(--color-border)', borderRadius: '6px', background: 'transparent', cursor: 'pointer', color: '#DC2626' }}
-                >
-                  <Trash2 size={13} />
-                </button>
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </>
-  );
-
   const activationChecklist = activateErrors.length > 0
-    ? activateErrors.map((e, i) => ({ id: String(i), label: e, passed: false }))
+    ? activateErrors.map((error, index) => ({ id: String(index), label: error, passed: false }))
     : [{ id: 'ready', label: 'All required fields are filled and valid.', passed: true }];
 
   return (
     <AdminShell>
-      {/* Toast */}
-      {toast && (
+      {toast ? (
         <div
           style={{
-            position: 'fixed', bottom: '24px', right: '24px', zIndex: 9999,
+            position: 'fixed',
+            bottom: '24px',
+            right: '24px',
+            zIndex: 9999,
             background: toast.tone === 'success' ? '#15803D' : '#DC2626',
-            color: 'white', padding: '12px 20px', borderRadius: '10px',
-            fontSize: '13px', fontWeight: 500,
+            color: 'white',
+            padding: '12px 20px',
+            borderRadius: '10px',
+            fontSize: '13px',
+            fontWeight: 500,
             boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
           }}
         >
           {toast.message}
         </div>
-      )}
+      ) : null}
 
       <AdminListPageShell
         title="Area Level Configuration"
         description="Define hierarchical levels such as Country, State, City, and Area for use across masters and transactions."
         breadcrumbs={['Admin', 'Area Master', 'Area Level Configuration']}
         primaryAction={{ label: 'New Area Level', onClick: () => navigate('/admin/area-levels/new') }}
+        secondaryActions={[{
+          label: 'Filters',
+          onClick: () => setShowAdvancedFilters(true),
+          icon: <Filter size={13} />,
+          iconOnly: true,
+          title: 'Open filters',
+          active: hasFilters,
+        }]}
         searchValue={searchQuery}
-        searchPlaceholder="Search by code, name, or short code…"
+        searchPlaceholder="Search by code, name, or short code..."
         onSearchChange={setSearchQuery}
-        quickFilterItems={quickFilterItems}
-        activeQuickFilter={activeFilter}
-        onQuickFilterChange={handleQuickFilter}
-        advancedFilterActive={!!filterRole}
-        onAdvancedFilterClick={() => setShowAdvancedFilters((v) => !v)}
-        toolbarActions={toolbarActions}
         helpTopicId="area-level-setup"
         onHelpClick={() => setHelpOpen(true)}
       >
-        <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px', overflow: 'hidden' }}>
-          <div style={{ overflowX: 'auto' }}>
-            <div style={{ minWidth: '900px' }}>
-              {tableHeader}
-              {tableBody}
-            </div>
-          </div>
-          {filtered.length > 0 && (
-            <div style={{ padding: '10px 20px', borderTop: '1px solid var(--color-border)', background: 'var(--color-surface-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-              <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                Showing <strong style={{ color: 'var(--color-text)', fontWeight: 600 }}>1–{filtered.length}</strong> of{' '}
-                <strong style={{ color: 'var(--color-text)', fontWeight: 600 }}>{levels.length}</strong> {levels.length === 1 ? 'record' : 'records'}
-              </span>
-            </div>
-          )}
-        </div>
+        <MasterDataTable
+          gridId="area-level-master-table"
+          rows={filtered}
+          columns={gridColumns}
+          rowId={(level) => level.id}
+          totalCount={levels.length}
+          emptyState={{
+            title: levels.length === 0 ? 'No area levels yet' : 'No area levels match the current filters',
+            description: levels.length === 0
+              ? 'Create an area level to define the hierarchy structure for your geographic master data.'
+              : 'Try adjusting your search or filters.',
+            ...(levels.length === 0
+              ? { action: { label: 'New Area Level', onClick: () => navigate('/admin/area-levels/new') } }
+              : {}),
+          }}
+        />
       </AdminListPageShell>
 
-      {/* ── Preview Drawer ─────────────────────────────────────────── */}
+      <MasterFilterDrawer
+        open={showAdvancedFilters}
+        onClose={() => setShowAdvancedFilters(false)}
+        onReset={() => {
+          setFilterStatus('');
+          setFilterRole('');
+        }}
+        description="Filter area levels by status and assigned role."
+        fields={[
+          {
+            id: 'area-level-status',
+            label: 'Status',
+            value: filterStatus,
+            placeholder: 'All statuses',
+            options: ['Active', 'Draft', 'Inactive'].map((status) => ({ value: status, label: status })),
+            onChange: handleQuickFilter,
+          },
+          {
+            id: 'area-level-role',
+            label: 'Area Level Role',
+            value: filterRole,
+            placeholder: 'All roles',
+            options: AREA_LEVEL_ROLES.map((role) => ({ value: role, label: role })),
+            onChange: setFilterRole,
+          },
+        ]}
+      />
+
       <SmartPreviewDrawer
         open={previewOpen}
         onClose={() => setPreviewOpen(false)}
         title={previewLevel?.areaLevelName ?? ''}
         subtitle={previewLevel?.areaLevelCode}
         statusLabel={previewLevel?.status}
-        statusTone={previewLevel?.status === 'Active' ? 'active' : previewLevel?.status === 'Inactive' ? 'inactive' : 'draft'}
+        statusTone={getPreviewStatusTone(previewLevel?.status)}
         sections={previewLevel ? buildLevelPreviewSections(previewLevel, levels) : []}
-        primaryAction={{ label: 'Edit Area Level', onClick: () => { setPreviewOpen(false); navigate(`/admin/area-levels/${previewLevel?.id}`); } }}
+        primaryAction={{
+          label: 'Edit Area Level',
+          onClick: () => {
+            setPreviewOpen(false);
+            if (previewLevel) navigate(`/admin/area-levels/${previewLevel.id}`);
+          },
+        }}
         secondaryActions={[
-          ...(previewLevel?.status === 'Draft' ? [{ label: 'Activate', onClick: () => { const l = previewLevel; setPreviewOpen(false); if (l) handleActivateClick(l); } }] : []),
-          ...(previewLevel?.status === 'Active' ? [{ label: 'Inactivate', onClick: () => { const l = previewLevel; setPreviewOpen(false); if (l) handleInactivateClick(l); } }] : []),
+          ...(previewLevel?.status === 'Draft'
+            ? [{ label: 'Activate', onClick: () => { const level = previewLevel; setPreviewOpen(false); if (level) handleActivateClick(level); } }]
+            : []),
+          ...(previewLevel?.status === 'Active'
+            ? [{ label: 'Inactivate', onClick: () => { const level = previewLevel; setPreviewOpen(false); if (level) handleInactivateClick(level); } }]
+            : []),
         ]}
       />
 
-      {/* ── Inactivate Drawer ─────────────────────────────────────────── */}
       <SmartFormDrawer
         open={inactivateOpen}
-        onClose={() => { setInactivateOpen(false); setInactivateTarget(null); setInactivateReason(''); }}
+        onClose={() => {
+          setInactivateOpen(false);
+          setInactivateTarget(null);
+          setInactivateReason('');
+        }}
         title="Inactivate Area Level"
         subtitle={inactivateTarget?.areaLevelName}
         width="sm"
@@ -617,24 +491,33 @@ const AreaLevelListPage: React.FC = () => {
           </label>
           <textarea
             value={inactivateReason}
-            onChange={(e) => setInactivateReason(e.target.value)}
+            onChange={(event) => setInactivateReason(event.target.value)}
             rows={4}
-            placeholder="Describe why this area level is being inactivated…"
+            placeholder="Describe why this area level is being inactivated..."
             style={{
-              width: '100%', padding: '9px 12px', fontSize: '13px',
+              width: '100%',
+              padding: '9px 12px',
+              fontSize: '13px',
               border: `1px solid ${inactivateReason.trim() ? 'var(--color-border)' : '#FCA5A5'}`,
-              borderRadius: '8px', background: 'var(--color-surface)',
-              color: 'var(--color-text)', outline: 'none', resize: 'vertical',
-              boxSizing: 'border-box', lineHeight: 1.6,
+              borderRadius: '8px',
+              background: 'var(--color-surface)',
+              color: 'var(--color-text)',
+              outline: 'none',
+              resize: 'vertical',
+              boxSizing: 'border-box',
+              lineHeight: 1.6,
             }}
           />
         </div>
       </SmartFormDrawer>
 
-      {/* ── Activate Confirm ──────────────────────────────────────────── */}
       <SmartReviewDrawer
         open={activateOpen}
-        onClose={() => { setActivateOpen(false); setActivateTarget(null); setActivateErrors([]); }}
+        onClose={() => {
+          setActivateOpen(false);
+          setActivateTarget(null);
+          setActivateErrors([]);
+        }}
         title="Activate Area Level"
         subtitle={activateTarget?.areaLevelName}
         description="Review the checklist below before activating this area level. Once active, it becomes available for use in Area Master."
@@ -644,13 +527,19 @@ const AreaLevelListPage: React.FC = () => {
         confirmLabel="Activate"
         confirmDisabled={activateErrors.length > 0}
         onConfirm={confirmActivate}
-        onCancel={() => { setActivateOpen(false); setActivateTarget(null); setActivateErrors([]); }}
+        onCancel={() => {
+          setActivateOpen(false);
+          setActivateTarget(null);
+          setActivateErrors([]);
+        }}
       />
 
-      {/* ── Delete Confirm ────────────────────────────────────────────── */}
       <SmartReviewDrawer
         open={deleteOpen}
-        onClose={() => { setDeleteOpen(false); setDeleteTarget(null); }}
+        onClose={() => {
+          setDeleteOpen(false);
+          setDeleteTarget(null);
+        }}
         title="Delete Area Level"
         subtitle={deleteTarget?.areaLevelName}
         description="This action is permanent and cannot be undone. The area level record will be removed."
@@ -662,9 +551,12 @@ const AreaLevelListPage: React.FC = () => {
         consequenceNote="Deleted area levels cannot be recovered. Ensure no configuration depends on this record."
         confirmLabel="Delete"
         onConfirm={confirmDelete}
-        onCancel={() => { setDeleteOpen(false); setDeleteTarget(null); }}
+        onCancel={() => {
+          setDeleteOpen(false);
+          setDeleteTarget(null);
+        }}
       />
-      {/* ── Help Drawer ───────────────────────────────────────────── */}
+
       <HelpDrawer
         open={helpOpen}
         topic={getHelpTopic('area-level-setup')}

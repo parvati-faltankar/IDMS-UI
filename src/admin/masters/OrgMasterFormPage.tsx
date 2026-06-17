@@ -206,6 +206,8 @@ const OrgMasterFormPage: React.FC = () => {
         title={pageTitle}
         description={isCreate ? `Create a new ${master.label} record` : master.description}
         breadcrumbs={['Admin', group.label]}
+        compactHeader
+        helpIconOnly
         statusLabel={isDirty ? 'Unsaved changes' : showSaveSuccess ? 'Saved' : undefined}
         statusTone={isDirty ? 'warning' : showSaveSuccess ? 'active' : undefined}
         helpTopicId={helpTopicId}

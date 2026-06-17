@@ -191,9 +191,6 @@ const MasterListPage: React.FC = () => {
         description={master.description}
         breadcrumbs={['Admin', group.label]}
         primaryAction={{ label: 'Add New', tone: 'primary', onClick: () => navigate(`/admin/master/${masterKey}/new`) }}
-        secondaryActions={[
-          { label: 'How this works', onClick: () => { setHelpTopicId('generic-master-list'); setHelpOpen(true); } },
-        ]}
         helpTopicId="generic-master-list"
         onHelpClick={(id) => { setHelpTopicId(id); setHelpOpen(true); }}
         summaryItems={summaryItems}

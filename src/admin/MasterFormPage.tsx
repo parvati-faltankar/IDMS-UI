@@ -102,6 +102,8 @@ const MasterFormPage: React.FC = () => {
         title={pageTitle}
         description={isCreate ? `Create a new ${master.label} record` : master.description}
         breadcrumbs={['Admin', group.label, master.label]}
+        compactHeader
+        helpIconOnly
         statusLabel={isDirty ? 'Unsaved changes' : showSaveSuccess ? 'Saved' : undefined}
         statusTone={isDirty ? 'warning' : 'active'}
         primaryAction={isView ? { label: 'Edit', tone: 'primary', onClick: () => navigate(`/admin/master/${masterKey}/${recordId}?mode=edit`) } : undefined}

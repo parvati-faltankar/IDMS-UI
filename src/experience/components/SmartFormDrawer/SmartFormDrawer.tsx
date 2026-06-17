@@ -10,9 +10,7 @@ export const SmartFormDrawer: React.FC<SmartFormDrawerProps> = ({
   subtitle,
   width = 'md',
   onSave,
-  onCancel,
   saveLabel   = 'Save',
-  cancelLabel = 'Cancel',
   saveDisabled = false,
   isDirty = false,
   dirtyWarningText,
@@ -20,11 +18,6 @@ export const SmartFormDrawer: React.FC<SmartFormDrawerProps> = ({
   validationErrors = [],
   children,
 }) => {
-  const handleCancel = () => {
-    if (onCancel) onCancel();
-    else onClose();
-  };
-
   return (
     <SmartDrawer
       open={open}
@@ -36,8 +29,7 @@ export const SmartFormDrawer: React.FC<SmartFormDrawerProps> = ({
       isDirty={isDirty}
       dirtyWarningText={dirtyWarningText}
       footerActions={[
-        { label: cancelLabel, tone: 'outline',  onClick: handleCancel },
-        { label: saveLabel,   tone: 'primary',  onClick: onSave, disabled: saveDisabled },
+        { label: saveLabel, tone: 'primary', onClick: onSave, disabled: saveDisabled, fullWidth: true },
       ]}
     >
       <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>

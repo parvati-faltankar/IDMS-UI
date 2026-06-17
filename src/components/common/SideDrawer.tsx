@@ -11,6 +11,7 @@ interface SideDrawerProps {
   headerActions?: React.ReactNode;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  footerClassName?: string;
   onClose: () => void;
   initialFocusRef?: React.RefObject<HTMLElement | null>;
   panelClassName?: string;
@@ -25,6 +26,7 @@ const SideDrawer: React.FC<SideDrawerProps> = ({
   headerActions,
   children,
   footer,
+  footerClassName,
   onClose,
   initialFocusRef,
   panelClassName,
@@ -64,7 +66,7 @@ const SideDrawer: React.FC<SideDrawerProps> = ({
 
   return (
     <AppDrawer open={isOpen} onClose={onClose} width={drawerWidth}>
-      <aside aria-labelledby={titleId} className={cn(panelClassName)}>
+      <aside aria-labelledby={titleId} className={cn('side-drawer__panel', panelClassName)}>
         <div className="side-drawer__header">
           <div className="side-drawer__header-copy">
             <h2 id={titleId} className="brand-page-title side-drawer__title">
@@ -89,7 +91,7 @@ const SideDrawer: React.FC<SideDrawerProps> = ({
 
         <div className={cn('side-drawer__content', contentClassName)}>{children}</div>
 
-        {footer && <div className="side-drawer__footer">{footer}</div>}
+        {footer && <div className={cn('side-drawer__footer', footerClassName)}>{footer}</div>}
       </aside>
     </AppDrawer>
   );

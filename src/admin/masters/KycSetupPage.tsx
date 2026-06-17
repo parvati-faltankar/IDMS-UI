@@ -732,12 +732,6 @@ const KycSetupPage: React.FC = () => {
       primaryAction={{ label: 'Add KYC Config', tone: 'primary', onClick: openAddForm }}
       helpTopicId="kyc-setup"
       onHelpClick={(id) => { setHelpTopicId(id); setHelpOpen(true); }}
-      summaryItems={[
-        { label: 'Total',    value: configs.length                                                               },
-        { label: 'Active',   value: configs.filter(c => c.status === 'Active').length,   tone: 'success' as const },
-        { label: 'Draft',    value: configs.filter(c => c.status === 'Draft').length,    tone: 'warning' as const },
-        { label: 'Inactive', value: configs.filter(c => c.status === 'Inactive').length, tone: 'danger'  as const },
-      ]}
       searchValue={searchQuery}
       searchPlaceholder="Search configurations…"
       onSearchChange={(q) => setSearchQuery(q)}
@@ -1033,6 +1027,8 @@ const KycSetupPage: React.FC = () => {
       title={currentCode}
       description={isViewOnly ? 'Viewing — read only' : 'Fill all sections, then activate'}
       breadcrumbs={[group?.label ?? '', master?.label ?? '']}
+      compactHeader
+      helpIconOnly
       statusLabel={editingConfig?.status}
       statusTone={editingConfig?.status === 'Active' ? 'active' : editingConfig?.status === 'Draft' ? 'draft' : editingConfig?.status === 'Inactive' ? 'neutral' : undefined}
       helpTopicId={helpTopicId}

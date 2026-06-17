@@ -1,13 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Building2,
-  ChevronDown,
   Filter,
-  MapPin,
+  Eye,
+  Edit2,
   Phone,
   Trash2,
+  UserCheck,
   User,
+  X,
 } from 'lucide-react';
 import AdminShell from '../../../AdminShell';
 import { AdminListPageShell } from '../../../../experience/components/AdminListPageShell';
@@ -19,51 +20,35 @@ import { HelpDrawer } from '../../../../experience/components/HelpDrawer';
 import { getHelpTopic } from '../../../../experience/help/helpTopics';
 import { findGroupForMasterKey, findMasterByKey } from '../../../adminNavConfig';
 import { recordRecentAdminMaster } from '../../../adminStorage';
-import type { BusinessPartner, BPStatus, BPType } from '../types/supplierMaster.types';
+import type { BusinessPartner, BPType } from '../types/supplierMaster.types';
 import { supplierService } from '../services/supplierService';
-import { BP_TYPES, BP_TYPE_META } from '../constants/supplierMaster.constants';
+import { BP_TYPES } from '../constants/supplierMaster.constants';
 import BPTypePickerDialog from '../components/BPTypePickerDialog';
+import {
+  MasterDataTable,
+  MasterTableIdentifierLink,
+  MasterTablePill,
+  MasterTableRowActions,
+  MasterTableStatus,
+  MasterTableTextCell,
+  MasterTableTruncate,
+  getMasterStatusTone,
+} from '../../../../components/common/MasterDataTable';
+import MasterFilterDrawer from '../../../../components/common/MasterFilterDrawer';
+import type { DataGridColumn } from '../../../../components/common/dataGridTypes';
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-function getStatusStyle(status: BPStatus): React.CSSProperties {
-  if (status === 'Active')   return { background: '#DCFCE7', color: '#15803D' };
-  if (status === 'Inactive') return { background: '#FEF2F2', color: '#DC2626' };
-  return { background: '#F1F5F9', color: '#64748B' };
+function getTypeTone(type: BPType): 'neutral' | 'success' | 'warning' | 'info' {
+  if (type === 'Customer') return 'success';
+  if (type === 'Financier') return 'warning';
+  if (type === 'Supplier' || type === 'Transporter') return 'info';
+  return 'neutral';
 }
-
-function getTypeStyle(type: BPType): React.CSSProperties {
-  const meta = BP_TYPE_META[type];
-  return meta ? { background: meta.bgColor, color: meta.color } : { background: '#EFF6FF', color: '#1D4ED8' };
-}
-
-const BADGE_BASE: React.CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  padding: '2px 8px',
-  fontSize: '11px',
-  fontWeight: 600,
-  borderRadius: '6px',
-  whiteSpace: 'nowrap',
-};
-
-const GRID_COLUMNS =
-  '80px minmax(180px, 1fr) 120px 130px 110px 80px 90px 100px';
-
-const COL_HEADERS = [
-  { label: 'Code',        align: 'left'   },
-  { label: 'Legal Name',  align: 'left'   },
-  { label: 'Type',        align: 'left'   },
-  { label: 'Category',    align: 'left'   },
-  { label: 'Country',     align: 'left'   },
-  { label: 'Contacts',    align: 'center' },
-  { label: 'Status',      align: 'left'   },
-  { label: 'Actions',     align: 'right'  },
-];
 
 const MASTER_KEY = 'supplier-master';
 
-// ─── Preview section builder ──────────────────────────────────────────────────
+// â”€â”€â”€ Preview section builder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function buildPreviewSections(bp: BusinessPartner): PreviewSection[] {
   const primaryContact = bp.contacts.find((c) => c.contactType === 'Primary');
@@ -76,14 +61,14 @@ function buildPreviewSections(bp: BusinessPartner): PreviewSection[] {
       fields: [
         { label: 'BP Code',     value: bp.bpCode,     mono: true },
         { label: 'Legal Name',  value: bp.bpLegalName },
-        { label: 'Type',        value: bp.bpType || '—' },
-        { label: 'Category',    value: bp.bpCategory || '—' },
-        { label: 'Country',     value: bp.countryOfRegistration || '—' },
-        { label: 'Business Type', value: bp.businessType || '—' },
-        { label: 'Industry',    value: bp.industryType || '—' },
-        { label: 'Employees',   value: bp.noOfEmployees || '—' },
-        { label: 'Founded',     value: bp.foundingDate || '—' },
-        { label: 'Website',     value: bp.websiteUrl || '—' },
+        { label: 'Type',        value: bp.bpType || 'â€”' },
+        { label: 'Category',    value: bp.bpCategory || 'â€”' },
+        { label: 'Country',     value: bp.countryOfRegistration || 'â€”' },
+        { label: 'Business Type', value: bp.businessType || 'â€”' },
+        { label: 'Industry',    value: bp.industryType || 'â€”' },
+        { label: 'Employees',   value: bp.noOfEmployees || 'â€”' },
+        { label: 'Founded',     value: bp.foundingDate || 'â€”' },
+        { label: 'Website',     value: bp.websiteUrl || 'â€”' },
         ...(bp.effectiveFromDate ? [{ label: 'Effective From', value: bp.effectiveFromDate }] : []),
         ...(bp.description ? [{ label: 'Description', value: bp.description, span: 2 as const }] : []),
       ],
@@ -95,10 +80,10 @@ function buildPreviewSections(bp: BusinessPartner): PreviewSection[] {
       title: 'Primary Contact',
       fields: [
         { label: 'Name',        value: primaryContact.contactName },
-        { label: 'Designation', value: primaryContact.designation || '—' },
-        { label: 'Department',  value: primaryContact.department  || '—' },
-        { label: 'Phone',       value: primaryContact.countryCode ? `${primaryContact.countryCode} ${primaryContact.phone}` : primaryContact.phone || '—' },
-        { label: 'Email',       value: primaryContact.email || '—', span: 2 },
+        { label: 'Designation', value: primaryContact.designation || 'â€”' },
+        { label: 'Department',  value: primaryContact.department  || 'â€”' },
+        { label: 'Phone',       value: primaryContact.countryCode ? `${primaryContact.countryCode} ${primaryContact.phone}` : primaryContact.phone || 'â€”' },
+        { label: 'Email',       value: primaryContact.email || 'â€”', span: 2 },
       ],
     });
   }
@@ -109,10 +94,10 @@ function buildPreviewSections(bp: BusinessPartner): PreviewSection[] {
       fields: [
         { label: 'Type',        value: defaultAddress.addressType },
         { label: 'Address',     value: [defaultAddress.addressLine1, defaultAddress.addressLine2].filter(Boolean).join(', '), span: 2 },
-        { label: 'City',        value: defaultAddress.city || '—' },
-        { label: 'State',       value: defaultAddress.state || '—' },
-        { label: 'PIN',         value: defaultAddress.pin || '—' },
-        { label: 'Country',     value: defaultAddress.country || '—' },
+        { label: 'City',        value: defaultAddress.city || 'â€”' },
+        { label: 'State',       value: defaultAddress.state || 'â€”' },
+        { label: 'PIN',         value: defaultAddress.pin || 'â€”' },
+        { label: 'Country',     value: defaultAddress.country || 'â€”' },
       ],
     });
   }
@@ -131,9 +116,9 @@ function buildPreviewSections(bp: BusinessPartner): PreviewSection[] {
       title: 'Default Bank Account',
       fields: [
         { label: 'Bank',           value: defaultBank.bankName },
-        { label: 'Branch',         value: defaultBank.branchName || '—' },
+        { label: 'Branch',         value: defaultBank.branchName || 'â€”' },
         { label: 'Account Holder', value: defaultBank.accountHolderName },
-        { label: 'Account No.',    value: `••••${defaultBank.accountNumber.slice(-4)}`, mono: true },
+        { label: 'Account No.',    value: `â€¢â€¢â€¢â€¢${defaultBank.accountNumber.slice(-4)}`, mono: true },
         { label: 'Account Type',   value: defaultBank.accountType },
         { label: 'Currency',       value: defaultBank.defaultCurrency },
       ],
@@ -158,45 +143,45 @@ function buildPreviewSections(bp: BusinessPartner): PreviewSection[] {
   return sections;
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const SupplierListPage: React.FC = () => {
   const navigate = useNavigate();
 
-  // ── Data ──────────────────────────────────────────────────────────────
+  // â”€â”€ Data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [records, setRecords] = useState<BusinessPartner[]>(() => supplierService.getAll());
 
-  // ── Filters ───────────────────────────────────────────────────────────
+  // â”€â”€ Filters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [searchQuery,        setSearchQuery]        = useState('');
   const [filterStatus,       setFilterStatus]       = useState('');
   const [filterType,         setFilterType]         = useState('');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
-  // ── Activate flow ─────────────────────────────────────────────────────
+  // â”€â”€ Activate flow â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [activateTarget, setActivateTarget] = useState<BusinessPartner | null>(null);
   const [activateOpen,   setActivateOpen]   = useState(false);
 
-  // ── Inactivate flow ───────────────────────────────────────────────────
+  // â”€â”€ Inactivate flow â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [inactivateTarget, setInactivateTarget] = useState<BusinessPartner | null>(null);
   const [inactivateReason, setInactivateReason] = useState('');
   const [inactivateOpen,   setInactivateOpen]   = useState(false);
 
-  // ── Delete flow ───────────────────────────────────────────────────────
+  // â”€â”€ Delete flow â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [deleteTarget, setDeleteTarget] = useState<BusinessPartner | null>(null);
   const [deleteOpen,   setDeleteOpen]   = useState(false);
 
-  // ── Preview ───────────────────────────────────────────────────────────
+  // â”€â”€ Preview â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [previewBP,   setPreviewBP]   = useState<BusinessPartner | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
 
-  // ── Help ─────────────────────────────────────────────────────────────
+  // â”€â”€ Help â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [helpOpen, setHelpOpen] = useState(false);
 
-  // ── UI state ──────────────────────────────────────────────────────────
+  // â”€â”€ UI state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [pickerOpen, setPickerOpen] = useState(false);
 
 
-  // ── Toast ─────────────────────────────────────────────────────────────
+  // â”€â”€ Toast â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
 
   function showToast(message: string, tone: 'success' | 'error') {
@@ -204,7 +189,7 @@ const SupplierListPage: React.FC = () => {
     setTimeout(() => setToast(null), 3500);
   }
 
-  // ── Recent admin master tracking ──────────────────────────────────────
+  // â”€â”€ Recent admin master tracking â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     const master = findMasterByKey(MASTER_KEY);
     const group  = findGroupForMasterKey(MASTER_KEY);
@@ -220,7 +205,7 @@ const SupplierListPage: React.FC = () => {
     }
   }, []);
 
-  // ── Filtered list ──────────────────────────────────────────────────────
+  // â”€â”€ Filtered list â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return records.filter((bp) => {
@@ -235,14 +220,8 @@ const SupplierListPage: React.FC = () => {
     });
   }, [records, searchQuery, filterStatus, filterType]);
 
-  // ── Quick filter counts ────────────────────────────────────────────────
-  const counts = useMemo(() => ({
-    all:      records.length,
-    Active:   records.filter((bp) => bp.status === 'Active').length,
-    Draft:    records.filter((bp) => bp.status === 'Draft').length,
-    Inactive: records.filter((bp) => bp.status === 'Inactive').length,
-  }), [records]);
-  // ── Actions ───────────────────────────────────────────────────────────
+  // â”€â”€ Quick filter counts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â”€â”€ Actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   function handleQuickFilter(key: string) {
     setFilterStatus(key === 'all' ? '' : key);
@@ -292,274 +271,159 @@ const SupplierListPage: React.FC = () => {
     setDeleteTarget(null);
   }
 
-  // ── Styles ────────────────────────────────────────────────────────────
+  // â”€â”€ Styles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-  const inputBase: React.CSSProperties = {
-    width: '100%', padding: '6px 10px', fontSize: '13px',
-    border: '1px solid var(--color-border)', borderRadius: '8px',
-    background: 'var(--color-surface)', color: 'var(--color-text)',
-    outline: 'none', boxSizing: 'border-box',
-  };
+  // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-  // ── Render ────────────────────────────────────────────────────────────
+  const hasFilters = Boolean(filterStatus || filterType);
 
-  const activeFilter = filterStatus || 'all';
+  const gridColumns: DataGridColumn<BusinessPartner>[] = [
+    {
+      id: 'bpCode',
+      label: 'Code',
+      type: 'text',
+      width: 126,
+      minWidth: 112,
+      hideable: false,
+      defaultPin: 'left',
+      getValue: (bp) => bp.bpCode,
+      renderCell: (bp) => (
+        <MasterTableIdentifierLink label={bp.bpCode} onClick={() => { setPreviewBP(bp); setPreviewOpen(true); }} />
+      ),
+    },
+    {
+      id: 'bpLegalName',
+      label: 'Legal Name',
+      type: 'text',
+      width: 252,
+      minWidth: 220,
+      hideable: false,
+      getValue: (bp) => bp.bpLegalName,
+      renderCell: (bp) => (
+        <MasterTableTextCell
+          primary={bp.bpLegalName}
+          secondary={bp.displayName && bp.displayName !== bp.bpLegalName ? bp.displayName : undefined}
+          title={bp.bpLegalName}
+        />
+      ),
+    },
+    {
+      id: 'bpType',
+      label: 'Type',
+      type: 'enum',
+      width: 146,
+      minWidth: 132,
+      getValue: (bp) => bp.bpType,
+      options: BP_TYPES.map((value) => ({ value, label: value })),
+      renderCell: (bp) => <MasterTablePill label={bp.bpType} tone={getTypeTone(bp.bpType)} />,
+    },
+    {
+      id: 'bpCategory',
+      label: 'Category',
+      type: 'text',
+      width: 160,
+      minWidth: 146,
+      getValue: (bp) => bp.bpCategory,
+      renderCell: (bp) => <MasterTableTruncate value={bp.bpCategory || '-'} />,
+    },
+    {
+      id: 'countryOfRegistration',
+      label: 'Country',
+      type: 'text',
+      width: 152,
+      minWidth: 136,
+      getValue: (bp) => bp.countryOfRegistration,
+      renderCell: (bp) => <MasterTableTruncate value={bp.countryOfRegistration || '-'} />,
+    },
+    {
+      id: 'contacts',
+      label: 'Contacts',
+      type: 'number',
+      width: 120,
+      minWidth: 108,
+      getValue: (bp) => bp.contacts.length,
+      renderCell: (bp) => {
+        const hasPrimaryContact = bp.contacts.some((contact) => contact.contactType === 'Primary');
 
-  const quickFilterItems = [
-    { key: 'all',      label: 'All',      count: counts.all },
-    { key: 'Active',   label: 'Active',   count: counts.Active },
-    { key: 'Draft',    label: 'Draft',    count: counts.Draft },
-    { key: 'Inactive', label: 'Inactive', count: counts.Inactive },
-  ];
-
-  const advancedFilterPanel = showAdvancedFilters ? (
-    <div
-      style={{
-        position: 'absolute', top: '100%', right: 0, zIndex: 200,
-        background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-        borderRadius: '12px', boxShadow: '0 8px 24px rgba(0,0,0,0.10)',
-        padding: '16px 20px', minWidth: '260px', marginTop: '6px',
-      }}
-    >
-      <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>
-        Advanced Filters
-      </p>
-      <label style={{ fontSize: '12px', fontWeight: 500, color: 'var(--color-text-muted)', display: 'block', marginBottom: '6px' }}>
-        BP Type
-      </label>
-      <select
-        value={filterType}
-        onChange={(e) => setFilterType(e.target.value)}
-        style={{ ...inputBase, marginBottom: '16px' }}
-      >
-        <option value="">All types</option>
-        {BP_TYPES.map((t) => (
-          <option key={t} value={t}>{t}</option>
-        ))}
-      </select>
-      <button
-        type="button"
-        onClick={() => { setFilterType(''); setShowAdvancedFilters(false); }}
-        style={{ fontSize: '12px', color: 'var(--color-text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-      >
-        Clear filters
-      </button>
-    </div>
-  ) : null;
-
-  const toolbarActions = (
-    <div style={{ position: 'relative' }}>
-      <button
-        type="button"
-        onClick={() => setShowAdvancedFilters((v) => !v)}
-        style={{
-          display: 'inline-flex', alignItems: 'center', gap: '5px',
-          padding: '0 10px', height: '30px', fontSize: '12px', fontWeight: 500,
-          border: `1px solid ${filterType ? 'var(--color-primary)' : 'var(--color-border)'}`,
-          borderRadius: '8px',
-          background: filterType ? 'color-mix(in srgb, var(--color-primary) 8%, var(--color-surface))' : 'transparent',
-          color: filterType ? 'var(--color-primary)' : 'var(--color-text-muted)',
-          cursor: 'pointer', transition: 'all 0.12s', whiteSpace: 'nowrap',
-        }}
-      >
-        <Filter size={11} />
-        Filters
-        {filterType && (
-          <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'var(--color-primary)', flexShrink: 0 }} />
-        )}
-        <ChevronDown size={10} style={{ transform: showAdvancedFilters ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
-      </button>
-      {advancedFilterPanel}
-    </div>
-  );
-
-  const tableHeader = (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: GRID_COLUMNS,
-        alignItems: 'center',
-        height: '36px',
-        padding: '0 16px',
-        borderBottom: '1.5px solid var(--color-border)',
-        background: 'var(--color-surface-subtle)',
-        position: 'sticky', top: 0, zIndex: 10,
-      }}
-    >
-      {COL_HEADERS.map(({ label, align }, i) => (
-        <div
-          key={i}
-          style={{
-            fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)',
-            textTransform: 'uppercase', letterSpacing: '0.05em',
-            textAlign: align as React.CSSProperties['textAlign'],
-            paddingRight: i < COL_HEADERS.length - 1 ? '8px' : '0',
-          }}
-        >
-          {label}
-        </div>
-      ))}
-    </div>
-  );
-
-  const tableBody = filtered.length === 0 ? (
-    <div style={{ padding: '64px 28px', textAlign: 'center', background: 'var(--color-surface)' }}>
-      <div style={{
-        width: '48px', height: '48px', borderRadius: '12px',
-        background: 'var(--color-surface-subtle)', border: '1px solid var(--color-border)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px',
-      }}>
-        {records.length === 0 ? <Building2 size={20} style={{ color: 'var(--color-text-muted)' }} /> : <Filter size={20} style={{ color: 'var(--color-text-muted)' }} />}
-      </div>
-      <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text)', marginBottom: '6px' }}>
-        {records.length === 0 ? 'No business partners yet' : 'No partners match the current filters'}
-      </div>
-      <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', maxWidth: '360px', margin: '0 auto 24px', lineHeight: 1.6 }}>
-        {records.length === 0
-          ? 'Add suppliers, transporters, financiers, and other business partners to get started.'
-          : 'Try adjusting your search or filters.'}
-      </div>
-      {records.length === 0 && (
-        <button
-          type="button"
-          onClick={() => setPickerOpen(true)}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '0 14px', height: '32px', fontSize: '13px', fontWeight: 600, borderRadius: '8px', border: 'none', background: 'var(--color-primary)', color: 'white', cursor: 'pointer' }}
-        >
-          + New Business Partner
-        </button>
-      )}
-    </div>
-  ) : (
-    <>
-      {filtered.map((bp, idx) => {
-        const isLast    = idx === filtered.length - 1;
-        const canDelete = bp.status === 'Draft';
-        const primaryContact = bp.contacts.find((c) => c.contactType === 'Primary');
         return (
-          <div
-            key={bp.id}
-            style={{
-              display: 'grid',
-              gridTemplateColumns: GRID_COLUMNS,
-              alignItems: 'center',
-              height: '44px',
-              padding: '0 16px',
-              borderBottom: isLast ? 'none' : '1px solid var(--color-border)',
-              cursor: 'pointer',
-              transition: 'background 0.10s',
-            }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'var(--color-surface-subtle)'; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = ''; }}
-            onClick={() => { setPreviewBP(bp); setPreviewOpen(true); }}
-          >
-            {/* Code */}
-            <div style={{ fontFamily: 'monospace', fontSize: '11px', fontWeight: 700, color: 'var(--color-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '8px' }}>
-              {bp.bpCode}
-            </div>
-
-            {/* Legal Name */}
-            <div style={{ paddingRight: '8px', overflow: 'hidden' }}>
-              <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {bp.bpLegalName}
-              </div>
-              {bp.displayName && bp.displayName !== bp.bpLegalName && (
-                <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {bp.displayName}
-                </div>
-              )}
-            </div>
-
-            {/* Type */}
-            <div style={{ paddingRight: '8px' }}>
-              <span style={{ ...BADGE_BASE, ...getTypeStyle(bp.bpType), borderRadius: '9999px' }}>
-                {bp.bpType}
-              </span>
-            </div>
-
-            {/* Category */}
-            <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '8px' }}>
-              {bp.bpCategory || '—'}
-            </div>
-
-            {/* Country */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', paddingRight: '8px' }}>
-              <MapPin size={10} style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} />
-              <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {bp.countryOfRegistration || '—'}
-              </span>
-            </div>
-
-            {/* Contacts count */}
-            <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 600, color: 'var(--color-text)', paddingRight: '8px' }}>
-              {bp.contacts.length > 0 ? (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                  <User size={10} style={{ color: 'var(--color-text-muted)' }} />
-                  {bp.contacts.length}
-                  {primaryContact && (
-                    <Phone size={9} style={{ color: '#16A34A' }} />
-                  )}
-                </span>
-              ) : (
-                <span style={{ color: 'var(--color-text-muted)', fontWeight: 400 }}>—</span>
-              )}
-            </div>
-
-            {/* Status */}
-            <div style={{ paddingRight: '8px' }}>
-              <span style={{ ...BADGE_BASE, ...getStatusStyle(bp.status), borderRadius: '9999px' }}>
-                {bp.status}
-              </span>
-            </div>
-
-            {/* Actions */}
-            <div
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <button
-                type="button"
-                title="Edit"
-                onClick={() => navigate(`/admin/supplier-master/${bp.id}`)}
-                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', borderRadius: '7px', border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-muted)' }}
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-              </button>
-              {bp.status === 'Draft' && (
-                <button
-                  type="button"
-                  title="Activate"
-                  onClick={() => handleActivateClick(bp)}
-                  style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', borderRadius: '7px', border: '1px solid #BBF7D0', background: '#F0FDF4', cursor: 'pointer', color: '#15803D' }}
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                </button>
-              )}
-              {bp.status === 'Active' && (
-                <button
-                  type="button"
-                  title="Inactivate"
-                  onClick={() => handleInactivateClick(bp)}
-                  style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', borderRadius: '7px', border: '1px solid #FECACA', background: '#FEF2F2', cursor: 'pointer', color: '#DC2626' }}
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
-              )}
-              {canDelete && (
-                <button
-                  type="button"
-                  title="Delete"
-                  onClick={() => handleDeleteClick(bp)}
-                  style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', borderRadius: '7px', border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer', color: '#DC2626' }}
-                >
-                  <Trash2 size={12} />
-                </button>
-              )}
-            </div>
-          </div>
+          <span className="master-table-inline-meta">
+            <User size={11} />
+            <span>{bp.contacts.length}</span>
+            {hasPrimaryContact ? <Phone size={10} className="master-table-inline-meta__accent" /> : null}
+          </span>
         );
-      })}
-    </>
-  );
+      },
+    },
+    {
+      id: 'status',
+      label: 'Status',
+      type: 'status',
+      width: 126,
+      minWidth: 112,
+      getValue: (bp) => bp.status,
+      options: ['Draft', 'Active', 'Inactive'].map((value) => ({ value, label: value })),
+      renderCell: (bp) => <MasterTableStatus label={bp.status} tone={getMasterStatusTone(bp.status)} />,
+    },
+    {
+      id: 'actions',
+      label: 'Actions',
+      type: 'actions',
+      width: 92,
+      minWidth: 92,
+      sortable: false,
+      filterable: false,
+      groupable: false,
+      hideable: false,
+      defaultPin: 'right',
+      getValue: () => '',
+      renderCell: (bp) => (
+        <MasterTableRowActions
+          rowLabel={bp.bpCode}
+          inlineAction={{ label: 'Edit partner', onClick: () => navigate(`/admin/supplier-master/${bp.id}`), icon: <Edit2 size={13} /> }}
+          menuActions={[
+            {
+              label: 'Preview details',
+              onSelect: () => {
+                setPreviewBP(bp);
+                setPreviewOpen(true);
+              },
+              icon: <Eye size={13} />,
+            },
+            {
+              label: 'Edit partner',
+              onSelect: () => navigate(`/admin/supplier-master/${bp.id}`),
+              icon: <Edit2 size={13} />,
+            },
+            ...(bp.status === 'Draft'
+              ? [{
+                  label: 'Activate',
+                  onSelect: () => handleActivateClick(bp),
+                  icon: <UserCheck size={13} />,
+                }]
+              : []),
+            ...(bp.status === 'Active'
+              ? [{
+                  label: 'Inactivate',
+                  onSelect: () => handleInactivateClick(bp),
+                  icon: <X size={13} />,
+                  tone: 'warning' as const,
+                  dividerBefore: true,
+                }]
+              : []),
+            ...(bp.status === 'Draft'
+              ? [{
+                  label: 'Delete',
+                  onSelect: () => handleDeleteClick(bp),
+                  icon: <Trash2 size={13} />,
+                  tone: 'danger' as const,
+                  dividerBefore: true,
+                }]
+              : []),
+          ]}
+        />
+      ),
+    },
+  ];
 
   return (
     <AdminShell>
@@ -568,24 +432,66 @@ const SupplierListPage: React.FC = () => {
         description="Manage suppliers, transporters, financiers, insurance providers, and customers."
         breadcrumbs={['Admin', 'Business Partners', 'Supplier Master']}
         primaryAction={{ label: '+ New Business Partner', onClick: () => setPickerOpen(true) }}
+        secondaryActions={[{
+          label: 'Filters',
+          onClick: () => setShowAdvancedFilters(true),
+          icon: <Filter size={13} />,
+          iconOnly: true,
+          title: 'Open filters',
+          active: hasFilters,
+        }]}
         helpTopicId="supplier-master"
         onHelpClick={() => setHelpOpen(true)}
         searchValue={searchQuery}
-        searchPlaceholder="Search by code, name, or type…"
+        searchPlaceholder="Search by code, name, or typeâ€¦"
         onSearchChange={setSearchQuery}
-        quickFilterItems={quickFilterItems}
-        activeQuickFilter={activeFilter}
-        onQuickFilterChange={handleQuickFilter}
-        toolbarActions={toolbarActions}
       >
-        {/* ── Table view ────────────────────────────────────────────────── */}
-        <div style={{ background: 'var(--color-surface)', borderRadius: '12px', border: '1px solid var(--color-border)', overflow: 'hidden' }}>
-          {tableHeader}
-          {tableBody}
-        </div>
+        {/* â”€â”€ Table view â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        <MasterDataTable
+          gridId="supplier-master-table"
+          rows={filtered}
+          columns={gridColumns}
+          rowId={(bp) => bp.id}
+          totalCount={records.length}
+          emptyState={{
+            title: records.length === 0 ? 'No business partners yet' : 'No partners match the current filters',
+            description: records.length === 0
+              ? 'Add suppliers, transporters, financiers, and other business partners to get started.'
+              : 'Try adjusting your search or filters.',
+            ...(records.length === 0 ? { action: { label: 'New Business Partner', onClick: () => setPickerOpen(true) } } : {}),
+          }}
+        />
       </AdminListPageShell>
 
-      {/* ── Activate confirm ────────────────────────────────────────────── */}
+      <MasterFilterDrawer
+        open={showAdvancedFilters}
+        onClose={() => setShowAdvancedFilters(false)}
+        onReset={() => {
+          setFilterStatus('');
+          setFilterType('');
+        }}
+        description="Filter business partners by status and partner type."
+        fields={[
+          {
+            id: 'bp-status',
+            label: 'Status',
+            value: filterStatus,
+            placeholder: 'All statuses',
+            options: ['Active', 'Draft', 'Inactive'].map((status) => ({ value: status, label: status })),
+            onChange: handleQuickFilter,
+          },
+          {
+            id: 'bp-type',
+            label: 'BP Type',
+            value: filterType,
+            placeholder: 'All types',
+            options: BP_TYPES.map((type) => ({ value: type, label: type })),
+            onChange: setFilterType,
+          },
+        ]}
+      />
+
+      {/* â”€â”€ Activate confirm â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <SmartReviewDrawer
         open={activateOpen}
         onClose={() => setActivateOpen(false)}
@@ -603,7 +509,7 @@ const SupplierListPage: React.FC = () => {
         onCancel={() => setActivateOpen(false)}
       />
 
-      {/* ── Inactivate drawer ───────────────────────────────────────────── */}
+      {/* â”€â”€ Inactivate drawer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <SmartFormDrawer
         open={inactivateOpen}
         onClose={() => setInactivateOpen(false)}
@@ -629,12 +535,12 @@ const SupplierListPage: React.FC = () => {
             onChange={(e) => setInactivateReason(e.target.value)}
             rows={3}
             style={{ width: '100%', padding: '8px 10px', fontSize: '13px', border: '1px solid var(--color-border)', borderRadius: '8px', background: 'var(--color-surface)', color: 'var(--color-text)', outline: 'none', resize: 'vertical', boxSizing: 'border-box' }}
-            placeholder="Enter reason…"
+            placeholder="Enter reasonâ€¦"
           />
         </div>
       </SmartFormDrawer>
 
-      {/* ── Delete confirm ──────────────────────────────────────────────── */}
+      {/* â”€â”€ Delete confirm â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <SmartReviewDrawer
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}
@@ -648,7 +554,7 @@ const SupplierListPage: React.FC = () => {
         onCancel={() => setDeleteOpen(false)}
       />
 
-      {/* ── Preview drawer ──────────────────────────────────────────────── */}
+      {/* â”€â”€ Preview drawer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <SmartPreviewDrawer
         open={previewOpen}
         onClose={() => setPreviewOpen(false)}
@@ -661,9 +567,9 @@ const SupplierListPage: React.FC = () => {
           : 'draft'
         }
         summaryFields={previewBP ? [
-          { label: 'Type',     value: previewBP.bpType     || '—' },
-          { label: 'Category', value: previewBP.bpCategory || '—' },
-          { label: 'Country',  value: previewBP.countryOfRegistration || '—' },
+          { label: 'Type',     value: previewBP.bpType     || 'â€”' },
+          { label: 'Category', value: previewBP.bpCategory || 'â€”' },
+          { label: 'Country',  value: previewBP.countryOfRegistration || 'â€”' },
         ] : []}
         sections={previewBP ? buildPreviewSections(previewBP) : []}
         primaryAction={{ label: 'Edit', onClick: () => { setPreviewOpen(false); navigate(`/admin/supplier-master/${previewBP?.id}`); } }}
@@ -678,7 +584,7 @@ const SupplierListPage: React.FC = () => {
         }
       />
 
-      {/* ── Help drawer ─────────────────────────────────────────────────── */}
+      {/* â”€â”€ Help drawer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <HelpDrawer
         open={helpOpen}
         topic={getHelpTopic('supplier-master')}
@@ -686,7 +592,7 @@ const SupplierListPage: React.FC = () => {
         titleFallback="Business Partner Master Help"
       />
 
-      {/* ── Toast ───────────────────────────────────────────────────────── */}
+      {/* â”€â”€ Toast â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {toast && (
         <div
           style={{
@@ -701,10 +607,11 @@ const SupplierListPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── Type Picker Dialog ───────────────────────────────────────────── */}
+      {/* â”€â”€ Type Picker Dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <BPTypePickerDialog open={pickerOpen} onClose={() => setPickerOpen(false)} />
     </AdminShell>
   );
 };
 
 export default SupplierListPage;
+

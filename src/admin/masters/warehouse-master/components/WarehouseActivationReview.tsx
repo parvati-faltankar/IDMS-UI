@@ -375,23 +375,44 @@ export function WarehouseActivationReview({
 export interface ActivationCheckInput {
   warehouseName: string;
   warehouseCode: string;
+  timezone?: string;
   warehouseType: WarehouseType | '';
   ownershipScope: WarehouseOwnershipScope | '';
-  owningOrgCode: string;
-  businessUnit: string;
-  legalEntityCode: string;
-  inventoryOwnerCode: string;
-  owningBranchCodes: string[];
+  owningOrgCode?: string;
+  owningBranchCode?: string;
+  businessUnit?: string;
+  legalEntityCode?: string;
+  inventoryOwnerCode?: string;
+  owningBranchCodes?: string[];
+  sharedBranchCodes?: string[];
   branchOwnershipRowsComplete: boolean;
   inventoryControlMode: InventoryControlMode | '';
   hasActiveTemplate: boolean;
   hasActiveInventoryLocation: boolean;
   codeIsUnique: boolean;
   hasPermission: boolean;
+  timezonePolicy?: {
+    /** True when policy/config requires timezone for activation. */
+    timezoneRequiredForActivation?: boolean;
+    /** Optional reason shown when timezone is required but missing. */
+    requiredReason?: string;
+  };
 }
 
 export function buildActivationChecks(input: ActivationCheckInput): ActivationCheckItem[] {
   const isBinLevel = input.inventoryControlMode === 'Location-BIN-Level';
+  const timezoneValue = (input.timezone ?? '').trim();
+  const owningOrgCode = (input.owningOrgCode ?? '').trim();
+  const businessUnit = (input.businessUnit ?? '').trim();
+  const legalEntityCode = (input.legalEntityCode ?? '').trim();
+  const inventoryOwnerCode = (input.inventoryOwnerCode ?? '').trim();
+  const normalizedBranchCodes = Array.from(new Set([
+    ...((input.owningBranchCodes ?? []).map((code) => code.trim()).filter(Boolean)),
+    ...((input.owningBranchCode ?? '').trim() ? [(input.owningBranchCode ?? '').trim()] : []),
+  ].map((code) => code.toUpperCase())));
+  const timezoneRequiredForActivation = Boolean(input.timezonePolicy?.timezoneRequiredForActivation);
+  const timezoneRequirementReason = input.timezonePolicy?.requiredReason?.trim() ||
+    'Operational Time Zone is required by activation policy.';
 
   return [
     // ── Identity ──
@@ -423,6 +444,22 @@ export function buildActivationChecks(input: ActivationCheckInput): ActivationCh
       detail: input.warehouseType === '' ? 'Please select a Warehouse Type.' : undefined,
       fixStep: 0,
     },
+    {
+      id: 'identity-timezone',
+      category: 'Identity',
+      label: timezoneRequiredForActivation
+        ? 'Operational Time Zone is configured (required by policy)'
+        : 'Operational Time Zone is recommended for timing-sensitive operations',
+      passed: timezoneRequiredForActivation
+        ? timezoneValue.length > 0
+        : timezoneValue.length > 0 ? true : null,
+      detail: timezoneRequiredForActivation && timezoneValue.length === 0
+        ? timezoneRequirementReason
+        : !timezoneRequiredForActivation && timezoneValue.length === 0
+          ? 'Optional at this stage. Add timezone before enabling timing-sensitive policies.'
+          : undefined,
+      fixStep: timezoneRequiredForActivation ? 0 : undefined,
+    },
     // ── Ownership ──
     {
       id: 'ownership-scope',
@@ -438,15 +475,17 @@ export function buildActivationChecks(input: ActivationCheckInput): ActivationCh
       label: 'Owning entity is specified',
       passed:
         input.ownershipScope === 'Organization'
-          ? input.owningOrgCode.trim().length > 0
+          ? owningOrgCode.length > 0
           : input.ownershipScope === 'Branch'
-            ? input.owningBranchCodes.length > 0
+            ? normalizedBranchCodes.length === 1
             : false,
       detail:
-        input.ownershipScope === 'Organization' && !input.owningOrgCode.trim()
+        input.ownershipScope === 'Organization' && owningOrgCode.length === 0
           ? 'Owning Organization is required for Organization scope.'
-          : input.ownershipScope === 'Branch' && input.owningBranchCodes.length === 0
-            ? 'At least one Owning Branch is required for Branch scope.'
+          : input.ownershipScope === 'Branch' && normalizedBranchCodes.length === 0
+            ? 'Exactly one Owning Branch is required for Branch scope.'
+          : input.ownershipScope === 'Branch' && normalizedBranchCodes.length > 1
+            ? 'Branch-level warehouses can have only one owning branch.'
             : input.ownershipScope === ''
               ? 'Select Ownership Scope first.'
               : undefined,
@@ -460,19 +499,19 @@ export function buildActivationChecks(input: ActivationCheckInput): ActivationCh
         : 'Shared ownership details are complete',
       passed:
         input.ownershipScope === 'Branch'
-          ? input.branchOwnershipRowsComplete
+          ? input.branchOwnershipRowsComplete && normalizedBranchCodes.length === 1
           : input.ownershipScope === 'Organization'
             ? Boolean(
-                input.businessUnit.trim() &&
-                input.legalEntityCode.trim() &&
-                input.inventoryOwnerCode.trim(),
+                businessUnit &&
+                legalEntityCode &&
+                inventoryOwnerCode,
               )
             : true,
       detail:
         input.ownershipScope === 'Branch' && !input.branchOwnershipRowsComplete
           ? 'Complete Business Unit, Legal Entity, and Inventory Owner for every selected branch.'
           : input.ownershipScope === 'Organization' &&
-            !(input.businessUnit.trim() && input.legalEntityCode.trim() && input.inventoryOwnerCode.trim())
+            !(businessUnit && legalEntityCode && inventoryOwnerCode)
             ? 'Business Unit, Legal Entity, and Inventory Owner are required for Organization scope.'
           : undefined,
       fixStep:

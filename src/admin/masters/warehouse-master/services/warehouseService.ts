@@ -20,9 +20,13 @@ import type {
   ImportResult,
   ImportValidationRequest,
   ImportValidationResult,
+  ListCapacityIssuesQuery,
+  PreviewCapacityImpactInput,
   PagedResult,
   StatusChangeRequest,
+  UpdateLocationCapacityInput,
   UpdateWarehouseInput,
+  ValidateLocationCapacityInput,
   WarehouseListQuery,
   WarehouseValidationInput,
   ControlledActionRequest,
@@ -31,6 +35,7 @@ import type {
   ActionResult,
   AuditEvent,
   HierarchyNode,
+  ProjectedPostingCapacityResult,
   ValidationResult,
   WarehouseDetails,
   WarehouseLocation,
@@ -57,6 +62,11 @@ export interface WarehouseService {
   previewBulkLocationIdentifiers(id: string, input: BulkLocationInput): Promise<BulkPreview>;
   validateLocationIdentifier(id: string, input: LocationIdentifierPreviewInput): Promise<ValidationResult>;
   listLocationIdentifierConflicts(id: string): Promise<LocationIdentifierConflict[]>;
+  getLocationCapacity(warehouseId: string, locationId: string): Promise<WarehouseLocation['capacity'] | undefined>;
+  updateLocationCapacity(warehouseId: string, input: UpdateLocationCapacityInput): Promise<WarehouseLocation>;
+  validateLocationCapacity(warehouseId: string, input: ValidateLocationCapacityInput): Promise<ValidationResult>;
+  previewCapacityImpact(warehouseId: string, input: PreviewCapacityImpactInput): Promise<ProjectedPostingCapacityResult>;
+  listCapacityIssues(query: ListCapacityIssuesQuery): Promise<ValidationResult>;
   bulkPreviewLocations(id: string, input: BulkLocationInput): Promise<BulkPreview>;
   commitBulkLocations(id: string, request: CommitBulkRequest): Promise<BulkResult>;
   validateImport(request: ImportValidationRequest): Promise<ImportValidationResult>;

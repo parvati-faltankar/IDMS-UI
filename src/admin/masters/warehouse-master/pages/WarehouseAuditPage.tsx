@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Clock3 } from 'lucide-react';
+import { Clock3, Filter } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import AdminShell from '../../../AdminShell';
 import { AdminListPageShell } from '../../../../experience/components/AdminListPageShell';
+import { MasterFilterDrawer } from '../../../../components/common/MasterFilterDrawer';
 import { warehouseMockAdapter } from '../services/warehouseMockAdapter';
 import { WAREHOUSE_ROUTES } from '../utils/routeUtils';
 import { filterAuditEvents, formatAuditEventLabel } from '../utils/governanceUtils';
@@ -31,6 +32,7 @@ export default function WarehouseAuditPage() {
   const [search, setSearch] = useState('');
   const [action, setAction] = useState('all');
   const [entityType, setEntityType] = useState<AuditEvent['entityType'] | ''>('');
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [errorText, setErrorText] = useState('');
 
@@ -55,28 +57,22 @@ export default function WarehouseAuditPage() {
         title="Warehouse Audit"
         description="Review field-level changes, controlled actions, approvals, imports, and correlation history."
         breadcrumbs={['Admin', 'Warehouse & Inventory', 'Warehouse Master', 'Audit']}
-        primaryAction={{ label: 'Back to Warehouse', onClick: () => navigate(WAREHOUSE_ROUTES.configuration(warehouseId)) }}
-        summaryItems={[
-          { label: 'Events', value: filtered.length, tone: 'neutral' },
-          { label: 'Controlled', value: filtered.filter((event) => event.reasonCode).length, tone: 'warning' },
-          { label: 'Imports', value: filtered.filter((event) => event.source === 'Import').length, tone: 'neutral' },
+        secondaryActions={[
+          {
+            label: 'Back to Warehouse',
+            tone: 'secondary',
+            onClick: () => navigate(WAREHOUSE_ROUTES.configuration(warehouseId)),
+          },
+          {
+            label: 'Filters',
+            tone: 'secondary',
+            icon: <Filter size={14} />,
+            onClick: () => setFilterDrawerOpen(true),
+          },
         ]}
         searchValue={search}
         searchPlaceholder="Search by action, user, reason, or correlation ID"
         onSearchChange={setSearch}
-        toolbarActions={
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <select value={action} onChange={(event) => setAction(event.target.value)} style={{ padding: '7px 10px', borderRadius: '8px', border: '1px solid var(--color-border)' }}>
-              {actionOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-            </select>
-            <select value={entityType} onChange={(event) => setEntityType(event.target.value as AuditEvent['entityType'] | '')} style={{ padding: '7px 10px', borderRadius: '8px', border: '1px solid var(--color-border)' }}>
-              <option value="">All entities</option>
-              <option value="Warehouse">Warehouse</option>
-              <option value="Location">Location</option>
-              <option value="HierarchyTemplate">Hierarchy Template</option>
-            </select>
-          </div>
-        }
       >
         {loading ? (
           <div style={{ padding: '24px', fontSize: '13px', color: 'var(--color-text-muted)' }}>Loading audit events…</div>
@@ -135,6 +131,42 @@ export default function WarehouseAuditPage() {
           </div>
         )}
       </AdminListPageShell>
+      <MasterFilterDrawer
+        open={filterDrawerOpen}
+        title="Audit Filters"
+        description="Narrow the audit list using the shared master filter drawer."
+        fields={[
+          {
+            id: 'action',
+            label: 'Action',
+            value: action,
+            placeholder: 'All actions',
+            options: actionOptions.map((option) => ({
+              value: option,
+              label: option === 'all' ? 'All actions' : option,
+            })),
+            onChange: (value) => setAction(value),
+          },
+          {
+            id: 'entityType',
+            label: 'Entity Type',
+            value: entityType,
+            placeholder: 'All entities',
+            options: [
+              { value: '', label: 'All entities' },
+              { value: 'Warehouse', label: 'Warehouse' },
+              { value: 'Location', label: 'Location' },
+              { value: 'HierarchyTemplate', label: 'Hierarchy Template' },
+            ],
+            onChange: (value) => setEntityType(value as AuditEvent['entityType'] | ''),
+          },
+        ]}
+        onClose={() => setFilterDrawerOpen(false)}
+        onReset={() => {
+          setAction('all');
+          setEntityType('');
+        }}
+      />
     </AdminShell>
   );
 }

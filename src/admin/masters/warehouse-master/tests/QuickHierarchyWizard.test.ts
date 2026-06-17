@@ -41,6 +41,40 @@ describe('Quick hierarchy wizard service flow', () => {
     ]));
   });
 
+  it('covers preview generation for all required quick patterns', async () => {
+    const createdWarehouse = await warehouseMockAdapter.createWarehouse({
+      warehouseCode: 'QH-WM-ALL',
+      warehouseName: 'Quick Pattern Coverage Warehouse',
+      ownershipScope: 'Organization',
+      owningOrgCode: 'ORG-001',
+      businessUnit: 'BU-MFG',
+      legalEntityCode: 'LE-INDIA-001',
+      inventoryOwnerCode: 'OWN-001',
+      warehouseType: 'Physical',
+      wmsEnabled: true,
+      inventoryControlMode: 'Location-BIN-Level',
+    });
+
+    const scenarios: Array<{ pattern: QuickHierarchyPreviewInput['patternKey']; counts: Record<string, number> }> = [
+      { pattern: 'simple-root-bin', counts: { BIN: 1 } },
+      { pattern: 'zone-bin', counts: { ZONE: 1, BIN: 1 } },
+      { pattern: 'standard-distribution', counts: { ZONE: 1, AISLE: 1, RACK: 1, BIN: 1 } },
+      { pattern: 'floor-room-shelf', counts: { FLOOR: 1, ROOM: 1, SHELF: 1 } },
+      { pattern: 'yard-lane-bay', counts: { YARD: 1, LANE: 1, BAY: 1 } },
+      { pattern: 'cold-room-chamber-position', counts: { COLDROOM: 1, CHAMBER: 1, POSITION: 1 } },
+      { pattern: 'custom-pattern', counts: { L1: 1, L2: 1 } },
+    ];
+
+    for (const scenario of scenarios) {
+      const preview = await warehouseMockAdapter.previewQuickHierarchy(
+        createdWarehouse.warehouse.id,
+        buildQuickInput(createdWarehouse.warehouse.id, scenario.pattern, scenario.counts),
+      );
+      expect(preview.totalGeneratedNodes).toBeGreaterThan(0);
+      expect(preview.validCount + preview.conflictCount).toBe(preview.totalGeneratedNodes);
+    }
+  });
+
   it('previews deterministic node counts for Zone -> BIN pattern', async () => {
     const createdWarehouse = await warehouseMockAdapter.createWarehouse({
       warehouseCode: 'QH-WM01',
@@ -224,5 +258,36 @@ describe('Quick hierarchy wizard service flow', () => {
 
     expect(bulkResult.success).toBe(true);
     expect(bulkResult.createdCount).toBe(2);
+  });
+
+  it('blocks preview and commit when permission is denied', async () => {
+    const createdWarehouse = await warehouseMockAdapter.createWarehouse({
+      warehouseCode: 'QH-WM06',
+      warehouseName: 'Permission Quick Wizard Warehouse',
+      ownershipScope: 'Organization',
+      owningOrgCode: 'ORG-001',
+      businessUnit: 'BU-MFG',
+      legalEntityCode: 'LE-INDIA-001',
+      inventoryOwnerCode: 'OWN-001',
+      warehouseType: 'Physical',
+      wmsEnabled: true,
+      inventoryControlMode: 'Location-BIN-Level',
+    });
+
+    const input: QuickHierarchyPreviewInput = {
+      ...buildQuickInput(createdWarehouse.warehouse.id, 'simple-root-bin', { BIN: 1 }),
+      permissionGranted: false,
+    };
+    const preview = await warehouseMockAdapter.previewQuickHierarchy(createdWarehouse.warehouse.id, input);
+    expect(preview.warnings.some((message) => message.toLowerCase().includes('permission'))).toBe(true);
+
+    const commit = await warehouseMockAdapter.commitQuickHierarchy(createdWarehouse.warehouse.id, {
+      warehouseId: createdWarehouse.warehouse.id,
+      previewToken: preview.previewToken,
+      paramsHash: preview.paramsHash,
+      idempotencyKey: 'QH-COMMIT-NO-PERMISSION',
+    });
+    expect(commit.success).toBe(false);
+    expect(commit.errors.some((error) => error.code === 'PERMISSION')).toBe(true);
   });
 });

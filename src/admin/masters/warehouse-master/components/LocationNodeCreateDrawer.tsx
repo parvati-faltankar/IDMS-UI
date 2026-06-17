@@ -56,6 +56,7 @@ export function LocationNodeCreateDrawer({
   }, [allowedLevels, open]);
 
   const selectedLevel = allowedLevels.find((level) => level.levelCode === selectedLevelCode);
+  const singleAllowedLevel = allowedLevels.length <= 1;
   const selectedLocationType = useMemo<LocationType | null>(() => {
     if (!selectedLevel) return null;
     return resolveLocationTypeForLevel(selectedLevel);
@@ -136,7 +137,9 @@ export function LocationNodeCreateDrawer({
       <div style={panelStyle}>
         <div style={headerStyle}>
           <div>
-            <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text)' }}>Create Hierarchy Node</div>
+            <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text)' }}>
+              Add {selectedLevel?.levelName ?? 'Hierarchy Node'}
+            </div>
             <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
               Parent: {parentLocation ? `${parentLocation.locationCode} · ${parentLocation.profile.fullCode}` : `${warehouse.warehouseCode} · Warehouse root`}
             </div>
@@ -150,7 +153,13 @@ export function LocationNodeCreateDrawer({
           <div style={{ padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--color-border)', background: 'var(--color-surface-subtle)', marginBottom: '12px', fontSize: '12px', color: 'var(--color-text-muted)' }}>
             <div>Selected parent: <strong style={{ color: 'var(--color-text)' }}>{parentLocation?.locationCode ?? warehouse.warehouseCode}</strong></div>
             <div>Parent full identifier: <strong style={{ color: 'var(--color-text)' }}>{parentLocation?.profile.fullCode ?? warehouse.warehouseCode}</strong></div>
-            <div>Allowed child levels: <strong style={{ color: 'var(--color-text)' }}>{allowedLevels.map((level) => `${level.levelName} (${level.levelCode})`).join(', ') || 'none'}</strong></div>
+            <div>Next allowed level{allowedLevels.length === 1 ? '' : 's'}: <strong style={{ color: 'var(--color-text)' }}>{allowedLevels.map((level) => `${level.levelName} (${level.levelCode})`).join(', ') || 'none'}</strong></div>
+          </div>
+
+          <div style={{ padding: '10px 12px', borderRadius: '10px', background: allowanceExplanation.allowed ? '#EFF6FF' : '#FEF3C7', color: allowanceExplanation.allowed ? '#1D4ED8' : '#92400E', fontSize: '12px', marginBottom: '14px', lineHeight: 1.6 }}>
+            {allowanceExplanation.allowed
+              ? `Create the next ${selectedLevel?.levelName ?? 'child level'} under ${parentLocation?.locationCode ?? warehouse.warehouseCode}. Fill only the code and name first.`
+              : allowanceExplanation.reason}
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
@@ -160,61 +169,33 @@ export function LocationNodeCreateDrawer({
             </div>
             <div>
               <label style={labelStyle}>Child Level</label>
-              <select value={selectedLevelCode} onChange={(event) => setSelectedLevelCode(event.target.value)} style={inputStyle}>
-                {allowedLevels.map((level) => (
-                  <option key={level.levelCode} value={level.levelCode}>
-                    {level.levelCode} · {level.levelName}
-                  </option>
-                ))}
-              </select>
+              {singleAllowedLevel ? (
+                <input
+                  value={selectedLevel ? `${selectedLevel.levelCode} · ${selectedLevel.levelName}` : 'No allowed level'}
+                  readOnly
+                  style={{ ...inputStyle, background: 'var(--color-surface-subtle)' }}
+                />
+              ) : (
+                <select value={selectedLevelCode} onChange={(event) => setSelectedLevelCode(event.target.value)} style={inputStyle}>
+                  {allowedLevels.map((level) => (
+                    <option key={level.levelCode} value={level.levelCode}>
+                      {level.levelCode} · {level.levelName}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
           </div>
 
-          <div style={{ padding: '10px 12px', borderRadius: '10px', background: allowanceExplanation.allowed ? '#F0FDF4' : '#FEF3C7', color: allowanceExplanation.allowed ? '#166534' : '#92400E', fontSize: '12px', marginBottom: '14px' }}>
-            {allowanceExplanation.reason}
-          </div>
-
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
-            <Field label="Location Code" value={locationCode} onChange={setLocationCode} readOnly={!manualOverride} />
-            <Field label="Location Name" value={locationName} onChange={setLocationName} />
-          </div>
-
-          <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <input
-              id="manual-code-toggle"
-              type="checkbox"
-              checked={manualOverride}
-              disabled={!codingPolicy.manualNodeCodeAllowed}
-              onChange={(event) => {
-                setManualOverride(event.target.checked);
-                if (!event.target.checked) setLocationCode(previewCode);
-              }}
-            />
-            <label htmlFor="manual-code-toggle" style={{ ...labelStyle, marginBottom: 0 }}>
-              Manual node code override
-            </label>
+            <Field label="Node Code" value={locationCode} onChange={setLocationCode} readOnly={!manualOverride} />
+            <Field label="Node Name" value={locationName} onChange={setLocationName} />
           </div>
 
           <div style={{ padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--color-border)', marginBottom: '12px', fontSize: '12px' }}>
             <div>Node code preview: <strong>{previewCode || '—'}</strong></div>
             <div>Full identifier preview: <strong>{previewIdentifier || '—'}</strong></div>
-            <div>Path separator: <strong>{codingPolicy.pathSeparator}</strong></div>
-            <div>Identifier includes warehouse code: <strong>{codingPolicy.includeWarehouseCodeInIdentifier ? 'Yes' : 'No'}</strong></div>
-            <div>Auto-generation: <strong>{autoGenerateEnabled ? 'Enabled' : 'Disabled'}</strong></div>
-            <div>Code lock after activation: <strong>{codingPolicy.codeLockedAfterActivation ? 'Enabled' : 'Disabled'}</strong></div>
           </div>
-
-          {selectedLevel && (
-            <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'var(--color-surface-subtle)', border: '1px solid var(--color-border)', fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '12px' }}>
-              <div style={{ fontWeight: 700, color: 'var(--color-text)', marginBottom: '6px' }}>Capability preview</div>
-              <div>Selected child level: {selectedLevel.levelName} ({selectedLevel.levelCode})</div>
-              <div>Leaf endpoint eligible: {selectedLevel.leafEligible ? 'Yes' : 'No'}</div>
-              <div>Inventory endpoint eligible: {selectedLevel.inventoryEndpointEligible ? 'Yes' : 'No'}</div>
-              <div>Capacity applicable: {selectedLevel.capacityApplicable ? 'Yes' : 'No'}</div>
-              <div>Item eligibility applicable: {selectedLevel.itemEligibilityApplicable ? 'Yes' : 'No'}</div>
-              <div>Responsibility applicable: {selectedLevel.responsibilityApplicable ? 'Yes' : 'No'}</div>
-            </div>
-          )}
 
           {selectedLocationType === 'BIN' && (
             <div style={{ marginBottom: '12px' }}>
@@ -227,12 +208,54 @@ export function LocationNodeCreateDrawer({
             </div>
           )}
 
-          <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'var(--color-surface-subtle)', border: '1px solid var(--color-border)', fontSize: '12px', color: 'var(--color-text-muted)' }}>
-            <div>Derived rules on create:</div>
-            <div>Full Location Code is derived from warehouse and parent path.</div>
-            <div>Is Leaf Endpoint is derived from the active template and child presence.</div>
-            <div>Inventory Allowed stays blocked on non-leaf nodes and draft nodes.</div>
-          </div>
+          <details style={{ marginBottom: '12px' }}>
+            <summary style={{ cursor: 'pointer', fontSize: '12px', fontWeight: 600, color: 'var(--color-text)' }}>
+              More options
+            </summary>
+            <div style={{ marginTop: '10px', display: 'grid', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input
+                  id="manual-code-toggle"
+                  type="checkbox"
+                  checked={manualOverride}
+                  disabled={!codingPolicy.manualNodeCodeAllowed}
+                  onChange={(event) => {
+                    setManualOverride(event.target.checked);
+                    if (!event.target.checked) setLocationCode(previewCode);
+                  }}
+                />
+                <label htmlFor="manual-code-toggle" style={{ ...labelStyle, marginBottom: 0 }}>
+                  Manual node code override
+                </label>
+              </div>
+
+              <div style={{ padding: '10px 12px', borderRadius: '10px', background: 'var(--color-surface-subtle)', border: '1px solid var(--color-border)', fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                <div>Path separator: <strong>{codingPolicy.pathSeparator}</strong></div>
+                <div>Identifier includes warehouse code: <strong>{codingPolicy.includeWarehouseCodeInIdentifier ? 'Yes' : 'No'}</strong></div>
+                <div>Auto-generation: <strong>{autoGenerateEnabled ? 'Enabled' : 'Disabled'}</strong></div>
+                <div>Code lock after activation: <strong>{codingPolicy.codeLockedAfterActivation ? 'Enabled' : 'Disabled'}</strong></div>
+              </div>
+
+              {selectedLevel && (
+                <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'var(--color-surface-subtle)', border: '1px solid var(--color-border)', fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                  <div style={{ fontWeight: 700, color: 'var(--color-text)', marginBottom: '6px' }}>Capability preview</div>
+                  <div>Selected child level: {selectedLevel.levelName} ({selectedLevel.levelCode})</div>
+                  <div>Leaf endpoint eligible: {selectedLevel.leafEligible ? 'Yes' : 'No'}</div>
+                  <div>Inventory endpoint eligible: {selectedLevel.inventoryEndpointEligible ? 'Yes' : 'No'}</div>
+                  <div>Capacity applicable: {selectedLevel.capacityApplicable ? 'Yes' : 'No'}</div>
+                  <div>Item eligibility applicable: {selectedLevel.itemEligibilityApplicable ? 'Yes' : 'No'}</div>
+                  <div>Responsibility applicable: {selectedLevel.responsibilityApplicable ? 'Yes' : 'No'}</div>
+                </div>
+              )}
+
+              <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'var(--color-surface-subtle)', border: '1px solid var(--color-border)', fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                <div>Derived rules on create:</div>
+                <div>Full Location Code is derived from warehouse and parent path.</div>
+                <div>Is Leaf Endpoint is derived from the active template and child presence.</div>
+                <div>Inventory Allowed stays blocked on non-leaf nodes and draft nodes.</div>
+              </div>
+            </div>
+          </details>
 
           {message && (
             <div style={{ marginTop: '14px', padding: '10px 12px', borderRadius: '10px', background: '#F8FAFC', border: '1px solid var(--color-border)', color: 'var(--color-text)', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -251,7 +274,7 @@ export function LocationNodeCreateDrawer({
         <div style={footerStyle}>
           <button type="button" onClick={onClose} style={secondaryBtn}>Close</button>
           <button type="button" onClick={submit} disabled={!allowanceExplanation.allowed || submitting} style={{ ...primaryBtn, opacity: !allowanceExplanation.allowed || submitting ? 0.5 : 1 }}>
-            Create Node
+            Create {selectedLevel?.levelName ?? 'Node'}
           </button>
         </div>
       </div>

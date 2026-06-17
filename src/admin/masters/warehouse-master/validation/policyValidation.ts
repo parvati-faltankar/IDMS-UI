@@ -271,7 +271,42 @@ export function validateCapacityPolicy(
   scope: 'warehouse' | 'location',
   mode?: InventoryControlMode,
 ): ValidationIssue[] {
-  return validateCapacityAndConstraints(policy, storageConstraints, scope, mode);
+  const issues = validateCapacityAndConstraints(policy, storageConstraints, scope, mode);
+
+  if (
+    policy?.warningThresholdPercent !== undefined
+    && (policy.warningThresholdPercent < 1 || policy.warningThresholdPercent > 100)
+  ) {
+    issues.push({
+      field: 'capacityPolicy.warningThresholdPercent',
+      section: 'capacityStorage',
+      severity: 'error',
+      category: 'FieldFormat',
+      message: 'Warning threshold percent must be between 1 and 100.',
+    });
+  }
+
+  if (policy?.overrideReasonRequired && !policy.overrideAllowed) {
+    issues.push({
+      field: 'capacityPolicy.overrideReasonRequired',
+      section: 'capacityStorage',
+      severity: 'error',
+      category: 'PolicyConflict',
+      message: 'Override reason cannot be required when override is disabled.',
+    });
+  }
+
+  if (storageConstraints?.minTempCelsius !== undefined && storageConstraints?.maxTempCelsius !== undefined && storageConstraints.minTempCelsius > storageConstraints.maxTempCelsius) {
+    issues.push({
+      field: 'storageConstraints.minTempCelsius',
+      section: 'capacityStorage',
+      severity: 'error',
+      category: 'FieldFormat',
+      message: 'Minimum temperature cannot exceed maximum temperature.',
+    });
+  }
+
+  return issues;
 }
 
 // ─── Cycle count policy ───────────────────────────────────────────────────────

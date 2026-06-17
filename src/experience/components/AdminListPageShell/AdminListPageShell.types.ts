@@ -125,6 +125,16 @@ export type AdminListPageShellProps = {
    * Keep this area minimal.
    */
   toolbarActions?: React.ReactNode;
+  /**
+   * Controls whether `toolbarActions` render beside the search/actions command
+   * row or in the auxiliary toolbar row.
+   * - `auto` keeps existing pages stable by preferring the auxiliary row when it
+   *   exists and the command row otherwise.
+   * - `command` is useful for anchored popovers that should stay beside header
+   *   actions.
+   * - `toolbar` forces the legacy auxiliary-row placement.
+   */
+  toolbarActionsPlacement?: 'auto' | 'command' | 'toolbar';
 
   // ── Content ───────────────────────────────────────────────────────────────
 

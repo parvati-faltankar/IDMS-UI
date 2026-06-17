@@ -2,6 +2,14 @@ import React, { useMemo, useRef } from 'react';
 import { ChevronDown, ChevronRight, Plus, Rows3, Search, AlertTriangle } from 'lucide-react';
 import type { HierarchyNode } from '../types/warehouse.types';
 
+export type HierarchyTreeViewMode =
+  | 'Operational View'
+  | 'Issues View'
+  | 'Capacity View'
+  | 'Eligibility View'
+  | 'Responsibility View'
+  | 'Identifier View';
+
 export interface FlattenedHierarchyItem {
   readonly id: string;
   readonly depth: number;
@@ -86,6 +94,24 @@ export function getTreeKeyboardTarget(
   return items[prevIndex].id;
 }
 
+export function getHierarchyNodeModeMatch(
+  node: HierarchyNode,
+  mode: HierarchyTreeViewMode,
+  hasIssue: boolean,
+): boolean {
+  if (mode === 'Operational View') return true;
+  if (mode === 'Issues View') return hasIssue;
+  if (mode === 'Capacity View') {
+    const summary = node.capabilitySummary;
+    if (!summary?.capacityApplicable) return false;
+    return true;
+  }
+  if (mode === 'Eligibility View') return Boolean(node.capabilitySummary?.itemEligibilityApplicable);
+  if (mode === 'Responsibility View') return Boolean(node.capabilitySummary?.responsibilityApplicable);
+  if (mode === 'Identifier View') return true;
+  return true;
+}
+
 interface HierarchyTreeProps {
   nodes: HierarchyNode[];
   selectedId: string | null;
@@ -100,6 +126,7 @@ interface HierarchyTreeProps {
   onAddChild?: (id: string) => void;
   onBulkCreate?: (id: string) => void;
   visibleNodeIds?: Set<string>;
+  treeMode?: HierarchyTreeViewMode;
 }
 
 export function HierarchyTree({
@@ -116,6 +143,7 @@ export function HierarchyTree({
   onAddChild,
   onBulkCreate,
   visibleNodeIds,
+  treeMode = 'Operational View',
 }: HierarchyTreeProps) {
   const treeRef = useRef<HTMLDivElement | null>(null);
   const visibleItems = useMemo(
@@ -221,9 +249,13 @@ export function HierarchyTree({
         ) : (
           visibleItems.map((item) => {
             const issue = issueNodeIds?.has(item.id) ?? false;
+            if (!getHierarchyNodeModeMatch(item.node, treeMode, issue)) {
+              return null;
+            }
             const expanded = expandedIds.has(item.id);
             const hasChildren = item.node.children.length > 0;
             const selected = item.id === selectedId;
+            const statusTone = getStatusTone(item.node.status);
 
             return (
               <div
@@ -242,13 +274,12 @@ export function HierarchyTree({
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
-                  padding: '8px 10px',
-                  margin: '2px 0',
-                  borderRadius: '10px',
-                  background: selected ? 'color-mix(in srgb, var(--color-primary) 8%, var(--color-surface))' : 'transparent',
-                  border: selected ? '1px solid color-mix(in srgb, var(--color-primary) 35%, var(--color-border))' : '1px solid transparent',
+                  padding: '9px 12px',
+                  paddingLeft: `${12 + item.depth * 20}px`,
+                  borderBottom: '1px solid var(--color-border)',
+                  borderLeft: selected ? '3px solid var(--color-primary)' : '3px solid transparent',
+                  background: selected ? '#F8FAFC' : 'transparent',
                   cursor: 'pointer',
-                  marginLeft: `${item.depth * 16}px`,
                 }}
               >
                 <button
@@ -262,16 +293,27 @@ export function HierarchyTree({
                 >
                   {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                 </button>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <div aria-hidden="true" style={{ width: '8px', height: '8px', borderRadius: '999px', background: nodeTypeColor(item.node.levelCode) }} />
-                  <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>
-                    {item.node.levelName}
-                  </span>
-                </div>
+                <span
+                  aria-hidden="true"
+                  style={{
+                    width: '7px',
+                    height: '7px',
+                    borderRadius: '999px',
+                    background: statusTone.dot,
+                    flexShrink: 0,
+                  }}
+                />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text)' }}>
+                      {item.node.locationName || item.node.locationCode}
+                    </span>
+                    <span style={{ fontSize: '11px', fontFamily: 'monospace', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
                       {item.node.locationCode}
+                    </span>
+                    <span style={levelBadgeStyle}>{item.node.levelName}</span>
+                    <span style={{ ...statusBadgeStyle, background: statusTone.bg, color: statusTone.text }}>
+                      {item.node.status}
                     </span>
                     {issue && (
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#92400E' }}>
@@ -281,7 +323,7 @@ export function HierarchyTree({
                     )}
                   </div>
                   <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {item.node.locationName} · Full ID: {item.node.fullCode}
+                    {item.node.fullCode} · {hasChildren ? `${item.node.children.length} child${item.node.children.length === 1 ? '' : 'ren'}` : 'No children'}
                   </div>
                 </div>
                 {onAddChild && (
@@ -340,19 +382,41 @@ const iconBtn: React.CSSProperties = {
   height: '24px',
   borderRadius: '7px',
   border: '1px solid var(--color-border)',
-  background: 'var(--color-surface)',
+  background: 'transparent',
   color: 'var(--color-text-muted)',
   cursor: 'pointer',
   flexShrink: 0,
 };
 
-function nodeTypeColor(levelCode: string): string {
-  const normalized = levelCode.trim().toUpperCase();
-  let hash = 0;
-  for (let i = 0; i < normalized.length; i++) {
-    hash = ((hash << 5) - hash) + normalized.charCodeAt(i);
-    hash |= 0;
+const levelBadgeStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  borderRadius: '4px',
+  fontSize: '10px',
+  padding: '1px 6px',
+  fontWeight: 600,
+  color: '#1D4ED8',
+  background: '#EFF6FF',
+};
+
+const statusBadgeStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  padding: '1px 6px',
+  borderRadius: '4px',
+  fontSize: '10px',
+  fontWeight: 600,
+};
+
+function getStatusTone(status: string): { dot: string; bg: string; text: string } {
+  if (status === 'Active') {
+    return { dot: '#15803D', bg: '#DCFCE7', text: '#15803D' };
   }
-  const palette = ['#0EA5E9', '#16A34A', '#F97316', '#4F46E5', '#D97706', '#059669', '#A855F7'];
-  return palette[Math.abs(hash) % palette.length];
+  if (status === 'Inactive') {
+    return { dot: '#DC2626', bg: '#FEF2F2', text: '#DC2626' };
+  }
+  if (status === 'Blocked') {
+    return { dot: '#D97706', bg: '#FEF3C7', text: '#92400E' };
+  }
+  return { dot: '#94A3B8', bg: '#F1F5F9', text: '#64748B' };
 }

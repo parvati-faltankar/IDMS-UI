@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { AlertCircle, Check, Info, Lock } from 'lucide-react';
+import { AlertCircle, Check, HelpCircle, Info, Lock } from 'lucide-react';
 import AdminShell from '../../../AdminShell';
+import { HeaderIconButton } from '../../../../experience/components';
 import { SmartFormDrawer } from '../../../../experience/components/SmartFormDrawer';
 import { SmartReviewDrawer } from '../../../../experience/components/SmartReviewDrawer';
 import { HelpDrawer } from '../../../../experience/components/HelpDrawer';
@@ -486,7 +487,7 @@ const AreaFormPage: React.FC = () => {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
             <button type="button" onClick={() => navigate('/admin/areas')} style={btnOutline}>← Back to List</button>
-            <button type="button" onClick={() => setHelpOpen(true)} style={btnOutline}>How this works</button>
+            <HeaderIconButton icon={<HelpCircle size={16} />} onClick={() => setHelpOpen(true)} title="How this works" />
           </div>
         </div>
 

@@ -8,12 +8,14 @@ const MasterFormPage = React.lazy(() => import('../admin/MasterFormPage'));
 const OrgMasterFormPage = React.lazy(() => import('../admin/masters/OrgMasterFormPage'));
 const NumberingSettingsPage    = React.lazy(() => import('../admin/masters/NumberingSettingsPage'));
 const PicklistMasterPage       = React.lazy(() => import('../admin/masters/PicklistMasterPage'));
+const PicklistFormPage         = React.lazy(() => import('../admin/masters/picklist-master/pages/PicklistFormPage'));
 const CodeGenerationPolicyPage = React.lazy(() => import('../admin/masters/CodeGenerationPolicyPage'));
 const KycSetupPage             = React.lazy(() => import('../admin/masters/KycSetupPage'));
 
 // ─── Warehouse Master ─────────────────────────────────────────────────────────
 const WarehouseListPage        = React.lazy(() => import('../admin/masters/warehouse-master/pages/WarehouseListPage'));
 const WarehouseCreateWorkspace  = React.lazy(() => import('../admin/masters/warehouse-master/pages/WarehouseCreateWorkspace'));
+const WarehouseSetupFlowPage    = React.lazy(() => import('../admin/masters/warehouse-master/pages/WarehouseSetupFlowPage'));
 const WarehouseConfigurationPage = React.lazy(() => import('../admin/masters/warehouse-master/pages/WarehouseConfigurationPage'));
 const WarehouseHierarchyPage    = React.lazy(() => import('../admin/masters/warehouse-master/pages/WarehouseHierarchyPage'));
 const WarehouseLocationsPage    = React.lazy(() => import('../admin/masters/warehouse-master/pages/WarehouseLocationsPage'));
@@ -71,6 +73,8 @@ export function renderAdminRoutes() {
       <Route path="/admin/master/numbering-code-setup" element={<NumberingSettingsPage />} />
 
       {/* Picklist Master — multi-section settings page */}
+      <Route path="/admin/master/picklist-master/new" element={<PicklistFormPage />} />
+      <Route path="/admin/master/picklist-master/:configId" element={<PicklistFormPage />} />
       <Route path="/admin/master/picklist-master" element={<PicklistMasterPage />} />
 
       {/* Code Generation Policy — full CRUD master page */}
@@ -80,6 +84,7 @@ export function renderAdminRoutes() {
       <Route path="/admin/master/kyc-setup" element={<KycSetupPage />} />
       {/* ── Warehouse Master ──────────────────────────────────────────── */}
       <Route path="/admin/master/warehouse-master/new" element={<WarehouseCreateWorkspace />} />
+      <Route path="/admin/master/warehouse-master/:warehouseId/setup" element={<WarehouseSetupFlowPage />} />
       <Route path="/admin/master/warehouse-master/:warehouseId/configuration" element={<WarehouseConfigurationPage />} />
       <Route path="/admin/master/warehouse-master/:warehouseId/hierarchy" element={<WarehouseHierarchyPage />} />
       <Route path="/admin/master/warehouse-master/:warehouseId/locations" element={<WarehouseLocationsPage />} />

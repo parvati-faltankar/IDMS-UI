@@ -9,6 +9,7 @@ import React from 'react';
 
 import {
   generateWarehouseCode,
+  resolveQuickWizardLaunchMode,
   validateStep,
   applyPreset,
   WAREHOUSE_TYPES,
@@ -42,6 +43,8 @@ function emptyState(): CreateFormState {
     businessUnit: '',
     legalEntityCode: '',
     inventoryOwnerCode: '',
+    owningBranchCodes: [],
+    branchOwnershipRows: [],
     sharedWithAllBranches: false,
     sharedBranchCodes: [],
     inventoryControlMode: '',
@@ -82,6 +85,9 @@ function validStep1OrgState(): Partial<CreateFormState> {
   return {
     ownershipScope: 'Organization',
     owningOrgCode: 'ORG-001',
+    businessUnit: 'BU-MFG',
+    legalEntityCode: 'LE-INDIA-001',
+    inventoryOwnerCode: 'OWN-001',
   };
 }
 
@@ -89,6 +95,15 @@ function validStep1BranchState(): Partial<CreateFormState> {
   return {
     ownershipScope: 'Branch',
     owningBranchCode: 'BR-PUNE',
+    owningBranchCodes: ['BR-PUNE'],
+    branchOwnershipRows: [
+      {
+        branchCode: 'BR-PUNE',
+        businessUnit: 'BU-MFG',
+        legalEntityCode: 'LE-INDIA-001',
+        inventoryOwnerCode: 'OWN-001',
+      },
+    ],
   };
 }
 
@@ -143,10 +158,10 @@ describe('validateStep — Step 0: Identity', () => {
     expect(errs.warehouseType).toBeTruthy();
   });
 
-  it('reports error for missing timezone', () => {
+  it('does not require timezone for draft identity step', () => {
     const state = { ...emptyState(), ...validStep0State(), timezone: '' };
     const errs = validateStep(0, state);
-    expect(errs.timezone).toBeTruthy();
+    expect(errs.timezone).toBeFalsy();
   });
 
   it('passes when all required fields are present', () => {
@@ -232,6 +247,16 @@ describe('validateStep — Step 3 and 4 have no required fields', () => {
   });
 });
 
+describe('resolveQuickWizardLaunchMode', () => {
+  it('requires draft save before launch when no draft id exists', () => {
+    expect(resolveQuickWizardLaunchMode(null)).toBe('requires-save-draft');
+  });
+
+  it('is ready when draft id already exists', () => {
+    expect(resolveQuickWizardLaunchMode('WH-1234')).toBe('ready');
+  });
+});
+
 // ─── applyPreset ──────────────────────────────────────────────────────────────
 
 describe('applyPreset', () => {
@@ -288,12 +313,16 @@ describe('buildActivationChecks — Warehouse-Level flow', () => {
     return {
       warehouseName: 'Test Warehouse',
       warehouseCode: 'WH-TEST',
+      timezone: 'Asia/Kolkata',
       warehouseType: 'Physical',
       ownershipScope: 'Organization',
       owningOrgCode: 'ORG-001',
-      owningBranchCode: '',
-      timezone: 'Asia/Kolkata',
+      businessUnit: 'BU-MFG',
+      legalEntityCode: 'LE-INDIA-001',
+      inventoryOwnerCode: 'OWN-001',
+      owningBranchCodes: [],
       inventoryControlMode: 'Warehouse-Level',
+      branchOwnershipRowsComplete: true,
       hasActiveTemplate: false,
       hasActiveInventoryLocation: false,
       codeIsUnique: true,
@@ -340,10 +369,21 @@ describe('buildActivationChecks — Warehouse-Level flow', () => {
     expect(c?.passed).toBe(false);
   });
 
-  it('fails when timezone is missing', () => {
+  it('warns (non-blocking) when timezone is missing by default policy', () => {
     const checks = buildActivationChecks({ ...validWhLevelInput(), timezone: '' });
     const c = checks.find((c) => c.id === 'identity-timezone');
+    expect(c?.passed).toBe(null);
+  });
+
+  it('blocks when timezone is missing and policy requires it', () => {
+    const checks = buildActivationChecks({
+      ...validWhLevelInput(),
+      timezone: '',
+      timezonePolicy: { timezoneRequiredForActivation: true, requiredReason: 'Effective-dated activation requires timezone.' },
+    });
+    const c = checks.find((item) => item.id === 'identity-timezone');
     expect(c?.passed).toBe(false);
+    expect(c?.detail).toContain('requires timezone');
   });
 
   it('fails when ownershipScope is missing', () => {
@@ -364,11 +404,12 @@ describe('buildActivationChecks — Location/BIN-Level flow', () => {
     return {
       warehouseName: 'Pune BIN WH',
       warehouseCode: 'WH-BIN',
+      timezone: 'Asia/Kolkata',
       warehouseType: 'Physical',
       ownershipScope: 'Branch',
-      owningOrgCode: '',
       owningBranchCode: 'BR-PUNE',
-      timezone: 'Asia/Kolkata',
+      owningBranchCodes: ['BR-PUNE'],
+      branchOwnershipRowsComplete: true,
       inventoryControlMode: 'Location-BIN-Level',
       hasActiveTemplate: true,
       hasActiveInventoryLocation: true,
@@ -403,7 +444,7 @@ describe('buildActivationChecks — Location/BIN-Level flow', () => {
   });
 
   it('Branch scope fails when no branch code', () => {
-    const checks = buildActivationChecks({ ...validBinLevelInput(), owningBranchCode: '' });
+    const checks = buildActivationChecks({ ...validBinLevelInput(), owningBranchCode: '', owningBranchCodes: [] });
     const c = checks.find((c) => c.id === 'ownership-entity');
     expect(c?.passed).toBe(false);
   });
@@ -524,8 +565,12 @@ describe('Activation blocked scenarios', () => {
       warehouseType: 'Physical',
       ownershipScope: 'Organization',
       owningOrgCode: 'ORG-001',
-      owningBranchCode: '',
+      businessUnit: 'BU-MFG',
+      legalEntityCode: 'LE-INDIA-001',
+      inventoryOwnerCode: 'OWN-001',
       timezone: 'Asia/Kolkata',
+      owningBranchCodes: [],
+      branchOwnershipRowsComplete: true,
       inventoryControlMode: 'Location-BIN-Level',
       hasActiveTemplate: false,
       hasActiveInventoryLocation: true,
@@ -545,8 +590,12 @@ describe('Activation blocked scenarios', () => {
       warehouseType: 'Physical',
       ownershipScope: 'Organization',
       owningOrgCode: 'ORG-001',
-      owningBranchCode: '',
+      businessUnit: 'BU-MFG',
+      legalEntityCode: 'LE-INDIA-001',
+      inventoryOwnerCode: 'OWN-001',
       timezone: 'Asia/Kolkata',
+      owningBranchCodes: [],
+      branchOwnershipRowsComplete: true,
       inventoryControlMode: 'Location-BIN-Level',
       hasActiveTemplate: true,
       hasActiveInventoryLocation: false,
@@ -564,8 +613,12 @@ describe('Activation blocked scenarios', () => {
       warehouseType: 'Physical',
       ownershipScope: 'Organization',
       owningOrgCode: 'ORG-001',
-      owningBranchCode: '',
+      businessUnit: 'BU-MFG',
+      legalEntityCode: 'LE-INDIA-001',
+      inventoryOwnerCode: 'OWN-001',
       timezone: 'Asia/Kolkata',
+      owningBranchCodes: [],
+      branchOwnershipRowsComplete: true,
       inventoryControlMode: 'Warehouse-Level',
       hasActiveTemplate: false,
       hasActiveInventoryLocation: false,
@@ -597,6 +650,15 @@ describe('Hidden/irrelevant fields', () => {
       ownershipScope: 'Branch' as const,
       owningOrgCode: '', // not filled
       owningBranchCode: 'BR-PUNE',
+      owningBranchCodes: ['BR-PUNE'],
+      branchOwnershipRows: [
+        {
+          branchCode: 'BR-PUNE',
+          businessUnit: 'BU-MFG',
+          legalEntityCode: 'LE-INDIA-001',
+          inventoryOwnerCode: 'OWN-001',
+        },
+      ],
     };
     const errs = validateStep(1, state);
     expect(errs.owningOrgCode).toBeFalsy();
@@ -678,8 +740,12 @@ describe('Review checklist structure', () => {
       warehouseType: 'Physical',
       ownershipScope: 'Organization',
       owningOrgCode: 'ORG-001',
-      owningBranchCode: '',
       timezone: 'UTC',
+      businessUnit: 'BU-MFG',
+      legalEntityCode: 'LE-INDIA-001',
+      inventoryOwnerCode: 'OWN-001',
+      owningBranchCodes: [],
+      branchOwnershipRowsComplete: true,
       inventoryControlMode: 'Warehouse-Level',
       hasActiveTemplate: false,
       hasActiveInventoryLocation: false,
@@ -705,9 +771,10 @@ describe('Review checklist structure', () => {
       warehouseCode: 'WH-X',
       warehouseType: 'Physical',
       ownershipScope: 'Branch',
-      owningOrgCode: '',
       owningBranchCode: 'BR-HYD',
+      owningBranchCodes: ['BR-HYD'],
       timezone: 'UTC',
+      branchOwnershipRowsComplete: true,
       inventoryControlMode: 'Location-BIN-Level',
       hasActiveTemplate: true,
       hasActiveInventoryLocation: true,
@@ -725,9 +792,11 @@ describe('Review checklist structure', () => {
       warehouseCode: '',
       warehouseType: '',
       ownershipScope: '',
+      timezone: '',
       owningOrgCode: '',
       owningBranchCode: '',
-      timezone: '',
+      owningBranchCodes: [],
+      branchOwnershipRowsComplete: false,
       inventoryControlMode: '',
       hasActiveTemplate: false,
       hasActiveInventoryLocation: false,
@@ -768,6 +837,75 @@ describe('Save draft validation (step 0 minimum)', () => {
     const state = { ...emptyState(), ...validStep0State() };
     const errs = validateStep(0, state);
     expect(Object.keys(errs).length).toBe(0);
+  });
+});
+
+describe('Ownership normalization regressions', () => {
+  it('does not crash when owningBranchCodes is undefined', () => {
+    const state = {
+      ...emptyState(),
+      ownershipScope: 'Branch' as const,
+      owningBranchCode: 'BR-PUNE',
+      owningBranchCodes: undefined as unknown as string[],
+      branchOwnershipRows: [
+        {
+          branchCode: 'BR-PUNE',
+          businessUnit: 'BU-MFG',
+          legalEntityCode: 'LE-INDIA-001',
+          inventoryOwnerCode: 'OWN-001',
+        },
+      ],
+    };
+    expect(() => validateStep(1, state)).not.toThrow();
+  });
+
+  it('branch-level with multiple owning branches is invalid', () => {
+    const state = {
+      ...emptyState(),
+      ownershipScope: 'Branch' as const,
+      owningBranchCode: 'BR-PUNE',
+      owningBranchCodes: ['BR-PUNE', 'BR-DEL'],
+      branchOwnershipRows: [
+        {
+          branchCode: 'BR-PUNE',
+          businessUnit: 'BU-MFG',
+          legalEntityCode: 'LE-INDIA-001',
+          inventoryOwnerCode: 'OWN-001',
+        },
+      ],
+    };
+    const errs = validateStep(1, state);
+    expect(errs.owningBranchCodes).toContain('only one owning branch');
+  });
+
+  it('organization-level with multiple shared branches remains valid', () => {
+    const state = {
+      ...emptyState(),
+      ...validStep1OrgState(),
+      sharedWithAllBranches: false,
+      sharedBranchCodes: ['BR-PUNE', 'BR-DEL'],
+    };
+    const errs = validateStep(1, state);
+    expect(Object.keys(errs).length).toBe(0);
+  });
+
+  it('activation check supports branch ownership via owningBranchCode fallback', () => {
+    const checks = buildActivationChecks({
+      warehouseName: 'Branch WH',
+      warehouseCode: 'WH-BR',
+      warehouseType: 'Physical',
+      ownershipScope: 'Branch',
+      owningBranchCode: 'BR-PUNE',
+      owningBranchCodes: undefined,
+      branchOwnershipRowsComplete: true,
+      inventoryControlMode: 'Warehouse-Level',
+      hasActiveTemplate: false,
+      hasActiveInventoryLocation: false,
+      codeIsUnique: true,
+      hasPermission: true,
+    });
+    const ownership = checks.find((check) => check.id === 'ownership-entity');
+    expect(ownership?.passed).toBe(true);
   });
 });
 

@@ -1,7 +1,32 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { AlertCircle, ChevronRight, Info, Trash2 } from 'lucide-react';
+import {
+  AlertCircle,
+  Building2,
+  HandCoins,
+  Info,
+  Landmark,
+  MapPin,
+  Package2,
+  ShieldCheck,
+  Truck,
+  Trash2,
+  Users,
+  Waypoints,
+} from 'lucide-react';
 import AdminShell from '../../../AdminShell';
+import {
+  MasterCreateFormShell,
+  MasterFormAccordionSection,
+  MasterFormField,
+  MasterFormGrid,
+  MasterFormSectionSummary,
+  MasterSubgridCard,
+  MasterSubgridTable,
+  MasterSubgridTableCell,
+  MasterSubgridTableRow,
+  type PageHeaderAction,
+} from '../../../../experience/components';
 import { SmartFormDrawer } from '../../../../experience/components/SmartFormDrawer';
 import { SmartReviewDrawer } from '../../../../experience/components/SmartReviewDrawer';
 import { AddressPickerDrawer, type AddressFormValue } from '../../../../experience/components/AddressPickerDrawer/AddressPickerDrawer';
@@ -164,21 +189,68 @@ const sCardBody: React.CSSProperties = { padding: '20px 24px', background: 'var(
 const twoCol: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' };
 const threeCol: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px' };
 const fw: React.CSSProperties = { marginBottom: '14px' };
+const readOnlyField: React.CSSProperties = {
+  width: '100%',
+  padding: '9px 12px',
+  fontSize: '13px',
+  fontFamily: 'monospace',
+  background: 'var(--color-surface-subtle)',
+  border: '1px solid var(--color-border)',
+  borderRadius: '8px',
+  color: 'var(--color-text-muted)',
+  boxSizing: 'border-box',
+};
+const CONTACT_TABLE_COLUMNS = [
+  { key: 'name', label: 'Name', width: '20%' },
+  { key: 'type', label: 'Type', width: '16%' },
+  { key: 'department', label: 'Department', width: '18%' },
+  { key: 'email', label: 'Email', width: '26%' },
+  { key: 'status', label: 'Status', width: '10%' },
+  { key: 'actions', label: 'Actions', width: '10%' },
+] as const;
+const ORG_TABLE_COLUMNS = [
+  { key: 'organisation', label: 'Organisation', width: '34%' },
+  { key: 'effectiveDate', label: 'Effective From', width: '22%' },
+  { key: 'expirationDate', label: 'Expires On', width: '22%' },
+  { key: 'status', label: 'Status', width: '12%' },
+  { key: 'actions', label: 'Actions', width: '10%' },
+] as const;
+const ITEM_TABLE_COLUMNS = [
+  { key: 'itemCode', label: 'Item Code', width: '14%' },
+  { key: 'name', label: 'Name', width: '24%' },
+  { key: 'uom', label: 'UOM', width: '12%' },
+  { key: 'minQty', label: 'Min Qty', width: '12%' },
+  { key: 'maxQty', label: 'Max Qty', width: '12%' },
+  { key: 'leadTime', label: 'Std Lead', width: '16%' },
+  { key: 'actions', label: 'Actions', width: '10%' },
+] as const;
 
 // â”€â”€â”€ Sub-entity helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function subTableHead(cols: string[]): React.ReactNode {
   return (
-    <div style={{ display: 'flex', background: 'var(--color-surface-subtle)', borderBottom: '1px solid var(--color-border)', padding: '0 14px', height: '34px', alignItems: 'center', gap: '8px' }}>
+    <div style={{ display: 'flex', background: 'rgb(232, 232, 232)', border: '1px solid #E5E7EB', borderRadius: '10px', padding: '0 18px', minHeight: '44px', alignItems: 'center', gap: '16px', marginBottom: '10px' }}>
       {cols.map((c) => (
-        <div key={c} style={{ flex: 1, fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{c}</div>
+        <div key={c} style={{ flex: 1, fontSize: '12px', fontWeight: 600, color: 'var(--color-text)', letterSpacing: '0', textAlign: 'left' }}>{c}</div>
       ))}
       <div style={{ width: '64px', flexShrink: 0 }} />
     </div>
   );
 }
 
-const SUB_ROW_STYLE: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: '8px', padding: '0 14px', height: '42px', borderBottom: '1px solid var(--color-border)', transition: 'background 0.1s' };
+const SUB_ROW_STYLE: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '16px',
+  padding: '0 18px',
+  minHeight: '58px',
+  border: '1px solid #E5E7EB',
+  borderRadius: '14px',
+  background: 'var(--color-surface)',
+  boxShadow: '0 4px 12px rgba(15, 23, 42, 0.04)',
+  transition: 'background 0.1s, box-shadow 0.1s',
+  marginBottom: '10px',
+};
 
 const STATUS_PILL = (status: string) => ({
   display: 'inline-flex', alignItems: 'center', padding: '2px 8px', fontSize: '10px', fontWeight: 600,
@@ -188,13 +260,13 @@ const STATUS_PILL = (status: string) => ({
 
 function SubRowActions({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
   return (
-    <div style={{ width: '64px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
+    <div style={{ width: '64px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: '4px' }}>
       <button type="button" onClick={onEdit} title="Edit"
-        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '26px', height: '26px', borderRadius: '6px', border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-muted)' }}>
+        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-muted)' }}>
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
       </button>
       <button type="button" onClick={onDelete} title="Remove"
-        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '26px', height: '26px', borderRadius: '6px', border: '1px solid #FCA5A5', background: '#FEF2F2', cursor: 'pointer', color: '#DC2626' }}>
+        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', borderRadius: '8px', border: '1px solid #FCA5A5', background: '#FEF2F2', cursor: 'pointer', color: '#DC2626' }}>
         <Trash2 size={11} />
       </button>
     </div>
@@ -218,7 +290,6 @@ const SupplierFormPage: React.FC = () => {
   const [existing, setExisting]   = useState<BusinessPartner | null>(null);
   const [notFound, setNotFound]   = useState(false);
   const [activeStep, setActiveStep] = useState(0);
-  const [hoveredStep, setHoveredStep] = useState<number | null>(null);
 
   // â”€â”€ Core form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [form, setForm] = useState<CoreForm>(() => ({
@@ -226,6 +297,22 @@ const SupplierFormPage: React.FC = () => {
     ...(typeFromUrl ? { bpType: typeFromUrl } : {}),
   }));
   const [fieldErrors, setFieldErrors] = useState<BPFieldErrors>({});
+  const [generalSectionOpen, setGeneralSectionOpen] = useState<Record<string, boolean>>({
+    basicIdentity: true,
+    registrationDetails: false,
+    financialDetails: false,
+    lifecycleDetails: false,
+  });
+  const [stepSectionOpen, setStepSectionOpen] = useState<Record<string, boolean>>({
+    contacts: true,
+    addresses: true,
+    orgMappings: true,
+    taxSummary: true,
+    complianceDocs: false,
+    bankAccounts: true,
+    paymentTerms: false,
+    itemMappings: true,
+  });
 
   // â”€â”€ Sub-entity arrays â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [contacts,         setContacts]         = useState<BPContact[]>([]);
@@ -368,6 +455,19 @@ const SupplierFormPage: React.FC = () => {
     setForm((f) => ({ ...f, [k]: v }));
     setFieldErrors((e) => ({ ...e, [k]: undefined }));
   }
+
+  useEffect(() => {
+    const nextOpen: Record<string, boolean> = {};
+    if (fieldErrors.bpLegalName || fieldErrors.bpType) {
+      nextOpen.basicIdentity = true;
+    }
+    if (fieldErrors.effectiveToDate) {
+      nextOpen.lifecycleDetails = true;
+    }
+    if (Object.keys(nextOpen).length > 0) {
+      setGeneralSectionOpen((current) => ({ ...current, ...nextOpen }));
+    }
+  }, [fieldErrors]);
 
   // â”€â”€ Build full BP from state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   function buildBP(): Omit<BusinessPartner, 'id' | 'createdAt' | 'updatedAt'> {
@@ -641,7 +741,7 @@ const SupplierFormPage: React.FC = () => {
       <AdminShell>
         <div style={{ padding: '48px', textAlign: 'center' }}>
           <p style={{ fontSize: '16px', color: 'var(--color-text-muted)' }}>Business partner not found.</p>
-          <button type="button" onClick={() => navigate('/admin/supplier-master')} style={{ ...btnOutline, marginTop: '16px' }}>â† Back to List</button>
+          <button type="button" onClick={() => navigate('/admin/supplier-master')} style={{ ...btnOutline, marginTop: '16px' }}>Back to List</button>
         </div>
       </AdminShell>
     );
@@ -649,13 +749,335 @@ const SupplierFormPage: React.FC = () => {
 
   // â”€â”€ Render helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const pageTitle = isNew ? 'New Business Partner' : (existing?.bpLegalName || 'Business Partner');
+  const statusTone = existing?.status === 'Active'
+    ? 'active'
+    : existing?.status === 'Inactive'
+      ? 'neutral'
+      : existing?.status === 'Draft'
+        ? 'draft'
+        : undefined;
   const activationChecklist = activationIssues.length > 0
     ? activationIssues.map((e, i) => ({ id: String(i), label: e, passed: false }))
     : [{ id: 'ready', label: 'All required fields are complete.', passed: true }];
 
+  const stepperSteps = steps.map((step) => ({
+    id: String(step.index),
+    label: step.label,
+    icon: step.index === 0
+      ? <Building2 size={16} />
+      : step.index === 1
+        ? <Users size={16} />
+        : step.index === 2
+          ? <MapPin size={16} />
+          : step.index === 3
+            ? <Waypoints size={16} />
+            : step.index === 4
+              ? <ShieldCheck size={16} />
+              : step.index === 5
+                ? <Landmark size={16} />
+                : step.index === 6
+                  ? <Package2 size={16} />
+                  : form.bpType === 'Transporter'
+                    ? <Truck size={16} />
+                    : form.bpType === 'Insurance Provider'
+                      ? <ShieldCheck size={16} />
+                    : <HandCoins size={16} />,
+    tooltipLabel: step.label,
+    count: getStepCount(step.index) || undefined,
+    disabled: !applicableTabs.includes(step.tabNum),
+    state: activeStep === step.index
+      ? 'current'
+      : stepHasData(step.index)
+        ? 'complete'
+        : 'default' as const,
+  }));
+
+  const headerSecondaryActions: PageHeaderAction[] = [
+  ];
+
+  if (!isInactive && !isActive) {
+    headerSecondaryActions.push({
+      label: 'Save Draft',
+      onClick: handleSaveDraft,
+    });
+  }
+
+  if (isActive) {
+    headerSecondaryActions.push({
+      label: 'Save',
+      onClick: handleSaveDraft,
+    });
+  }
+
+  if (!isNew && !isActive && !isInactive) {
+    headerSecondaryActions.push({
+      label: 'Activate',
+      onClick: handleActivateRequest,
+    });
+  }
+
+  if (isActive) {
+    headerSecondaryActions.push({
+      label: 'Inactivate',
+      onClick: () => setInactivateOpen(true),
+      tone: 'danger',
+    });
+  }
+
+  if (canDel) {
+    headerSecondaryActions.push({
+      label: 'Delete',
+      onClick: () => setDeleteOpen(true),
+      tone: 'danger',
+    });
+  }
+
+  const headerPrimaryAction = activeStep < steps.length - 1
+    ? {
+        label: 'Continue',
+        onClick: () => setActiveStep((s) => Math.min(steps.length - 1, s + 1)),
+      }
+    : !isInactive
+      ? {
+          label: isNew ? 'Save as Draft' : 'Save Changes',
+          onClick: handleSaveDraft,
+        }
+      : undefined;
+
+  let activeStepContent: React.ReactNode = null;
+  if (activeStep === 0) activeStepContent = renderStep0();
+  if (activeStep === 1) activeStepContent = renderStep1();
+  if (activeStep === 2) activeStepContent = renderStep2();
+  if (activeStep === 3) activeStepContent = renderStep3();
+  if (activeStep === 4) activeStepContent = renderStep4V2();
+  if (activeStep === 5) activeStepContent = renderStep5V2();
+  if (activeStep === 6) activeStepContent = renderStep6V2();
+  if (activeStep === 7 && form.bpType === 'Transporter') {
+    activeStepContent = (
+      <TransporterConfigStep
+        config={transporterConfig}
+        onChange={setTransporterConfig}
+        isViewOnly={isViewOnly}
+      />
+    );
+  }
+  if (activeStep === 7 && form.bpType === 'Insurance Provider') {
+    activeStepContent = (
+      <InsuranceConfigStep
+        config={insuranceConfig}
+        onChange={setInsuranceConfig}
+        isViewOnly={isViewOnly}
+      />
+    );
+  }
+  if (activeStep === 7 && form.bpType === 'Financier') {
+    activeStepContent = (
+      <FinancierConfigStep
+        config={financierConfig}
+        onChange={setFinancierConfig}
+        isViewOnly={isViewOnly}
+      />
+    );
+  }
+
   // â”€â”€ Section renderers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   function renderStep0() {
+    const basicIdentityComplete = Boolean(form.bpLegalName.trim() && form.bpType);
+    const registrationComplete = Boolean(
+      form.countryOfRegistration && form.businessType && form.industryType,
+    );
+    const financialComplete = Boolean(
+      form.annualTurnover || form.annualRevenue || form.financialYear || form.financialCurrency,
+    );
+    const lifecycleComplete = Boolean(
+      form.effectiveFromDate || form.effectiveToDate || form.description.trim(),
+    );
+
+    const getSectionState = (
+      complete: boolean,
+      hasError: boolean,
+      hasPartial: boolean,
+    ): 'default' | 'complete' | 'error' | 'partial' => {
+      if (hasError) return 'error';
+      if (complete) return 'complete';
+      if (hasPartial) return 'partial';
+      return 'default';
+    };
+
+    return (
+      <>
+        <MasterFormAccordionSection
+          title="Basic Identity"
+          description="Define the partner identity, type, and display names."
+          open={generalSectionOpen.basicIdentity}
+          onToggle={(open) => setGeneralSectionOpen((current) => ({ ...current, basicIdentity: open }))}
+          state={getSectionState(basicIdentityComplete, Boolean(fieldErrors.bpLegalName || fieldErrors.bpType), Boolean(form.bpLegalName.trim() || form.bpType || form.bpCategory))}
+          summary={(
+            <MasterFormSectionSummary
+              items={[
+                form.bpLegalName && `Legal name: ${form.bpLegalName}`,
+                form.bpType && `Type: ${form.bpType}`,
+                form.bpCategory && `Category: ${form.bpCategory}`,
+                form.displayName && `Display: ${form.displayName}`,
+              ]}
+            />
+          )}
+        >
+          <MasterFormGrid variant="identity">
+            <MasterFormField label="BP Code">
+              <div style={readOnlyField}>
+                {existing?.bpCode ?? <span style={{ fontStyle: 'italic', fontFamily: 'inherit' }}>Auto-generated on save</span>}
+              </div>
+            </MasterFormField>
+            <MasterFormField label="BP Legal Name" required error={fieldErrors.bpLegalName}>
+              <input type="text" value={form.bpLegalName} onChange={(e) => setField('bpLegalName', e.target.value)} disabled={isViewOnly} placeholder="e.g. Apex Auto Components Pvt. Ltd." style={fieldErrors.bpLegalName ? inputError : inputBase} />
+            </MasterFormField>
+            <MasterFormField
+              label="Business Partner Type"
+              required
+              hint={form.bpType ? ((!isNew || !!typeFromUrl) ? 'Partner type is locked after selection.' : 'Applicable steps will adapt to this type.') : undefined}
+              error={fieldErrors.bpType}
+            >
+              <select value={form.bpType} onChange={(e) => setField('bpType', e.target.value as BPType)} disabled={isViewOnly || !isNew || !!typeFromUrl} style={fieldErrors.bpType ? inputError : inputBase}>
+                <option value="">Select type...</option>
+                {BP_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </MasterFormField>
+            <MasterFormField label="BP Category">
+              <select value={form.bpCategory} onChange={(e) => setField('bpCategory', e.target.value as BPCategory)} disabled={isViewOnly} style={inputBase}>
+                <option value="">Select category...</option>
+                {BP_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </MasterFormField>
+            <MasterFormField label="Marketing / Brand Name">
+              <input type="text" value={form.marketingName} onChange={(e) => setField('marketingName', e.target.value)} disabled={isViewOnly} placeholder="e.g. Apex Auto" style={inputBase} />
+            </MasterFormField>
+            <MasterFormField label="Display Name">
+              <input type="text" value={form.displayName} onChange={(e) => setField('displayName', e.target.value)} disabled={isViewOnly} placeholder="Short display name" style={inputBase} />
+            </MasterFormField>
+          </MasterFormGrid>
+        </MasterFormAccordionSection>
+
+        <MasterFormAccordionSection
+          title="Registration Details"
+          description="Capture registration, legal, and industry information."
+          open={generalSectionOpen.registrationDetails}
+          onToggle={(open) => setGeneralSectionOpen((current) => ({ ...current, registrationDetails: open }))}
+          state={getSectionState(registrationComplete, false, Boolean(form.countryOfRegistration || form.businessType || form.industryType || form.noOfEmployees || form.foundingDate || form.websiteUrl))}
+          summary={(
+            <MasterFormSectionSummary
+              items={[
+                form.countryOfRegistration && `Country: ${form.countryOfRegistration}`,
+                form.businessType && `Business type: ${form.businessType}`,
+                form.industryType && `Industry: ${form.industryType}`,
+                form.noOfEmployees && `Employees: ${form.noOfEmployees}`,
+              ]}
+            />
+          )}
+        >
+          <MasterFormGrid variant="details">
+            <MasterFormField label="Country of Registration">
+              <select value={form.countryOfRegistration} onChange={(e) => setField('countryOfRegistration', e.target.value)} disabled={isViewOnly} style={inputBase}>
+                <option value="">Select country...</option>
+                {COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </MasterFormField>
+            <MasterFormField label="Business Type">
+              <select value={form.businessType} onChange={(e) => setField('businessType', e.target.value as BusinessType)} disabled={isViewOnly} style={inputBase}>
+                <option value="">Select...</option>
+                {BUSINESS_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </MasterFormField>
+            <MasterFormField label="Industry Type">
+              <select value={form.industryType} onChange={(e) => setField('industryType', e.target.value as IndustryType)} disabled={isViewOnly} style={inputBase}>
+                <option value="">Select...</option>
+                {INDUSTRY_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </MasterFormField>
+            <MasterFormField label="No. of Employees">
+              <select value={form.noOfEmployees} onChange={(e) => setField('noOfEmployees', e.target.value as NoOfEmployeesRange)} disabled={isViewOnly} style={inputBase}>
+                <option value="">Select range...</option>
+                {NO_OF_EMPLOYEES_RANGES.map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </MasterFormField>
+            <MasterFormField label="Founding Date">
+              <input type="date" value={form.foundingDate} onChange={(e) => setField('foundingDate', e.target.value)} disabled={isViewOnly} style={inputBase} />
+            </MasterFormField>
+            <MasterFormField label="Website URL">
+              <input type="url" value={form.websiteUrl} onChange={(e) => setField('websiteUrl', e.target.value)} disabled={isViewOnly} placeholder="https://example.com" style={inputBase} />
+            </MasterFormField>
+          </MasterFormGrid>
+        </MasterFormAccordionSection>
+
+        <MasterFormAccordionSection
+          title="Financial Details"
+          description="Keep commercial and financial profile data together."
+          open={generalSectionOpen.financialDetails}
+          onToggle={(open) => setGeneralSectionOpen((current) => ({ ...current, financialDetails: open }))}
+          state={getSectionState(financialComplete, false, Boolean(form.annualTurnover || form.annualRevenue))}
+          summary={(
+            <MasterFormSectionSummary
+              items={[
+                form.annualTurnover && `Turnover: ${form.annualTurnover}`,
+                form.annualRevenue && `Revenue: ${form.annualRevenue}`,
+                form.financialCurrency && `Currency: ${form.financialCurrency}`,
+                form.financialYear && `FY: ${form.financialYear}`,
+              ]}
+            />
+          )}
+        >
+          <MasterFormGrid variant="financial">
+            <MasterFormField label="Annual Turnover">
+              <input type="text" value={form.annualTurnover} onChange={(e) => setField('annualTurnover', e.target.value)} disabled={isViewOnly} placeholder="e.g. 12,00,00,000" style={inputBase} />
+            </MasterFormField>
+            <MasterFormField label="Annual Revenue">
+              <input type="text" value={form.annualRevenue} onChange={(e) => setField('annualRevenue', e.target.value)} disabled={isViewOnly} placeholder="e.g. 11,50,00,000" style={inputBase} />
+            </MasterFormField>
+            <MasterFormField label="Financial Currency">
+              <select value={form.financialCurrency} onChange={(e) => setField('financialCurrency', e.target.value)} disabled={isViewOnly} style={inputBase}>
+                {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </MasterFormField>
+            <MasterFormField label="Financial Year">
+              <select value={form.financialYear} onChange={(e) => setField('financialYear', e.target.value)} disabled={isViewOnly} style={inputBase}>
+                {FINANCIAL_YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
+              </select>
+            </MasterFormField>
+          </MasterFormGrid>
+        </MasterFormAccordionSection>
+
+        <MasterFormAccordionSection
+          title="Lifecycle & Description"
+          description="Set date controls and a concise business context."
+          open={generalSectionOpen.lifecycleDetails}
+          onToggle={(open) => setGeneralSectionOpen((current) => ({ ...current, lifecycleDetails: open }))}
+          state={getSectionState(lifecycleComplete, Boolean(fieldErrors.effectiveToDate), Boolean(form.effectiveFromDate || form.effectiveToDate || form.description.trim()))}
+          summary={(
+            <MasterFormSectionSummary
+              items={[
+                form.effectiveFromDate && `From: ${form.effectiveFromDate}`,
+                form.effectiveToDate && `To: ${form.effectiveToDate}`,
+                form.description.trim() && 'Description added',
+              ]}
+            />
+          )}
+        >
+          <MasterFormGrid variant="identity">
+            <MasterFormField label="Effective From Date">
+              <input type="date" value={form.effectiveFromDate} onChange={(e) => setField('effectiveFromDate', e.target.value)} disabled={isViewOnly} style={inputBase} />
+            </MasterFormField>
+            <MasterFormField label="Effective To Date" error={fieldErrors.effectiveToDate}>
+              <input type="date" value={form.effectiveToDate} onChange={(e) => setField('effectiveToDate', e.target.value)} disabled={isViewOnly} style={inputBase} />
+            </MasterFormField>
+            <MasterFormField label="Description" fullWidth>
+              <textarea value={form.description} onChange={(e) => setField('description', e.target.value)} disabled={isViewOnly} rows={3} placeholder="Brief description of this business partner..." style={{ ...inputBase, resize: 'vertical', fontFamily: 'inherit' }} />
+            </MasterFormField>
+          </MasterFormGrid>
+        </MasterFormAccordionSection>
+      </>
+    );
+
     return (
       <>
         {/* Identity */}
@@ -829,53 +1251,67 @@ const SupplierFormPage: React.FC = () => {
     emptyText: string,
     onAdd: () => void,
     addLabel: string,
+    options?: {
+      openKey?: string;
+      state?: 'default' | 'complete' | 'error' | 'partial';
+      summaryItems?: Array<React.ReactNode | null | undefined | false>;
+    },
   ) {
+    const openKey = options?.openKey;
+    const isOpen = openKey ? stepSectionOpen[openKey] : true;
+
     return (
-      <div style={sectionCard}>
-        <div style={{ ...sCardHead }}>
-          <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-text)' }}>{label}</span>
-          {!isViewOnly && (
-            <button type="button" onClick={onAdd}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '0 12px', height: '28px', fontSize: '12px', fontWeight: 600, borderRadius: '7px', border: '1px solid var(--color-primary)', background: 'color-mix(in srgb, var(--color-primary) 8%, var(--color-surface))', color: 'var(--color-primary)', cursor: 'pointer' }}>
-              + {addLabel}
-            </button>
-          )}
-        </div>
-        {isEmpty ? (
-          <div style={{ padding: '32px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '13px' }}>
-            {emptyText}
-          </div>
-        ) : (
-          <div>
-            {header}
-            {rows}
-          </div>
-        )}
-      </div>
+      <MasterSubgridCard
+        title={label}
+        emptyText={emptyText}
+        addLabel={!isViewOnly ? addLabel : undefined}
+        onAdd={!isViewOnly ? onAdd : undefined}
+        isEmpty={isEmpty}
+        open={isOpen}
+        onToggle={openKey ? (open) => setStepSectionOpen((current) => ({ ...current, [openKey]: open })) : undefined}
+        state={options?.state ?? (isEmpty ? 'default' : 'complete')}
+        summaryItems={options?.summaryItems}
+      >
+        <>
+          {header}
+          {rows}
+        </>
+      </MasterSubgridCard>
     );
   }
 
-  function renderStep1() {
+    function renderStep1() {
     return renderSubGrid(
       'Contacts',
-      contacts.map((c) => (
-        <div key={c.id} style={{ ...SUB_ROW_STYLE, borderBottom: '1px solid var(--color-border)' }}>
-          <div style={{ flex: 1.5, fontSize: '12px', fontWeight: 600, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.contactName}</div>
-          <div style={{ flex: 1 }}><span style={{ ...BADGE_PILL, background: '#EFF6FF', color: '#1D4ED8' }}>{c.contactType}</span></div>
-          <div style={{ flex: 1, fontSize: '11px', color: 'var(--color-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.department || 'â€”'}</div>
-          <div style={{ flex: 1.5, fontSize: '11px', color: 'var(--color-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.email || 'â€”'}</div>
-          <div style={{ flex: 0.8 }}><span style={STATUS_PILL(c.status)}>{c.status}</span></div>
-          <SubRowActions onEdit={() => openEditContact(c)} onDelete={() => removeContact(c.id)} />
-        </div>
-      )),
-      subTableHead(['Name', 'Type', 'Department', 'Email', 'Status']),
+      (
+        <MasterSubgridTable columns={[...CONTACT_TABLE_COLUMNS]}>
+          {contacts.map((c) => (
+            <MasterSubgridTableRow key={c.id} columns={[...CONTACT_TABLE_COLUMNS]}>
+              <MasterSubgridTableCell width="" strong>{c.contactName}</MasterSubgridTableCell>
+              <MasterSubgridTableCell width=""><span style={{ ...BADGE_PILL, background: '#EFF6FF', color: '#1D4ED8' }}>{c.contactType}</span></MasterSubgridTableCell>
+              <MasterSubgridTableCell width="" tone="muted">{c.department || '-'}</MasterSubgridTableCell>
+              <MasterSubgridTableCell width="" tone="muted">{c.email || '-'}</MasterSubgridTableCell>
+              <MasterSubgridTableCell width=""><span style={STATUS_PILL(c.status)}>{c.status}</span></MasterSubgridTableCell>
+              <MasterSubgridTableCell width=""><SubRowActions onEdit={() => openEditContact(c)} onDelete={() => removeContact(c.id)} /></MasterSubgridTableCell>
+            </MasterSubgridTableRow>
+          ))}
+        </MasterSubgridTable>
+      ),
+      null,
       contacts.length === 0,
       'No contacts added yet. Click + Contact to add one.',
       openAddContact,
-      'Contact',
+      'Add Contact',
+      {
+        openKey: 'contacts',
+        state: contacts.length > 0 ? 'complete' : 'default',
+        summaryItems: [
+          contacts.length > 0 && 'Contact details available',
+          contacts[0]?.contactName && `Latest: ${contacts[0].contactName}`,
+        ],
+      },
     );
   }
-
   function renderStep2() {
     return renderSubGrid(
       'Addresses',
@@ -893,30 +1329,49 @@ const SupplierFormPage: React.FC = () => {
       addresses.length === 0,
       'No addresses added yet. Click + Address to add one.',
       openAddAddress,
-      'Address',
+      'Add Address',
+      {
+        openKey: 'addresses',
+        state: addresses.length > 0 ? 'complete' : 'default',
+        summaryItems: [
+          addresses.length > 0 && 'Address details available',
+          addresses[0] && [addresses[0].city, addresses[0].state].filter(Boolean).join(', '),
+        ],
+      },
     );
   }
 
-  function renderStep3() {
+    function renderStep3() {
     return renderSubGrid(
       'Organisation Mapping',
-      orgMappings.map((m) => (
-        <div key={m.id} style={{ ...SUB_ROW_STYLE, borderBottom: '1px solid var(--color-border)' }}>
-          <div style={{ flex: 2, fontSize: '12px', fontWeight: 500, color: 'var(--color-text)' }}>{m.applyToAll ? 'All Organisations' : (m.organisationName || m.organisationId)}</div>
-          <div style={{ flex: 1, fontSize: '11px', color: 'var(--color-text-muted)' }}>{m.effectiveDate || 'â€”'}</div>
-          <div style={{ flex: 1, fontSize: '11px', color: 'var(--color-text-muted)' }}>{m.expirationDate || 'No expiry'}</div>
-          <div style={{ flex: 0.8 }}><span style={STATUS_PILL(m.status)}>{m.status}</span></div>
-          <SubRowActions onEdit={() => openEditOrg(m)} onDelete={() => removeOrg(m.id)} />
-        </div>
-      )),
-      subTableHead(['Organisation', 'Effective From', 'Expires On', 'Status']),
+      (
+        <MasterSubgridTable columns={[...ORG_TABLE_COLUMNS]}>
+          {orgMappings.map((m) => (
+            <MasterSubgridTableRow key={m.id} columns={[...ORG_TABLE_COLUMNS]}>
+              <MasterSubgridTableCell width="" strong>{m.applyToAll ? 'All Organisations' : (m.organisationName || m.organisationId)}</MasterSubgridTableCell>
+              <MasterSubgridTableCell width="" tone="muted">{m.effectiveDate || '-'}</MasterSubgridTableCell>
+              <MasterSubgridTableCell width="" tone="muted">{m.expirationDate || 'No expiry'}</MasterSubgridTableCell>
+              <MasterSubgridTableCell width=""><span style={STATUS_PILL(m.status)}>{m.status}</span></MasterSubgridTableCell>
+              <MasterSubgridTableCell width=""><SubRowActions onEdit={() => openEditOrg(m)} onDelete={() => removeOrg(m.id)} /></MasterSubgridTableCell>
+            </MasterSubgridTableRow>
+          ))}
+        </MasterSubgridTable>
+      ),
+      null,
       orgMappings.length === 0,
       'No organisation mappings yet. Click + Mapping to add one.',
       openAddOrg,
-      'Mapping',
+      'Add Mapping',
+      {
+        openKey: 'orgMappings',
+        state: orgMappings.length > 0 ? 'complete' : 'default',
+        summaryItems: [
+          orgMappings.length > 0 && 'Organisation mapping available',
+          orgMappings[0] && (orgMappings[0].applyToAll ? 'Applies to all organisations' : (orgMappings[0].organisationName || orgMappings[0].organisationId)),
+        ],
+      },
     );
   }
-
   function renderStep4() {
     return (
       <>
@@ -1136,7 +1591,219 @@ const SupplierFormPage: React.FC = () => {
     );
   }
 
-  // â”€â”€â”€ Main Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  function renderStep4V2() {
+    return (
+      <>
+        <MasterFormAccordionSection
+          title="Tax Summary"
+          description="Track tax registration and jurisdiction."
+          open={stepSectionOpen.taxSummary}
+          onToggle={(open) => setStepSectionOpen((current) => ({ ...current, taxSummary: open }))}
+          state={form.taxRegistered ? 'complete' : 'default'}
+          summary={(
+            <MasterFormSectionSummary
+              items={[
+                form.taxRegistered ? 'Tax registered' : 'Tax not registered',
+                form.taxJurisdiction && `Jurisdiction: ${form.taxJurisdiction}`,
+              ]}
+            />
+          )}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: form.taxRegistered ? '16px' : '0' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', userSelect: 'none' }}>
+              <input
+                type="checkbox"
+                checked={form.taxRegistered}
+                onChange={(e) => setField('taxRegistered', e.target.checked)}
+                disabled={isViewOnly}
+                style={{ width: '15px', height: '15px', cursor: 'pointer' }}
+              />
+              <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text)' }}>
+                Tax Registered
+              </span>
+            </label>
+          </div>
+          {form.taxRegistered && (
+            <div style={{ maxWidth: '360px' }}>
+              <MasterFormField label="Tax Jurisdiction">
+                <input
+                  type="text"
+                  value={form.taxJurisdiction}
+                  onChange={(e) => setField('taxJurisdiction', e.target.value)}
+                  disabled={isViewOnly}
+                  placeholder="e.g. India - GST"
+                  style={inputBase}
+                />
+              </MasterFormField>
+            </div>
+          )}
+        </MasterFormAccordionSection>
+        <MasterFormAccordionSection
+          title="Compliance Documents"
+          description="Manage required KYC and compliance documentation."
+          open={stepSectionOpen.complianceDocs}
+          onToggle={(open) => setStepSectionOpen((current) => ({ ...current, complianceDocs: open }))}
+          state={complianceDocs.length > 0 ? 'complete' : 'default'}
+          summary={(
+            <MasterFormSectionSummary
+              items={[
+                complianceDocs.length > 0
+                  ? `${complianceDocs.length} document${complianceDocs.length === 1 ? '' : 's'} tracked`
+                  : 'No compliance documents added yet.',
+              ]}
+            />
+          )}
+        >
+          <ComplianceDocChecklist
+            value={complianceDocs}
+            onChange={setComplianceDocs}
+            bpType={form.bpType}
+            countryOfRegistration={form.countryOfRegistration}
+            isViewOnly={isViewOnly}
+          />
+        </MasterFormAccordionSection>
+      </>
+    );
+  }
+
+  function renderStep5V2() {
+    return (
+      <>
+        <MasterSubgridCard
+          title="Bank Accounts"
+          emptyText="No bank accounts added. Click + Bank Account to add one."
+          addLabel={!isViewOnly ? 'Add Bank Account' : undefined}
+          onAdd={!isViewOnly ? openAddBank : undefined}
+          isEmpty={bankDetails.length === 0}
+          open={stepSectionOpen.bankAccounts}
+          onToggle={(open) => setStepSectionOpen((current) => ({ ...current, bankAccounts: open }))}
+          state={bankDetails.length > 0 ? 'complete' : 'default'}
+          summaryItems={[
+            bankDetails.length > 0 && 'Bank account details available',
+            bankDetails.find((detail) => detail.isDefaultAccount)?.bankName &&
+              `Default: ${bankDetails.find((detail) => detail.isDefaultAccount)?.bankName}`,
+          ]}
+        >
+          <>
+            {subTableHead(['Bank', 'Account Holder', 'Account No.', 'Type', 'Default', 'Status'])}
+            {bankDetails.map((b) => (
+              <div key={b.id} style={{ ...SUB_ROW_STYLE, borderBottom: '1px solid var(--color-border)' }}>
+                <div style={{ flex: 1.5, fontSize: '12px', fontWeight: 600, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.bankName}</div>
+                <div style={{ flex: 1.5, fontSize: '11px', color: 'var(--color-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.accountHolderName}</div>
+                <div style={{ flex: 1, fontFamily: 'monospace', fontSize: '11px', color: 'var(--color-text)', fontWeight: 600 }}>****{b.accountNumber.slice(-4)}</div>
+                <div style={{ flex: 0.8, fontSize: '11px', color: 'var(--color-text-muted)' }}>{b.accountType}</div>
+                <div style={{ flex: 0.6 }}>{b.isDefaultAccount && <span style={{ ...BADGE_PILL, background: '#F0FDF4', color: '#15803D' }}>Default</span>}</div>
+                <div style={{ flex: 0.8 }}><span style={STATUS_PILL(b.status)}>{b.status}</span></div>
+                <SubRowActions onEdit={() => openEditBank(b)} onDelete={() => removeBank(b.id)} />
+              </div>
+            ))}
+          </>
+        </MasterSubgridCard>
+
+        <MasterFormAccordionSection
+          title="Payment Terms"
+          description="Define settlement, credit, and advance-payment rules."
+          open={stepSectionOpen.paymentTerms}
+          onToggle={(open) => setStepSectionOpen((current) => ({ ...current, paymentTerms: open }))}
+          state={(form.settlementType || form.paymentMode || form.creditLimit) ? 'complete' : 'default'}
+          summary={(
+            <MasterFormSectionSummary
+              items={[
+                form.advanceAllowed ? `Advance: ${form.advancePercentage || '0'}%` : 'No advance payment',
+                form.settlementType && `Settlement: ${form.settlementType}`,
+                form.paymentMode && `Mode: ${form.paymentMode}`,
+                form.creditDays && `Credit days: ${form.creditDays}`,
+              ]}
+            />
+          )}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', userSelect: 'none' }}>
+              <input type="checkbox" checked={form.advanceAllowed} onChange={(e) => setField('advanceAllowed', e.target.checked)} disabled={isViewOnly} style={{ width: '15px', height: '15px', cursor: 'pointer' }} />
+              <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text)' }}>Advance Payment Allowed</span>
+            </label>
+          </div>
+          <MasterFormGrid variant="financial">
+            {form.advanceAllowed && (
+              <MasterFormField label="Advance %">
+                <input type="number" value={form.advancePercentage} onChange={(e) => setField('advancePercentage', e.target.value)} disabled={isViewOnly} min="0" max="100" placeholder="0-100" style={inputBase} />
+              </MasterFormField>
+            )}
+            <MasterFormField label="Settlement Type">
+              <select value={form.settlementType} onChange={(e) => setField('settlementType', e.target.value as SettlementType)} disabled={isViewOnly} style={inputBase}>
+                <option value="">Select...</option>
+                {SETTLEMENT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </MasterFormField>
+            <MasterFormField label="Payment Mode">
+              <select value={form.paymentMode} onChange={(e) => setField('paymentMode', e.target.value as PaymentMode)} disabled={isViewOnly} style={inputBase}>
+                <option value="">Select...</option>
+                {PAYMENT_MODES.map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </MasterFormField>
+            <MasterFormField label="Credit Days">
+              <input type="number" value={form.creditDays} onChange={(e) => setField('creditDays', e.target.value)} disabled={isViewOnly} min="0" placeholder="e.g. 30" style={inputBase} />
+            </MasterFormField>
+            <MasterFormField label="Credit Limit">
+              <input type="number" value={form.creditLimit} onChange={(e) => setField('creditLimit', e.target.value)} disabled={isViewOnly} min="0" placeholder="e.g. 5000000" style={inputBase} />
+            </MasterFormField>
+            <MasterFormField label="Credit Limit Currency">
+              <select value={form.creditLimitCurrency} onChange={(e) => setField('creditLimitCurrency', e.target.value)} disabled={isViewOnly} style={inputBase}>
+                {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </MasterFormField>
+          </MasterFormGrid>
+        </MasterFormAccordionSection>
+      </>
+    );
+  }
+
+    function renderStep6V2() {
+    return (
+      <MasterSubgridCard
+        title="Item Mappings"
+        emptyText="No items mapped yet. Click + Add Items to get started."
+        addLabel={!isViewOnly ? 'Add Items' : undefined}
+        onAdd={!isViewOnly ? (() => setItemSelectorOpen(true)) : undefined}
+        isEmpty={itemMappings.length === 0}
+        open={stepSectionOpen.itemMappings}
+        onToggle={(open) => setStepSectionOpen((current) => ({ ...current, itemMappings: open }))}
+        state={itemMappings.length > 0 ? 'complete' : 'default'}
+        summaryItems={[
+          itemMappings.length > 0 && 'Mapped items available',
+          itemMappings[0]?.itemCode && `Latest: ${itemMappings[0].itemCode}`,
+        ]}
+      >
+        <MasterSubgridTable columns={[...ITEM_TABLE_COLUMNS]}>
+          {itemMappings.map((m) => (
+            <MasterSubgridTableRow key={m.id} columns={[...ITEM_TABLE_COLUMNS]}>
+              <MasterSubgridTableCell width="" strong>
+                <span style={{ fontFamily: 'monospace', fontSize: '11px', fontWeight: 700, color: 'var(--color-primary)' }}>
+                  {m.itemCode}
+                </span>
+              </MasterSubgridTableCell>
+              <MasterSubgridTableCell width="">{m.itemName}</MasterSubgridTableCell>
+              <MasterSubgridTableCell width=""><span style={{ color: 'var(--color-text-muted)' }}>{m.orderUom || '-'}</span></MasterSubgridTableCell>
+              <MasterSubgridTableCell width=""><span style={{ color: 'var(--color-text-muted)' }}>{m.minOrderQty}</span></MasterSubgridTableCell>
+              <MasterSubgridTableCell width=""><span style={{ color: 'var(--color-text-muted)' }}>{m.maxOrderQty}</span></MasterSubgridTableCell>
+              <MasterSubgridTableCell width=""><span style={{ color: 'var(--color-text-muted)' }}>{m.stdLeadTimeDays}d</span></MasterSubgridTableCell>
+              <MasterSubgridTableCell width="">
+                {!isViewOnly && (
+                  <button type="button" onClick={() => removeItem(m.id)} title="Remove item"
+                    style={{ width: '26px', height: '26px', borderRadius: '6px', border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', color: 'var(--color-text-muted)' }}
+                    onMouseEnter={(e) => { const b = e.currentTarget as HTMLButtonElement; b.style.background = '#FEF2F2'; b.style.color = '#DC2626'; b.style.borderColor = '#FCA5A5'; }}
+                    onMouseLeave={(e) => { const b = e.currentTarget as HTMLButtonElement; b.style.background = 'transparent'; b.style.color = 'var(--color-text-muted)'; b.style.borderColor = 'var(--color-border)'; }}>
+                    x
+                  </button>
+                )}
+              </MasterSubgridTableCell>
+            </MasterSubgridTableRow>
+          ))}
+        </MasterSubgridTable>
+      </MasterSubgridCard>
+    );
+  }
+  // Main Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   return (
     <AdminShell>
@@ -1148,191 +1815,49 @@ const SupplierFormPage: React.FC = () => {
       )}
 
       {/* â”€â”€ CGP Custom Layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--color-surface)' }}>
+      <MasterCreateFormShell
+        navigationPersistenceKey="supplier-master-form-stepper"
+        title={pageTitle}
+        backAction={{
+          label: 'Back to List',
+          onClick: () => navigate('/admin/supplier-master'),
+        }}
+        statusLabel={existing?.status}
+        statusTone={statusTone}
+        secondaryActions={headerSecondaryActions}
+        primaryAction={headerPrimaryAction}
+        helpTopicId="supplier-master"
+        onHelpClick={() => setHelpOpen(true)}
+        steps={stepperSteps}
+        activeStepId={String(activeStep)}
+        onStepChange={(stepId) => setActiveStep(Number(stepId))}
+      >
 
-        {/* â”€â”€ 1. Compact Header (64px) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-        <div style={{ flexShrink: 0, padding: '10px 24px', borderBottom: '1px solid var(--color-border)', background: 'var(--color-surface)', display: 'flex', alignItems: 'center', gap: '16px', minHeight: '64px' }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginBottom: '2px', userSelect: 'none' }}>
-              Admin / Business Partners / Supplier Master
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text)', lineHeight: 1.25 }}>{pageTitle}</span>
-              {existing?.status && (
-                <span style={{ display: 'inline-flex', alignItems: 'center', fontSize: '11px', fontWeight: 600, padding: '2px 9px', borderRadius: '9999px', border: '1px solid',
-                  ...(existing.status === 'Active' ? { background: 'color-mix(in srgb, #10b981 12%, var(--color-surface))', color: 'color-mix(in srgb, #10b981 85%, var(--color-text))', borderColor: 'color-mix(in srgb, #10b981 35%, var(--color-border))' }
-                    : existing.status === 'Inactive' ? { background: 'var(--color-surface-subtle)', color: 'var(--color-text-muted)', borderColor: 'var(--color-border)' }
-                    : { background: '#EFF6FF', color: '#1D4ED8', borderColor: '#BFDBFE' }) }}>
-                  {existing.status}
-                </span>
-              )}
-            </div>
-            <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px', lineHeight: 1.35 }}>
-              Configure supplier identity, contacts, addresses, compliance, bank details, and item mappings.
-            </div>
+        {isActive && (
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '12px 16px', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: '10px', marginBottom: '20px' }}>
+            <Info size={15} style={{ color: '#EA580C', flexShrink: 0, marginTop: '1px' }} />
+            <span style={{ fontSize: '13px', color: '#9A3412', lineHeight: 1.6 }}>
+              This business partner is <strong>Active</strong>. BP Code is locked. All other fields can be updated.
+            </span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-            <button type="button" onClick={() => navigate('/admin/supplier-master')} style={btnOutline}>â† Back to List</button>
-            <button type="button" onClick={() => setHelpOpen(true)} style={btnOutline}>How this works</button>
+        )}
+        {isInactive && (
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '12px 16px', background: '#F8FAFC', border: '1px solid var(--color-border)', borderRadius: '10px', marginBottom: '20px' }}>
+            <AlertCircle size={15} style={{ color: 'var(--color-text-muted)', flexShrink: 0, marginTop: '1px' }} />
+            <span style={{ fontSize: '13px', color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
+              This business partner is <strong>Inactive</strong>. All fields are read-only.
+            </span>
           </div>
-        </div>
-
-        {/* â”€â”€ 2. Middle Area (sidebar + form body) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-        <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-
-          {/* â”€â”€ Left Step Sidebar (220px) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-          <nav style={{ width: '220px', flexShrink: 0, background: 'var(--color-surface)', borderRight: '1px solid var(--color-border)', overflowY: 'auto', display: 'flex', flexDirection: 'column', paddingTop: '8px' }}>
-            {steps.map((s) => {
-              const isAct        = activeStep === s.index;
-              const hasData      = stepHasData(s.index);
-              const isApplicable = applicableTabs.includes(s.tabNum);
-              const count        = getStepCount(s.index);
-              const isHovered    = hoveredStep === s.index;
-              const dotColor     = isAct ? 'var(--color-primary)' : hasData ? '#16A34A' : '#CBD5E1';
-              return (
-                <React.Fragment key={s.index}>
-                  <button type="button" onClick={() => setActiveStep(s.index)}
-                    onMouseEnter={() => setHoveredStep(s.index)}
-                    onMouseLeave={() => setHoveredStep(null)}
-                    style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 12px 12px 20px', border: 'none', borderBottom: '1px solid var(--color-border)', background: isAct ? 'color-mix(in srgb, var(--color-primary) 6%, white)' : isHovered ? 'color-mix(in srgb, var(--color-primary) 3%, white)' : 'transparent', cursor: 'pointer', textAlign: 'left', opacity: isApplicable ? 1 : 0.4, transition: 'background 0.1s', width: '100%' }}
-                  >
-                    {isAct && <span style={{ position: 'absolute', left: 0, top: '8px', bottom: '8px', width: '3px', borderRadius: '0 3px 3px 0', background: 'var(--color-primary)' }} />}
-                    <span style={{ width: '10px', height: '10px', borderRadius: '50%', flexShrink: 0, background: dotColor, transition: 'background 0.15s' }} />
-                    <span style={{ flex: 1, fontSize: '12px', fontWeight: isAct ? 600 : 500, color: isAct ? 'var(--color-primary)' : hasData ? 'var(--color-text)' : 'var(--color-text-muted)', lineHeight: 1.3, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {s.label}
-                    </span>
-                    {count > 0 && (
-                      <span style={{ fontSize: '10px', fontWeight: 700, minWidth: '18px', height: '18px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '9px', padding: '0 4px', background: isAct ? 'var(--color-primary)' : 'color-mix(in srgb, var(--color-primary) 12%, white)', color: isAct ? 'white' : 'var(--color-primary)', flexShrink: 0 }}>
-                        {count}
-                      </span>
-                    )}
-                    <ChevronRight size={13} style={{ flexShrink: 0, color: 'var(--color-text-muted)', opacity: isHovered ? 0.7 : 0, transition: 'opacity 0.15s' }} />
-                  </button>
-                </React.Fragment>
-              );
-            })}
-          </nav>
-
-          {/* â”€â”€ 3. Scrollable Form Body â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-          <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '16px 24px', background: 'var(--color-surface-subtle)' }}>
-
-          {/* Status banners */}
-          {isActive && (
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '12px 16px', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: '10px', marginBottom: '20px' }}>
-              <Info size={15} style={{ color: '#EA580C', flexShrink: 0, marginTop: '1px' }} />
-              <span style={{ fontSize: '13px', color: '#9A3412', lineHeight: 1.6 }}>
-                This business partner is <strong>Active</strong>. BP Code is locked. All other fields can be updated.
-              </span>
-            </div>
-          )}
-          {isInactive && (
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '12px 16px', background: '#F8FAFC', border: '1px solid var(--color-border)', borderRadius: '10px', marginBottom: '20px' }}>
-              <AlertCircle size={15} style={{ color: 'var(--color-text-muted)', flexShrink: 0, marginTop: '1px' }} />
-              <span style={{ fontSize: '13px', color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
-                This business partner is <strong>Inactive</strong>. All fields are read-only.
-              </span>
-            </div>
-          )}
-
-          {activeStep === 0 && renderStep0()}
-          {activeStep === 1 && renderStep1()}
-          {activeStep === 2 && renderStep2()}
-          {activeStep === 3 && renderStep3()}
-          {activeStep === 4 && renderStep4()}
-          {activeStep === 5 && renderStep5()}
-          {activeStep === 6 && renderStep6()}
-          {activeStep === 7 && form.bpType === 'Transporter' && (
-            <TransporterConfigStep
-              config={transporterConfig}
-              onChange={setTransporterConfig}
-              isViewOnly={isViewOnly}
-            />
-          )}
-          {activeStep === 7 && form.bpType === 'Insurance Provider' && (
-            <InsuranceConfigStep
-              config={insuranceConfig}
-              onChange={setInsuranceConfig}
-              isViewOnly={isViewOnly}
-            />
-          )}
-          {activeStep === 7 && form.bpType === 'Financier' && (
-            <FinancierConfigStep
-              config={financierConfig}
-              onChange={setFinancierConfig}
-              isViewOnly={isViewOnly}
-            />
-          )}
-          </div>
-        </div>
-
-        {/* â”€â”€ 4. Sticky Footer (60px) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-        <div style={{ flexShrink: 0, height: '60px', padding: '0 24px', borderTop: '1px solid var(--color-border)', background: 'var(--color-surface)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {/* Previous */}
-          <button type="button" onClick={() => setActiveStep((s) => Math.max(0, s - 1))} disabled={activeStep === 0}
-            style={{ ...btnOutline, opacity: activeStep === 0 ? 0.4 : 1, cursor: activeStep === 0 ? 'default' : 'pointer' }}>
-            â† Previous
-          </button>
-
-          {/* Delete (Draft only) */}
-          {canDel && (
-            <button type="button" onClick={() => setDeleteOpen(true)}
-              style={{ ...btnBase, background: '#FEF2F2', color: '#DC2626', border: '1px solid #FCA5A5', fontWeight: 500 }}>
-              Delete
-            </button>
-          )}
-
-          <div style={{ flex: 1 }} />
-
-          {/* Inactivate (Active only) */}
-          {isActive && (
-            <button type="button" onClick={() => setInactivateOpen(true)} style={{ ...btnBase, background: 'transparent', color: '#DC2626', border: '1px solid #FCA5A5', fontWeight: 500 }}>
-              Inactivate
-            </button>
-          )}
-
-          {/* Save Draft (Draft only) */}
-          {!isInactive && !isActive && (
-            <button type="button" onClick={handleSaveDraft} style={btnOutline}>
-              Save Draft
-            </button>
-          )}
-
-          {/* Save (Active) */}
-          {isActive && (
-            <button type="button" onClick={handleSaveDraft} style={btnOutline}>
-              Save
-            </button>
-          )}
-
-          {/* Activate (Draft, not new, last step) */}
-          {!isNew && !isActive && !isInactive && (
-            <button type="button" onClick={handleActivateRequest}
-              style={{ ...btnPrimary, background: '#16A34A' }}>
-              Activate
-            </button>
-          )}
-
-          {/* Continue / Finish */}
-          {activeStep < steps.length - 1 ? (
-            <button type="button" onClick={() => setActiveStep((s) => Math.min(steps.length - 1, s + 1))} style={btnPrimary}>
-              Continue â†’
-            </button>
-          ) : (
-            !isInactive && (
-              <button type="button" onClick={handleSaveDraft} style={btnPrimary}>
-                {isNew ? 'Save as Draft' : 'Save Changes'}
-              </button>
-            )
-          )}
-        </div>
-      </div>
+        )}
+        {activeStepContent}
+      </MasterCreateFormShell>
 
       {/* â”€â”€ Contact Drawer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <SmartFormDrawer
         open={contactOpen} onClose={() => setContactOpen(false)}
         title={contactEditId ? 'Edit Contact' : 'Add Contact'}
         onSave={saveContact} onCancel={() => setContactOpen(false)}
-        saveLabel={contactEditId ? 'Save Changes' : 'Add Contact'}
+        saveLabel="Save"
         validationErrors={Object.values(contactErrors).filter(Boolean) as string[]}
       >
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', padding: '4px 0 8px' }}>
@@ -1606,3 +2131,6 @@ const BADGE_PILL: React.CSSProperties = {
   padding: '2px 8px', fontSize: '11px', fontWeight: 600,
   borderRadius: '9999px', whiteSpace: 'nowrap',
 };
+
+
+

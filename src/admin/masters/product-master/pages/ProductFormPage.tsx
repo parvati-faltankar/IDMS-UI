@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { AlertCircle, ChevronRight, Info, Plus, Trash2 } from 'lucide-react';
+import { AlertCircle, Info, Plus, Trash2 } from 'lucide-react';
 import AdminShell from '../../../AdminShell';
+import { MasterFormStepper } from '../../../../experience/components';
 import { findGroupForMasterKey, findMasterByKey } from '../../../adminNavConfig';
 import { recordRecentAdminMaster } from '../../../adminStorage';
 import type {
@@ -269,8 +270,6 @@ const ProductFormPage: React.FC = () => {
   const [existing, setExisting]   = useState<ProductMaster | null>(null);
   const [notFound, setNotFound]   = useState(false);
   const [activeStep, setActiveStep] = useState(0);
-  const [hoveredStep, setHoveredStep] = useState<number | null>(null);
-
   // ── Main form ──────────────────────────────────────────────────────────────
   const [form, setForm] = useState<CoreForm>({ ...EMPTY_FORM });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -343,6 +342,17 @@ const ProductFormPage: React.FC = () => {
     if (i === 3) return productIdentifiers.length > 0 || productAssociations.length > 0 || !!form.effectiveFromDate;
     return false;
   }
+
+  const stepperSteps = STEPS.map((step) => {
+    const count = getStepCount(step.index);
+
+    return {
+      id: String(step.index),
+      label: step.label,
+      count: count > 0 ? count : undefined,
+      state: activeStep === step.index ? 'current' : stepHasData(step.index) ? 'complete' : 'default',
+    };
+  });
 
   function getStepCount(i: number): number {
     if (i === 1) return scopeMappings.length + applicableUOMs.length + packagingRows.length;
@@ -1414,36 +1424,13 @@ const ProductFormPage: React.FC = () => {
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
           {/* Left step sidebar (220px) */}
-          <nav style={{ width: '220px', flexShrink: 0, background: 'var(--color-surface)', borderRight: '1px solid var(--color-border)', overflowY: 'auto', display: 'flex', flexDirection: 'column', paddingTop: '8px' }}>
-            {STEPS.map((s) => {
-              const isAct    = activeStep === s.index;
-              const hasData  = stepHasData(s.index);
-              const count    = getStepCount(s.index);
-              const isHov    = hoveredStep === s.index;
-              const dotColor = isAct ? 'var(--color-primary)' : hasData ? '#16A34A' : '#CBD5E1';
-              return (
-                <React.Fragment key={s.index}>
-                  <button type="button" onClick={() => setActiveStep(s.index)}
-                    onMouseEnter={() => setHoveredStep(s.index)}
-                    onMouseLeave={() => setHoveredStep(null)}
-                    style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 12px 12px 20px', border: 'none', borderBottom: '1px solid var(--color-border)', background: isAct ? 'color-mix(in srgb,var(--color-primary) 6%,white)' : isHov ? 'color-mix(in srgb,var(--color-primary) 3%,white)' : 'transparent', cursor: 'pointer', textAlign: 'left', transition: 'background 0.1s', width: '100%' }}>
-                    {isAct && <span style={{ position: 'absolute', left: 0, top: '8px', bottom: '8px', width: '3px', borderRadius: '0 3px 3px 0', background: 'var(--color-primary)' }} />}
-                    <span style={{ width: '10px', height: '10px', borderRadius: '50%', flexShrink: 0, background: dotColor, transition: 'background 0.15s' }} />
-                    <span style={{ flex: 1, fontSize: '12px', fontWeight: isAct ? 600 : 500, color: isAct ? 'var(--color-primary)' : hasData ? 'var(--color-text)' : 'var(--color-text-muted)', lineHeight: 1.3, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {s.label}
-                    </span>
-                    {count > 0 && (
-                      <span style={{ fontSize: '10px', fontWeight: 700, minWidth: '18px', height: '18px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '9px', padding: '0 4px', background: isAct ? 'var(--color-primary)' : 'color-mix(in srgb,var(--color-primary) 12%,white)', color: isAct ? 'white' : 'var(--color-primary)', flexShrink: 0 }}>
-                        {count}
-                      </span>
-                    )}
-                    <ChevronRight size={13} style={{ flexShrink: 0, color: 'var(--color-text-muted)', opacity: isHov ? 0.7 : 0, transition: 'opacity 0.15s' }} />
-                  </button>
-                </React.Fragment>
-              );
-            })}
+          <div style={{ width: '220px', flexShrink: 0, background: 'var(--color-surface)', borderRight: '1px solid var(--color-border)', overflowY: 'auto' }}>
+            <MasterFormStepper
+              steps={stepperSteps}
+              activeStepId={String(activeStep)}
+              onStepChange={(stepId) => setActiveStep(Number(stepId))}
+            />
 
-            {/* Product Type indicator card */}
             {form.productType && (
               <div style={{ margin: '12px 12px 0', padding: '10px 12px', background: 'var(--color-surface-subtle)', borderRadius: '8px', border: '1px solid var(--color-border)' }}>
                 <p style={{ margin: 0, fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>Product Type</p>
@@ -1452,7 +1439,7 @@ const ProductFormPage: React.FC = () => {
                 {hiddenConfigTabs.length > 0 && <p style={{ margin: '2px 0 0', fontSize: '10px', color: 'var(--color-text-muted)' }}>Some config sections hidden</p>}
               </div>
             )}
-          </nav>
+          </div>
 
           {/* Scrollable form body */}
           <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '16px 24px', background: 'var(--color-surface-subtle)' }}>

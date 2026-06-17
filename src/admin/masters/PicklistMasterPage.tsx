@@ -1,11 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Edit2, Plus, Save, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Edit2, Filter, Plus, Save, Trash2, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import AdminShell from '../AdminShell';
 import { findGroupForMasterKey, findMasterByKey } from '../adminNavConfig';
 import { recordRecentAdminMaster } from '../adminStorage';
-import { AdminPageShell } from '../../experience/components/AdminPageShell';
+import { AdminListPageShell } from '../../experience/components/AdminListPageShell';
+import { MasterFilterDrawer } from '../../components/common/MasterFilterDrawer';
 import { HelpDrawer } from '../../experience/components/HelpDrawer';
 import { getHelpTopic } from '../../experience/help/helpTopics';
+import { loadPicklistMasterState, savePicklistMasterState } from './picklist-master/picklistMasterStore';
 
 const MASTER_KEY = 'picklist-master';
 
@@ -16,9 +19,13 @@ interface PicklistConfig {
   code: string;
   name: string;
   displayName: string;
+  entity: string;
+  entityType: string;
   description: string;
-  configurationType: 'Independent' | 'Dependent' | 'Multi-Level Dependent';
+  configurationType: 'Independent' | 'Dependent' | 'Multi-Level';
   isActive: boolean;
+  dependentParentConfigId?: string;
+  dependentParentValueId?: string;
   createdBy: string;
   createdDate: string;
   lastModifiedBy: string;
@@ -73,9 +80,9 @@ const SECTIONS: Array<{ key: SectionKey; label: string; description: string }> =
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
 const INITIAL_CONFIGS: PicklistConfig[] = [
-  { id: 'CFG-001', code: 'PCK-001', name: 'Country', displayName: 'Country', description: 'List of countries for address fields', configurationType: 'Independent', isActive: true, createdBy: 'Admin', createdDate: '2026-01-10 09:00', lastModifiedBy: 'Admin', lastModifiedDate: '2026-01-10 09:00' },
-  { id: 'CFG-002', code: 'PCK-002', name: 'Region District', displayName: 'Region / District', description: 'Two-level geographic hierarchy', configurationType: 'Dependent', isActive: true, createdBy: 'Admin', createdDate: '2026-01-12 10:00', lastModifiedBy: 'Admin', lastModifiedDate: '2026-01-12 10:00' },
-  { id: 'CFG-003', code: 'PCK-003', name: 'Country State City', displayName: 'Country / State / City', description: 'Three-level geographic hierarchy for shipping addresses', configurationType: 'Multi-Level Dependent', isActive: true, createdBy: 'Admin', createdDate: '2026-01-15 11:00', lastModifiedBy: 'Admin', lastModifiedDate: '2026-01-15 11:00' },
+  { id: 'CFG-001', code: 'PCK-001', name: 'Country', displayName: 'Country', entity: 'Address', entityType: 'Master', description: 'List of countries for address fields', configurationType: 'Independent', isActive: true, createdBy: 'Admin', createdDate: '2026-01-10 09:00', lastModifiedBy: 'Admin', lastModifiedDate: '2026-01-10 09:00' },
+  { id: 'CFG-002', code: 'PCK-002', name: 'Region District', displayName: 'Region / District', entity: 'Address', entityType: 'Master', description: 'Two-level geographic hierarchy', configurationType: 'Dependent', isActive: true, createdBy: 'Admin', createdDate: '2026-01-12 10:00', lastModifiedBy: 'Admin', lastModifiedDate: '2026-01-12 10:00' },
+  { id: 'CFG-003', code: 'PCK-003', name: 'Country State City', displayName: 'Country / State / City', entity: 'Address', entityType: 'Master', description: 'Three-level geographic hierarchy for shipping addresses', configurationType: 'Multi-Level', isActive: true, createdBy: 'Admin', createdDate: '2026-01-15 11:00', lastModifiedBy: 'Admin', lastModifiedDate: '2026-01-15 11:00' },
 ];
 
 const INITIAL_LEVELS: PicklistLevel[] = [
@@ -109,8 +116,9 @@ const INITIAL_MAPPINGS: DependencyMapping[] = [
 // ─── Empty forms ──────────────────────────────────────────────────────────────
 
 const EMPTY_CONFIG: Omit<PicklistConfig, 'id'> = {
-  code: '', name: '', displayName: '', description: '',
+  code: '', name: '', displayName: '', entity: '', entityType: '', description: '',
   configurationType: 'Independent', isActive: true,
+  dependentParentConfigId: '', dependentParentValueId: '',
   createdBy: 'Admin', createdDate: '', lastModifiedBy: '', lastModifiedDate: '',
 };
 
@@ -137,7 +145,7 @@ function getConfigTypeColor(type: string): { bg: string; text: string } {
       bg: 'color-mix(in srgb, #3b82f6 10%, var(--color-surface))',
       text: 'color-mix(in srgb, #3b82f6 85%, var(--color-text))'
     };
-    case 'Multi-Level Dependent': return {
+    case 'Multi-Level': return {
       bg: 'color-mix(in srgb, #8b5cf6 10%, var(--color-surface))',
       text: 'color-mix(in srgb, #8b5cf6 85%, var(--color-text))'
     };
@@ -151,22 +159,22 @@ function getConfigTypeColor(type: string): { bg: string; text: string } {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 const PicklistMasterPage: React.FC = () => {
+  const navigate = useNavigate();
   const master = findMasterByKey(MASTER_KEY);
   const group  = findGroupForMasterKey(MASTER_KEY);
+  const initialState = useMemo(() => loadPicklistMasterState(), []);
 
   const [activeSection, setActiveSection] = useState<SectionKey>('config');
   const [helpOpen, setHelpOpen] = useState(false);
   const [helpTopicId, setHelpTopicId] = useState('picklist-master');
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // ── Config state ──────────────────────────────────────────────────
-  const [configs, setConfigs]                         = useState<PicklistConfig[]>(INITIAL_CONFIGS);
-  const [configDrawerOpen, setConfigDrawerOpen]       = useState(false);
-  const [configDrawerVisible, setConfigDrawerVisible] = useState(false);
-  const [editingConfig, setEditingConfig]             = useState<PicklistConfig | null>(null);
-  const [configForm, setConfigForm]                   = useState<Omit<PicklistConfig, 'id'>>(EMPTY_CONFIG);
+  const [configs, setConfigs]                         = useState<PicklistConfig[]>(initialState.configs as PicklistConfig[]);
 
   // ── Levels state ──────────────────────────────────────────────────
-  const [levels, setLevels]                             = useState<PicklistLevel[]>(INITIAL_LEVELS);
+  const [levels, setLevels]                             = useState<PicklistLevel[]>(initialState.levels as PicklistLevel[]);
   const [levelConfigFilter, setLevelConfigFilter]       = useState('');
   const [levelDrawerOpen, setLevelDrawerOpen]           = useState(false);
   const [levelDrawerVisible, setLevelDrawerVisible]     = useState(false);
@@ -174,7 +182,7 @@ const PicklistMasterPage: React.FC = () => {
   const [levelForm, setLevelForm]                       = useState<Omit<PicklistLevel, 'id'>>(EMPTY_LEVEL);
 
   // ── Values state ──────────────────────────────────────────────────
-  const [values, setValues]                             = useState<PicklistValue[]>(INITIAL_VALUES);
+  const [values, setValues]                             = useState<PicklistValue[]>(initialState.values as PicklistValue[]);
   const [valueConfigFilter, setValueConfigFilter]       = useState('');
   const [valueLevelFilter, setValueLevelFilter]         = useState('');
   const [valueDrawerOpen, setValueDrawerOpen]           = useState(false);
@@ -183,7 +191,7 @@ const PicklistMasterPage: React.FC = () => {
   const [valueForm, setValueForm]                       = useState<Omit<PicklistValue, 'id'>>(EMPTY_VALUE);
 
   // ── Mapping state ─────────────────────────────────────────────────
-  const [mappings, setMappings]                             = useState<DependencyMapping[]>(INITIAL_MAPPINGS);
+  const [mappings, setMappings]                             = useState<DependencyMapping[]>(initialState.mappings as DependencyMapping[]);
   const [mappingConfigFilter, setMappingConfigFilter]       = useState('');
   const [mappingParentLevelId, setMappingParentLevelId]     = useState('');
   const [mappingParentValueId, setMappingParentValueId]     = useState('');
@@ -198,33 +206,16 @@ const PicklistMasterPage: React.FC = () => {
     }
   }, [master, group]);
 
+  useEffect(() => {
+    savePicklistMasterState({ configs, levels, values, mappings });
+  }, [configs, levels, values, mappings]);
+
   // ── Config handlers ───────────────────────────────────────────────
   const openConfigForCreate = () => {
-    setEditingConfig(null);
-    setConfigForm({ ...EMPTY_CONFIG });
-    setConfigDrawerOpen(true);
-    requestAnimationFrame(() => requestAnimationFrame(() => setConfigDrawerVisible(true)));
+    navigate('/admin/master/picklist-master/new');
   };
   const openConfigForEdit = (entry: PicklistConfig) => {
-    setEditingConfig(entry);
-    const { id: _id, ...rest } = entry;
-    setConfigForm({ ...rest });
-    setConfigDrawerOpen(true);
-    requestAnimationFrame(() => requestAnimationFrame(() => setConfigDrawerVisible(true)));
-  };
-  const closeConfigDrawer = () => {
-    setConfigDrawerVisible(false);
-    window.setTimeout(() => setConfigDrawerOpen(false), 250);
-  };
-  const saveConfig = () => {
-    if (!configForm.name || !configForm.configurationType) return;
-    if (editingConfig) {
-      setConfigs((prev) => prev.map((e) => e.id === editingConfig.id ? { ...configForm, id: editingConfig.id } : e));
-    } else {
-      const newCode = `PCK-${String(configs.length + 1).padStart(3, '0')}`;
-      setConfigs((prev) => [...prev, { ...configForm, code: newCode, id: Date.now().toString() }]);
-    }
-    closeConfigDrawer();
+    navigate(`/admin/master/picklist-master/${entry.id}`);
   };
   const deleteConfig = (id: string) => setConfigs((prev) => prev.filter((e) => e.id !== id));
 
@@ -361,79 +352,222 @@ const PicklistMasterPage: React.FC = () => {
   if (!master || !group) return null;
 
   const picklistHelpTopic = useMemo(() => getHelpTopic(helpTopicId), [helpTopicId]);
+  const sectionCounts = useMemo(() => ({
+    config: configs.length,
+    levels: filteredLevels.length,
+    values: filteredValues.length,
+    mapping: mappings.length,
+  }), [configs.length, filteredLevels.length, filteredValues.length, mappings.length]);
+  const currentSectionMeta = SECTIONS.find((section) => section.key === activeSection) ?? SECTIONS[0];
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+  const searchedConfigs = useMemo(() => {
+    if (!normalizedQuery) return configs;
+    return configs.filter((entry) =>
+      [entry.code, entry.name, entry.displayName, entry.configurationType]
+        .filter(Boolean)
+        .some((value) => value.toLowerCase().includes(normalizedQuery))
+    );
+  }, [configs, normalizedQuery]);
+  const searchedLevels = useMemo(() => {
+    if (!normalizedQuery) return filteredLevels;
+    return filteredLevels.filter((level) => {
+      const cfgObj = configs.find((config) => config.id === level.configId);
+      const parentLvl = levels.find((candidate) => candidate.id === level.parentLevelId);
+      return [
+        level.levelSequence,
+        level.picklistName,
+        level.displayName,
+        cfgObj?.name,
+        parentLvl?.picklistName,
+      ]
+        .filter(Boolean)
+        .some((value) => value!.toLowerCase().includes(normalizedQuery));
+    });
+  }, [configs, filteredLevels, levels, normalizedQuery]);
+  const searchedValues = useMemo(() => {
+    if (!normalizedQuery) return filteredValues;
+    return filteredValues.filter((valueRow) => {
+      const cfgObj = configs.find((config) => config.id === valueRow.configId);
+      const lvlObj = valueRow.levelId !== 'DEFAULT' ? levels.find((level) => level.id === valueRow.levelId) : null;
+      return [
+        valueRow.code,
+        valueRow.name,
+        valueRow.displayName,
+        cfgObj?.name,
+        lvlObj?.picklistName,
+      ]
+        .filter(Boolean)
+        .some((value) => value!.toLowerCase().includes(normalizedQuery));
+    });
+  }, [configs, filteredValues, levels, normalizedQuery]);
+  const canShowFilters = activeSection !== 'config';
+  const filterFields = useMemo(() => {
+    if (activeSection === 'levels') {
+      return [
+        {
+          id: 'levelConfigFilter',
+          label: 'Configuration',
+          value: levelConfigFilter,
+          placeholder: 'All Configurations',
+          options: [
+            { value: '', label: 'All Configurations' },
+            ...dependentConfigs.map((config) => ({ value: config.id, label: config.name })),
+          ],
+          onChange: (value: string) => setLevelConfigFilter(value),
+        },
+      ];
+    }
+    if (activeSection === 'values') {
+      const selectedConfig = configs.find((config) => config.id === valueConfigFilter);
+      const levelOptions = levels
+        .filter((level) => level.configId === valueConfigFilter)
+        .sort((a, b) => parseInt(a.levelSequence) - parseInt(b.levelSequence))
+        .map((level) => ({ value: level.id, label: level.picklistName }));
+      return [
+        {
+          id: 'valueConfigFilter',
+          label: 'Configuration',
+          value: valueConfigFilter,
+          placeholder: 'All Configurations',
+          options: [
+            { value: '', label: 'All Configurations' },
+            ...configs.map((config) => ({ value: config.id, label: config.name })),
+          ],
+          onChange: (value: string) => {
+            setValueConfigFilter(value);
+            setValueLevelFilter('');
+          },
+        },
+        ...(valueConfigFilter && selectedConfig?.configurationType !== 'Independent'
+          ? [{
+              id: 'valueLevelFilter',
+              label: 'Level',
+              value: valueLevelFilter,
+              placeholder: 'All Levels',
+              options: [
+                { value: '', label: 'All Levels' },
+                ...levelOptions,
+              ],
+              onChange: (value: string) => setValueLevelFilter(value),
+            }]
+          : []),
+      ];
+    }
+    if (activeSection === 'mapping') {
+      return [
+        {
+          id: 'mappingConfigFilter',
+          label: 'Configuration',
+          value: mappingConfigFilter,
+          placeholder: 'Select Configuration',
+          options: [
+            { value: '', label: 'Select Configuration' },
+            ...dependentConfigs.map((config) => ({ value: config.id, label: config.name })),
+          ],
+          onChange: (value: string) => {
+            setMappingConfigFilter(value);
+            setMappingParentLevelId('');
+            setMappingParentValueId('');
+          },
+        },
+      ];
+    }
+    return [];
+  }, [
+    activeSection,
+    configs,
+    dependentConfigs,
+    levelConfigFilter,
+    levels,
+    mappingConfigFilter,
+    valueConfigFilter,
+    valueLevelFilter,
+  ]);
 
   return (
     <AdminShell>
-      <AdminPageShell
+      <AdminListPageShell
         title={master.label}
         description={master.description}
         breadcrumbs={['Admin', group.label]}
+        primaryAction={
+          activeSection === 'config' ? { label: 'New', onClick: openConfigForCreate }
+          : activeSection === 'levels' ? { label: 'Add Level', onClick: openLevelForCreate }
+          : activeSection === 'values' ? { label: 'Add Value', onClick: openValueForCreate }
+          : undefined
+        }
+        secondaryActions={canShowFilters ? [{
+          label: 'Filters',
+          tone: 'secondary' as const,
+          icon: <Filter size={14} />,
+          onClick: () => setFilterDrawerOpen(true),
+        }] : undefined}
         helpTopicId={helpTopicId}
         onHelpClick={(id) => { setHelpTopicId(id); setHelpOpen(true); }}
-        summaryItems={[
-          { label: 'Configurations', value: configs.length },
-          { label: 'Levels', value: levels.length },
-          { label: 'Values', value: values.length },
-          { label: 'Mappings', value: mappings.length },
-        ]}
-        toolbar={
-          <div style={{ display: 'flex', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
-            {SECTIONS.map((s, i) => {
-              const isActive = activeSection === s.key;
-              return (
-                <button key={s.key} type="button" onClick={() => setActiveSection(s.key)}
-                  style={{
-                    padding: '6px 16px', fontSize: '13px',
-                    fontWeight: isActive ? 600 : 400, border: 'none',
-                    borderRight: i < SECTIONS.length - 1 ? '1px solid var(--color-border)' : 'none',
-                    background: isActive ? 'var(--color-primary)' : 'transparent',
-                    color: isActive ? 'white' : 'var(--color-text)',
-                    cursor: 'pointer', transition: 'all 0.15s',
-                  }}>
-                  {s.label}
-                </button>
-              );
-            })}
-          </div>
-        }
+        searchValue={searchQuery}
+        searchPlaceholder={`Search ${currentSectionMeta.label.toLowerCase()}…`}
+        onSearchChange={setSearchQuery}
       >
+            <div style={sectionRailStyle}>
+              {SECTIONS.map((section) => {
+                const isActive = section.key === activeSection;
+                return (
+                  <button
+                    key={section.key}
+                    type="button"
+                    onClick={() => setActiveSection(section.key)}
+                    style={{
+                      ...sectionTabStyle,
+                      ...(isActive ? activeSectionTabStyle : undefined),
+                    }}
+                  >
+                    <span style={{ fontSize: '13px', fontWeight: 700 }}>{section.label}</span>
+                    <span style={{ fontSize: '11px', color: isActive ? 'var(--color-primary)' : 'var(--color-text-muted)' }}>
+                      {sectionCounts[section.key]} items
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
 
             {/* ──────── SECTION 1: Picklist Configuration ──────── */}
             {activeSection === 'config' && (
               <div>
-                <div style={{ background: 'var(--color-surface)', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-                  <div>
-                    <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text)', letterSpacing: '-0.01em' }}>Picklist Configuration</div>
-                    <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Define picklist types and their configuration rules.</div>
-                  </div>
-                  <button type="button" onClick={openConfigForCreate} style={{ ...btnPrimary, flexShrink: 0 }}>
-                    <Plus size={13} />New Configuration
-                  </button>
+                <div style={{ marginBottom: '12px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text)' }}>{currentSectionMeta.label}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>{currentSectionMeta.description}</div>
                 </div>
 
-                {configs.length === 0 ? (
+                {searchedConfigs.length === 0 ? (
                   <div style={{ padding: '64px 28px', textAlign: 'center' }}>
-                    <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text)', marginBottom: '6px' }}>No configurations yet</div>
-                    <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', maxWidth: '300px', margin: '0 auto 24px', lineHeight: 1.6 }}>
-                      Create a picklist configuration to define its type and structure.
+                    <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text)', marginBottom: '6px' }}>
+                      {configs.length === 0 ? 'No configurations yet' : 'No configurations match the current search'}
                     </div>
-                    <button type="button" onClick={openConfigForCreate} style={btnPrimary}>
-                      <Plus size={13} />Create First Configuration
-                    </button>
+                    <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', maxWidth: '300px', margin: '0 auto 24px', lineHeight: 1.6 }}>
+                      {configs.length === 0
+                        ? 'Create a picklist configuration to define its type and structure.'
+                        : 'Try adjusting your search to find the picklist configuration you need.'}
+                    </div>
+                    {configs.length === 0 && (
+                      <button type="button" onClick={openConfigForCreate} style={btnPrimary}>
+                        <Plus size={13} />Create First Configuration
+                      </button>
+                    )}
                   </div>
                 ) : (
-                  <div style={{ background: 'var(--color-surface)', margin: '20px 24px', border: '1px solid var(--color-border)', borderRadius: '12px', overflow: 'hidden' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 210px 90px 80px', alignItems: 'center', padding: '10px 20px', background: 'var(--color-surface-subtle)', borderBottom: '1.5px solid var(--color-border)' }}>
-                      {(['Code', 'Configuration Name', 'Type', 'Status', 'Actions'] as const).map((label, i) => (
-                        <div key={label} style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text)', textAlign: i === 4 ? 'right' : 'left' }}>{label}</div>
+                  <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px', overflow: 'hidden' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 1fr 210px 90px 80px', alignItems: 'center', padding: '10px 20px', background: 'var(--color-surface-subtle)', borderBottom: '1.5px solid var(--color-border)' }}>
+                      {(['Code', 'Configuration Name', 'Display Name', 'Type', 'Status', 'Actions'] as const).map((label, i) => (
+                        <div key={label} style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text)', textAlign: i === 5 ? 'right' : 'left' }}>{label}</div>
                       ))}
                     </div>
-                    {configs.map((entry, idx) => {
+                    {searchedConfigs.map((entry, idx) => {
                       const tc = getConfigTypeColor(entry.configurationType);
                       return (
                         <div
                           key={entry.id}
-                          style={{ display: 'grid', gridTemplateColumns: '110px 1fr 210px 90px 80px', alignItems: 'center', padding: '14px 20px', borderBottom: idx < configs.length - 1 ? '1px solid var(--color-border)' : 'none', transition: 'background 0.1s', cursor: 'default' }}
+                          style={{ display: 'grid', gridTemplateColumns: '110px 1fr 1fr 210px 90px 80px', alignItems: 'center', padding: '14px 20px', borderBottom: idx < searchedConfigs.length - 1 ? '1px solid var(--color-border)' : 'none', transition: 'background 0.1s', cursor: 'default' }}
                           onMouseEnter={(e) => { e.currentTarget.style.background = '#F8FAFC'; }}
                           onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
                         >
@@ -442,10 +576,8 @@ const PicklistMasterPage: React.FC = () => {
                           </div>
                           <div style={{ minWidth: 0, paddingRight: '16px' }}>
                             <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.name}</div>
-                            {entry.displayName !== entry.name && (
-                              <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.displayName}</div>
-                            )}
                           </div>
+                          <div style={{ fontSize: '13px', color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '12px' }}>{entry.displayName || 'â€”'}</div>
                           <div>
                             <span style={{ display: 'inline-block', fontSize: '11px', fontWeight: 700, padding: '4px 10px', borderRadius: '6px', background: tc.bg, color: tc.text, letterSpacing: '0.02em', whiteSpace: 'nowrap' }}>
                               {entry.configurationType.toUpperCase()}
@@ -466,7 +598,7 @@ const PicklistMasterPage: React.FC = () => {
                     })}
                     <div style={{ padding: '10px 20px', borderTop: '1px solid var(--color-border)', background: 'var(--color-surface-subtle)', display: 'flex', justifyContent: 'flex-end' }}>
                       <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                        Showing <strong style={{ color: 'var(--color-text)', fontWeight: 600 }}>1–{configs.length}</strong> of <strong style={{ color: 'var(--color-text)', fontWeight: 600 }}>{configs.length}</strong> {configs.length === 1 ? 'record' : 'records'}
+                        Showing <strong style={{ color: 'var(--color-text)', fontWeight: 600 }}>1–{searchedConfigs.length}</strong> of <strong style={{ color: 'var(--color-text)', fontWeight: 600 }}>{configs.length}</strong> {configs.length === 1 ? 'record' : 'records'}
                       </span>
                     </div>
                   </div>
@@ -477,20 +609,9 @@ const PicklistMasterPage: React.FC = () => {
             {/* ──────── SECTION 2: Picklist Levels ──────── */}
             {activeSection === 'levels' && (
               <div>
-                <div style={{ background: 'var(--color-surface)', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-                  <div>
-                    <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text)', letterSpacing: '-0.01em' }}>Picklist Levels</div>
-                    <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Configure hierarchy levels for dependent picklists.</div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <select value={levelConfigFilter} onChange={(e) => setLevelConfigFilter(e.target.value)} style={filterSelectStyle}>
-                      <option value="">All Configurations</option>
-                      {dependentConfigs.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
-                    <button type="button" onClick={openLevelForCreate} style={{ ...btnPrimary, flexShrink: 0 }}>
-                      <Plus size={13} />Add Level
-                    </button>
-                  </div>
+                <div style={{ marginBottom: '12px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text)' }}>{currentSectionMeta.label}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>{currentSectionMeta.description}</div>
                 </div>
 
                 {dependentConfigs.length === 0 && (
@@ -498,50 +619,49 @@ const PicklistMasterPage: React.FC = () => {
                     <span style={{ fontSize: '18px', lineHeight: 1, flexShrink: 0 }}>ℹ️</span>
                     <div>
                       <div style={{ fontSize: '13px', fontWeight: 600, color: 'color-mix(in srgb, #f59e0b 80%, var(--color-text))', marginBottom: '2px' }}>No dependent configurations</div>
-                      <div style={{ fontSize: '12px', color: 'color-mix(in srgb, #f59e0b 65%, var(--color-text-muted))', lineHeight: 1.5 }}>Levels apply only to Dependent and Multi-Level Dependent picklists. Add a configuration of those types first.</div>
+                      <div style={{ fontSize: '12px', color: 'color-mix(in srgb, #f59e0b 65%, var(--color-text-muted))', lineHeight: 1.5 }}>Levels apply only to Dependent and Multi-Level picklists. Add a configuration of those types first.</div>
                     </div>
                   </div>
                 )}
 
-                {filteredLevels.length === 0 && dependentConfigs.length > 0 ? (
+                {searchedLevels.length === 0 && dependentConfigs.length > 0 ? (
                   <div style={{ padding: '64px 28px', textAlign: 'center' }}>
-                    <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text)', marginBottom: '6px' }}>No levels configured yet</div>
-                    <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', maxWidth: '300px', margin: '0 auto 24px', lineHeight: 1.6 }}>
-                      Add levels to define the hierarchy structure of your dependent picklist.
+                    <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text)', marginBottom: '6px' }}>
+                      {filteredLevels.length === 0 ? 'No levels configured yet' : 'No levels match the current search'}
                     </div>
-                    <button type="button" onClick={openLevelForCreate} style={btnPrimary}><Plus size={13} />Add First Level</button>
+                    <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', maxWidth: '300px', margin: '0 auto 24px', lineHeight: 1.6 }}>
+                      {filteredLevels.length === 0
+                        ? 'Add levels to define the hierarchy structure of your dependent picklist.'
+                        : 'Try adjusting your search or configuration filter to find the level you need.'}
+                    </div>
+                    {filteredLevels.length === 0 && (
+                      <button type="button" onClick={openLevelForCreate} style={btnPrimary}><Plus size={13} />Add First Level</button>
+                    )}
                   </div>
-                ) : filteredLevels.length > 0 ? (
-                  <div style={{ background: 'var(--color-surface)', margin: '20px 24px', border: '1px solid var(--color-border)', borderRadius: '12px', overflow: 'hidden' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '52px 1fr 1fr 70px 120px 110px 70px', alignItems: 'center', padding: '10px 20px', background: 'var(--color-surface-subtle)', borderBottom: '1.5px solid var(--color-border)' }}>
-                      {(['Seq', 'Picklist Name', 'Display Name', 'Root', 'Multi-Parent', 'Value Reuse', 'Actions'] as const).map((label, i) => (
-                        <div key={label} style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text)', textAlign: i === 6 ? 'right' : 'left' }}>{label}</div>
+                ) : searchedLevels.length > 0 ? (
+                  <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px', overflow: 'hidden' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '52px 1fr 1fr 1fr 1fr 120px 110px 70px', alignItems: 'center', padding: '10px 20px', background: 'var(--color-surface-subtle)', borderBottom: '1.5px solid var(--color-border)' }}>
+                      {(['Seq', 'Picklist Name', 'Display Name', 'Configuration', 'Parent Level', 'Multi-Parent', 'Value Reuse', 'Actions'] as const).map((label, i) => (
+                        <div key={label} style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text)', textAlign: i === 7 ? 'right' : 'left' }}>{label}</div>
                       ))}
                     </div>
-                    {filteredLevels.map((level, idx) => {
-                      const isRoot = level.levelSequence === '1' || level.parentLevelId === '';
+                    {searchedLevels.map((level, idx) => {
                       const parentLvl = levels.find((l) => l.id === level.parentLevelId);
                       const cfgObj = configs.find((c) => c.id === level.configId);
                       return (
                         <div
                           key={level.id}
-                          style={{ display: 'grid', gridTemplateColumns: '52px 1fr 1fr 70px 120px 110px 70px', alignItems: 'center', padding: '14px 20px', borderBottom: idx < filteredLevels.length - 1 ? '1px solid var(--color-border)' : 'none', transition: 'background 0.1s', cursor: 'default' }}
+                          style={{ display: 'grid', gridTemplateColumns: '52px 1fr 1fr 1fr 1fr 120px 110px 70px', alignItems: 'center', padding: '14px 20px', borderBottom: idx < searchedLevels.length - 1 ? '1px solid var(--color-border)' : 'none', transition: 'background 0.1s', cursor: 'default' }}
                           onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-surface-subtle)'; }}
                           onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
                         >
                           <div>
                             <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', borderRadius: '8px', background: '#EFF6FF', color: '#1D4ED8', fontSize: '13px', fontWeight: 700 }}>{level.levelSequence}</span>
                           </div>
-                          <div style={{ minWidth: 0, paddingRight: '12px' }}>
-                            <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{level.picklistName}</div>
-                            {cfgObj && <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>{cfgObj.name}</div>}
-                          </div>
+                          <div style={{ minWidth: 0, paddingRight: '12px', fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{level.picklistName}</div>
                           <div style={{ fontSize: '13px', color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '8px' }}>{level.displayName || '—'}</div>
-                          <div>
-                            {isRoot
-                              ? <span style={{ display: 'inline-block', fontSize: '10px', fontWeight: 700, padding: '3px 8px', borderRadius: '5px', background: '#F0FDF4', color: '#15803D' }}>ROOT</span>
-                              : <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>↳ {parentLvl?.picklistName ?? '—'}</span>}
-                          </div>
+                          <div style={{ fontSize: '13px', color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '8px' }}>{cfgObj?.name ?? '—'}</div>
+                          <div style={{ fontSize: '13px', color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '8px' }}>{parentLvl?.picklistName ?? 'ROOT'}</div>
                           <div><FlagPill on={level.allowMultipleParentMapping} /></div>
                           <div><FlagPill on={level.allowValueReuse} /></div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '2px', justifyContent: 'flex-end' }}>
@@ -553,7 +673,7 @@ const PicklistMasterPage: React.FC = () => {
                     })}
                     <div style={{ padding: '10px 20px', borderTop: '1px solid var(--color-border)', background: 'var(--color-surface-subtle)', display: 'flex', justifyContent: 'flex-end' }}>
                       <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                        Showing <strong style={{ color: 'var(--color-text)', fontWeight: 600 }}>1–{filteredLevels.length}</strong> of <strong style={{ color: 'var(--color-text)', fontWeight: 600 }}>{filteredLevels.length}</strong> {filteredLevels.length === 1 ? 'record' : 'records'}
+                        Showing <strong style={{ color: 'var(--color-text)', fontWeight: 600 }}>1–{searchedLevels.length}</strong> of <strong style={{ color: 'var(--color-text)', fontWeight: 600 }}>{filteredLevels.length}</strong> {filteredLevels.length === 1 ? 'record' : 'records'}
                       </span>
                     </div>
                   </div>
@@ -564,62 +684,47 @@ const PicklistMasterPage: React.FC = () => {
             {/* ──────── SECTION 3: Picklist Values ──────── */}
             {activeSection === 'values' && (
               <div>
-                <div style={{ background: 'var(--color-surface)', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-                  <div>
-                    <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text)', letterSpacing: '-0.01em' }}>Picklist Values</div>
-                    <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Add and manage dropdown values for each picklist level.</div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <select value={valueConfigFilter} onChange={(e) => { setValueConfigFilter(e.target.value); setValueLevelFilter(''); }} style={filterSelectStyle}>
-                      <option value="">All Configurations</option>
-                      {configs.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
-                    {valueConfigFilter && configs.find((c) => c.id === valueConfigFilter)?.configurationType !== 'Independent' && (
-                      <select value={valueLevelFilter} onChange={(e) => setValueLevelFilter(e.target.value)} style={filterSelectStyle}>
-                        <option value="">All Levels</option>
-                        {levels
-                          .filter((l) => l.configId === valueConfigFilter)
-                          .sort((a, b) => parseInt(a.levelSequence) - parseInt(b.levelSequence))
-                          .map((l) => <option key={l.id} value={l.id}>{l.picklistName}</option>)}
-                      </select>
-                    )}
-                    <button type="button" onClick={openValueForCreate} style={{ ...btnPrimary, flexShrink: 0 }}>
-                      <Plus size={13} />Add Value
-                    </button>
-                  </div>
+                <div style={{ marginBottom: '12px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text)' }}>{currentSectionMeta.label}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>{currentSectionMeta.description}</div>
                 </div>
 
-                {filteredValues.length === 0 ? (
+                {searchedValues.length === 0 ? (
                   <div style={{ padding: '64px 28px', textAlign: 'center' }}>
-                    <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text)', marginBottom: '6px' }}>No values added yet</div>
-                    <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', maxWidth: '300px', margin: '0 auto 24px', lineHeight: 1.6 }}>
-                      Add values for your picklist to use in dropdown fields across the system.
+                    <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text)', marginBottom: '6px' }}>
+                      {filteredValues.length === 0 ? 'No values added yet' : 'No values match the current search'}
                     </div>
-                    <button type="button" onClick={openValueForCreate} style={btnPrimary}><Plus size={13} />Add First Value</button>
+                    <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', maxWidth: '300px', margin: '0 auto 24px', lineHeight: 1.6 }}>
+                      {filteredValues.length === 0
+                        ? 'Add values for your picklist to use in dropdown fields across the system.'
+                        : 'Try adjusting your search or filters to find the value you need.'}
+                    </div>
+                    {filteredValues.length === 0 && (
+                      <button type="button" onClick={openValueForCreate} style={btnPrimary}><Plus size={13} />Add First Value</button>
+                    )}
                   </div>
                 ) : (
-                  <div style={{ background: 'var(--color-surface)', margin: '20px 24px', border: '1px solid var(--color-border)', borderRadius: '12px', overflow: 'hidden' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 1fr 60px 80px 90px 70px', alignItems: 'center', padding: '10px 20px', background: 'var(--color-surface-subtle)', borderBottom: '1.5px solid var(--color-border)' }}>
-                      {(['Code', 'Name', 'Display Name', 'Seq', 'Default', 'Status', 'Actions'] as const).map((label, i) => (
-                        <div key={label} style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text)', textAlign: i === 6 ? 'right' : 'left' }}>{label}</div>
+                  <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px', overflow: 'hidden' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 1fr 1fr 1fr 60px 80px 90px 70px', alignItems: 'center', padding: '10px 20px', background: 'var(--color-surface-subtle)', borderBottom: '1.5px solid var(--color-border)' }}>
+                      {(['Code', 'Name', 'Display Name', 'Configuration', 'Level', 'Seq', 'Default', 'Status', 'Actions'] as const).map((label, i) => (
+                        <div key={label} style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text)', textAlign: i === 8 ? 'right' : 'left' }}>{label}</div>
                       ))}
                     </div>
-                    {filteredValues.map((val, idx) => {
+                    {searchedValues.map((val, idx) => {
                       const lvlObj = val.levelId !== 'DEFAULT' ? levels.find((l) => l.id === val.levelId) : null;
                       const cfgObj = configs.find((c) => c.id === val.configId);
                       return (
                         <div
                           key={val.id}
-                          style={{ display: 'grid', gridTemplateColumns: '110px 1fr 1fr 60px 80px 90px 70px', alignItems: 'center', padding: '14px 20px', borderBottom: idx < filteredValues.length - 1 ? '1px solid var(--color-border)' : 'none', transition: 'background 0.1s', cursor: 'default' }}
+                          style={{ display: 'grid', gridTemplateColumns: '110px 1fr 1fr 1fr 1fr 60px 80px 90px 70px', alignItems: 'center', padding: '14px 20px', borderBottom: idx < searchedValues.length - 1 ? '1px solid var(--color-border)' : 'none', transition: 'background 0.1s', cursor: 'default' }}
                           onMouseEnter={(e) => { e.currentTarget.style.background = '#F8FAFC'; }}
                           onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
                         >
-                          <div>
-                            <span style={{ fontFamily: 'monospace', fontSize: '12px', fontWeight: 700, color: 'var(--color-primary)' }}>{val.code}</span>
-                            <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', marginTop: '1px' }}>{lvlObj?.picklistName ?? cfgObj?.name ?? ''}</div>
-                          </div>
+                          <div style={{ fontFamily: 'monospace', fontSize: '12px', fontWeight: 700, color: 'var(--color-primary)' }}>{val.code}</div>
                           <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '8px' }}>{val.name}</div>
                           <div style={{ fontSize: '13px', color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '8px' }}>{val.displayName}</div>
+                          <div style={{ fontSize: '13px', color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '8px' }}>{cfgObj?.name ?? '—'}</div>
+                          <div style={{ fontSize: '13px', color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '8px' }}>{lvlObj?.picklistName ?? 'Default'}</div>
                           <div style={{ fontSize: '13px', color: 'var(--color-text)' }}>{val.displaySequence || '—'}</div>
                           <div>
                             {val.isDefault
@@ -641,7 +746,7 @@ const PicklistMasterPage: React.FC = () => {
                     })}
                     <div style={{ padding: '10px 20px', borderTop: '1px solid var(--color-border)', background: 'var(--color-surface-subtle)', display: 'flex', justifyContent: 'flex-end' }}>
                       <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                        Showing <strong style={{ color: 'var(--color-text)', fontWeight: 600 }}>1–{filteredValues.length}</strong> of <strong style={{ color: 'var(--color-text)', fontWeight: 600 }}>{filteredValues.length}</strong> {filteredValues.length === 1 ? 'record' : 'records'}
+                        Showing <strong style={{ color: 'var(--color-text)', fontWeight: 600 }}>1–{searchedValues.length}</strong> of <strong style={{ color: 'var(--color-text)', fontWeight: 600 }}>{filteredValues.length}</strong> {filteredValues.length === 1 ? 'record' : 'records'}
                       </span>
                     </div>
                   </div>
@@ -652,40 +757,30 @@ const PicklistMasterPage: React.FC = () => {
             {/* ──────── SECTION 4: Dependency Mapping ──────── */}
             {activeSection === 'mapping' && (
               <div>
-                <div style={{ background: 'var(--color-surface)', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-                  <div>
-                    <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text)', letterSpacing: '-0.01em' }}>Dependency Mapping</div>
-                    <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Map parent values to their corresponding child values.</div>
-                  </div>
-                  <select
-                    value={mappingConfigFilter}
-                    onChange={(e) => { setMappingConfigFilter(e.target.value); setMappingParentLevelId(''); setMappingParentValueId(''); }}
-                    style={filterSelectStyle}
-                  >
-                    <option value="">Select Configuration</option>
-                    {dependentConfigs.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
+                <div style={{ marginBottom: '12px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text)' }}>{currentSectionMeta.label}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>{currentSectionMeta.description}</div>
                 </div>
 
                 {!mappingConfigFilter && (
-                  <div style={{ margin: '20px 24px', padding: '24px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px', textAlign: 'center' }}>
+                  <div style={{ padding: '24px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px', textAlign: 'center' }}>
                     <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', marginBottom: '4px' }}>Select a configuration to begin mapping</div>
-                    <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Choose a Dependent or Multi-Level Dependent configuration from the dropdown above.</div>
+                    <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Choose a Dependent or Multi-Level configuration from the dropdown above.</div>
                   </div>
                 )}
 
                 {mappingConfigFilter && selectedMappingConfig?.configurationType === 'Independent' && (
-                  <div style={{ margin: '20px 24px', padding: '16px 20px', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '12px', display: 'flex', gap: '10px' }}>
+                  <div style={{ padding: '16px 20px', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '12px', display: 'flex', gap: '10px' }}>
                     <span style={{ fontSize: '18px', lineHeight: 1, flexShrink: 0 }}>ℹ️</span>
                     <div>
                       <div style={{ fontSize: '13px', fontWeight: 600, color: '#92400E' }}>Not applicable for Independent type</div>
-                      <div style={{ fontSize: '12px', color: '#78350F', lineHeight: 1.5 }}>Dependency mapping is only available for Dependent and Multi-Level Dependent configurations.</div>
+                      <div style={{ fontSize: '12px', color: '#78350F', lineHeight: 1.5 }}>Dependency mapping is only available for Dependent and Multi-Level configurations.</div>
                     </div>
                   </div>
                 )}
 
                 {mappingConfigFilter && selectedMappingConfig?.configurationType !== 'Independent' && (
-                  <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
                     {/* Mapping Header Card */}
                     <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px', padding: '20px' }}>
@@ -837,19 +932,9 @@ const PicklistMasterPage: React.FC = () => {
               </div>
             )}
 
-      </AdminPageShell>
+      </AdminListPageShell>
 
       {/* ── Config Drawer ── */}
-      {configDrawerOpen && (
-        <ConfigDrawer
-          visible={configDrawerVisible}
-          isEdit={!!editingConfig}
-          formData={configForm}
-          onClose={closeConfigDrawer}
-          onChangeField={(f, v) => setConfigForm((prev) => ({ ...prev, [f]: v } as Omit<PicklistConfig, 'id'>))}
-          onSave={saveConfig}
-        />
-      )}
 
       {/* ── Level Drawer ── */}
       {levelDrawerOpen && (
@@ -879,6 +964,30 @@ const PicklistMasterPage: React.FC = () => {
         />
       )}
 
+      <MasterFilterDrawer
+        open={filterDrawerOpen}
+        title={`${currentSectionMeta.label} Filters`}
+        description="Apply shared master filters for the current picklist section."
+        fields={filterFields}
+        onClose={() => setFilterDrawerOpen(false)}
+        onReset={() => {
+          if (activeSection === 'levels') {
+            setLevelConfigFilter('');
+            return;
+          }
+          if (activeSection === 'values') {
+            setValueConfigFilter('');
+            setValueLevelFilter('');
+            return;
+          }
+          if (activeSection === 'mapping') {
+            setMappingConfigFilter('');
+            setMappingParentLevelId('');
+            setMappingParentValueId('');
+          }
+        }}
+      />
+
       {picklistHelpTopic && (
         <HelpDrawer open={helpOpen} topic={picklistHelpTopic} onClose={() => setHelpOpen(false)} onTopicChange={(id) => setHelpTopicId(id)} />
       )}
@@ -902,11 +1011,32 @@ const btnPrimary: React.CSSProperties = {
 
 // ─── Filter select style ──────────────────────────────────────────────────────
 
-const filterSelectStyle: React.CSSProperties = {
-  height: '34px', padding: '0 10px', fontSize: '13px', fontWeight: 500,
-  border: '1px solid var(--color-border)', borderRadius: '8px',
-  background: 'var(--color-surface)', color: 'var(--color-text)',
-  cursor: 'pointer', outline: 'none',
+const sectionRailStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+  gap: '12px',
+  marginBottom: '16px',
+};
+
+const sectionTabStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'flex-start',
+  gap: '4px',
+  padding: '14px 16px',
+  borderRadius: '12px',
+  border: '1px solid var(--color-border)',
+  background: 'var(--color-surface)',
+  color: 'var(--color-text)',
+  cursor: 'pointer',
+  textAlign: 'left',
+  transition: 'border-color 0.15s, background 0.15s, box-shadow 0.15s',
+};
+
+const activeSectionTabStyle: React.CSSProperties = {
+  borderColor: 'color-mix(in srgb, var(--color-primary) 40%, var(--color-border))',
+  background: 'color-mix(in srgb, var(--color-primary) 6%, var(--color-surface))',
+  boxShadow: '0 0 0 1px color-mix(in srgb, var(--color-primary) 12%, transparent)',
 };
 
 // ─── Drawer input primitives ──────────────────────────────────────────────────
@@ -1037,19 +1167,19 @@ const ConfigDrawer: React.FC<ConfigDrawerProps> = ({ visible, isEdit, formData, 
               <DrawerSelect
                 value={formData.configurationType}
                 onChange={(v) => onChangeField('configurationType', v as PicklistConfig['configurationType'])}
-                options={['Independent', 'Dependent', 'Multi-Level Dependent']}
+                options={['Independent', 'Dependent', 'Multi-Level']}
               />
             </DField>
             <div style={{ marginTop: '14px', padding: '12px 14px', background: 'var(--color-surface-subtle)', borderRadius: '10px', border: '1px solid var(--color-border)' }}>
               <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text)', marginBottom: '4px' }}>
                 {formData.configurationType === 'Independent' && 'Independent — No hierarchy, simple flat list'}
                 {formData.configurationType === 'Dependent' && 'Dependent — Two-level parent → child hierarchy'}
-                {formData.configurationType === 'Multi-Level Dependent' && 'Multi-Level — Three or more levels of hierarchy'}
+                {formData.configurationType === 'Multi-Level' && 'Multi-Level — Three or more levels of hierarchy'}
               </div>
               <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
                 {formData.configurationType === 'Independent' && 'Values are standalone with no parent-child dependency. Levels and Dependency Mapping are not applicable.'}
                 {formData.configurationType === 'Dependent' && 'Child values depend on parent selection. Configure Levels and Dependency Mapping after saving.'}
-                {formData.configurationType === 'Multi-Level Dependent' && 'Supports three or more hierarchy levels, e.g. Country → State → City. Configure all levels and mappings after saving.'}
+                {formData.configurationType === 'Multi-Level' && 'Supports three or more hierarchy levels, e.g. Country → State → City. Configure all levels and mappings after saving.'}
               </div>
             </div>
           </div>

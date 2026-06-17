@@ -6,6 +6,7 @@ export const WAREHOUSE_ROUTES = {
   list:          WAREHOUSE_MASTER_BASE,
   create:        `${WAREHOUSE_MASTER_BASE}/new`,
   detail:        (id: string) => `${WAREHOUSE_MASTER_BASE}/${id}`,
+  setup:         (id: string) => `${WAREHOUSE_MASTER_BASE}/${id}/setup`,
   hierarchy:     (id: string) => `${WAREHOUSE_MASTER_BASE}/${id}/hierarchy`,
   locations:     (id: string) => `${WAREHOUSE_MASTER_BASE}/${id}/locations`,
   locationCreate:(id: string) => `${WAREHOUSE_MASTER_BASE}/${id}/locations/new`,

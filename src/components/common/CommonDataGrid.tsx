@@ -118,6 +118,7 @@ const CommonDataGrid = <TData, TSortKey extends string = string>({
   rows,
   columns,
   rowId,
+  variant = 'default',
   rowClassName,
   selectable = false,
   sortState,
@@ -128,6 +129,10 @@ const CommonDataGrid = <TData, TSortKey extends string = string>({
   incrementalRenderingThreshold = 90,
   onSelectionChange,
   bulkActions,
+  showToolbar = true,
+  showChartAction = true,
+  showViewConfiguratorAction = true,
+  showResetAction = true,
   toolbarEndSlot,
   toolbarLabel = 'Grid actions',
   chartTitle = 'Catalogue',
@@ -500,65 +505,97 @@ const CommonDataGrid = <TData, TSortKey extends string = string>({
     );
   };
 
+  const hasToolbarActions =
+    (selectable && selectedRows.length > 0 && bulkActions !== undefined) ||
+    Boolean(exportFileName) ||
+    showChartAction ||
+    showViewConfiguratorAction ||
+    showResetAction ||
+    toolbarEndSlot !== undefined;
+
+  const shouldRenderToolbar = showToolbar && hasToolbarActions;
+
   return (
     <>
-      <div className="catalogue-table-toolbar catalogue-grid-toolbar" aria-label={toolbarLabel}>
-        <div className="catalogue-table-toolbar__meta">
-          {preferences.groupByColumnId && (
-            <span className="catalogue-grid-toolbar__pill">
-              Grouped by {columnMap.get(preferences.groupByColumnId)?.label ?? 'column'}
-            </span>
-          )}
-        </div>
+      {shouldRenderToolbar && (
+        <div className="catalogue-table-toolbar catalogue-grid-toolbar" aria-label={toolbarLabel}>
+          <div className="catalogue-table-toolbar__meta">
+            {preferences.groupByColumnId && (
+              <span className="catalogue-grid-toolbar__pill">
+                Grouped by {columnMap.get(preferences.groupByColumnId)?.label ?? 'column'}
+              </span>
+            )}
+          </div>
 
-        <div className="catalogue-grid-toolbar__actions">
-          {selectable && selectedRows.length > 0 && bulkActions?.(selectedRows)}
-          {exportFileName && (
-            <button
-              type="button"
-              className="btn btn--outline btn--icon-left"
-              onClick={() => exportRowsToCsv(sortedRows, arrangedColumns.filter((column) => column.type !== 'actions'), exportFileName)}
-            >
-              <Download size={16} />
-              Export CSV
-            </button>
-          )}
-          <Tooltip title="Visualize" arrow placement="top">
-            <button
-              type="button"
-              className="catalogue-grid-toolbar__icon-button"
-              onClick={() => setIsChartDrawerOpen(true)}
-              aria-label="Visualize"
-            >
-              <BarChart3 size={14} />
-            </button>
-          </Tooltip>
-          <Tooltip title="View" arrow placement="top">
-            <button
-              type="button"
-              className="catalogue-grid-toolbar__icon-button"
-              onClick={() => setIsConfiguratorOpen(true)}
-              aria-label="View"
-            >
-              <LayoutTemplate size={14} />
-            </button>
-          </Tooltip>
-          <Tooltip title="Reset" arrow placement="top">
-            <button
-              type="button"
-              className="catalogue-grid-toolbar__icon-button"
-              onClick={handleResetView}
-              aria-label="Reset"
-            >
-              <RotateCcw size={14} />
-            </button>
-          </Tooltip>
-          {toolbarEndSlot}
+          <div className="catalogue-grid-toolbar__actions">
+            {selectable && selectedRows.length > 0 && bulkActions?.(selectedRows)}
+            {exportFileName && (
+              <button
+                type="button"
+                className="btn btn--outline btn--icon-left"
+                onClick={() => exportRowsToCsv(sortedRows, arrangedColumns.filter((column) => column.type !== 'actions'), exportFileName)}
+              >
+                <Download size={16} />
+                Export CSV
+              </button>
+            )}
+            {showChartAction && (
+              <Tooltip title="Visualize" arrow placement="top">
+                <button
+                  type="button"
+                  className="catalogue-grid-toolbar__icon-button"
+                  onClick={() => setIsChartDrawerOpen(true)}
+                  aria-label="Visualize"
+                >
+                  <BarChart3 size={14} />
+                </button>
+              </Tooltip>
+            )}
+            {showViewConfiguratorAction && (
+              <Tooltip title="View" arrow placement="top">
+                <button
+                  type="button"
+                  className="catalogue-grid-toolbar__icon-button"
+                  onClick={() => setIsConfiguratorOpen(true)}
+                  aria-label="View"
+                >
+                  <LayoutTemplate size={14} />
+                </button>
+              </Tooltip>
+            )}
+            {showResetAction && (
+              <Tooltip title="Reset" arrow placement="top">
+                <button
+                  type="button"
+                  className="catalogue-grid-toolbar__icon-button"
+                  onClick={handleResetView}
+                  aria-label="Reset"
+                >
+                  <RotateCcw size={14} />
+                </button>
+              </Tooltip>
+            )}
+            {toolbarEndSlot}
+          </div>
         </div>
-      </div>
+      )}
 
-      <div className={cn('catalogue-table-scroll', 'catalogue-grid-scroll', `catalogue-grid-scroll--${preferences.density}`)}>
-        <table className={cn('catalogue-table', 'catalogue-grid', `catalogue-grid--${preferences.density}`)}>
+      <div
+        className={cn(
+          'catalogue-table-scroll',
+          'catalogue-grid-scroll',
+          `catalogue-grid-scroll--${preferences.density}`,
+          variant === 'master' && 'catalogue-grid-scroll--master'
+        )}
+      >
+        <table
+          className={cn(
+            'catalogue-table',
+            'catalogue-grid',
+            `catalogue-grid--${preferences.density}`,
+            variant === 'master' && 'catalogue-grid--master'
+          )}
+        >
           <thead>
             <tr>
               {selectable && (
@@ -774,7 +811,7 @@ const CommonDataGrid = <TData, TSortKey extends string = string>({
         onReset={handleResetView}
       />
 
-      {isChartDrawerOpen && (
+      {showChartAction && isChartDrawerOpen && (
         <DataGridChartDrawer
           isOpen={isChartDrawerOpen}
           title={chartTitle}

@@ -3,6 +3,7 @@
 import type {
   AllocationPolicy,
   CapacityPolicy,
+  LocationCapacity,
   CycleCountPolicy,
   DefaultLocations,
   EligibilityPolicy,
@@ -16,10 +17,15 @@ import type {
 
 import type {
   ExportFormat,
+  HierarchyLevelRole,
   ImportEntityType,
   ImportMode,
   InventoryControlMode,
+  CapacityEnforcementMode,
+  TemperatureZone,
+  ResponsibilityRole,
   LocationType,
+  LocationTransactionPurpose,
   WarehouseOwnershipScope,
   WarehouseLifecycleAction,
   WarehouseStatus,
@@ -99,6 +105,12 @@ export interface CreateWarehouseInput {
   readonly reservationPolicy?: Partial<ReservationPolicy>;
   readonly allocationPolicy?: Partial<AllocationPolicy>;
   readonly cycleCountPolicy?: Partial<CycleCountPolicy>;
+  readonly hierarchyTemplateBootstrap?: {
+    readonly templateCode: string;
+    readonly templateName: string;
+    readonly flexiblePathEnabled: boolean;
+    readonly levels: HierarchyLevel[];
+  };
 }
 
 export interface UpdateWarehouseInput extends Partial<CreateWarehouseInput> {
@@ -185,6 +197,47 @@ export interface CreateLocationInput {
 
 export interface UpdateLocationInput extends Partial<CreateLocationInput> {
   readonly version: number;
+}
+
+export interface UpdateLocationCapacityInput {
+  readonly warehouseId: string;
+  readonly locationId: string;
+  readonly version: number;
+  readonly capacity: Partial<LocationCapacity>;
+}
+
+export interface ValidateLocationCapacityInput {
+  readonly warehouseId: string;
+  readonly locationId: string;
+  readonly capacity: Partial<LocationCapacity>;
+}
+
+export interface PreviewCapacityImpactInput {
+  readonly targetLocationId: string;
+  readonly quantity?: number;
+  readonly weightKg?: number;
+  readonly volumeM3?: number;
+  readonly inboundReservation?: boolean;
+  readonly itemAttributes?: {
+    readonly temperatureZone?: TemperatureZone;
+    readonly hazardClass?: string;
+    readonly complianceClass?: string;
+  };
+}
+
+export interface CapacityIssueRecord {
+  readonly locationId: string;
+  readonly locationCode: string;
+  readonly issueType: string;
+  readonly severity: 'error' | 'warning' | 'info';
+  readonly message: string;
+  readonly actionTarget: 'CapacityView' | 'Locations' | 'Hierarchy';
+}
+
+export interface ListCapacityIssuesQuery {
+  readonly warehouseId: string;
+  readonly severity?: 'error' | 'warning' | 'info';
+  readonly status?: string;
 }
 
 // ─── Bulk create DTOs ─────────────────────────────────────────────────────────
@@ -313,12 +366,16 @@ export interface QuickHierarchyCodingPolicyInput {
 export interface QuickHierarchyDefaultsInput {
   readonly status?: 'Draft';
   readonly defaultLocationType?: LocationType;
+  readonly levelRole?: HierarchyLevelRole;
   readonly inventoryEndpointEligible?: boolean;
   readonly capacityApplicable?: boolean;
   readonly itemEligibilityApplicable?: boolean;
   readonly responsibilityApplicable?: boolean;
   readonly barcodeApplicable?: boolean;
   readonly qrApplicable?: boolean;
+  readonly transactionPurposes?: LocationTransactionPurpose[];
+  readonly capacityEnforcementMode?: CapacityEnforcementMode;
+  readonly defaultResponsibilityRole?: ResponsibilityRole;
 }
 
 export interface QuickHierarchyPreviewInput {
@@ -329,6 +386,7 @@ export interface QuickHierarchyPreviewInput {
   readonly countsByLevel: Record<string, number>;
   readonly codingByLevel: QuickHierarchyCodingPolicyInput[];
   readonly defaults?: QuickHierarchyDefaultsInput;
+  readonly permissionGranted?: boolean;
 }
 
 export interface QuickHierarchyPreviewRow {
@@ -340,12 +398,19 @@ export interface QuickHierarchyPreviewRow {
   readonly parentCode?: string;
   readonly nodeCode: string;
   readonly nodeName: string;
+  readonly locationType: LocationType;
+  readonly levelRole: HierarchyLevelRole;
   readonly fullLocationIdentifier: string;
   readonly leafEndpointPreview: boolean;
   readonly inventoryEndpointEligible: boolean;
   readonly capacityApplicable: boolean;
   readonly itemEligibilityApplicable: boolean;
   readonly responsibilityApplicable: boolean;
+  readonly barcodeApplicable: boolean | 'Not Applicable';
+  readonly qrApplicable: boolean | 'Not Applicable';
+  readonly transactionPurposes: LocationTransactionPurpose[] | 'Not Applicable';
+  readonly capacityEnforcementMode: CapacityEnforcementMode | 'Not Applicable';
+  readonly defaultResponsibilityRole: ResponsibilityRole | 'Not Applicable';
   readonly status: 'Draft';
   readonly validationStatus: 'Valid' | 'Conflict';
   readonly conflictReason?: string;

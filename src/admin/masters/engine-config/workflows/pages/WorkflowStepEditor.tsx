@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import AdminShell from '../../../../AdminShell';
+import { MasterFormStepper } from '../../../../../experience/components';
 import type { WorkflowConfig, WorkflowStepConfig } from '../../../../../engine/types/configuration';
 import type { WorkflowStepConfigType, WorkflowStepFailureMode } from '../../../../../engine/types/configuration';
 import { loadWorkflows, persistWorkflow } from '../services/workflowConfigService';
@@ -90,6 +91,11 @@ const WorkflowStepEditor: React.FC = () => {
   }
 
   const stepHasData = useMemo(() => [!!form.workflowCode.trim() && !!form.workflowName.trim(), form.steps.length > 0], [form]);
+  const stepperSteps = STEPS_NAV.map((step) => ({
+    id: String(step.index),
+    label: step.label,
+    state: activeStep === step.index ? 'current' : stepHasData[step.index] ? 'complete' : 'default',
+  }));
 
   const inputBase: React.CSSProperties = { width: '100%', padding: '7px 10px', fontSize: '13px', border: '1px solid var(--color-border)', borderRadius: '8px', background: 'var(--color-surface)', color: 'var(--color-text)', outline: 'none', boxSizing: 'border-box' };
   const labelStyle: React.CSSProperties = { fontSize: '12px', fontWeight: 600, color: 'var(--color-text-muted)', display: 'block', marginBottom: '4px' };
@@ -118,16 +124,12 @@ const WorkflowStepEditor: React.FC = () => {
       </div>
 
       <div style={{ display: 'flex', height: 'calc(100vh - 57px)', overflow: 'hidden' }}>
-        <div style={{ width: '220px', borderRight: '1px solid var(--color-border)', padding: '20px 0', flexShrink: 0, background: 'var(--color-surface)' }}>
-          {STEPS_NAV.map((step) => {
-            const active = activeStep === step.index; const done = stepHasData[step.index];
-            return (
-              <button key={step.index} type="button" onClick={() => setActiveStep(step.index)} style={{ width: '100%', textAlign: 'left', padding: '10px 20px', border: 'none', cursor: 'pointer', background: active ? 'color-mix(in srgb, var(--color-primary) 8%, var(--color-surface))' : 'transparent', borderLeft: active ? '3px solid var(--color-primary)' : '3px solid transparent', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{ width: '20px', height: '20px', borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, background: done ? '#DCFCE7' : active ? 'var(--color-primary)' : 'var(--color-surface-subtle)', color: done ? '#15803D' : active ? 'white' : 'var(--color-text-muted)', border: `1px solid ${done ? '#86EFAC' : active ? 'var(--color-primary)' : 'var(--color-border)'}` }}>{done ? '✓' : step.index + 1}</div>
-                <span style={{ fontSize: '13px', fontWeight: active ? 600 : 400, color: active ? 'var(--color-primary)' : 'var(--color-text)' }}>{step.label}</span>
-              </button>
-            );
-          })}
+        <div style={{ width: '220px', borderRight: '1px solid var(--color-border)', flexShrink: 0, background: 'var(--color-surface)' }}>
+          <MasterFormStepper
+            steps={stepperSteps}
+            activeStepId={String(activeStep)}
+            onStepChange={(stepId) => setActiveStep(Number(stepId))}
+          />
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '28px 32px' }}>

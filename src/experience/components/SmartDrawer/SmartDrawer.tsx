@@ -6,10 +6,10 @@ import type { SmartDrawerProps } from './SmartDrawer.types';
 // ─── Width map ────────────────────────────────────────────────────────────────
 
 const WIDTH_MAP: Record<NonNullable<SmartDrawerProps['width']>, number> = {
-  sm:  400,
-  md:  520,
-  lg:  680,
-  xl:  840,
+  sm:  440,
+  md:  440,
+  lg:  440,
+  xl:  440,
 };
 
 // ─── Status badge style ───────────────────────────────────────────────────────
@@ -29,9 +29,9 @@ function statusBadgeStyle(tone: SmartDrawerProps['statusTone']): React.CSSProper
 function actionBtnStyle(tone: NonNullable<SmartDrawerProps['footerActions']>[0]['tone'] = 'outline'): React.CSSProperties {
   const base: React.CSSProperties = {
     display: 'inline-flex', alignItems: 'center', gap: '5px',
-    padding: '0 16px', height: '34px', fontSize: '13px', fontWeight: 600,
+    padding: '0 16px', height: '44px', fontSize: '14px', fontWeight: 600,
     borderRadius: '8px', border: '1px solid', cursor: 'pointer',
-    transition: 'opacity 0.12s', whiteSpace: 'nowrap',
+    transition: 'opacity 0.12s', whiteSpace: 'nowrap', justifyContent: 'center',
   };
   switch (tone) {
     case 'primary':
@@ -79,7 +79,12 @@ export const SmartDrawer: React.FC<SmartDrawerProps> = ({
   };
 
   return (
-    <AppDrawer open={open} onClose={handleClose} width={WIDTH_MAP[width]}>
+    <AppDrawer
+      open={open}
+      onClose={handleClose}
+      width={WIDTH_MAP[width]}
+      backdropColor="rgb(28, 28, 28)"
+    >
       <div
         role="dialog"
         aria-modal="true"
@@ -89,16 +94,16 @@ export const SmartDrawer: React.FC<SmartDrawerProps> = ({
         {/* ── Header ─────────────────────────────────────────── */}
         <div style={{
           flexShrink: 0,
-          padding: '14px 20px',
-          borderBottom: '1px solid var(--color-border)',
+          padding: '12px',
+          borderBottom: '1px solid rgb(232, 232, 232)',
           background: 'var(--color-surface)',
           display: 'flex',
-          alignItems: 'flex-start',
+          alignItems: 'center',
           gap: '12px',
         }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <span id="smart-drawer-title" style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text)', lineHeight: 1.3 }}>
+              <span id="smart-drawer-title" style={{ fontSize: '16px', fontWeight: 500, color: 'var(--color-text)', lineHeight: 1.2 }}>
                 {title}
               </span>
               {statusLabel && (
@@ -113,11 +118,6 @@ export const SmartDrawer: React.FC<SmartDrawerProps> = ({
                 </span>
               )}
             </div>
-            {subtitle && (
-              <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '3px', lineHeight: 1.4 }}>
-                {subtitle}
-              </div>
-            )}
           </div>
           <button
             ref={closeButtonRef}
@@ -127,11 +127,11 @@ export const SmartDrawer: React.FC<SmartDrawerProps> = ({
             style={{
               flexShrink: 0, width: '30px', height: '30px', borderRadius: '8px',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              border: '1px solid var(--color-border)', background: 'transparent',
+              border: 'none', background: 'transparent',
               cursor: 'pointer', color: 'var(--color-text-muted)',
             }}
           >
-            <X size={14} />
+            <X size={18} />
           </button>
         </div>
 
@@ -152,12 +152,11 @@ export const SmartDrawer: React.FC<SmartDrawerProps> = ({
         {footerActions.length > 0 && (
           <div style={{
             flexShrink: 0,
-            height: '60px',
-            padding: '0 20px',
+            padding: '12px 20px',
             borderTop: '1px solid var(--color-border)',
             background: 'var(--color-surface)',
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'stretch',
             gap: '8px',
             justifyContent: 'flex-end',
           }}>
@@ -170,6 +169,7 @@ export const SmartDrawer: React.FC<SmartDrawerProps> = ({
                 title={action.title}
                 style={{
                   ...actionBtnStyle(action.tone),
+                  ...(action.fullWidth ? { flex: 1, width: '100%' } : null),
                   opacity: action.disabled ? 0.45 : 1,
                   cursor: action.disabled ? 'not-allowed' : 'pointer',
                 }}

@@ -5,6 +5,7 @@ import AdminShell from '../../../../AdminShell';
 import { AdminListPageShell } from '../../../../../experience/components/AdminListPageShell';
 import { SmartPreviewDrawer } from '../../../../../experience/components/SmartPreviewDrawer';
 import type { PreviewSection } from '../../../../../experience/components/SmartPreviewDrawer/SmartPreviewDrawer.types';
+import MasterFilterDrawer from '../../../../../components/common/MasterFilterDrawer';
 import { findGroupForMasterKey, findMasterByKey } from '../../../../adminNavConfig';
 import { recordRecentAdminMaster } from '../../../../adminStorage';
 import type { RuleSetConfig } from '../services/ruleSetService';
@@ -131,12 +132,6 @@ const RuleEngineConfigList: React.FC = () => {
     });
   }, [records, search, filterEntity, filterActive]);
 
-  const counts = useMemo(() => ({
-    all:      records.length,
-    active:   records.filter((r) => r.isActive).length,
-    inactive: records.filter((r) => !r.isActive).length,
-  }), [records]);
-
   async function handleDelete() {
     if (!deleteTarget) return;
     await removeRuleSet(deleteTarget.ruleSetCode);
@@ -147,53 +142,7 @@ const RuleEngineConfigList: React.FC = () => {
     setDeleteTarget(null);
   }
 
-  const inputBase: React.CSSProperties = {
-    width: '100%', padding: '6px 10px', fontSize: '13px',
-    border: '1px solid var(--color-border)', borderRadius: '8px',
-    background: 'var(--color-surface)', color: 'var(--color-text)',
-    outline: 'none', boxSizing: 'border-box',
-  };
-
-  const activeQuickFilter = filterActive || 'all';
-
-  const toolbarActions = (
-    <div style={{ position: 'relative' }}>
-      <button
-        type="button"
-        onClick={() => setShowFilters((v) => !v)}
-        style={{
-          display: 'inline-flex', alignItems: 'center', gap: '5px',
-          padding: '0 10px', height: '30px', fontSize: '12px', fontWeight: 500,
-          border: `1px solid ${filterEntity ? 'var(--color-primary)' : 'var(--color-border)'}`,
-          borderRadius: '8px',
-          background: filterEntity ? 'color-mix(in srgb, var(--color-primary) 8%, var(--color-surface))' : 'transparent',
-          color: filterEntity ? 'var(--color-primary)' : 'var(--color-text-muted)',
-          cursor: 'pointer',
-        }}
-      >
-        <Filter size={11} /> Filters
-        {filterEntity && <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'var(--color-primary)' }} />}
-      </button>
-      {showFilters && (
-        <div style={{
-          position: 'absolute', top: '100%', right: 0, zIndex: 200, marginTop: '6px',
-          background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-          borderRadius: '12px', boxShadow: '0 8px 24px rgba(0,0,0,0.10)', padding: '16px 20px', minWidth: '220px',
-        }}>
-          <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>Filters</p>
-          <label style={{ fontSize: '12px', fontWeight: 500, color: 'var(--color-text-muted)', display: 'block', marginBottom: '6px' }}>Entity</label>
-          <select value={filterEntity} onChange={(e) => setFilterEntity(e.target.value)} style={{ ...inputBase, marginBottom: '12px' }}>
-            <option value="">All entities</option>
-            {entities.map((e) => <option key={e} value={e}>{e}</option>)}
-          </select>
-          <button type="button" onClick={() => { setFilterEntity(''); setShowFilters(false); }}
-            style={{ fontSize: '12px', color: 'var(--color-text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-            Clear filters
-          </button>
-        </div>
-      )}
-    </div>
-  );
+  const hasFilters = Boolean(filterEntity || filterActive);
 
   const tableHeader = (
     <div style={{
@@ -284,17 +233,10 @@ const RuleEngineConfigList: React.FC = () => {
         description="Manage rule sets that govern validation, derivation, and approval triggers across entities."
         breadcrumbs={['Admin', 'Engine Configuration', 'Rule Engine']}
         primaryAction={{ label: '+ New Rule Set', onClick: () => navigate('/admin/engine-config/rule-sets/new') }}
+        secondaryActions={[{ label: 'Filters', onClick: () => setShowFilters(true), icon: <Filter size={13} />, iconOnly: true, title: 'Open filters', active: hasFilters }]}
         searchValue={search}
         searchPlaceholder="Search by code, name or entity…"
         onSearchChange={setSearch}
-        quickFilterItems={[
-          { key: 'all',      label: 'All',      count: counts.all },
-          { key: 'active',   label: 'Active',   count: counts.active },
-          { key: 'inactive', label: 'Inactive', count: counts.inactive },
-        ]}
-        activeQuickFilter={activeQuickFilter}
-        onQuickFilterChange={(k) => setFilterActive(k === 'all' ? '' : k)}
-        toolbarActions={toolbarActions}
       >
         {isOffline && (
           <div style={{ padding: '8px 16px', background: '#FFFBEB', borderBottom: '1px solid #FDE68A', fontSize: '12px', color: '#92400E' }}>
@@ -306,6 +248,17 @@ const RuleEngineConfigList: React.FC = () => {
           <div style={{ flex: 1, overflowY: 'auto' }}>{tableBody}</div>
         </div>
       </AdminListPageShell>
+
+      <MasterFilterDrawer
+        open={showFilters}
+        onClose={() => setShowFilters(false)}
+        onReset={() => { setFilterEntity(''); setFilterActive(''); }}
+        description="Filter rule sets by entity and active status."
+        fields={[
+          { id: 'rule-set-entity', label: 'Entity', value: filterEntity, placeholder: 'All entities', options: entities.map((entity) => ({ value: entity, label: entity })), onChange: setFilterEntity },
+          { id: 'rule-set-status', label: 'Status', value: filterActive, placeholder: 'All statuses', options: [{ value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }], onChange: setFilterActive },
+        ]}
+      />
 
       <SmartPreviewDrawer
         open={previewOpen}

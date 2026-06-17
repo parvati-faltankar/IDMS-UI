@@ -9,7 +9,6 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   AlertCircle,
-  ChevronRight,
   Info,
   Lock,
   Unlock,
@@ -21,6 +20,7 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import AdminShell from '../../../AdminShell';
+import { MasterFormStepper } from '../../../../experience/components';
 import { SmartReviewDrawer } from '../../../../experience/components/SmartReviewDrawer';
 import { HelpDrawer } from '../../../../experience/components/HelpDrawer';
 import { getHelpTopic } from '../../../../experience/help/helpTopics';
@@ -73,7 +73,6 @@ const UomFormPage: React.FC = () => {
   const [errors,        setErrors]     = useState<UomFormErrors>({});
   const [saveAttempted, setSaveAttempted] = useState(false);
   const [activeStep,    setActiveStep] = useState(0);
-  const [hoveredStep,   setHoveredStep] = useState<number | null>(null);
   const [convExpanded,  setConvExpanded] = useState(true);
 
   // ── Conversion drawer ───────────────────────────────────────────────────
@@ -198,6 +197,17 @@ const UomFormPage: React.FC = () => {
     if (i === 1) return form.conversions.length;
     return 0;
   }
+
+  const stepperSteps = STEPS.map((step) => {
+    const count = getStepCount(step.index);
+
+    return {
+      id: String(step.index),
+      label: step.label,
+      count: count > 0 ? count : undefined,
+      state: activeStep === step.index ? 'current' : stepHasData(step.index) ? 'complete' : 'default',
+    };
+  });
 
   // ── Build record from form state ────────────────────────────────────────
   function buildRecord(): Omit<UomRecord, 'id'> {
@@ -747,37 +757,13 @@ const UomFormPage: React.FC = () => {
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
           {/* ── Left Step Sidebar (200px) ─────────────────────────────── */}
-          <nav style={{ width: '200px', flexShrink: 0, background: 'var(--color-surface)', borderRight: '1px solid var(--color-border)', overflowY: 'auto', display: 'flex', flexDirection: 'column', paddingTop: '8px' }}>
-            {STEPS.map((s) => {
-              const isAct   = activeStep === s.index;
-              const hasData = stepHasData(s.index);
-              const count   = getStepCount(s.index);
-              const isHov   = hoveredStep === s.index;
-              const dotColor = isAct ? 'var(--color-primary)' : hasData ? '#16A34A' : '#CBD5E1';
-              return (
-                <button
-                  key={s.index}
-                  type="button"
-                  onClick={() => setActiveStep(s.index)}
-                  onMouseEnter={() => setHoveredStep(s.index)}
-                  onMouseLeave={() => setHoveredStep(null)}
-                  style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 12px 12px 20px', border: 'none', borderBottom: '1px solid var(--color-border)', background: isAct ? 'color-mix(in srgb, var(--color-primary) 6%, white)' : isHov ? 'color-mix(in srgb, var(--color-primary) 3%, white)' : 'transparent', cursor: 'pointer', textAlign: 'left', transition: 'background 0.1s', width: '100%' }}
-                >
-                  {isAct && <span style={{ position: 'absolute', left: 0, top: '8px', bottom: '8px', width: '3px', borderRadius: '0 3px 3px 0', background: 'var(--color-primary)' }} />}
-                  <span style={{ width: '10px', height: '10px', borderRadius: '50%', flexShrink: 0, background: dotColor, transition: 'background 0.15s' }} />
-                  <span style={{ flex: 1, fontSize: '12px', fontWeight: isAct ? 600 : 500, color: isAct ? 'var(--color-primary)' : hasData ? 'var(--color-text)' : 'var(--color-text-muted)', lineHeight: 1.3, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {s.label}
-                  </span>
-                  {count > 0 && (
-                    <span style={{ fontSize: '10px', fontWeight: 700, minWidth: '18px', height: '18px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '9px', padding: '0 4px', background: isAct ? 'var(--color-primary)' : 'color-mix(in srgb, var(--color-primary) 12%, white)', color: isAct ? 'white' : 'var(--color-primary)', flexShrink: 0 }}>
-                      {count}
-                    </span>
-                  )}
-                  <ChevronRight size={13} style={{ flexShrink: 0, color: 'var(--color-text-muted)', opacity: isHov ? 0.7 : 0, transition: 'opacity 0.15s' }} />
-                </button>
-              );
-            })}
-          </nav>
+          <div style={{ width: '200px', flexShrink: 0, background: 'var(--color-surface)', borderRight: '1px solid var(--color-border)', overflowY: 'auto' }}>
+            <MasterFormStepper
+              steps={stepperSteps}
+              activeStepId={String(activeStep)}
+              onStepChange={(stepId) => setActiveStep(Number(stepId))}
+            />
+          </div>
 
           {/* ── 3. Scrollable Form Body ───────────────────────────────── */}
           <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '20px 28px', background: 'var(--color-surface-subtle)' }}>

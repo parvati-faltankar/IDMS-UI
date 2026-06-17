@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Server } from 'lucide-react';
+import { Filter, Server } from 'lucide-react';
 import AdminShell from '../../../../AdminShell';
 import { AdminListPageShell } from '../../../../../experience/components/AdminListPageShell';
 import { SmartPreviewDrawer } from '../../../../../experience/components/SmartPreviewDrawer';
 import type { PreviewSection } from '../../../../../experience/components/SmartPreviewDrawer/SmartPreviewDrawer.types';
+import MasterFilterDrawer from '../../../../../components/common/MasterFilterDrawer';
 import { findGroupForMasterKey, findMasterByKey } from '../../../../adminNavConfig';
 import { recordRecentAdminMaster } from '../../../../adminStorage';
 import type { ServiceConfig } from '../services/serviceRegistryService';
@@ -63,6 +64,7 @@ const ServiceRegistryList: React.FC = () => {
   const [isOffline,    setIsOffline]    = useState(false);
   const [search,       setSearch]       = useState('');
   const [filterActive, setFilterActive] = useState('');
+  const [showFilters,  setShowFilters]  = useState(false);
   const [preview,      setPreview]      = useState<ServiceConfig | null>(null);
   const [previewOpen,  setPreviewOpen]  = useState(false);
 
@@ -93,7 +95,7 @@ const ServiceRegistryList: React.FC = () => {
     });
   }, [records, search, filterActive]);
 
-  const counts = useMemo(() => ({ all: records.length, active: records.filter((r) => r.isActive).length, inactive: records.filter((r) => !r.isActive).length }), [records]);
+  const hasFilters = Boolean(filterActive);
 
   const tableHeader = (
     <div style={{ display: 'grid', gridTemplateColumns: GRID_COLUMNS, alignItems: 'center', height: '36px', padding: '0 16px', borderBottom: '1.5px solid var(--color-border)', background: 'var(--color-surface-subtle)', position: 'sticky', top: 0, zIndex: 10 }}>
@@ -141,15 +143,24 @@ const ServiceRegistryList: React.FC = () => {
         description="Manage backend service registrations including endpoints, timeouts, retry policies, and action codes."
         breadcrumbs={['Admin', 'Engine Configuration', 'Service Registry']}
         primaryAction={{ label: '+ New Service', onClick: () => navigate('/admin/engine-config/services/new') }}
-        searchValue={search} searchPlaceholder="Search by code, name or endpoint…" onSearchChange={setSearch}
-        quickFilterItems={[{ key: 'all', label: 'All', count: counts.all }, { key: 'active', label: 'Active', count: counts.active }, { key: 'inactive', label: 'Inactive', count: counts.inactive }]}
-        activeQuickFilter={filterActive || 'all'} onQuickFilterChange={(k) => setFilterActive(k === 'all' ? '' : k)}>
+        secondaryActions={[{ label: 'Filters', onClick: () => setShowFilters(true), icon: <Filter size={13} />, iconOnly: true, title: 'Open filters', active: hasFilters }]}
+        searchValue={search} searchPlaceholder="Search by code, name or endpoint…" onSearchChange={setSearch}>
         {isOffline && <div style={{ padding: '8px 16px', background: '#FFFBEB', borderBottom: '1px solid #FDE68A', fontSize: '12px', color: '#92400E' }}>⚠ Engine API is offline — showing seed data. Changes will not be persisted.</div>}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid var(--color-border)', borderRadius: '12px', background: 'var(--color-surface)' }}>
           {tableHeader}
           <div style={{ flex: 1, overflowY: 'auto' }}>{tableBody}</div>
         </div>
       </AdminListPageShell>
+
+      <MasterFilterDrawer
+        open={showFilters}
+        onClose={() => setShowFilters(false)}
+        onReset={() => setFilterActive('')}
+        description="Filter services by active status."
+        fields={[
+          { id: 'service-registry-status', label: 'Status', value: filterActive, placeholder: 'All statuses', options: [{ value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }], onChange: setFilterActive },
+        ]}
+      />
 
       <SmartPreviewDrawer open={previewOpen} onClose={() => setPreviewOpen(false)} title={preview?.serviceName ?? ''} subtitle={preview?.serviceCode} statusLabel={preview ? (preview.isActive ? 'Active' : 'Inactive') : undefined} statusTone={preview ? (preview.isActive ? 'active' : 'inactive') : undefined} sections={preview ? buildPreviewSections(preview) : []}
         primaryAction={{ label: 'Edit', onClick: () => { setPreviewOpen(false); if (preview) navigate(`/admin/engine-config/services/${preview.serviceCode}`); } }} />

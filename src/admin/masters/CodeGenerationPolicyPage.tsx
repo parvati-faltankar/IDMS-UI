@@ -1,10 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   AlertCircle,
   Check,
   CheckCircle2,
-  ChevronDown,
   Edit2,
   Eye,
   FileCode2,
@@ -12,8 +10,6 @@ import {
   Hash,
   Info,
   Lock,
-  MoreHorizontal,
-  Plus,
   Tag,
   Trash2,
   X,
@@ -22,12 +18,26 @@ import {
 import AdminShell from '../AdminShell';
 import { AdminPageShell } from '../../experience/components/AdminPageShell';
 import { AdminListPageShell } from '../../experience/components/AdminListPageShell';
+import {
+  MasterDataTable,
+  MasterTableHealth,
+  MasterTableIdentifierLink,
+  MasterTableMetric,
+  MasterTablePill,
+  MasterTableRowActions,
+  MasterTableStatus,
+  MasterTableTextCell,
+  MasterTableTruncate,
+  getMasterStatusTone,
+} from '../../components/common/MasterDataTable';
+import MasterFilterDrawer from '../../components/common/MasterFilterDrawer';
+import type { DataGridColumn } from '../../components/common/dataGridTypes';
 import { findGroupForMasterKey, findMasterByKey } from '../adminNavConfig';
 import { recordRecentAdminMaster } from '../adminStorage';
 import { HelpDrawer } from '../../experience/components/HelpDrawer';
 import { getHelpTopic } from '../../experience/help/helpTopics';
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// --- Constants ----------------------------------------------------------------
 
 const MASTER_KEY = 'code-generation-policy';
 
@@ -62,7 +72,7 @@ const CUSTOM_TOKENS = [
   { token: '{Day}',            label: 'Day',            hint: 'DD (01–31)' },
   { token: '{Entity Code}',    label: 'Entity Code',    hint: 'From entity metadata' },
   { token: '{Branch Code}',    label: 'Branch Code',    hint: 'From transaction context' },
-  { token: '{Sequence}',       label: 'Sequence ✱',     hint: 'Required — sequential number' },
+  { token: '{Sequence}',       label: 'Sequence *',     hint: 'Required — sequential number' },
 ];
 
 // Fields that must be locked once a policy is Active
@@ -75,7 +85,7 @@ const CRITICAL_FIELDS = new Set<keyof PolicyFormData>([
   'paddingCharacter', 'alignmentType', 'separator', 'caseFormat',
 ]);
 
-// ─── Form section navigation (org-master-style sidebar) ────────────────────
+// --- Form section navigation (org-master-style sidebar) --------------------
 
 type CGPSectionKey = 'basic' | 'applicability' | 'prefix' | 'series' | 'format' | 'history';
 
@@ -123,7 +133,7 @@ function getCGPSectionCompletion(key: CGPSectionKey, form: PolicyFormData): 'com
 // Sample date fixed to current date for consistent previews
 const SAMPLE_DATE = new Date(2026, 4, 21); // May 21, 2026
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// --- Types --------------------------------------------------------------------
 
 type PolicyStatus = 'Draft' | 'Active' | 'Inactive';
 type ViewMode = 'list' | 'form';
@@ -176,7 +186,7 @@ interface PrefixOption {
   isDefault: boolean;
 }
 
-// ─── Mock data for modules / entities / entity-types ─────────────────────────
+// --- Mock data for modules / entities / entity-types -------------------------
 
 const MODULE_OPTIONS: Record<string, string[]> = {
   Master:        ['CRM', 'Inventory', 'HR', 'Asset'],
@@ -304,7 +314,7 @@ const INITIAL_POLICIES: Policy[] = [
   },
 ];
 
-// ─── Helper functions ─────────────────────────────────────────────────────────
+// --- Helper functions ---------------------------------------------------------
 
 function buildSampleCode(form: PolicyFormData): string {
   if (!form.seriesType || !form.prefixValue) return '—';
@@ -488,12 +498,9 @@ function generatePolicyCode(policies: Policy[]): string {
   return `${prefix}${String(max + 1).padStart(3, '0')}`;
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// --- Component ----------------------------------------------------------------
 
 const CodeGenerationPolicyPage: React.FC = () => {
-  const navigate = useNavigate();
-  void navigate; // will use if needed
-
   const master = findMasterByKey(MASTER_KEY);
   const group  = findGroupForMasterKey(MASTER_KEY);
 
@@ -506,50 +513,49 @@ const CodeGenerationPolicyPage: React.FC = () => {
     }
   }, [master, group]);
 
-  // ── View state ─────────────────────────────────────────────────
+  // -- View state -------------------------------------------------
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [formMode, setFormMode] = useState<FormMode>('add');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<CGPSectionKey>('basic');
 
-  // ── Data ───────────────────────────────────────────────────────
+  // -- Data -------------------------------------------------------
   const [policies, setPolicies] = useState<Policy[]>(INITIAL_POLICIES);
 
-  // ── Form ───────────────────────────────────────────────────────
+  // -- Form -------------------------------------------------------
   const [form, setForm] = useState<PolicyFormData>({ ...EMPTY_FORM });
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof PolicyFormData, string>>>({});
   const [activationErrors, setActivationErrors] = useState<string[]>([]);
 
-  // ── List filters ───────────────────────────────────────────────
+  // -- List filters -----------------------------------------------
   const [searchQuery, setSearchQuery]           = useState('');
   const [filterStatus, setFilterStatus]         = useState('');
   const [filterApplicableFor, setFilterAF]      = useState('');
   const [filterSeriesType, setFilterSeries]     = useState('');
 
-  // ── Deactivation modal ─────────────────────────────────────────
+  // -- Deactivation modal -----------------------------------------
   const [deactivationOpen, setDeactivationOpen]       = useState(false);
   const [deactivationTarget, setDeactivationTarget]   = useState<Policy | null>(null);
   const [deactivationReason, setDeactivationReason]   = useState('');
   const [deactivationRemark, setDeactivationRemark]   = useState('');
   const [deactivationReasonErr, setDeactivationReasonErr] = useState('');
 
-  // ── Delete confirm ─────────────────────────────────────────────
+  // -- Delete confirm ---------------------------------------------
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget]           = useState<Policy | null>(null);
 
-  // ── Activate confirm ───────────────────────────────────────────
+  // -- Activate confirm -------------------------------------------
   const [activateConfirmOpen, setActivateConfirmOpen] = useState(false);
 
-  // ── Help ───────────────────────────────────────────────────────
+  // -- Help -------------------------------------------------------
   const [helpOpen, setHelpOpen] = useState(false);
   const [helpTopicId, setHelpTopicId] = useState('code-generation-policy');
 
-  // ── Preview & more-menu ────────────────────────────────────────
+  // -- Preview & more-menu ----------------------------------------
   const [previewPolicy, setPreviewPolicy] = useState<Policy | null>(null);
-  const [openMoreMenuId, setOpenMoreMenuId] = useState<string | null>(null);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
-  // ─── Computed ──────────────────────────────────────────────────
+  // --- Computed --------------------------------------------------
   const editingPolicy = useMemo(() =>
     policies.find(p => p.id === editingId) ?? null,
     [policies, editingId]
@@ -643,7 +649,7 @@ const CodeGenerationPolicyPage: React.FC = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [availablePrefixes]);
 
-  // ─── Form field helper ──────────────────────────────────────────
+  // --- Form field helper ------------------------------------------
   const setField = useCallback(<K extends keyof PolicyFormData>(key: K, value: PolicyFormData[K]) => {
     setForm(prev => {
       const next = { ...prev, [key]: value };
@@ -667,7 +673,7 @@ const CodeGenerationPolicyPage: React.FC = () => {
     setActivationErrors([]);
   }, []);
 
-  // ─── Navigation helpers ─────────────────────────────────────────
+  // --- Navigation helpers -----------------------------------------
   const openAddForm = () => {
     setEditingId(null);
     setForm({ ...EMPTY_FORM });
@@ -718,7 +724,7 @@ const CodeGenerationPolicyPage: React.FC = () => {
     setActivationErrors([]);
   };
 
-  // ─── Save Draft ─────────────────────────────────────────────────
+  // --- Save Draft -------------------------------------------------
   const handleSaveDraft = () => {
     const errs = validateForDraftSave(form);
     if (Object.keys(errs).length > 0) { setFieldErrors(errs); return; }
@@ -745,7 +751,7 @@ const CodeGenerationPolicyPage: React.FC = () => {
     goBackToList();
   };
 
-  // ─── Activate ───────────────────────────────────────────────────
+  // --- Activate ---------------------------------------------------
   const handleActivate = () => {
     const errs = validateForActivation(form, policies, editingId);
     if (errs.length > 0) { setActivationErrors(errs); return; }
@@ -777,7 +783,7 @@ const CodeGenerationPolicyPage: React.FC = () => {
     goBackToList();
   };
 
-  // ─── Deactivate ─────────────────────────────────────────────────
+  // --- Deactivate -------------------------------------------------
   const openDeactivation = (policy: Policy) => {
     setDeactivationTarget(policy);
     setDeactivationReason('');
@@ -800,7 +806,7 @@ const CodeGenerationPolicyPage: React.FC = () => {
     if (viewMode === 'form') goBackToList();
   };
 
-  // ─── Delete ─────────────────────────────────────────────────────
+  // --- Delete -----------------------------------------------------
   const openDeleteConfirm = (policy: Policy) => {
     setDeleteTarget(policy);
     setDeleteConfirmOpen(true);
@@ -812,314 +818,269 @@ const CodeGenerationPolicyPage: React.FC = () => {
     setDeleteTarget(null);
   };
 
-  // ─── Guards ─────────────────────────────────────────────────────
+  // --- Guards -----------------------------------------------------
   if (!master || !group) return null;
 
   const cgpHelpTopic = useMemo(() => getHelpTopic(helpTopicId), [helpTopicId]);
 
-  // ─── Render: list view ──────────────────────────────────────────
+  // --- Render: list view ------------------------------------------
   const renderList = () => {
     const hasAdvancedFilter = !!(filterApplicableFor || filterSeriesType);
+    const getHealthTone = (health: PolicyHealth): 'neutral' | 'success' | 'warning' | 'danger' => {
+      if (health === 'Healthy') return 'success';
+      if (health === 'Needs Review') return 'warning';
+      if (health === 'Prefix Missing') return 'danger';
+      return 'neutral';
+    };
+
+    const gridColumns: DataGridColumn<Policy>[] = [
+      {
+        id: 'policyCode',
+        label: 'Code',
+        type: 'text',
+        width: 136,
+        minWidth: 120,
+        hideable: false,
+        defaultPin: 'left',
+        getValue: (policy) => policy.policyCode,
+        renderCell: (policy) => (
+          <MasterTableIdentifierLink label={policy.policyCode} onClick={() => setPreviewPolicy(policy)} />
+        ),
+      },
+      {
+        id: 'policyName',
+        label: 'Policy Name',
+        type: 'text',
+        width: 248,
+        minWidth: 220,
+        hideable: false,
+        getValue: (policy) => policy.policyName,
+        renderCell: (policy) => (
+          <MasterTableTextCell
+            primary={policy.policyName}
+            secondary={policy.displayName && policy.displayName !== policy.policyName ? policy.displayName : undefined}
+            title={policy.policyName}
+          />
+        ),
+      },
+      {
+        id: 'applicableFor',
+        label: 'For',
+        type: 'enum',
+        width: 104,
+        minWidth: 96,
+        getValue: (policy) => policy.applicableFor,
+        options: APPLICABLE_FOR_OPTIONS.map((value) => ({ value, label: value })),
+        renderCell: (policy) => <MasterTablePill label={(policy.applicableFor || '-').toUpperCase()} tone="neutral" />,
+      },
+      {
+        id: 'module',
+        label: 'Module',
+        type: 'text',
+        width: 128,
+        minWidth: 116,
+        getValue: (policy) => policy.module,
+        renderCell: (policy) => <MasterTableTruncate value={policy.module || '-'} />,
+      },
+      {
+        id: 'entity',
+        label: 'Entity',
+        type: 'text',
+        width: 220,
+        minWidth: 190,
+        getValue: (policy) => `${policy.entity}${policy.entityType ? ` (${policy.entityType})` : ''}`,
+        renderCell: (policy) => (
+          <MasterTableTruncate
+            value={policy.entity ? `${policy.entity}${policy.entityType ? ` (${policy.entityType})` : ''}` : '-'}
+          />
+        ),
+      },
+      {
+        id: 'prefixValue',
+        label: 'Prefix',
+        type: 'text',
+        width: 96,
+        minWidth: 88,
+        getValue: (policy) => policy.prefixValue,
+        renderCell: (policy) => <MasterTableTruncate value={policy.prefixValue || '-'} mono />,
+      },
+      {
+        id: 'seriesType',
+        label: 'Series',
+        type: 'enum',
+        width: 128,
+        minWidth: 116,
+        getValue: (policy) => policy.seriesType,
+        options: SERIES_TYPES.map((value) => ({ value, label: value })),
+        renderCell: (policy) => <MasterTablePill label={policy.seriesType || '-'} tone="neutral" />,
+      },
+      {
+        id: 'sampleCode',
+        label: 'Sample Code',
+        type: 'text',
+        width: 168,
+        minWidth: 152,
+        getValue: (policy) => policy.sampleCode,
+        renderCell: (policy) => <MasterTableTruncate value={policy.sampleCode || '-'} mono />,
+      },
+      {
+        id: 'generatedCodeCount',
+        label: 'Generated',
+        type: 'number',
+        width: 124,
+        minWidth: 112,
+        getValue: (policy) => policy.generatedCodeCount,
+        renderCell: (policy) => (
+          <MasterTableMetric
+            value={policy.usedInCodeGeneration ? policy.generatedCodeCount.toLocaleString() : '0'}
+            tone={policy.usedInCodeGeneration && policy.generatedCodeCount > 0 ? 'success' : 'default'}
+          />
+        ),
+      },
+      {
+        id: 'status',
+        label: 'Status',
+        type: 'status',
+        width: 126,
+        minWidth: 112,
+        getValue: (policy) => policy.status,
+        options: ['Draft', 'Active', 'Inactive'].map((value) => ({ value, label: value })),
+        renderCell: (policy) => <MasterTableStatus label={policy.status} tone={getMasterStatusTone(policy.status)} />,
+      },
+      {
+        id: 'health',
+        label: 'Health',
+        type: 'text',
+        width: 144,
+        minWidth: 132,
+        getValue: (policy) => getPolicyHealth(policy),
+        renderCell: (policy) => {
+          const health = getPolicyHealth(policy);
+          const { icon, label } = getHealthIndicator(health);
+          return <MasterTableHealth icon={icon} label={label} tone={getHealthTone(health)} />;
+        },
+      },
+      {
+        id: 'actions',
+        label: 'Actions',
+        type: 'actions',
+        width: 88,
+        minWidth: 88,
+        sortable: false,
+        filterable: false,
+        groupable: false,
+        hideable: false,
+        defaultPin: 'right',
+        getValue: () => '',
+        renderCell: (policy) => {
+          const canDelete = policy.status === 'Draft' && !policy.usedInCodeGeneration;
+          const canActivate = policy.status === 'Draft';
+          const canDeactivate = policy.status === 'Active';
+
+          return (
+            <MasterTableRowActions
+              rowLabel={policy.policyCode}
+              inlineAction={{ label: 'Preview policy', onClick: () => setPreviewPolicy(policy), icon: <Eye size={13} /> }}
+              menuActions={[
+                { label: 'View details', onSelect: () => openViewForm(policy), icon: <Eye size={13} /> },
+                { label: 'Edit policy', onSelect: () => openEditForm(policy), icon: <Edit2 size={13} /> },
+                ...(canActivate
+                  ? [{ label: 'Activate', onSelect: () => openEditForm(policy), icon: <Check size={13} /> }]
+                  : []),
+                ...(canDeactivate
+                  ? [{
+                      label: 'Deactivate',
+                      onSelect: () => openDeactivation(policy),
+                      icon: <ZapOff size={13} />,
+                      tone: 'warning' as const,
+                      dividerBefore: true,
+                    }]
+                  : []),
+                ...(canDelete
+                  ? [{
+                      label: 'Delete',
+                      onSelect: () => openDeleteConfirm(policy),
+                      icon: <Trash2 size={13} />,
+                      tone: 'danger' as const,
+                      dividerBefore: !canDeactivate,
+                    }]
+                  : []),
+              ]}
+            />
+          );
+        },
+      },
+    ];
+
     return (
-    <AdminListPageShell
-      title={master.label}
-      description="Define how codes and numbers are generated for each entity."
-      breadcrumbs={['Admin', group.label]}
-      primaryAction={{ label: 'New Policy', tone: 'primary', onClick: openAddForm }}
-      secondaryActions={[
-        { label: 'How this works', onClick: () => { setHelpTopicId('code-generation-policy'); setHelpOpen(true); } },
-      ]}
-      helpTopicId="code-generation-policy"
-      onHelpClick={(id) => { setHelpTopicId(id); setHelpOpen(true); }}
-      summaryItems={[
-        { label: 'Total',    value: policies.length },
-        { label: 'Active',   value: policies.filter(p => p.status === 'Active').length,   tone: 'success' },
-        { label: 'Draft',    value: policies.filter(p => p.status === 'Draft').length,    tone: 'warning' },
-        { label: 'Inactive', value: policies.filter(p => p.status === 'Inactive').length, tone: 'danger'  },
-      ]}
-      searchValue={searchQuery}
-      searchPlaceholder="Search code, name, entity…"
-      onSearchChange={setSearchQuery}
-      quickFilterItems={[
-        { key: '',         label: 'All',      count: policies.length },
-        { key: 'Active',   label: 'Active',   count: policies.filter(p => p.status === 'Active').length },
-        { key: 'Draft',    label: 'Draft',    count: policies.filter(p => p.status === 'Draft').length },
-        { key: 'Inactive', label: 'Inactive', count: policies.filter(p => p.status === 'Inactive').length },
-      ]}
-      activeQuickFilter={filterStatus}
-      onQuickFilterChange={setFilterStatus}
-      toolbarActions={
-        <div style={{ position: 'relative' }}>
-          <button
-            type="button"
-            onClick={() => setShowAdvancedFilters(p => !p)}
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: '5px',
-              padding: '0 10px', height: '30px', fontSize: '12px', fontWeight: 500,
-              border: `1px solid ${hasAdvancedFilter ? 'var(--color-primary)' : 'var(--color-border)'}`,
-              borderRadius: '8px',
-              background: hasAdvancedFilter ? 'color-mix(in srgb, var(--color-primary) 8%, var(--color-surface))' : 'transparent',
-              color: hasAdvancedFilter ? 'var(--color-primary)' : 'var(--color-text-muted)',
-              cursor: 'pointer', transition: 'all 0.12s', whiteSpace: 'nowrap',
-            }}
-          >
-            <Filter size={11} />
-            Filters
-            {hasAdvancedFilter && <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'var(--color-primary)', flexShrink: 0 }} />}
-            <ChevronDown size={10} style={{ transform: showAdvancedFilters ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
-          </button>
-          {showAdvancedFilters && (
-            <>
-              <div style={{ position: 'fixed', inset: 0, zIndex: 49 }} onClick={() => setShowAdvancedFilters(false)} />
-              <div style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 50, width: '280px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px', boxShadow: '0 8px 24px rgba(0,0,0,0.1)', padding: '14px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {[
-                  { label: 'Applicable For', value: filterApplicableFor, setter: setFilterAF,     options: APPLICABLE_FOR_OPTIONS as unknown as string[] },
-                  { label: 'Series Type',    value: filterSeriesType,    setter: setFilterSeries, options: SERIES_TYPES as unknown as string[] },
-                ].map(({ label, value, setter, options }) => (
-                  <div key={label}>
-                    <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '5px' }}>{label}</div>
-                    <div style={{ position: 'relative' }}>
-                      <select
-                        value={value}
-                        onChange={e => setter(e.target.value)}
-                        style={{ width: '100%', height: '34px', paddingLeft: '10px', paddingRight: '28px', fontSize: '12px', border: '1px solid var(--color-border)', borderRadius: '8px', background: 'var(--color-surface-subtle)', color: value ? 'var(--color-text)' : 'var(--color-text-muted)', outline: 'none', cursor: 'pointer', appearance: 'none', WebkitAppearance: 'none', boxSizing: 'border-box' }}
-                      >
-                        <option value="">All</option>
-                        {options.map(o => <option key={o} value={o}>{o}</option>)}
-                      </select>
-                      <svg style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--color-text-muted)' }} width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 4.5l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                    </div>
-                  </div>
-                ))}
-                {hasAdvancedFilter && (
-                  <button type="button" onClick={() => { setFilterAF(''); setFilterSeries(''); }} style={{ alignSelf: 'flex-end', fontSize: '11px', fontWeight: 600, color: '#DC2626', border: 'none', background: 'transparent', cursor: 'pointer', padding: '0' }}>
-                    Clear filters
-                  </button>
-                )}
-              </div>
-            </>
-          )}
-        </div>
-      }
-    >
-        {filteredPolicies.length === 0 ? (
-          <div style={{ padding: '64px 28px', textAlign: 'center', background: 'var(--color-surface)' }}>
-            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--color-surface-subtle)', border: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-              <Hash size={22} style={{ color: 'var(--color-text-muted)' }} />
-            </div>
-            <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text)', marginBottom: '6px' }}>
-              {policies.length === 0 ? 'No code generation policies yet' : 'No policies match the current filters'}
-            </div>
-            <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', maxWidth: '340px', margin: '0 auto 24px', lineHeight: 1.6 }}>
-              {policies.length === 0
+      <>
+        <AdminListPageShell
+          title={master.label}
+          breadcrumbs={['Admin', group.label]}
+          primaryAction={{ label: 'New Policy', tone: 'primary', onClick: openAddForm }}
+          secondaryActions={[
+            {
+              label: 'Filters',
+              onClick: () => setShowAdvancedFilters(true),
+              icon: <Filter size={13} />,
+              active: hasAdvancedFilter,
+              iconOnly: true,
+              title: 'Filters',
+            },
+          ]}
+          helpTopicId="code-generation-policy"
+          onHelpClick={(id) => { setHelpTopicId(id); setHelpOpen(true); }}
+          searchValue={searchQuery}
+          searchPlaceholder="Search code, name, entity..."
+          onSearchChange={setSearchQuery}
+        >
+          <MasterDataTable
+            gridId="code-generation-policy-master-table"
+            rows={filteredPolicies}
+            columns={gridColumns}
+            rowId={(policy) => policy.id}
+            totalCount={policies.length}
+            emptyState={{
+              title: policies.length === 0 ? 'No code generation policies yet' : 'No policies match the current filters',
+              description: policies.length === 0
                 ? 'Create a Code Generation Policy to define how codes and numbers are auto-generated for each entity.'
-                : 'Try adjusting your search or filters to find what you\'re looking for.'}
-            </div>
-            {policies.length === 0 && (
-              <button type="button" onClick={openAddForm} style={btnPrimary}>
-                <Plus size={13} />
-                Create First Policy
-              </button>
-            )}
-          </div>
-        ) : (
-          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px', overflow: 'hidden' }}>
-            {/* Horizontally scrollable flat data grid */}
-            <div style={{ overflowX: 'auto' }}>
-              <div style={{ minWidth: '1150px' }}>
-            {/* Column headers — 12-column data grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: '88px minmax(140px, 1fr) 88px 92px 120px 64px 110px 130px 72px 80px 108px 56px', alignItems: 'center', height: '36px', padding: '0 16px', background: 'var(--color-surface-subtle)', borderBottom: '1.5px solid var(--color-border)', position: 'sticky', top: 0, zIndex: 1 }}>
-              {[
-                { label: 'Code',        align: 'left'  },
-                { label: 'Policy Name', align: 'left'  },
-                { label: 'For',         align: 'left'  },
-                { label: 'Module',      align: 'left'  },
-                { label: 'Entity',      align: 'left'  },
-                { label: 'Prefix',      align: 'left'  },
-                { label: 'Series',      align: 'left'  },
-                { label: 'Sample Code', align: 'left'  },
-                { label: 'Generated',   align: 'right' },
-                { label: 'Status',      align: 'left'  },
-                { label: 'Health',      align: 'left'  },
-                { label: 'Actions',     align: 'right' },
-              ].map(({ label, align }, i) => (
-                <div key={label || i} style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textAlign: align as React.CSSProperties['textAlign'], textTransform: 'uppercase', letterSpacing: '0.05em', paddingRight: i < 11 ? '8px' : '0' }}>
-                  {label}
-                </div>
-              ))}
-            </div>
+                : 'Try adjusting your search or filters to find what you are looking for.',
+              ...(policies.length === 0 ? { action: { label: 'Create First Policy', onClick: openAddForm } } : {}),
+            }}
+          />
+        </AdminListPageShell>
 
-            {/* Data rows */}
-            {filteredPolicies.map((policy, idx) => {
-              const isLast = idx === filteredPolicies.length - 1;
-              const canDelete = policy.status === 'Draft' && !policy.usedInCodeGeneration;
-              const canActivate = policy.status === 'Draft';
-              const canDeactivate = policy.status === 'Active';
-              const health = getPolicyHealth(policy);
-              const { icon: healthIcon, color: healthColor, label: healthLabel } = getHealthIndicator(health);
-
-              return (
-                <div
-                  key={policy.id}
-                  style={{ display: 'grid', gridTemplateColumns: '88px minmax(140px, 1fr) 88px 92px 120px 64px 110px 130px 72px 80px 108px 56px', alignItems: 'center', height: '44px', padding: '0 16px', borderBottom: isLast ? 'none' : '1px solid var(--color-border)', transition: 'background 0.1s', cursor: 'pointer' }}
-                  onClick={() => setPreviewPolicy(policy)}
-                  onMouseEnter={e => { e.currentTarget.style.background = '#F8FAFC'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-                >
-                  {/* Policy Code */}
-                  <div style={{ paddingRight: '8px', overflow: 'hidden' }}>
-                    <span style={{ fontFamily: 'monospace', fontSize: '11px', fontWeight: 700, color: 'var(--color-primary)', letterSpacing: '0.03em', whiteSpace: 'nowrap' }}>
-                      {policy.policyCode}
-                    </span>
-                  </div>
-
-                  {/* Policy Name */}
-                  <div style={{ minWidth: 0, paddingRight: '8px', overflow: 'hidden' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {policy.policyName}
-                    </span>
-                  </div>
-
-                  {/* Applicable For */}
-                  <div style={{ paddingRight: '8px' }}>
-                    <span style={{ display: 'inline-block', fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', letterSpacing: '0.04em', whiteSpace: 'nowrap', ...getApplicableForStyle(policy.applicableFor) }}>
-                      {(policy.applicableFor || '—').toUpperCase()}
-                    </span>
-                  </div>
-
-                  {/* Module */}
-                  <div style={{ paddingRight: '8px', overflow: 'hidden' }}>
-                    <span style={{ fontSize: '12px', color: 'var(--color-text)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {policy.module || '—'}
-                    </span>
-                  </div>
-
-                  {/* Entity */}
-                  <div style={{ paddingRight: '8px', overflow: 'hidden' }}>
-                    <span style={{ fontSize: '12px', color: 'var(--color-text)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {policy.entity || '—'}{policy.entityType ? ` (${policy.entityType})` : ''}
-                    </span>
-                  </div>
-
-                  {/* Prefix */}
-                  <div style={{ paddingRight: '8px' }}>
-                    {policy.prefixValue ? (
-                      <span style={{ fontFamily: 'monospace', fontSize: '11px', fontWeight: 800, padding: '2px 6px', borderRadius: '4px', background: '#F0F9FF', color: '#0369A1', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>
-                        {policy.prefixValue}
-                      </span>
-                    ) : (
-                      <span style={{ fontSize: '11px', color: '#DC2626', fontWeight: 600 }}>—</span>
-                    )}
-                  </div>
-
-                  {/* Series Type */}
-                  <div style={{ paddingRight: '8px' }}>
-                    {policy.seriesType ? (
-                      <span style={{ fontSize: '10px', fontWeight: 600, padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap', ...getSeriesTypeStyle() }}>
-                        {policy.seriesType}
-                      </span>
-                    ) : (
-                      <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>—</span>
-                    )}
-                  </div>
-
-                  {/* Sample Code */}
-                  <div style={{ paddingRight: '8px', overflow: 'hidden' }}>
-                    <span style={{ fontFamily: 'monospace', fontSize: '11px', fontWeight: 600, color: policy.sampleCode ? 'var(--color-text)' : 'var(--color-text-muted)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '0.02em' }}>
-                      {policy.sampleCode || '—'}
-                    </span>
-                  </div>
-
-                  {/* Generated */}
-                  <div style={{ paddingRight: '8px', textAlign: 'right' }}>
-                    {policy.usedInCodeGeneration ? (
-                      <span style={{ fontSize: '11px', fontWeight: 600, color: '#15803D', background: '#DCFCE7', padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
-                        {policy.generatedCodeCount.toLocaleString()}
-                      </span>
-                    ) : (
-                      <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>0</span>
-                    )}
-                  </div>
-
-                  {/* Status */}
-                  <div style={{ paddingRight: '8px' }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: '9999px', whiteSpace: 'nowrap', ...getStatusStyle(policy.status) }}>
-                      <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: getStatusDotColor(policy.status), flexShrink: 0 }} />
-                      {policy.status}
-                    </span>
-                  </div>
-
-                  {/* Health */}
-                  <div style={{ paddingRight: '8px', display: 'flex', alignItems: 'center', gap: '4px', overflow: 'hidden' }}>
-                    {healthIcon && <span style={{ color: healthColor, display: 'flex', alignItems: 'center', flexShrink: 0 }}>{healthIcon}</span>}
-                    <span style={{ fontSize: '11px', color: healthColor, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{healthLabel}</span>
-                  </div>
-
-                  {/* Actions */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '2px', justifyContent: 'flex-end' }} onClick={e => e.stopPropagation()}>
-                    <CGPActionBtn title="Preview policy" onClick={() => setPreviewPolicy(policy)}>
-                      <Eye size={13} />
-                    </CGPActionBtn>
-                    <div style={{ position: 'relative' }}>
-                      <CGPActionBtn title="More actions" onClick={() => setOpenMoreMenuId(openMoreMenuId === policy.id ? null : policy.id)}>
-                        <MoreHorizontal size={13} />
-                      </CGPActionBtn>
-                      {openMoreMenuId === policy.id && (
-                        <>
-                          <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setOpenMoreMenuId(null)} />
-                          <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 4px)', zIndex: 100, minWidth: '160px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.1)', padding: '4px', overflow: 'hidden' }}>
-                            <button type="button" onClick={() => { openViewForm(policy); setOpenMoreMenuId(null); }} style={menuItemStyle}>
-                              <Eye size={13} style={{ flexShrink: 0 }} /> View details
-                            </button>
-                            <button type="button" onClick={() => { openEditForm(policy); setOpenMoreMenuId(null); }} style={menuItemStyle}>
-                              <Edit2 size={13} style={{ flexShrink: 0 }} /> Edit policy
-                            </button>
-                            {canActivate && (
-                              <button type="button" onClick={() => { openEditForm(policy); setOpenMoreMenuId(null); }} style={menuItemStyle}>
-                                <Check size={13} style={{ flexShrink: 0 }} /> Activate
-                              </button>
-                            )}
-                            {canDeactivate && (
-                              <>
-                                <div style={{ height: '1px', background: 'var(--color-border)', margin: '3px 0' }} />
-                                <button type="button" onClick={() => { openDeactivation(policy); setOpenMoreMenuId(null); }} style={{ ...menuItemStyle, color: '#D97706' }}>
-                                  <ZapOff size={13} style={{ flexShrink: 0 }} /> Deactivate
-                                </button>
-                              </>
-                            )}
-                            {canDelete && (
-                              <>
-                                <div style={{ height: '1px', background: 'var(--color-border)', margin: '3px 0' }} />
-                                <button type="button" onClick={() => { openDeleteConfirm(policy); setOpenMoreMenuId(null); }} style={{ ...menuItemStyle, color: '#DC2626' }}>
-                                  <Trash2 size={13} style={{ flexShrink: 0 }} /> Delete
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div style={{ padding: '10px 20px', borderTop: '1px solid var(--color-border)', background: 'var(--color-surface-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-              <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                Showing <strong style={{ color: 'var(--color-text)', fontWeight: 600 }}>1–{filteredPolicies.length}</strong> of{' '}
-                <strong style={{ color: 'var(--color-text)', fontWeight: 600 }}>{policies.length}</strong> {policies.length === 1 ? 'record' : 'records'}
-              </span>
-            </div>
-          </div>
-        )}
-    </AdminListPageShell>
+        <MasterFilterDrawer
+          open={showAdvancedFilters}
+          onClose={() => setShowAdvancedFilters(false)}
+          onReset={() => {
+            setFilterAF('');
+            setFilterSeries('');
+          }}
+          description="Filter code generation policies by applicability and series type."
+          fields={[
+            {
+              id: 'code-policy-applicable-for',
+              label: 'Applicable For',
+              value: filterApplicableFor,
+              placeholder: 'All values',
+              options: APPLICABLE_FOR_OPTIONS.map((option) => ({ value: option, label: option })),
+              onChange: setFilterAF,
+            },
+            {
+              id: 'code-policy-series-type',
+              label: 'Series Type',
+              value: filterSeriesType,
+              placeholder: 'All values',
+              options: SERIES_TYPES.map((option) => ({ value: option, label: option })),
+              onChange: setFilterSeries,
+            },
+          ]}
+        />
+      </>
     );
   };
-
-  // ─── Render: form view ──────────────────────────────────────────
+  // --- Render: form view ------------------------------------------
   const renderForm = () => {
     const isActiveLockBanner = isActiveLocked && !isViewOnly;
     const isDraft = !editingId || editingPolicy?.status === 'Draft';
@@ -1129,6 +1090,8 @@ const CodeGenerationPolicyPage: React.FC = () => {
         title={currentCode}
         description={isViewOnly ? 'Viewing — read only' : isActiveLockBanner ? 'Active — only Display Name and Description are editable' : 'Edit form — save as Draft or Activate'}
         breadcrumbs={[group.label, master.label]}
+        compactHeader
+        helpIconOnly
         statusLabel={editingPolicy?.status}
         statusTone={editingPolicy?.status === 'Active' ? 'active' : editingPolicy?.status === 'Draft' ? 'draft' : editingPolicy?.status === 'Inactive' ? 'neutral' : undefined}
         helpTopicId={helpTopicId}
@@ -1165,7 +1128,7 @@ const CodeGenerationPolicyPage: React.FC = () => {
         }
       >
 
-        {/* ── Alert banners ── */}
+        {/* -- Alert banners -- */}
         {(isActiveLockBanner || activationErrors.length > 0) && (
           <div style={{ marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {isActiveLockBanner && (
@@ -1199,7 +1162,7 @@ const CodeGenerationPolicyPage: React.FC = () => {
         )}
 
 
-              {/* ── Basic Details ── */}
+              {/* -- Basic Details -- */}
               {activeSection === 'basic' && (
                 <CGPSectionPanel sectionKey="basic" title="Basic Details" form={form}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
@@ -1247,7 +1210,7 @@ const CodeGenerationPolicyPage: React.FC = () => {
                 </CGPSectionPanel>
               )}
 
-              {/* ── Applicability ── */}
+              {/* -- Applicability -- */}
               {activeSection === 'applicability' && (
                 <CGPSectionPanel sectionKey="applicability" title="Applicability" form={form}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
@@ -1267,7 +1230,7 @@ const CodeGenerationPolicyPage: React.FC = () => {
                 </CGPSectionPanel>
               )}
 
-              {/* ── Prefix Selection ── */}
+              {/* -- Prefix Selection -- */}
               {activeSection === 'prefix' && (
                 <CGPSectionPanel sectionKey="prefix" title="Prefix Selection" form={form}>
                   {(!form.applicableFor || !form.module || !form.entity) && !isLocked('prefixId') ? (
@@ -1310,7 +1273,7 @@ const CodeGenerationPolicyPage: React.FC = () => {
               )}
 
 
-              {/* ── Series & Pattern ── */}
+              {/* -- Series & Pattern -- */}
               {activeSection === 'series' && (
                 <>
                   <CGPSectionPanel sectionKey="series" title="Series Configuration" form={form}>
@@ -1443,7 +1406,7 @@ const CodeGenerationPolicyPage: React.FC = () => {
                                     }}
                                   >
                                     {label}
-                                    {token === '{Sequence}' && <span style={{ fontSize: '10px', color: '#DC2626' }}>✱</span>}
+                                    {token === '{Sequence}' && <span style={{ fontSize: '10px', color: '#DC2626' }}>?</span>}
                                   </button>
                                 );
                               })}
@@ -1462,13 +1425,13 @@ const CodeGenerationPolicyPage: React.FC = () => {
                 </>
               )}
 
-              {/* ── Number Format ── */}
+              {/* -- Number Format -- */}
               {activeSection === 'format' && (
                 <CGPSectionPanel sectionKey="format" title="Number Format" form={form}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                     <FField label="Number Length" required error={fieldErrors.numberLength}>
                       <FInput value={form.numberLength} onChange={v => setField('numberLength', v)} placeholder="e.g. 5" type="number" locked={isLocked('numberLength')} error={fieldErrors.numberLength} />
-                      <div style={{ marginTop: '4px', fontSize: '11px', color: 'var(--color-text-muted)' }}>Digits in the sequence number (1–10). Example: 5 → 00001</div>
+                      <div style={{ marginTop: '4px', fontSize: '11px', color: 'var(--color-text-muted)' }}>Digits in the sequence number (1–10). Example: 5 ? 00001</div>
                     </FField>
                     <FField label="Starting Number" required error={fieldErrors.startingNumber}>
                       <FInput value={form.startingNumber} onChange={v => setField('startingNumber', v)} placeholder="e.g. 1" type="number" locked={isLocked('startingNumber')} error={fieldErrors.startingNumber} />
@@ -1492,7 +1455,7 @@ const CodeGenerationPolicyPage: React.FC = () => {
                 </CGPSectionPanel>
               )}
 
-              {/* ── Usage & History ── */}
+              {/* -- Usage & History -- */}
               {activeSection === 'history' && (
                 <CGPSectionPanel sectionKey="history" title="Usage & History" form={form}>
                   {!editingPolicy ? (
@@ -1539,7 +1502,7 @@ const CodeGenerationPolicyPage: React.FC = () => {
                 </CGPSectionPanel>
               )}
 
-            {/* ── Sticky preview bar ── */}
+            {/* -- Sticky preview bar -- */}
             {(() => {
               const isValid = sampleCode !== '—' && sampleCode !== 'CONFIGURE-PATTERN';
               return (
@@ -1597,7 +1560,7 @@ const CodeGenerationPolicyPage: React.FC = () => {
     );
   };
 
-  // ─── Render: preview drawer ─────────────────────────────────────
+  // --- Render: preview drawer -------------------------------------
   const renderPreviewDrawer = () => {
     if (!previewPolicy) return null;
     const pp = previewPolicy;
@@ -1691,7 +1654,7 @@ const CodeGenerationPolicyPage: React.FC = () => {
     );
   };
 
-  // ─── Render: deactivation modal ─────────────────────────────────
+  // --- Render: deactivation modal ---------------------------------
   const renderDeactivationModal = () => {
     if (!deactivationOpen || !deactivationTarget) return null;
     return (
@@ -1768,7 +1731,7 @@ const CodeGenerationPolicyPage: React.FC = () => {
     );
   };
 
-  // ─── Render: delete confirm ─────────────────────────────────────
+  // --- Render: delete confirm -------------------------------------
   const renderDeleteConfirm = () => {
     if (!deleteConfirmOpen || !deleteTarget) return null;
     const canDelete = deleteTarget.status === 'Draft' && !deleteTarget.usedInCodeGeneration;
@@ -1815,7 +1778,7 @@ const CodeGenerationPolicyPage: React.FC = () => {
     );
   };
 
-  // ─── Render: activate confirm ───────────────────────────────────
+  // --- Render: activate confirm -----------------------------------
   const renderActivateConfirm = () => {
     if (!activateConfirmOpen) return null;
     return (
@@ -1869,7 +1832,7 @@ const CodeGenerationPolicyPage: React.FC = () => {
 
 export default CodeGenerationPolicyPage;
 
-// ─── Module-scope helper components ──────────────────────────────────────────
+// --- Module-scope helper components ------------------------------------------
 
 // Shared button style objects
 const btnBase: React.CSSProperties = {
@@ -1883,13 +1846,6 @@ const btnOutline: React.CSSProperties = {
 };
 const btnPrimary: React.CSSProperties = {
   ...btnBase, background: 'var(--color-primary)', border: '1px solid var(--color-primary)', color: 'white', fontWeight: 600,
-};
-
-const menuItemStyle: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: '8px', width: '100%',
-  padding: '7px 10px', fontSize: '12px', fontWeight: 500, border: 'none',
-  background: 'transparent', color: 'var(--color-text)', textAlign: 'left',
-  cursor: 'pointer', borderRadius: '6px',
 };
 
 // Form input base style
@@ -1914,7 +1870,7 @@ const drawerInputBase: React.CSSProperties = {
   outline: 'none', boxSizing: 'border-box',
 };
 
-// ─── FormSection ──────────────────────────────────────────────────────────────
+// --- FormSection --------------------------------------------------------------
 
 interface FormSectionProps {
   label: string;
@@ -1943,7 +1899,7 @@ const FormSection: React.FC<FormSectionProps> = ({ label, icon, highlight, child
   </div>
 );
 
-// ─── CGPSectionPanel ──────────────────────────────────────────────────────────
+// --- CGPSectionPanel ----------------------------------------------------------
 
 interface CGPSectionPanelProps {
   sectionKey: CGPSectionKey;
@@ -1986,7 +1942,7 @@ const CGPSectionPanel: React.FC<CGPSectionPanelProps> = ({ sectionKey, title, fo
   );
 };
 
-// ─── FField ───────────────────────────────────────────────────────────────────
+// --- FField -------------------------------------------------------------------
 
 interface FFieldProps {
   label: string;
@@ -2004,7 +1960,7 @@ const FField: React.FC<FFieldProps> = ({ label, required, error, children }) => 
   </div>
 );
 
-// ─── FInput ───────────────────────────────────────────────────────────────────
+// --- FInput -------------------------------------------------------------------
 
 interface FInputProps {
   value: string;
@@ -2033,7 +1989,7 @@ const FInput: React.FC<FInputProps> = ({ value, onChange, placeholder, type = 't
   />
 );
 
-// ─── FSelect ─────────────────────────────────────────────────────────────────
+// --- FSelect -----------------------------------------------------------------
 
 interface FSelectProps {
   value: string;
@@ -2074,7 +2030,7 @@ const FSelect: React.FC<FSelectProps> = ({ value, onChange, options, displayMap,
   </div>
 );
 
-// ─── DField ──────────────────────────────────────────────────────────────────
+// --- DField ------------------------------------------------------------------
 
 interface DFieldProps { label: string; required?: boolean; mt?: boolean; children: React.ReactNode; }
 const DField: React.FC<DFieldProps> = ({ label, required, mt, children }) => (
@@ -2086,29 +2042,5 @@ const DField: React.FC<DFieldProps> = ({ label, required, mt, children }) => (
   </div>
 );
 
-// ─── CGPActionBtn ─────────────────────────────────────────────────────────────
 
-interface CGPActionBtnProps {
-  title: string;
-  onClick: () => void;
-  danger?: boolean;
-  children: React.ReactNode;
-}
-const CGPActionBtn: React.FC<CGPActionBtnProps> = ({ title, onClick, danger, children }) => (
-  <button
-    type="button"
-    title={title}
-    onClick={onClick}
-    style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', border: 'none', borderRadius: '8px', background: 'transparent', color: danger ? '#DC2626' : 'var(--color-text-muted)', cursor: 'pointer', transition: 'background 0.1s, color 0.1s' }}
-    onMouseEnter={e => {
-      e.currentTarget.style.background = danger ? '#FEF2F2' : 'var(--color-surface-subtle)';
-      if (!danger) e.currentTarget.style.color = 'var(--color-text)';
-    }}
-    onMouseLeave={e => {
-      e.currentTarget.style.background = 'transparent';
-      e.currentTarget.style.color = danger ? '#DC2626' : 'var(--color-text-muted)';
-    }}
-  >
-    {children}
-  </button>
-);
+
