@@ -20,10 +20,16 @@ import { HelpDrawer } from '../../../../experience/components/HelpDrawer';
 import { getHelpTopic } from '../../../../experience/help/helpTopics';
 import { findGroupForMasterKey, findMasterByKey } from '../../../adminNavConfig';
 import { recordRecentAdminMaster } from '../../../adminStorage';
-import type { BusinessPartner, BPType } from '../types/supplierMaster.types';
+import type { BusinessPartner, BPType, BPStatus, BusinessType } from '../types/supplierMaster.types';
 import { supplierService } from '../services/supplierService';
-import { BP_TYPES } from '../constants/supplierMaster.constants';
+import {
+  BP_STATUSES,
+  BP_TYPES,
+  BUSINESS_TYPES,
+  COUNTRIES,
+} from '../constants/supplierMaster.constants';
 import BPTypePickerDialog from '../components/BPTypePickerDialog';
+import SupplierCatalogueFilterDrawer from '../components/SupplierCatalogueFilterDrawer';
 import {
   MasterDataTable,
   MasterTableIdentifierLink,
@@ -34,7 +40,6 @@ import {
   MasterTableTruncate,
   getMasterStatusTone,
 } from '../../../../components/common/MasterDataTable';
-import MasterFilterDrawer from '../../../../components/common/MasterFilterDrawer';
 import type { DataGridColumn } from '../../../../components/common/dataGridTypes';
 
 // â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -155,6 +160,8 @@ const SupplierListPage: React.FC = () => {
   const [searchQuery,        setSearchQuery]        = useState('');
   const [filterStatus,       setFilterStatus]       = useState('');
   const [filterType,         setFilterType]         = useState('');
+  const [filterBusinessType, setFilterBusinessType] = useState('');
+  const [filterCountry,      setFilterCountry]      = useState('');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   // â”€â”€ Activate flow â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -211,20 +218,39 @@ const SupplierListPage: React.FC = () => {
     return records.filter((bp) => {
       if (filterStatus && bp.status !== filterStatus) return false;
       if (filterType   && bp.bpType   !== filterType)  return false;
+      if (filterBusinessType && bp.businessType !== filterBusinessType) return false;
+      if (filterCountry && bp.countryOfRegistration !== filterCountry) return false;
       if (q) {
         const haystack =
-          `${bp.bpCode} ${bp.bpLegalName} ${bp.marketingName} ${bp.displayName} ${bp.bpType} ${bp.bpCategory}`.toLowerCase();
+          `${bp.bpCode} ${bp.bpLegalName} ${bp.marketingName} ${bp.displayName} ${bp.bpType} ${bp.bpCategory} ${bp.businessType} ${bp.countryOfRegistration}`.toLowerCase();
         if (!haystack.includes(q)) return false;
       }
       return true;
     });
-  }, [records, searchQuery, filterStatus, filterType]);
+  }, [records, searchQuery, filterBusinessType, filterCountry, filterStatus, filterType]);
 
   // â”€â”€ Quick filter counts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // â”€â”€ Actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   function handleQuickFilter(key: string) {
     setFilterStatus(key === 'all' ? '' : key);
+  }
+
+  function handleOpenFilterDrawer() {
+    setShowAdvancedFilters(true);
+  }
+
+  function handleApplyFilters(nextFilters: {
+    status: BPStatus | '';
+    partnerType: BPType | '';
+    businessType: BusinessType | '';
+    country: string;
+  }) {
+    setFilterStatus(nextFilters.status);
+    setFilterType(nextFilters.partnerType);
+    setFilterBusinessType(nextFilters.businessType);
+    setFilterCountry(nextFilters.country);
+    setShowAdvancedFilters(false);
   }
 
   function handleActivateClick(bp: BusinessPartner) {
@@ -275,7 +301,7 @@ const SupplierListPage: React.FC = () => {
 
   // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-  const hasFilters = Boolean(filterStatus || filterType);
+  const hasFilters = Boolean(filterStatus || filterType || filterBusinessType || filterCountry);
 
   const gridColumns: DataGridColumn<BusinessPartner>[] = [
     {
@@ -429,12 +455,10 @@ const SupplierListPage: React.FC = () => {
     <AdminShell>
       <AdminListPageShell
         title="Business Partner Master"
-        description="Manage suppliers, transporters, financiers, insurance providers, and customers."
-        breadcrumbs={['Admin', 'Business Partners', 'Supplier Master']}
         primaryAction={{ label: '+ New Business Partner', onClick: () => setPickerOpen(true) }}
         secondaryActions={[{
           label: 'Filters',
-          onClick: () => setShowAdvancedFilters(true),
+          onClick: handleOpenFilterDrawer,
           icon: <Filter size={13} />,
           iconOnly: true,
           title: 'Open filters',
@@ -445,6 +469,7 @@ const SupplierListPage: React.FC = () => {
         searchValue={searchQuery}
         searchPlaceholder="Search by code, name, or typeâ€¦"
         onSearchChange={setSearchQuery}
+        density="compact"
       >
         {/* â”€â”€ Table view â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <MasterDataTable
@@ -463,32 +488,20 @@ const SupplierListPage: React.FC = () => {
         />
       </AdminListPageShell>
 
-      <MasterFilterDrawer
-        open={showAdvancedFilters}
+      <SupplierCatalogueFilterDrawer
+        businessTypeOptions={BUSINESS_TYPES}
+        countryOptions={COUNTRIES}
+        isOpen={showAdvancedFilters}
+        onApply={handleApplyFilters}
         onClose={() => setShowAdvancedFilters(false)}
-        onReset={() => {
-          setFilterStatus('');
-          setFilterType('');
+        statusOptions={BP_STATUSES}
+        typeOptions={BP_TYPES}
+        value={{
+          status: filterStatus as BPStatus | '',
+          partnerType: filterType as BPType | '',
+          businessType: filterBusinessType as BusinessType | '',
+          country: filterCountry,
         }}
-        description="Filter business partners by status and partner type."
-        fields={[
-          {
-            id: 'bp-status',
-            label: 'Status',
-            value: filterStatus,
-            placeholder: 'All statuses',
-            options: ['Active', 'Draft', 'Inactive'].map((status) => ({ value: status, label: status })),
-            onChange: handleQuickFilter,
-          },
-          {
-            id: 'bp-type',
-            label: 'BP Type',
-            value: filterType,
-            placeholder: 'All types',
-            options: BP_TYPES.map((type) => ({ value: type, label: type })),
-            onChange: setFilterType,
-          },
-        ]}
       />
 
       {/* â”€â”€ Activate confirm â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}

@@ -4021,9 +4021,6 @@ const WarehouseCreateWorkspace: React.FC = () => {
         }}
       >
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginBottom: '2px', userSelect: 'none' }}>
-            Admin / Warehouse & Inventory / Warehouse Master
-          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text)', lineHeight: 1.25 }}>
               New Warehouse
@@ -4045,9 +4042,6 @@ const WarehouseCreateWorkspace: React.FC = () => {
                 Unsaved changes
               </span>
             )}
-          </div>
-          <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px', lineHeight: 1.35 }}>
-            Configure warehouse identity, ownership, inventory control, structure, and activation readiness.
           </div>
         </div>
 

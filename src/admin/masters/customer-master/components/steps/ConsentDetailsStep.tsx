@@ -8,6 +8,8 @@ import {
   EMPTY_CONSENT,
 } from '../../constants/customerMaster.constants';
 import AppDialog from '../../../../../components/app/AppDialog';
+import { CustomerAccordionSection } from '../CustomerAccordionSection';
+import { MasterFormSectionSummary } from '../../../../../experience/components/AdminPageShell';
 
 // ─── Style constants ──────────────────────────────────────────────────────────
 
@@ -22,15 +24,6 @@ const labelBase: React.CSSProperties = {
   display: 'block', fontSize: '11px', fontWeight: 600,
   color: 'var(--color-text-muted)', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.03em',
 };
-const sectionCard: React.CSSProperties = {
-  background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-  borderRadius: '12px', overflow: 'hidden', marginBottom: '16px',
-};
-const sCardHead: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-  padding: '12px 16px', borderBottom: '1px solid var(--color-border)',
-  background: 'var(--color-surface-subtle)',
-};
 const fw: React.CSSProperties = { gridColumn: '1 / -1' };
 const btnBase: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -41,10 +34,6 @@ const btnPrimary: React.CSSProperties = { ...btnBase, background: 'var(--color-p
 const btnOutline: React.CSSProperties = { ...btnBase, background: 'transparent', border: '1px solid var(--color-border)', color: 'var(--color-text)' };
 
 function Req() { return <span style={{ color: '#DC2626', marginLeft: '2px' }}>*</span>; }
-function STitle({ children }: { children: React.ReactNode }) {
-  return <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{children}</span>;
-}
-
 function consentStatusColor(s: string) {
   if (s === 'Allowed')      return { bg: '#F0FDF4', color: '#15803D' };
   if (s === 'Not Allowed')  return { bg: '#FEF2F2', color: '#DC2626' };
@@ -127,6 +116,9 @@ export function ConsentDetailsStep({ consents, onChange, isViewOnly }: Props) {
   function remove(id: string) { onChange(consents.filter((c) => c.id !== id)); }
 
   const inp = inputBase;
+  const allowedCount = consents.filter((c) => c.consentStatus === 'Allowed').length;
+  const withdrawnCount = consents.filter((c) => c.consentStatus === 'Withdrawn').length;
+  const latestConsent = consents[consents.length - 1];
 
   return (
     <div>
@@ -135,14 +127,23 @@ export function ConsentDetailsStep({ consents, onChange, isViewOnly }: Props) {
         Consent is captured per <strong>Channel × Purpose</strong> combination. Each row records whether communication is allowed, not allowed, or has been withdrawn.
       </div>
 
-      <div style={sectionCard}>
-        <div style={sCardHead}>
-          <STitle>Consent Matrix ({consents.length})</STitle>
-          {!isViewOnly && (
-            <button type="button" onClick={openAdd} style={{ ...btnPrimary, height: '30px', fontSize: '12px', padding: '0 14px' }}>+ Add Consent Row</button>
-          )}
-        </div>
-
+      <CustomerAccordionSection
+        title={`Consent Matrix (${consents.length})`}
+        description="Capture channel and purpose consent combinations in the supplier-style collapsible section."
+        summary={
+          <MasterFormSectionSummary
+            items={[
+              `${consents.length} consent row(s)`,
+              allowedCount > 0 ? `${allowedCount} allowed` : null,
+              withdrawnCount > 0 ? `${withdrawnCount} withdrawn` : null,
+              latestConsent ? `Latest: ${latestConsent.consentChannel} / ${latestConsent.consentPurpose}` : null,
+            ]}
+          />
+        }
+        actions={!isViewOnly ? (
+          <button type="button" onClick={openAdd} style={{ ...btnPrimary, height: '30px', fontSize: '12px', padding: '0 14px' }}>+ Add Consent Row</button>
+        ) : undefined}
+      >
         {consents.length === 0 ? (
           <div style={{ padding: '32px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '13px' }}>
             No consent records added. Click <strong>+ Add Consent Row</strong> to capture customer consent.
@@ -174,7 +175,7 @@ export function ConsentDetailsStep({ consents, onChange, isViewOnly }: Props) {
             })}
           </div>
         )}
-      </div>
+      </CustomerAccordionSection>
 
       {/* ── Add/Edit Dialog ──────────────────────────────────────────────── */}
       <AppDialog

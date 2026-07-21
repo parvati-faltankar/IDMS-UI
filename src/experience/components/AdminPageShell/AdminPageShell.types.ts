@@ -1,5 +1,5 @@
 import type React from 'react';
-import type { PageHeaderAction } from '../PageHeader/PageHeader.types';
+import type { PageHeaderAction, PageHeaderBadge } from '../PageHeader/PageHeader.types';
 
 export type AdminPageShellSummaryItem = {
   label: string;
@@ -26,6 +26,7 @@ export type AdminPageShellProps = {
   breadcrumbs?: string[];
   statusLabel?: string;
   statusTone?: 'neutral' | 'draft' | 'active' | 'warning' | 'danger';
+  badges?: PageHeaderBadge[];
   backAction?: PageHeaderAction;
   primaryAction?: PageHeaderAction;
   secondaryActions?: PageHeaderAction[];

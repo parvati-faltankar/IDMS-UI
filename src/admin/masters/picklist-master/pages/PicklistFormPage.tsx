@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { HelpCircle, Plus, Trash2 } from 'lucide-react';
+import { ListOrdered, Plus, Rows3, Trash2 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import AdminShell from '../../../AdminShell';
-import { HeaderIconButton, MasterFormStepper } from '../../../../experience/components';
+import { MasterCreateFormShell } from '../../../../experience/components';
 import { HelpDrawer } from '../../../../experience/components/HelpDrawer';
 import { getHelpTopic } from '../../../../experience/help/helpTopics';
 import { findGroupForMasterKey, findMasterByKey } from '../../../adminNavConfig';
@@ -271,6 +271,7 @@ const PicklistFormPage: React.FC = () => {
     id: String(index),
     label: step.label,
     tooltipLabel: step.hint,
+    icon: index === 0 ? <ListOrdered size={14} /> : <Rows3 size={14} />,
     state: activeStep === index ? 'current' : stepHasData(index) ? 'complete' : 'default',
   }));
 
@@ -572,50 +573,31 @@ const PicklistFormPage: React.FC = () => {
 
   return (
     <AdminShell>
-      <div style={{ minHeight: 'calc(100vh - 48px)', display: 'flex', flexDirection: 'column', background: 'var(--color-surface)' }}>
-        <div style={{ flexShrink: 0, padding: '14px 24px', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px' }}>
-          <div>
-            <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginBottom: '2px' }}>{group.label} / {master.label}</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-              <h1 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: 'var(--color-text)', lineHeight: 1.25 }}>{pageTitle}</h1>
-              <span style={statusBadgeStyle(form.status === 'Active')}>{form.status}</span>
-            </div>
-            <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px', lineHeight: 1.35 }}>
-              Configure the picklist overview first, then fill values quickly in a modern inline grid.
-            </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <button type="button" onClick={() => navigate('/admin/master/picklist-master')} style={secondaryButtonStyle}>Back to List</button>
-            <HeaderIconButton icon={<HelpCircle size={16} />} onClick={() => setHelpOpen(true)} title="How this works" />
-          </div>
+      <MasterCreateFormShell
+        navigationPersistenceKey="picklist-master-form-stepper"
+        title={pageTitle}
+        backAction={{ label: 'Back', onClick: () => navigate('/admin/master/picklist-master') }}
+        statusLabel={form.status}
+        statusTone={form.status === 'Active' ? 'active' : 'neutral'}
+        secondaryActions={[
+          {
+            label: activeStep === 0 ? 'Back to List' : 'Previous',
+            onClick: () => activeStep === 0 ? navigate('/admin/master/picklist-master') : setActiveStep((prev) => Math.max(0, prev - 1)),
+          },
+        ]}
+        primaryAction={activeStep < STEPS.length - 1
+          ? { label: 'Continue', onClick: continueStep }
+          : { label: isNew ? 'Create Picklist' : 'Save Changes', onClick: saveConfig }}
+        helpTopicId="picklist-master"
+        onHelpClick={() => setHelpOpen(true)}
+        steps={stepperSteps}
+        activeStepId={String(activeStep)}
+        onStepChange={(stepId) => setActiveStep(Number(stepId))}
+      >
+        <div style={{ overflowY: 'auto', overflowX: 'hidden', padding: '16px 24px', background: 'var(--color-surface-subtle)', minHeight: '100%' }}>
+          {activeStep === 0 ? renderOverviewStep() : renderValuesStep()}
         </div>
-
-        <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-          <div style={{ width: '220px', flexShrink: 0, background: 'var(--color-surface)', borderRight: '1px solid var(--color-border)', overflowY: 'auto' }}>
-            <MasterFormStepper
-              steps={stepperSteps}
-              activeStepId={String(activeStep)}
-              onStepChange={(stepId) => setActiveStep(Number(stepId))}
-            />
-          </div>
-
-          <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '16px 24px', background: 'var(--color-surface-subtle)' }}>
-            {activeStep === 0 ? renderOverviewStep() : renderValuesStep()}
-          </div>
-        </div>
-
-        <div style={{ flexShrink: 0, height: '60px', padding: '0 24px', borderTop: '1px solid var(--color-border)', background: 'var(--color-surface)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <button type="button" onClick={() => setActiveStep((prev) => Math.max(0, prev - 1))} disabled={activeStep === 0} style={{ ...secondaryButtonStyle, opacity: activeStep === 0 ? 0.4 : 1, cursor: activeStep === 0 ? 'default' : 'pointer' }}>
-            Previous
-          </button>
-          <div style={{ flex: 1 }} />
-          {activeStep < STEPS.length - 1 ? (
-            <button type="button" onClick={continueStep} style={primaryButtonStyle}>Continue</button>
-          ) : (
-            <button type="button" onClick={saveConfig} style={primaryButtonStyle}>{isNew ? 'Create Picklist' : 'Save Changes'}</button>
-          )}
-        </div>
-      </div>
+      </MasterCreateFormShell>
 
       {helpTopic && (
         <HelpDrawer open={helpOpen} topic={helpTopic} onClose={() => setHelpOpen(false)} onTopicChange={(id) => setHelpTopicId(id)} />

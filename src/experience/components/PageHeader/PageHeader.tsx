@@ -1,7 +1,7 @@
 import { ArrowLeft, HelpCircle } from 'lucide-react';
 import type React from 'react';
 import { HeaderIconButton } from './HeaderIconButton';
-import type { PageHeaderAction, PageHeaderProps } from './PageHeader.types';
+import type { PageHeaderAction, PageHeaderBadge, PageHeaderProps } from './PageHeader.types';
 
 function statusStyle(tone: PageHeaderProps['statusTone'] = 'neutral'): React.CSSProperties {
   if (tone === 'active') return {
@@ -80,12 +80,28 @@ function ActionButton({ action }: { action: PageHeaderAction }) {
   );
 }
 
+function Badge({
+  badge,
+}: {
+  badge: PageHeaderBadge;
+}) {
+  return (
+    <span
+      className="rounded-full border px-2.5 py-1 text-xs font-medium"
+      style={badge.style ?? statusStyle(badge.tone)}
+    >
+      {badge.label}
+    </span>
+  );
+}
+
 export function PageHeader({
   title,
   description,
   breadcrumbs = [],
   statusLabel,
   statusTone = 'neutral',
+  badges = [],
   backAction,
   primaryAction,
   secondaryActions = [],
@@ -166,21 +182,36 @@ export function PageHeader({
                 </button>
               )
             )}
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <h1
-                className="font-semibold leading-7 text-[var(--color-text)]"
-                style={{ fontSize: '20px' }}
-              >
-                {title}
-              </h1>
-              {statusLabel && (
-                <span
-                  className="rounded-full border px-2.5 py-1 text-xs font-medium"
-                  style={statusStyle(statusTone)}
-                >
-                  {statusLabel}
-                </span>
+            <div className="min-w-0">
+              {breadcrumbs.length > 0 && (
+                <nav aria-label="Breadcrumb" className="mb-0.5 text-xs text-[var(--color-text-muted)]">
+                  {breadcrumbs.map((item, index) => (
+                    <span key={`${item}-${index}`}>
+                      {index > 0 && <span className="mx-1.5">/</span>}
+                      <span>{item}</span>
+                    </span>
+                  ))}
+                </nav>
               )}
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <h1
+                  className="font-semibold leading-7 text-[var(--color-text)]"
+                  style={{ fontSize: '20px' }}
+                >
+                  {title}
+                </h1>
+                {statusLabel && (
+                  <span
+                    className="rounded-full border px-2.5 py-1 text-xs font-medium"
+                    style={statusStyle(statusTone)}
+                  >
+                    {statusLabel}
+                  </span>
+                )}
+                {badges.map((badge) => (
+                  <Badge key={badge.label} badge={badge} />
+                ))}
+              </div>
             </div>
           </div>
 
@@ -214,15 +245,18 @@ export function PageHeader({
             <h1 className={titleClassName}>
               {title}
             </h1>
-            {statusLabel && (
-              <span
-                className="rounded-full border px-2.5 py-1 text-xs font-medium"
-                style={statusStyle(statusTone)}
-              >
-                {statusLabel}
-              </span>
-            )}
-          </div>
+          {statusLabel && (
+            <span
+              className="rounded-full border px-2.5 py-1 text-xs font-medium"
+              style={statusStyle(statusTone)}
+            >
+              {statusLabel}
+            </span>
+          )}
+          {badges.map((badge) => (
+            <Badge key={badge.label} badge={badge} />
+          ))}
+        </div>
           {description && (
             <p className={descriptionClassName}>
               {description}

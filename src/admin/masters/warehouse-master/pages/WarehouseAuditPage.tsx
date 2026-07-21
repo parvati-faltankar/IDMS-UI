@@ -55,8 +55,6 @@ export default function WarehouseAuditPage() {
     <AdminShell>
       <AdminListPageShell
         title="Warehouse Audit"
-        description="Review field-level changes, controlled actions, approvals, imports, and correlation history."
-        breadcrumbs={['Admin', 'Warehouse & Inventory', 'Warehouse Master', 'Audit']}
         secondaryActions={[
           {
             label: 'Back to Warehouse',

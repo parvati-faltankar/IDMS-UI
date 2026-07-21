@@ -16,6 +16,8 @@ import {
   CUSTOMER_SEGMENTS,
   CREDIT_STATUSES,
 } from '../../constants/customerMaster.constants';
+import { CustomerAccordionSection } from '../CustomerAccordionSection';
+import { MasterFormSectionSummary } from '../../../../../experience/components/AdminPageShell';
 
 // ─── Style constants ──────────────────────────────────────────────────────────
 
@@ -29,20 +31,20 @@ const inputDisabled: React.CSSProperties = {
   ...inputBase, background: 'var(--color-surface-subtle)', color: 'var(--color-text-muted)', cursor: 'not-allowed',
 };
 const labelBase: React.CSSProperties = {
-  display: 'block', fontSize: '11px', fontWeight: 600,
+  display: 'block', fontSize: '12px', fontWeight: 600,
   color: 'var(--color-text-muted)', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.03em',
 };
 const sectionCard: React.CSSProperties = {
   background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-  borderRadius: '12px', overflow: 'hidden', marginBottom: '16px',
+  borderRadius: '16px', overflow: 'hidden', marginBottom: '20px',
 };
 const sCardHead: React.CSSProperties = {
   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-  padding: '12px 16px', borderBottom: '1px solid var(--color-border)',
+  padding: '14px 20px', borderBottom: '1px solid var(--color-border)',
   background: 'var(--color-surface-subtle)',
 };
 const sCardBody: React.CSSProperties = {
-  display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', padding: '16px',
+  display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', padding: '20px 24px',
 };
 const fw: React.CSSProperties = { gridColumn: '1 / -1' };
 
@@ -53,7 +55,7 @@ function Hint({ text }: { text: string }) {
   return <p style={{ fontSize: '10px', color: 'var(--color-text-muted)', marginTop: '4px', lineHeight: 1.4 }}>{text}</p>;
 }
 function STitle({ children }: { children: React.ReactNode }) {
-  return <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{children}</span>;
+  return <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-text)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{children}</span>;
 }
 function ReadOnly({ label, value }: { label: string; value: string }) {
   return (
@@ -64,6 +66,12 @@ function ReadOnly({ label, value }: { label: string; value: string }) {
       </div>
     </div>
   );
+}
+
+function summaryText(label: string, value: string | number | null | undefined | boolean) {
+  if (value === null || value === undefined || value === '' || value === false) return null;
+  if (value === true) return label;
+  return `${label}: ${value}`;
 }
 
 function calculateAge(dob: string): number | null {
@@ -133,17 +141,23 @@ export function BasicDetailsStep({ form, onChange, isViewOnly }: Props) {
   return (
     <div>
       {/* ── System Identification ─────────────────────────────────────────── */}
-      <div style={sectionCard}>
-        <div style={sCardHead}><STitle>System Identification</STitle></div>
+      <CustomerAccordionSection
+        title="System Identification"
+        description="Review draft and generated identifiers in the shared supplier-style accordion section."
+        summary={<MasterFormSectionSummary items={[summaryText('Draft', form.draftReferenceId), summaryText('Code', form.customerCode)]} />}
+      >
         <div style={{ ...sCardBody }}>
           <ReadOnly label="Draft Reference ID" value={form.draftReferenceId} />
           <ReadOnly label="Customer Code" value={form.customerCode} />
         </div>
-      </div>
+      </CustomerAccordionSection>
 
       {/* ── Status & Lifecycle ────────────────────────────────────────────── */}
-      <div style={sectionCard}>
-        <div style={sCardHead}><STitle>Status &amp; Lifecycle</STitle></div>
+      <CustomerAccordionSection
+        title="Status & Lifecycle"
+        description="Control the current customer lifecycle state and any required reason."
+        summary={<MasterFormSectionSummary items={[summaryText('Status', form.customerStatus), summaryText('Reason', form.statusChangeReason)]} />}
+      >
         <div style={sCardBody}>
           <div>
             <label style={labelBase}>Customer Status <Req /></label>
@@ -158,11 +172,14 @@ export function BasicDetailsStep({ form, onChange, isViewOnly }: Props) {
             </div>
           )}
         </div>
-      </div>
+      </CustomerAccordionSection>
 
       {/* ── Customer Classification ───────────────────────────────────────── */}
-      <div style={sectionCard}>
-        <div style={sCardHead}><STitle>Customer Classification</STitle></div>
+      <CustomerAccordionSection
+        title="Customer Classification"
+        description="Define customer type, segment, and loyalty tagging in the shared accordion pattern."
+        summary={<MasterFormSectionSummary items={[summaryText('Type', form.customerType), summaryText('Primary Segment', form.primaryCustomerSegment), form.additionalTags.length > 0 ? `${form.additionalTags.length} tag(s)` : null, summaryText('Loyalty Customer', form.isLoyaltyCustomer)]} />}
+      >
         <div style={sCardBody}>
           <ReadOnly label="Customer Type" value={form.customerType} />
           <div>
@@ -196,11 +213,14 @@ export function BasicDetailsStep({ form, onChange, isViewOnly }: Props) {
             </label>
           </div>
         </div>
-      </div>
+      </CustomerAccordionSection>
 
       {/* ── Source Tracking ───────────────────────────────────────────────── */}
-      <div style={sectionCard}>
-        <div style={sCardHead}><STitle>Source Tracking</STitle></div>
+      <CustomerAccordionSection
+        title="Source Tracking"
+        description="Track how the customer was created and the originating system details."
+        summary={<MasterFormSectionSummary items={[summaryText('Source', form.createdSource), summaryText('Validation', form.sourceValidationStatus), summaryText('System', form.sourceSystem), summaryText('Reference', form.sourceReferenceId), summaryText('Batch', form.bulkUploadBatchId)]} />}
+      >
         <div style={sCardBody}>
           <div>
             <label style={labelBase}>Created Source <Req /></label>
@@ -236,11 +256,13 @@ export function BasicDetailsStep({ form, onChange, isViewOnly }: Props) {
             </div>
           )}
         </div>
-      </div>
+      </CustomerAccordionSection>
 
       {/* ── Ownership & Visibility ────────────────────────────────────────── */}
-      <div style={sectionCard}>
-        <div style={sCardHead}><STitle>Ownership &amp; Visibility</STitle></div>
+      <CustomerAccordionSection
+        title="Ownership & Visibility"
+        summary={<MasterFormSectionSummary items={[summaryText('Organisation', form.owningOrganization), summaryText('Branch', form.owningBranchDealer), summaryText('Scope', form.visibilityScope), summaryText('Shared Customer', form.isSharedCustomer)]} />}
+      >
         <div style={sCardBody}>
           <div>
             <label style={labelBase}>Owning Organization</label>
@@ -264,12 +286,14 @@ export function BasicDetailsStep({ form, onChange, isViewOnly }: Props) {
             </label>
           </div>
         </div>
-      </div>
+      </CustomerAccordionSection>
 
       {/* ── Name (Retail Individual) ──────────────────────────────────────── */}
       {isIndividual && (
-        <div style={sectionCard}>
-          <div style={sCardHead}><STitle>Individual Name</STitle></div>
+        <CustomerAccordionSection
+          title="Individual Name"
+          summary={<MasterFormSectionSummary items={[summaryText('Salutation', form.salutation), summaryText('Name', [form.firstName, form.middleName, form.lastName].filter(Boolean).join(' '))]} />}
+        >
           <div style={sCardBody}>
             <div>
               <label style={labelBase}>Salutation</label>
@@ -291,13 +315,15 @@ export function BasicDetailsStep({ form, onChange, isViewOnly }: Props) {
               <input value={form.lastName} onChange={(e) => set('lastName', e.target.value)} disabled={isViewOnly} maxLength={100} placeholder="Last name" style={inp('lastName')} />
             </div>
           </div>
-        </div>
+        </CustomerAccordionSection>
       )}
 
       {/* ── Name (Corporate / Fleet) ──────────────────────────────────────── */}
       {isBusiness && (
-        <div style={sectionCard}>
-          <div style={sCardHead}><STitle>Business Name</STitle></div>
+        <CustomerAccordionSection
+          title="Business Name"
+          summary={<MasterFormSectionSummary items={[summaryText('Legal Name', form.legalName), summaryText('Trade Name', form.tradeName)]} />}
+        >
           <div style={sCardBody}>
             <div>
               <label style={labelBase}>Legal Name <Req /></label>
@@ -308,38 +334,44 @@ export function BasicDetailsStep({ form, onChange, isViewOnly }: Props) {
               <input value={form.tradeName} onChange={(e) => set('tradeName', e.target.value)} disabled={isViewOnly} maxLength={200} placeholder="Brand or trade name (optional)" style={inp('tradeName')} />
             </div>
           </div>
-        </div>
+        </CustomerAccordionSection>
       )}
 
       {/* ── Name (Government) ────────────────────────────────────────────── */}
       {isGovt && (
-        <div style={sectionCard}>
-          <div style={sCardHead}><STitle>Department / Legal Name</STitle></div>
+        <CustomerAccordionSection
+          title="Department / Legal Name"
+          summary={<MasterFormSectionSummary items={[summaryText('Department', form.deptLegalName)]} />}
+        >
           <div style={sCardBody}>
             <div style={fw}>
               <label style={labelBase}>Department / Legal Name <Req /></label>
               <input value={form.deptLegalName} onChange={(e) => set('deptLegalName', e.target.value)} disabled={isViewOnly} maxLength={200} placeholder="Ministry, department, or PSU name" style={inp('deptLegalName')} />
             </div>
           </div>
-        </div>
+        </CustomerAccordionSection>
       )}
 
       {/* ── Name (Internal) ──────────────────────────────────────────────── */}
       {isInternal && (
-        <div style={sectionCard}>
-          <div style={sCardHead}><STitle>Internal Entity / Employee / Branch Name</STitle></div>
+        <CustomerAccordionSection
+          title="Internal Entity / Employee / Branch Name"
+          summary={<MasterFormSectionSummary items={[summaryText('Entity', form.internalEntityName)]} />}
+        >
           <div style={sCardBody}>
             <div style={fw}>
               <label style={labelBase}>Internal Entity Name <Req /></label>
               <input value={form.internalEntityName} onChange={(e) => set('internalEntityName', e.target.value)} disabled={isViewOnly} maxLength={200} placeholder="Employee, department, or branch name" style={inp('internalEntityName')} />
             </div>
           </div>
-        </div>
+        </CustomerAccordionSection>
       )}
 
       {/* ── Display Identity ──────────────────────────────────────────────── */}
-      <div style={sectionCard}>
-        <div style={sCardHead}><STitle>Display Identity</STitle></div>
+      <CustomerAccordionSection
+        title="Display Identity"
+        summary={<MasterFormSectionSummary items={[summaryText('Display Name', form.displayName)]} />}
+      >
         <div style={sCardBody}>
           <div style={fw}>
             <label style={labelBase}>Display Name <Req /></label>
@@ -347,11 +379,13 @@ export function BasicDetailsStep({ form, onChange, isViewOnly }: Props) {
             <Hint text="Auto-generated from name fields. Edit only if a custom display name is needed." />
           </div>
         </div>
-      </div>
+      </CustomerAccordionSection>
 
       {/* ── Contact Details ───────────────────────────────────────────────── */}
-      <div style={sectionCard}>
-        <div style={sCardHead}><STitle>Contact Details</STitle></div>
+      <CustomerAccordionSection
+        title="Contact Details"
+        summary={<MasterFormSectionSummary items={[summaryText('Primary Mobile', [form.primaryMobileCountryCode, form.primaryMobileNumber].filter(Boolean).join(' ')), summaryText('Secondary Mobile', [form.secondaryMobileCountryCode, form.secondaryMobileNumber].filter(Boolean).join(' ')), summaryText('Email', form.emailId), summaryText('OTP Verified', form.otpVerified)]} />}
+      >
         <div style={sCardBody}>
           <div>
             <label style={labelBase}>Primary Mobile Country Code</label>
@@ -387,11 +421,13 @@ export function BasicDetailsStep({ form, onChange, isViewOnly }: Props) {
             <input type="email" value={form.emailId} onChange={(e) => onChange({ emailId: e.target.value })} disabled={isViewOnly} maxLength={150} placeholder="customer@example.com" style={inp('emailId')} />
           </div>
         </div>
-      </div>
+      </CustomerAccordionSection>
 
       {/* ── Source of Lead ────────────────────────────────────────────────── */}
-      <div style={sectionCard}>
-        <div style={sCardHead}><STitle>Source of Lead / Customer</STitle></div>
+      <CustomerAccordionSection
+        title="Source of Lead / Customer"
+        summary={<MasterFormSectionSummary items={[summaryText('Lead Source', form.sourceOfLead), summaryText('Other Source', form.specifyOtherSource)]} />}
+      >
         <div style={sCardBody}>
           <div>
             <label style={labelBase}>Source of Lead</label>
@@ -407,12 +443,14 @@ export function BasicDetailsStep({ form, onChange, isViewOnly }: Props) {
             </div>
           )}
         </div>
-      </div>
+      </CustomerAccordionSection>
 
       {/* ── Personal Profile (Retail Individual only) ─────────────────────── */}
       {isIndividual && (
-        <div style={sectionCard}>
-          <div style={sCardHead}><STitle>Personal Profile</STitle></div>
+        <CustomerAccordionSection
+          title="Personal Profile"
+          summary={<MasterFormSectionSummary items={[summaryText('Gender', form.gender), summaryText('DOB', form.dateOfBirth), summaryText('Age', form.age), summaryText('Nationality', form.nationality), summaryText('Language', form.preferredLanguage)]} />}
+        >
           <div style={sCardBody}>
             <div>
               <label style={labelBase}>Gender</label>
@@ -468,11 +506,15 @@ export function BasicDetailsStep({ form, onChange, isViewOnly }: Props) {
               </select>
             </div>
           </div>
-        </div>
+        </CustomerAccordionSection>
       )}
 
       {/* ── Credit Summary (read-only) ────────────────────────────────────── */}
-      <div style={sectionCard}>
+      <CustomerAccordionSection
+        title="Credit Summary"
+        summary={<MasterFormSectionSummary items={[summaryText('Credit Status', form.creditStatus), summaryText('Hold Reason', form.creditHoldReason)]} />}
+        actions={<span style={{ fontSize: '10px', color: 'var(--color-text-muted)', fontWeight: 500 }}>Read-only - derived from Credit Setup</span>}
+      >
         <div style={sCardHead}>
           <STitle>Credit Summary</STitle>
           <span style={{ fontSize: '10px', color: 'var(--color-text-muted)', fontWeight: 500 }}>Read-only — derived from Credit Setup</span>
@@ -504,7 +546,7 @@ export function BasicDetailsStep({ form, onChange, isViewOnly }: Props) {
             </div>
           )}
         </div>
-      </div>
+      </CustomerAccordionSection>
     </div>
   );
 }

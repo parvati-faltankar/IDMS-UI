@@ -136,8 +136,6 @@ export default function WarehouseImportPage() {
     <AdminShell>
       <AdminListPageShell
         title="Warehouse Import"
-        description="Validate, review, and submit warehouse-related import batches with governance controls."
-        breadcrumbs={['Admin', 'Warehouse & Inventory', 'Warehouse Master', 'Import']}
         secondaryActions={[
           {
             label: 'Back to Warehouse',

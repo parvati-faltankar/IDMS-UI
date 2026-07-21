@@ -5,20 +5,12 @@ import {
   EMPTY_ADDRESS,
 } from '../../constants/customerMaster.constants';
 import { AddressPickerDrawer, type AddressFormValue } from '../../../../../experience/components/AddressPickerDrawer/AddressPickerDrawer';
+import { CustomerAccordionSection } from '../CustomerAccordionSection';
+import { MasterFormSectionSummary } from '../../../../../experience/components/AdminPageShell';
 
 // ─── Style constants ──────────────────────────────────────────────────────────
 
 
-
-const sectionCard: React.CSSProperties = {
-  background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-  borderRadius: '12px', overflow: 'hidden', marginBottom: '16px',
-};
-const sCardHead: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-  padding: '12px 16px', borderBottom: '1px solid var(--color-border)',
-  background: 'var(--color-surface-subtle)',
-};
 
 const btnBase: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -27,10 +19,6 @@ const btnBase: React.CSSProperties = {
 };
 const btnPrimary: React.CSSProperties = { ...btnBase, background: 'var(--color-primary)', color: '#fff' };
 const btnOutline: React.CSSProperties = { ...btnBase, background: 'transparent', border: '1px solid var(--color-border)', color: 'var(--color-text)' };
-
-function STitle({ children }: { children: React.ReactNode }) {
-  return <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{children}</span>;
-}
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -112,17 +100,27 @@ export function AddressDetailsStep({ addresses, onChange, isViewOnly }: Props) {
   }
 
   function remove(id: string) { onChange(addresses.filter((a) => a.id !== id)); }
+  const defaultAddress = addresses.find((a) => a.isDefault) ?? addresses[0];
 
   return (
     <div>
-      <div style={sectionCard}>
-        <div style={sCardHead}>
-          <STitle>Addresses ({addresses.length})</STitle>
-          {!isViewOnly && (
-            <button type="button" onClick={openAdd} style={{ ...btnPrimary, height: '30px', fontSize: '12px', padding: '0 14px' }}>+ Add Address</button>
-          )}
-        </div>
-
+      <CustomerAccordionSection
+        title={`Addresses (${addresses.length})`}
+        description="Manage customer addresses using the same collapsible master section pattern as supplier master."
+        summary={
+          <MasterFormSectionSummary
+            items={[
+              `${addresses.length} address(es)`,
+              defaultAddress ? `Default: ${defaultAddress.addressType}` : null,
+              defaultAddress?.city ? `City: ${defaultAddress.city}` : null,
+              defaultAddress?.state ? `State: ${defaultAddress.state}` : null,
+            ]}
+          />
+        }
+        actions={!isViewOnly ? (
+          <button type="button" onClick={openAdd} style={{ ...btnPrimary, height: '30px', fontSize: '12px', padding: '0 14px' }}>+ Add Address</button>
+        ) : undefined}
+      >
         {addresses.length === 0 ? (
           <div style={{ padding: '32px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '13px' }}>
             No addresses added yet. Click <strong>+ Add Address</strong> to get started.
@@ -154,7 +152,7 @@ export function AddressDetailsStep({ addresses, onChange, isViewOnly }: Props) {
             ))}
           </div>
         )}
-      </div>
+      </CustomerAccordionSection>
 
       <AddressPickerDrawer
         open={pickerOpen}

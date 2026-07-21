@@ -7,6 +7,10 @@ import Typography from '@mui/material/Typography';
 import { type SxProps, type Theme } from '@mui/material/styles';
 import { X } from 'lucide-react';
 import { cn } from '../../utils/classNames';
+import {
+  getMasterDialogPaperSx,
+  getMasterOverlayBackdropSx,
+} from '../../experience/components/overlay/overlayTokens';
 
 interface AppDialogProps {
   open: boolean;
@@ -48,21 +52,12 @@ export default function AppDialog({
       aria-labelledby={titleId}
       slotProps={{
         backdrop: {
-          sx: {
-            backgroundColor: 'rgb(24, 24, 24)',
-          },
+          sx: getMasterOverlayBackdropSx(),
         },
         paper: {
           className: paperClassName,
           sx: [
-            {
-              width: `min(${width}px, calc(100vw - 32px))`,
-              m: 2,
-              border: '1px solid',
-              borderColor: 'divider',
-              borderRadius: '16px',
-              boxShadow: (theme: Theme) => theme.shadows[8],
-            },
+            getMasterDialogPaperSx(width),
             ...(Array.isArray(paperSx) ? paperSx : paperSx ? [paperSx] : []),
           ],
         },

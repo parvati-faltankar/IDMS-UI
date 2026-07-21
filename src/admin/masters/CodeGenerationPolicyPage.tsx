@@ -32,10 +32,18 @@ import {
 } from '../../components/common/MasterDataTable';
 import MasterFilterDrawer from '../../components/common/MasterFilterDrawer';
 import type { DataGridColumn } from '../../components/common/dataGridTypes';
+import {
+  MASTER_OVERLAY_STYLE,
+  MASTER_POPUP_SURFACE_STYLE,
+} from '../../experience/components/overlay/overlayTokens';
 import { findGroupForMasterKey, findMasterByKey } from '../adminNavConfig';
 import { recordRecentAdminMaster } from '../adminStorage';
 import { HelpDrawer } from '../../experience/components/HelpDrawer';
 import { getHelpTopic } from '../../experience/help/helpTopics';
+import CodeGenerationPolicyFormExperience from './code-generation-policy/components/CodeGenerationPolicyFormExperience';
+import CodeGenerationPolicyUndoToast from './code-generation-policy/components/CodeGenerationPolicyUndoToast';
+import { useCodeGenerationPolicyKeyboardShortcuts } from './code-generation-policy/hooks/useCodeGenerationPolicyKeyboardShortcuts';
+import { useCodeGenerationPolicyOptimisticMutations } from './code-generation-policy/hooks/useCodeGenerationPolicyOptimisticMutations';
 
 // --- Constants ----------------------------------------------------------------
 
@@ -520,7 +528,12 @@ const CodeGenerationPolicyPage: React.FC = () => {
   const [activeSection, setActiveSection] = useState<CGPSectionKey>('basic');
 
   // -- Data -------------------------------------------------------
-  const [policies, setPolicies] = useState<Policy[]>(INITIAL_POLICIES);
+  const {
+    items: policies,
+    runOptimisticMutation,
+    toast,
+    dismissToast,
+  } = useCodeGenerationPolicyOptimisticMutations<Policy>(INITIAL_POLICIES);
 
   // -- Form -------------------------------------------------------
   const [form, setForm] = useState<PolicyFormData>({ ...EMPTY_FORM });
@@ -634,6 +647,7 @@ const CodeGenerationPolicyPage: React.FC = () => {
     return list;
   }, [policies, searchQuery, filterStatus, filterApplicableFor, filterSeriesType]);
 
+
   // Auto-select prefix when scope is fully specified
   useEffect(() => {
     if (isLocked('prefixId') || !form.applicableFor || !form.module || !form.entity) return;
@@ -745,9 +759,12 @@ const CodeGenerationPolicyPage: React.FC = () => {
       deactivationRemark: editingPolicy?.deactivationRemark ?? '',
     };
 
-    setPolicies(prev =>
-      editingId ? prev.map(p => p.id === editingId ? saved : p) : [...prev, saved]
-    );
+    runOptimisticMutation({
+      message: editingId ? 'Draft changes saved' : 'Draft policy created',
+      description: 'The policy list updated immediately. Use Undo if you want to roll back this draft change.',
+      nextState: (current) =>
+        editingId ? current.map((policy) => policy.id === editingId ? saved : policy) : [...current, saved],
+    });
     goBackToList();
   };
 
@@ -776,9 +793,12 @@ const CodeGenerationPolicyPage: React.FC = () => {
       deactivationRemark: '',
     };
 
-    setPolicies(prev =>
-      editingId ? prev.map(p => p.id === editingId ? saved : p) : [...prev, saved]
-    );
+    runOptimisticMutation({
+      message: 'Policy activated',
+      description: 'The policy status changed immediately and can still be undone from the toast.',
+      nextState: (current) =>
+        editingId ? current.map((policy) => policy.id === editingId ? saved : policy) : [...current, saved],
+    });
     setActivateConfirmOpen(false);
     goBackToList();
   };
@@ -795,11 +815,15 @@ const CodeGenerationPolicyPage: React.FC = () => {
   const confirmDeactivation = () => {
     if (!deactivationReason) { setDeactivationReasonErr('Deactivation Reason is required.'); return; }
     if (deactivationTarget) {
-      setPolicies(prev => prev.map(p =>
-        p.id === deactivationTarget.id
-          ? { ...p, status: 'Inactive', deactivationReason, deactivationRemark }
-          : p
-      ));
+      runOptimisticMutation({
+        message: 'Policy deactivated',
+        description: 'The policy was removed from active generation immediately and can be undone from the toast.',
+        nextState: (current) => current.map((policy) =>
+          policy.id === deactivationTarget.id
+            ? { ...policy, status: 'Inactive', deactivationReason, deactivationRemark }
+            : policy
+        ),
+      });
     }
     setDeactivationOpen(false);
     setDeactivationTarget(null);
@@ -813,10 +837,63 @@ const CodeGenerationPolicyPage: React.FC = () => {
   };
 
   const confirmDelete = () => {
-    if (deleteTarget) setPolicies(prev => prev.filter(p => p.id !== deleteTarget.id));
+    if (deleteTarget) {
+      runOptimisticMutation({
+        message: 'Policy deleted',
+        description: 'The draft row was removed immediately and can be restored using Undo.',
+        nextState: (current) => current.filter((policy) => policy.id !== deleteTarget.id),
+      });
+    }
     setDeleteConfirmOpen(false);
     setDeleteTarget(null);
   };
+
+  useCodeGenerationPolicyKeyboardShortcuts({
+    onDismiss: () => {
+      if (previewPolicy) {
+        setPreviewPolicy(null);
+        return;
+      }
+      if (helpOpen) {
+        setHelpOpen(false);
+        return;
+      }
+      if (showAdvancedFilters) {
+        setShowAdvancedFilters(false);
+        return;
+      }
+      if (deleteConfirmOpen) {
+        setDeleteConfirmOpen(false);
+        return;
+      }
+      if (activateConfirmOpen) {
+        setActivateConfirmOpen(false);
+        return;
+      }
+      if (deactivationOpen) {
+        setDeactivationOpen(false);
+        return;
+      }
+      if (viewMode === 'form') {
+        goBackToList();
+      }
+    },
+    onPrimaryAction: () => {
+      if (viewMode === 'list') {
+        openAddForm();
+        return;
+      }
+      if (activateConfirmOpen) {
+        confirmActivate();
+        return;
+      }
+      if (editingPolicy?.status === 'Active') {
+        handleSaveDraft();
+        return;
+      }
+      handleActivate();
+    },
+  });
 
   // --- Guards -----------------------------------------------------
   if (!master || !group) return null;
@@ -1016,7 +1093,6 @@ const CodeGenerationPolicyPage: React.FC = () => {
       <>
         <AdminListPageShell
           title={master.label}
-          breadcrumbs={['Admin', group.label]}
           primaryAction={{ label: 'New Policy', tone: 'primary', onClick: openAddForm }}
           secondaryActions={[
             {
@@ -1081,15 +1157,13 @@ const CodeGenerationPolicyPage: React.FC = () => {
     );
   };
   // --- Render: form view ------------------------------------------
-  const renderForm = () => {
+  const renderFormLegacy = () => {
     const isActiveLockBanner = isActiveLocked && !isViewOnly;
     const isDraft = !editingId || editingPolicy?.status === 'Draft';
     const currentCode = editingPolicy?.policyCode ?? '(New Policy)';
     return (
       <AdminPageShell
         title={currentCode}
-        description={isViewOnly ? 'Viewing — read only' : isActiveLockBanner ? 'Active — only Display Name and Description are editable' : 'Edit form — save as Draft or Activate'}
-        breadcrumbs={[group.label, master.label]}
         compactHeader
         helpIconOnly
         statusLabel={editingPolicy?.status}
@@ -1127,7 +1201,7 @@ const CodeGenerationPolicyPage: React.FC = () => {
           </div>
         }
       >
-
+ 
         {/* -- Alert banners -- */}
         {(isActiveLockBanner || activationErrors.length > 0) && (
           <div style={{ marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -1560,6 +1634,44 @@ const CodeGenerationPolicyPage: React.FC = () => {
     );
   };
 
+  const renderForm = () => (
+    <CodeGenerationPolicyFormExperience
+      activationErrors={activationErrors}
+      activeStepId={activeSection}
+      availableEntities={availableEntities}
+      availableEntityTypes={availableEntityTypes}
+      availableModules={availableModules}
+      availablePrefixes={availablePrefixes}
+      editingPolicy={editingPolicy}
+      fieldErrors={fieldErrors}
+      form={form}
+      formMode={formMode}
+      helpTopicId={helpTopicId}
+      isLocked={isLocked}
+      onActivate={handleActivate}
+      onBackToList={goBackToList}
+      onClearActivationErrors={() => setActivationErrors([])}
+      onDeactivate={() => {
+        if (editingPolicy) {
+          openDeactivation(editingPolicy);
+        }
+      }}
+      onHelpClick={(id) => {
+        setHelpTopicId(id);
+        setHelpOpen(true);
+      }}
+      onSaveDraft={handleSaveDraft}
+      onSetActiveStep={(stepId) => setActiveSection(stepId)}
+      onSetField={setField}
+      pageTitle={editingPolicy?.policyCode ?? '(New Policy)'}
+      requiresEntityType={requiresEntityType}
+      sampleCode={sampleCode}
+      showCalendarYearFormat={showCalendarYearFormat}
+      showCustomSection={showCustomSection}
+      showFinancialYearFormat={showFinancialYearFormat}
+    />
+  );
+
   // --- Render: preview drawer -------------------------------------
   const renderPreviewDrawer = () => {
     if (!previewPolicy) return null;
@@ -1658,9 +1770,9 @@ const CodeGenerationPolicyPage: React.FC = () => {
   const renderDeactivationModal = () => {
     if (!deactivationOpen || !deactivationTarget) return null;
     return (
-      <div style={{ position: 'fixed', inset: 0, zIndex: 1300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div onClick={() => setDeactivationOpen(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)' }} />
-        <div style={{ position: 'relative', width: '520px', maxHeight: '90vh', background: 'var(--color-surface)', borderRadius: '16px', boxShadow: '0 24px 64px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={MASTER_OVERLAY_STYLE}>
+        <div onClick={() => setDeactivationOpen(false)} style={{ position: 'absolute', inset: 0 }} />
+        <div style={{ ...MASTER_POPUP_SURFACE_STYLE, position: 'relative', width: '520px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {/* Header */}
           <div style={{ padding: '18px 20px 14px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', borderBottom: '1px solid var(--color-border)' }}>
             <div>
@@ -1736,9 +1848,9 @@ const CodeGenerationPolicyPage: React.FC = () => {
     if (!deleteConfirmOpen || !deleteTarget) return null;
     const canDelete = deleteTarget.status === 'Draft' && !deleteTarget.usedInCodeGeneration;
     return (
-      <div style={{ position: 'fixed', inset: 0, zIndex: 1300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div onClick={() => setDeleteConfirmOpen(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)' }} />
-        <div style={{ position: 'relative', width: '440px', background: 'var(--color-surface)', borderRadius: '16px', boxShadow: '0 24px 64px rgba(0,0,0,0.18)', overflow: 'hidden' }}>
+      <div style={MASTER_OVERLAY_STYLE}>
+        <div onClick={() => setDeleteConfirmOpen(false)} style={{ position: 'absolute', inset: 0 }} />
+        <div style={{ ...MASTER_POPUP_SURFACE_STYLE, position: 'relative', width: '440px', overflow: 'hidden' }}>
           <div style={{ padding: '18px 20px 14px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', borderBottom: '1px solid var(--color-border)' }}>
             <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-text)' }}>Delete Policy</div>
             <button type="button" onClick={() => setDeleteConfirmOpen(false)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', border: 'none', borderRadius: '8px', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-muted)' }}>
@@ -1782,9 +1894,9 @@ const CodeGenerationPolicyPage: React.FC = () => {
   const renderActivateConfirm = () => {
     if (!activateConfirmOpen) return null;
     return (
-      <div style={{ position: 'fixed', inset: 0, zIndex: 1300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div onClick={() => setActivateConfirmOpen(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)' }} />
-        <div style={{ position: 'relative', width: '460px', background: 'var(--color-surface)', borderRadius: '16px', boxShadow: '0 24px 64px rgba(0,0,0,0.18)', overflow: 'hidden' }}>
+      <div style={MASTER_OVERLAY_STYLE}>
+        <div onClick={() => setActivateConfirmOpen(false)} style={{ position: 'absolute', inset: 0 }} />
+        <div style={{ ...MASTER_POPUP_SURFACE_STYLE, position: 'relative', width: '460px', overflow: 'hidden' }}>
           <div style={{ padding: '18px 20px 14px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', borderBottom: '1px solid var(--color-border)' }}>
             <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-text)' }}>Activate Policy</div>
             <button type="button" onClick={() => setActivateConfirmOpen(false)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', border: 'none', borderRadius: '8px', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-muted)' }}>
@@ -1818,6 +1930,7 @@ const CodeGenerationPolicyPage: React.FC = () => {
 
   return (
     <AdminShell>
+      <CodeGenerationPolicyUndoToast onDismiss={dismissToast} toast={toast} />
       {viewMode === 'list' ? renderList() : renderForm()}
       {renderPreviewDrawer()}
       {renderDeactivationModal()}
@@ -2041,6 +2154,7 @@ const DField: React.FC<DFieldProps> = ({ label, required, mt, children }) => (
     {children}
   </div>
 );
+
 
 
 

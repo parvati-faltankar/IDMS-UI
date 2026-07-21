@@ -53,6 +53,8 @@ const SlotFormPage = React.lazy(() => import('../admin/masters/slot-master/pages
 // ─── Service Type Master ───────────────────────────────────────────────────────
 const ServiceTypeListPage = React.lazy(() => import('../admin/masters/service-type-master/pages/ServiceTypeListPage'));
 const ServiceTypeFormPage = React.lazy(() => import('../admin/masters/service-type-master/pages/ServiceTypeFormPage'));
+const ServiceCatalogueListPage = React.lazy(() => import('../admin/masters/service-labour-master/pages/ServiceCatalogueListPage'));
+const ServiceLabourFormPage = React.lazy(() => import('../admin/masters/service-labour-master/pages/ServiceLabourFormPage'));
 
 // ─── Engine Configuration ─────────────────────────────────────────────────────
 const RuleEngineConfigList    = React.lazy(() => import('../admin/masters/engine-config/rule-sets/pages/RuleEngineConfigList'));
@@ -122,6 +124,18 @@ export function renderAdminRoutes() {
       <Route path="/admin/master/service-type-master"           element={<ServiceTypeListPage />} />
       <Route path="/admin/master/service-type-master/new"       element={<ServiceTypeFormPage />} />
       <Route path="/admin/master/service-type-master/:recordId" element={<ServiceTypeFormPage />} />
+      <Route path="/admin/master/service-domain"                element={<ServiceCatalogueListPage variant="domain" />} />
+      <Route path="/admin/master/service-domain/new"            element={<ServiceLabourFormPage entryVariant="domain" />} />
+      <Route path="/admin/master/service-domain/:recordId"      element={<ServiceLabourFormPage entryVariant="domain" />} />
+      <Route path="/admin/master/service-family"                element={<ServiceCatalogueListPage variant="family" />} />
+      <Route path="/admin/master/service-family/new"            element={<ServiceLabourFormPage entryVariant="family" />} />
+      <Route path="/admin/master/service-family/:recordId"      element={<ServiceLabourFormPage entryVariant="family" />} />
+      <Route path="/admin/master/labour-master"                 element={<ServiceCatalogueListPage variant="labour" />} />
+      <Route path="/admin/master/labour-master/new"             element={<ServiceLabourFormPage entryVariant="labour" />} />
+      <Route path="/admin/master/labour-master/:recordId"       element={<ServiceLabourFormPage entryVariant="labour" />} />
+      <Route path="/admin/master/service-labour"                element={<ServiceCatalogueListPage variant="labour" />} />
+      <Route path="/admin/master/service-labour/new"            element={<ServiceLabourFormPage entryVariant="labour" />} />
+      <Route path="/admin/master/service-labour/:recordId"      element={<ServiceLabourFormPage entryVariant="labour" />} />
       <Route path="/admin/master/:masterKey" element={<MasterListPage />} />
 
       {/* Organisation Master — dedicated section-based form */}

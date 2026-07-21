@@ -379,8 +379,6 @@ const AreaLevelListPage: React.FC = () => {
 
       <AdminListPageShell
         title="Area Level Configuration"
-        description="Define hierarchical levels such as Country, State, City, and Area for use across masters and transactions."
-        breadcrumbs={['Admin', 'Area Master', 'Area Level Configuration']}
         primaryAction={{ label: 'New Area Level', onClick: () => navigate('/admin/area-levels/new') }}
         secondaryActions={[{
           label: 'Filters',

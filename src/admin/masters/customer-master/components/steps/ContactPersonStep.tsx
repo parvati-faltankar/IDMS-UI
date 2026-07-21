@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import type { CustomerContact } from '../../types/customerMaster.types';
 import { CONTACT_ROLES, LANGUAGES, COUNTRY_CODES, EMPTY_CONTACT } from '../../constants/customerMaster.constants';
 import AppDialog from '../../../../../components/app/AppDialog';
+import { CustomerAccordionSection } from '../CustomerAccordionSection';
+import { MasterFormSectionSummary } from '../../../../../experience/components/AdminPageShell';
 
 // ─── Style constants ──────────────────────────────────────────────────────────
 
@@ -16,15 +18,6 @@ const labelBase: React.CSSProperties = {
   display: 'block', fontSize: '11px', fontWeight: 600,
   color: 'var(--color-text-muted)', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.03em',
 };
-const sectionCard: React.CSSProperties = {
-  background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-  borderRadius: '12px', overflow: 'hidden', marginBottom: '16px',
-};
-const sCardHead: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-  padding: '12px 16px', borderBottom: '1px solid var(--color-border)',
-  background: 'var(--color-surface-subtle)',
-};
 const fw: React.CSSProperties = { gridColumn: '1 / -1' };
 const btnBase: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -35,10 +28,6 @@ const btnPrimary: React.CSSProperties = { ...btnBase, background: 'var(--color-p
 const btnOutline: React.CSSProperties = { ...btnBase, background: 'transparent', border: '1px solid var(--color-border)', color: 'var(--color-text)' };
 
 function Req() { return <span style={{ color: '#DC2626', marginLeft: '2px' }}>*</span>; }
-function STitle({ children }: { children: React.ReactNode }) {
-  return <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{children}</span>;
-}
-
 interface ContactForm {
   contactName: string; designationRole: string; department: string;
   mobileCountryCode: string; mobileNumber: string; emailId: string;
@@ -118,17 +107,27 @@ export function ContactPersonStep({ contacts, onChange, isViewOnly }: Props) {
   function remove(id: string) { onChange(contacts.filter((c) => c.id !== id)); }
 
   const inp = inputBase;
+  const preferredContact = contacts.find((c) => c.isPreferred) ?? contacts[0];
 
   return (
     <div>
-      <div style={sectionCard}>
-        <div style={sCardHead}>
-          <STitle>Contact Persons ({contacts.length})</STitle>
-          {!isViewOnly && (
-            <button type="button" onClick={openAdd} style={{ ...btnPrimary, height: '30px', fontSize: '12px', padding: '0 14px' }}>+ Add Contact</button>
-          )}
-        </div>
-
+      <CustomerAccordionSection
+        title={`Contact Persons (${contacts.length})`}
+        description="Capture customer contact people in the same shared accordion structure."
+        summary={
+          <MasterFormSectionSummary
+            items={[
+              `${contacts.length} contact(s)`,
+              preferredContact?.contactName ? `Primary: ${preferredContact.contactName}` : null,
+              preferredContact?.designationRole ? `Role: ${preferredContact.designationRole}` : null,
+              preferredContact?.emailId ? `Email: ${preferredContact.emailId}` : null,
+            ]}
+          />
+        }
+        actions={!isViewOnly ? (
+          <button type="button" onClick={openAdd} style={{ ...btnPrimary, height: '30px', fontSize: '12px', padding: '0 14px' }}>+ Add Contact</button>
+        ) : undefined}
+      >
         {contacts.length === 0 ? (
           <div style={{ padding: '32px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '13px' }}>
             No contacts added yet. Click <strong>+ Add Contact</strong> to add a contact person.
@@ -160,7 +159,7 @@ export function ContactPersonStep({ contacts, onChange, isViewOnly }: Props) {
             ))}
           </div>
         )}
-      </div>
+      </CustomerAccordionSection>
 
       {/* ── Add/Edit Dialog ──────────────────────────────────────────────── */}
       <AppDialog

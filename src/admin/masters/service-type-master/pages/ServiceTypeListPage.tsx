@@ -284,8 +284,6 @@ const ServiceTypeListPage: React.FC = () => {
     <AdminShell>
       <AdminListPageShell
         title="Service Type Master"
-        description="Define service types with posting rules, contract configuration, billing ratios, and product applicability."
-        breadcrumbs={['Admin', group?.label ?? 'Service', 'Service Type Master']}
         primaryAction={{ label: '+ New Service Type', tone: 'primary', onClick: () => setPickerOpen(true) }}
         secondaryActions={[{
           label: 'Filters',

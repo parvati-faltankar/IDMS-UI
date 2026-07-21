@@ -387,8 +387,6 @@ const AreaListPage: React.FC = () => {
 
       <AdminListPageShell
         title="Area Master"
-        description="Create and manage geographic areas linked to area level hierarchy for use across sales, service, and delivery operations."
-        breadcrumbs={['Admin', 'Area Master']}
         primaryAction={{ label: 'New Area', onClick: () => navigate('/admin/areas/new') }}
         secondaryActions={[{
           label: 'Filters',

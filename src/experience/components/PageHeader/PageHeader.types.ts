@@ -1,5 +1,11 @@
 import type React from 'react';
 
+export type PageHeaderBadge = {
+  label: string;
+  tone?: 'neutral' | 'draft' | 'active' | 'warning' | 'danger';
+  style?: React.CSSProperties;
+};
+
 export type PageHeaderAction = {
   label: string;
   onClick?: () => void;
@@ -17,6 +23,7 @@ export type PageHeaderProps = {
   breadcrumbs?: string[];
   statusLabel?: string;
   statusTone?: 'neutral' | 'draft' | 'active' | 'warning' | 'danger';
+  badges?: PageHeaderBadge[];
   backAction?: PageHeaderAction;
   primaryAction?: PageHeaderAction;
   secondaryActions?: PageHeaderAction[];

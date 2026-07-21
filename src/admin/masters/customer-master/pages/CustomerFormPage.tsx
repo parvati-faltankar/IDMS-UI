@@ -1,9 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { AlertCircle, Info } from 'lucide-react';
+import {
+  AlertCircle,
+  BadgeCheck,
+  BookUser,
+  FileCheck2,
+  HeartHandshake,
+  Home,
+  IdCard,
+  Info,
+} from 'lucide-react';
 import AdminShell from '../../../AdminShell';
 import AppDialog from '../../../../components/app/AppDialog';
-import { MasterFormStepper } from '../../../../experience/components';
+import { MasterCreateFormShell } from '../../../../experience/components';
 import { findGroupForMasterKey, findMasterByKey } from '../../../adminNavConfig';
 import { recordRecentAdminMaster } from '../../../adminStorage';
 import type { Customer, CustomerType } from '../types/customerMaster.types';
@@ -150,11 +159,20 @@ export default function CustomerFormPage() {
   const canNext = currentStepPos < steps.length - 1;
   const stepperSteps = steps.map((step) => {
     const count = getStepCount(step.index);
+    let icon: React.ReactNode | undefined;
+    if (step.index === 0) icon = <BookUser size={14} />;
+    if (step.index === 1) icon = <IdCard size={14} />;
+    if (step.index === 2) icon = <Home size={14} />;
+    if (step.index === 3) icon = <BadgeCheck size={14} />;
+    if (step.index === 4) icon = <HeartHandshake size={14} />;
+    if (step.index === 5) icon = <FileCheck2 size={14} />;
+    if (step.index === 6) icon = <BookUser size={14} />;
 
     return {
       id: String(step.index),
       label: step.label,
       count: count > 0 ? count : undefined,
+      icon,
       state: activeStep === step.index ? 'current' : stepHasData(step.index) ? 'complete' : 'default',
     };
   });
@@ -171,6 +189,57 @@ export default function CustomerFormPage() {
   const pageTitle = isNew
     ? `New ${customerType || 'Customer'}`
     : (existing?.displayName || existing?.customerCode || 'Edit Customer');
+  const statusTone = existing?.customerStatus === 'Active'
+    ? 'active'
+    : existing?.customerStatus === 'Inactive' || existing?.customerStatus === 'Blocked'
+      ? 'neutral'
+      : 'draft';
+  const headerBadges = typeMeta
+    ? [{ label: customerType, style: { background: typeMeta.bgColor, color: typeMeta.color, borderColor: 'transparent' } }]
+    : [];
+  const headerSecondaryActions = [];
+
+  if (!isViewOnly && isActive && existing) {
+    headerSecondaryActions.push({
+      label: 'Inactivate',
+      onClick: () => setInactivateOpen(true),
+      tone: 'danger' as const,
+    });
+  }
+
+  if (canDelete) {
+    headerSecondaryActions.push({
+      label: 'Delete',
+      onClick: () => setDeleteOpen(true),
+      tone: 'danger' as const,
+    });
+  }
+
+  if (!isViewOnly) {
+    headerSecondaryActions.push({
+      label: 'Save as Draft',
+      onClick: handleSaveDraft,
+    });
+  }
+
+  if (!isViewOnly && !isNew && !isActive) {
+    headerSecondaryActions.push({
+      label: 'Activate',
+      onClick: handleActivateRequest,
+    });
+  }
+
+  const headerPrimaryAction = canNext
+    ? {
+        label: 'Continue',
+        onClick: goNext,
+      }
+    : !isViewOnly
+      ? {
+          label: isNew ? 'Save as Draft' : 'Save Changes',
+          onClick: handleSaveDraft,
+        }
+      : undefined;
 
   // ── Save as Draft ─────────────────────────────────────────────────────
   function handleSaveDraft() {
@@ -249,120 +318,57 @@ export default function CustomerFormPage() {
       {/* ── Customer Type Picker (for new without type) ───────────────────── */}
       <CustomerTypePickerDialog open={pickerOpen} onClose={() => { setPickerOpen(false); navigate(LIST_PATH); }} />
 
-      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--color-surface)' }}>
-
-        {/* ── 1. Header ────────────────────────────────────────────────────── */}
-        <div style={{ flexShrink: 0, padding: '10px 24px', borderBottom: '1px solid var(--color-border)', background: 'var(--color-surface)', display: 'flex', alignItems: 'center', gap: '16px', minHeight: '64px' }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginBottom: '2px', userSelect: 'none' }}>
-              Admin / Business Partners / Customer Master
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text)', lineHeight: 1.25 }}>{pageTitle}</span>
-              {typeMeta && (
-                <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 9px', borderRadius: '9999px', background: typeMeta.bgColor, color: typeMeta.color }}>{customerType}</span>
-              )}
-              {existing?.customerStatus && (
-                <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 9px', borderRadius: '9999px', border: '1px solid',
-                  ...(existing.customerStatus === 'Active' ? { background: '#F0FDF4', color: '#15803D', borderColor: '#86EFAC' }
-                    : existing.customerStatus === 'Blocked' ? { background: '#FEF2F2', color: '#DC2626', borderColor: '#FCA5A5' }
-                    : existing.customerStatus === 'Inactive' ? { background: '#F8FAFC', color: '#64748B', borderColor: '#E2E8F0' }
-                    : { background: '#EFF6FF', color: '#1D4ED8', borderColor: '#BFDBFE' }) }}>
-                  {existing.customerStatus}
-                </span>
-              )}
-            </div>
-            <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px', lineHeight: 1.35 }}>
-              {isNew ? 'Complete all required steps and save as draft, then activate.' : 'Update customer details and save changes.'}
-            </div>
+      <MasterCreateFormShell
+        navigationPersistenceKey="customer-master-form-stepper"
+        title={pageTitle}
+        backAction={{ label: 'Back', onClick: () => navigate(LIST_PATH) }}
+        statusLabel={existing?.customerStatus}
+        statusTone={statusTone}
+        badges={headerBadges}
+        secondaryActions={headerSecondaryActions}
+        primaryAction={headerPrimaryAction}
+        steps={stepperSteps}
+        activeStepId={String(activeStep)}
+        onStepChange={(stepId) => setActiveStep(Number(stepId))}
+      >
+        {isActive && (
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '12px 16px', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: '10px', marginBottom: '20px' }}>
+            <Info size={15} style={{ color: '#EA580C', flexShrink: 0, marginTop: '1px' }} />
+            <span style={{ fontSize: '13px', color: '#9A3412', lineHeight: 1.6 }}>
+              This customer is <strong>Active</strong>. Customer Code is locked. All other fields can be updated.
+            </span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-            <button type="button" onClick={() => navigate(LIST_PATH)} style={btnOutline}>← Back</button>
+        )}
+        {isInactive && (
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '12px 16px', background: '#F8FAFC', border: '1px solid var(--color-border)', borderRadius: '10px', marginBottom: '20px' }}>
+            <AlertCircle size={15} style={{ color: 'var(--color-text-muted)', flexShrink: 0, marginTop: '1px' }} />
+            <span style={{ fontSize: '13px', color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
+              This customer is <strong>{status}</strong>. All fields are read-only.
+            </span>
           </div>
-        </div>
-
-        {/* ── 2. Middle Area ────────────────────────────────────────────────── */}
-        <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-
-          {/* ── Left Step Sidebar (220px) ────────────────────────────────────── */}
-          <div style={{ width: '220px', flexShrink: 0, background: 'var(--color-surface)', borderRight: '1px solid var(--color-border)', overflowY: 'auto' }}>
-            <MasterFormStepper
-              steps={stepperSteps}
-              activeStepId={String(activeStep)}
-              onStepChange={(stepId) => setActiveStep(Number(stepId))}
-            />
-          </div>
-
-          {/* ── 3. Form Body ─────────────────────────────────────────────────── */}
-          <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '16px 24px', background: 'var(--color-surface-subtle)' }}>
-
-            {/* Status banners */}
-            {isActive && (
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '12px 16px', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: '10px', marginBottom: '20px' }}>
-                <Info size={15} style={{ color: '#EA580C', flexShrink: 0, marginTop: '1px' }} />
-                <span style={{ fontSize: '13px', color: '#9A3412', lineHeight: 1.6 }}>
-                  This customer is <strong>Active</strong>. Customer Code is locked. All other fields can be updated.
-                </span>
-              </div>
-            )}
-            {isInactive && (
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '12px 16px', background: '#F8FAFC', border: '1px solid var(--color-border)', borderRadius: '10px', marginBottom: '20px' }}>
-                <AlertCircle size={15} style={{ color: 'var(--color-text-muted)', flexShrink: 0, marginTop: '1px' }} />
-                <span style={{ fontSize: '13px', color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
-                  This customer is <strong>{status}</strong>. All fields are read-only.
-                </span>
-              </div>
-            )}
-
-            {/* Step Content */}
-            {activeStep === 0 && (
-              <BasicDetailsStep form={form} onChange={patchForm} isViewOnly={isViewOnly} />
-            )}
-            {activeStep === 1 && (
-              <BusinessIdentificationStep form={form} onChange={patchForm} kycDocuments={form.kycDocuments} isViewOnly={isViewOnly} />
-            )}
-            {activeStep === 2 && (
-              <AddressDetailsStep addresses={form.addresses} onChange={(addresses) => patchForm({ addresses })} isViewOnly={isViewOnly} />
-            )}
-            {activeStep === 3 && (
-              <ContactPersonStep contacts={form.contacts} onChange={(contacts) => patchForm({ contacts })} isViewOnly={isViewOnly} />
-            )}
-            {activeStep === 4 && (
-              <ConsentDetailsStep consents={form.consents} onChange={(consents) => patchForm({ consents })} isViewOnly={isViewOnly} />
-            )}
-            {activeStep === 5 && (
-              <KycDetailsStep form={form} onChange={patchForm} isViewOnly={isViewOnly} />
-            )}
-            {activeStep === 6 && (
-              <FamilyDetailsStep familyMembers={form.familyMembers} onChange={(familyMembers) => patchForm({ familyMembers })} isViewOnly={isViewOnly} />
-            )}
-          </div>
-        </div>
-
-        {/* ── 4. Footer ─────────────────────────────────────────────────────── */}
-        <div style={{ flexShrink: 0, height: '60px', padding: '0 24px', borderTop: '1px solid var(--color-border)', background: 'var(--color-surface)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <button type="button" onClick={goPrev} disabled={!canPrev} style={{ ...btnOutline, opacity: !canPrev ? 0.4 : 1, cursor: !canPrev ? 'default' : 'pointer' }}>← Previous</button>
-          <button type="button" onClick={goNext} disabled={!canNext} style={{ ...btnOutline, opacity: !canNext ? 0.4 : 1, cursor: !canNext ? 'default' : 'pointer' }}>Next →</button>
-
-          {canDelete && (
-            <button type="button" onClick={() => setDeleteOpen(true)} style={btnDanger}>Delete</button>
-          )}
-
-          <div style={{ flex: 1 }} />
-
-          {!isViewOnly && isActive && existing && (
-            <button type="button" onClick={() => setInactivateOpen(true)} style={{ ...btnBase, background: '#F8FAFC', color: '#64748B', border: '1px solid var(--color-border)' }}>Inactivate</button>
-          )}
-          {!isViewOnly && (
-            <button type="button" onClick={handleSaveDraft} style={btnOutline}>Save as Draft</button>
-          )}
-          {!isViewOnly && !isNew && !isActive && (
-            <button type="button" onClick={handleActivateRequest} style={btnSuccess}>Activate</button>
-          )}
-        </div>
-      </div>
-
-      {/* ── Activate Dialog ───────────────────────────────────────────────── */}
+        )}
+        {activeStep === 0 && (
+          <BasicDetailsStep form={form} onChange={patchForm} isViewOnly={isViewOnly} />
+        )}
+        {activeStep === 1 && (
+          <BusinessIdentificationStep form={form} onChange={patchForm} kycDocuments={form.kycDocuments} isViewOnly={isViewOnly} />
+        )}
+        {activeStep === 2 && (
+          <AddressDetailsStep addresses={form.addresses} onChange={(addresses) => patchForm({ addresses })} isViewOnly={isViewOnly} />
+        )}
+        {activeStep === 3 && (
+          <ContactPersonStep contacts={form.contacts} onChange={(contacts) => patchForm({ contacts })} isViewOnly={isViewOnly} />
+        )}
+        {activeStep === 4 && (
+          <ConsentDetailsStep consents={form.consents} onChange={(consents) => patchForm({ consents })} isViewOnly={isViewOnly} />
+        )}
+        {activeStep === 5 && (
+          <KycDetailsStep form={form} onChange={patchForm} isViewOnly={isViewOnly} />
+        )}
+        {activeStep === 6 && (
+          <FamilyDetailsStep familyMembers={form.familyMembers} onChange={(familyMembers) => patchForm({ familyMembers })} isViewOnly={isViewOnly} />
+        )}
+      </MasterCreateFormShell>
       <AppDialog open={activateOpen} onClose={() => setActivateOpen(false)} title="Activate Customer" width={480}
         actions={
           <div style={{ display: 'flex', gap: '8px' }}>
@@ -423,3 +429,4 @@ export default function CustomerFormPage() {
     </AdminShell>
   );
 }
+

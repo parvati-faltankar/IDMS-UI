@@ -438,9 +438,6 @@ const AreaLevelFormPage: React.FC = () => {
         {/* ── 1. Compact Form Header ───────────────────────────────────────── */}
         <div style={{ flexShrink: 0, padding: '10px 24px', borderBottom: '1px solid var(--color-border)', background: 'var(--color-surface)', display: 'flex', alignItems: 'center', gap: '16px', minHeight: '64px' }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginBottom: '2px', userSelect: 'none' }}>
-              Admin / Area Master / Area Level Configuration
-            </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text)', lineHeight: 1.25 }}>{pageTitle}</span>
               {existing?.status && (
@@ -456,9 +453,6 @@ const AreaLevelFormPage: React.FC = () => {
                   {existing.status}
                 </span>
               )}
-            </div>
-            <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px', lineHeight: 1.35 }}>
-              Configure area level properties, hierarchy rules, role, and usage tags.
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>

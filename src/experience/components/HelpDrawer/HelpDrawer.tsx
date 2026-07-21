@@ -1,26 +1,7 @@
 import React, { useEffect, useId, useMemo, useRef } from 'react';
 import { getHelpTopic } from '../../help/helpTopics';
 import type { HelpDrawerProps } from './HelpDrawer.types';
-
-const overlayStyle: React.CSSProperties = {
-  position: 'fixed',
-  inset: 0,
-  zIndex: 50,
-  display: 'flex',
-  justifyContent: 'flex-end',
-  background: 'rgba(15, 23, 42, 0.22)',
-};
-
-const panelStyle: React.CSSProperties = {
-  position: 'relative',
-  height: '100%',
-  width: 'min(420px, 100vw)',
-  overflowY: 'auto',
-  borderLeft: '1px solid var(--color-border)',
-  background: 'var(--color-surface)',
-  padding: '24px',
-  boxShadow: '0 18px 48px rgba(15, 23, 42, 0.24)',
-};
+import AppDrawer from '../../../components/app/AppDrawer';
 
 const closeButtonStyle: React.CSSProperties = {
   borderRadius: '10px',
@@ -107,14 +88,14 @@ export function HelpDrawer({
   if (!open) return null;
 
   return (
-    <div style={overlayStyle} role="dialog" aria-modal="true" aria-labelledby={titleId}>
-      <button
-        type="button"
-        style={{ position: 'absolute', inset: 0, border: 'none', background: 'transparent', cursor: 'default' }}
-        aria-label="Close help"
-        onClick={onClose}
-      />
-      <aside ref={panelRef} style={panelStyle}>
+    <AppDrawer open={open} onClose={onClose} width={420}>
+      <aside
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        style={{ position: 'relative', height: '100%', overflowY: 'auto', padding: '24px' }}
+      >
         <div style={{ marginBottom: '20px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px' }}>
           <div>
             <p style={{ margin: 0, fontSize: '11px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-primary)' }}>
@@ -243,6 +224,6 @@ export function HelpDrawer({
           </p>
         )}
       </aside>
-    </div>
+    </AppDrawer>
   );
 }

@@ -4,6 +4,10 @@ import { AlertTriangle, ChevronLeft, Eye, EyeOff, HelpCircle, Plus, Rows3, Setti
 import AdminShell from '../../../AdminShell';
 import { AdminListToolbarButton } from '../../../../experience/components/AdminListPageShell';
 import { HelpDrawer } from '../../../../experience/components/HelpDrawer';
+import {
+  MASTER_SIDE_OVERLAY_STYLE,
+  MASTER_SIDE_PANEL_STYLE,
+} from '../../../../experience/components/overlay/overlayTokens';
 import { getHelpTopic } from '../../../../experience/help/helpTopics';
 import { warehouseMockAdapter } from '../services/warehouseMockAdapter';
 import type { HierarchyNode, HierarchyTemplate, WarehouseDetails, WarehouseLocation } from '../types/warehouse.types';
@@ -485,8 +489,8 @@ const WarehouseHierarchyPage: React.FC = () => {
         )}
 
         {isNarrow && inspectorOpen && selectedLocation && (
-          <div style={{ position: 'fixed', inset: 0, zIndex: 1600, background: 'rgba(15, 23, 42, 0.28)', display: 'flex', justifyContent: 'flex-end' }}>
-            <div role="dialog" aria-modal="true" aria-label="Hierarchy node details" style={{ width: 'min(520px, 100vw)', height: '100%', background: 'var(--color-surface)', borderLeft: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column' }}>
+          <div style={MASTER_SIDE_OVERLAY_STYLE}>
+            <div role="dialog" aria-modal="true" aria-label="Hierarchy node details" style={MASTER_SIDE_PANEL_STYLE}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid var(--color-border)' }}>
                 <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--color-text)' }}>Selected node details</div>
                 <button type="button" onClick={() => setInspectorOpen(false)} style={{ border: '1px solid var(--color-border)', background: 'var(--color-surface)', borderRadius: '8px', width: '32px', height: '32px', cursor: 'pointer', color: 'var(--color-text-muted)' }}>

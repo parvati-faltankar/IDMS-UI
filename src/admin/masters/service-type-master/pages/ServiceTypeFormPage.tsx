@@ -2,9 +2,9 @@
 
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { AlertCircle, ChevronDown, ChevronRight } from 'lucide-react';
+import { AlertCircle, CalendarClock, ChevronDown, ChevronRight, FileText, HandCoins, Settings2, ShieldCheck, Users } from 'lucide-react';
 import AdminShell from '../../../AdminShell';
-import { MasterFormStepper } from '../../../../experience/components';
+import { MasterCreateFormShell } from '../../../../experience/components';
 import { HelpDrawer } from '../../../../experience/components/HelpDrawer';
 import { getHelpTopic } from '../../../../experience/help/helpTopics';
 import { findGroupForMasterKey, findMasterByKey } from '../../../adminNavConfig';
@@ -942,6 +942,17 @@ const ServiceTypeFormPage: React.FC = () => {
   const stepperSteps = WIZARD_STEPS.map((step) => ({
     id: String(step.index),
     label: step.label,
+    icon: step.index === 0
+      ? <FileText size={14} />
+      : step.index === 1
+        ? <HandCoins size={14} />
+        : step.index === 2
+          ? <CalendarClock size={14} />
+          : step.index === 3
+            ? <Users size={14} />
+            : step.index === 4
+              ? <ShieldCheck size={14} />
+              : <Settings2 size={14} />,
     state: activeStep === step.index
       ? 'current'
       : skippedSteps.has(step.index)
@@ -950,98 +961,57 @@ const ServiceTypeFormPage: React.FC = () => {
           ? 'complete'
           : 'default',
   }));
+  const headerBadges = selectedProfile ? [{ label: PROFILE_META[selectedProfile].label, tone: 'info' as const }] : [];
+  const headerSecondaryActions = [
+    {
+      label: activeStep === 0 ? 'Back to List' : 'Back',
+      onClick: () => activeStep === 0 ? navigate('/admin/master/service-type-master') : prevStep(),
+    },
+    {
+      label: 'Save as Draft',
+      onClick: () => doSave(false),
+      disabled: isActive,
+    },
+  ];
+  const headerPrimaryAction = isLastStep
+    ? {
+        label: isActive ? 'Save Changes' : 'Save & Activate',
+        onClick: () => doSave(!isActive),
+      }
+    : {
+        label: 'Continue',
+        onClick: nextStep,
+      };
 
   return (
     <AdminShell>
-      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--color-surface)' }}>
-
-        {/* Header */}
-        <div style={{ flexShrink: 0, padding: '10px 24px', borderBottom: '1px solid var(--color-border)', background: 'var(--color-surface)', display: 'flex', alignItems: 'center', gap: '16px', minHeight: '58px' }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginBottom: '2px' }}>
-              <button type="button" onClick={() => navigate('/admin/master/service-type-master')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', fontSize: '11px', padding: 0 }}>
-                Service Type Master
-              </button>
-              {' / '}{isNew ? 'New Service Type' : form.name || form.code}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text)' }}>
-                {isNew ? 'New Service Type' : form.name || form.code}
-              </span>
-              {!isNew && (
-                <span style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 9px', borderRadius: '9999px', fontSize: '11px', fontWeight: 600, ...statusStyle }}>{status}</span>
-              )}
-            </div>
-          </div>
-          <button type="button" onClick={() => setHelpOpen(true)} style={{ padding: '6px 14px', fontSize: '12px', fontWeight: 500, border: '1px solid var(--color-border)', borderRadius: '7px', background: 'transparent', cursor: 'pointer', color: 'var(--color-text)' }}>
-            How this works
-          </button>
+      <MasterCreateFormShell
+        navigationPersistenceKey="service-type-master-form-stepper"
+        title={isNew ? 'New Service Type' : form.name || form.code}
+        backAction={{ label: 'Back', onClick: () => navigate('/admin/master/service-type-master') }}
+        statusLabel={!isNew ? status : undefined}
+        statusTone={status === 'Active' ? 'active' : status === 'Inactive' ? 'neutral' : 'draft'}
+        badges={headerBadges}
+        secondaryActions={headerSecondaryActions}
+        primaryAction={headerPrimaryAction}
+        helpTopicId="service-type-master"
+        onHelpClick={() => setHelpOpen(true)}
+        steps={stepperSteps}
+        activeStepId={String(activeStep)}
+        onStepChange={(stepId) => {
+          const nextStep = Number(stepId);
+          if (skippedSteps.has(nextStep)) {
+            unSkipStep(nextStep);
+            return;
+          }
+          setActiveStep(nextStep);
+        }}
+      >
+        <div style={{ padding: '28px 24px', background: 'var(--color-surface-subtle)', minHeight: '100%' }}>
+          {stepContent[activeStep]?.()}
         </div>
 
-        {/* Middle: left sidebar + scrollable form body */}
-        <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-
-          {/* Left step sidebar (220px) */}
-          <div style={{ width: '220px', flexShrink: 0, background: 'var(--color-surface)', borderRight: '1px solid var(--color-border)', overflowY: 'auto' }}>
-            <MasterFormStepper
-              steps={stepperSteps}
-              activeStepId={String(activeStep)}
-              onStepChange={(stepId) => {
-                const nextStep = Number(stepId);
-                if (skippedSteps.has(nextStep)) {
-                  unSkipStep(nextStep);
-                  return;
-                }
-                setActiveStep(nextStep);
-              }}
-            />
-          </div>
-
-          {/* Form body */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '28px 24px', background: 'var(--color-surface-subtle)' }}>
-            {stepContent[activeStep]?.()}
-          </div>
-
-        </div>
-
-        {/* Footer */}
-        <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 24px', borderTop: '1px solid var(--color-border)', background: 'var(--color-surface)' }}>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button type="button" onClick={() => navigate('/admin/master/service-type-master')}
-              style={{ padding: '8px 16px', fontSize: '13px', fontWeight: 500, border: '1px solid var(--color-border)', borderRadius: '8px', background: 'transparent', cursor: 'pointer', color: 'var(--color-text)' }}>
-              Cancel
-            </button>
-            {activeStep > 0 && (
-              <button type="button" onClick={prevStep}
-                style={{ padding: '8px 16px', fontSize: '13px', fontWeight: 500, border: '1px solid var(--color-border)', borderRadius: '8px', background: 'transparent', cursor: 'pointer', color: 'var(--color-text)' }}>
-                ← Back
-              </button>
-            )}
-          </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            {!isLastStep && (
-              <>
-                <button type="button" onClick={nextStep}
-                  style={{ padding: '8px 22px', fontSize: '13px', fontWeight: 600, border: 'none', borderRadius: '8px', background: 'var(--color-primary)', color: 'white', cursor: 'pointer' }}>
-                  Next →
-                </button>
-              </>
-            )}
-            {isLastStep && (
-              <>
-                <button type="button" onClick={() => doSave(false)} disabled={isActive}
-                  style={{ padding: '8px 18px', fontSize: '13px', fontWeight: 600, border: '1px solid var(--color-border)', borderRadius: '8px', background: isActive ? 'var(--color-surface-subtle)' : 'var(--color-surface)', color: isActive ? 'var(--color-text-muted)' : 'var(--color-text)', cursor: isActive ? 'not-allowed' : 'pointer' }}>
-                  Save as Draft
-                </button>
-                <button type="button" onClick={() => doSave(true)}
-                  style={{ padding: '8px 22px', fontSize: '13px', fontWeight: 600, border: 'none', borderRadius: '8px', background: 'var(--color-primary)', color: 'white', cursor: 'pointer' }}>
-                  {isActive ? 'Save' : 'Save & Activate'}
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
+      </MasterCreateFormShell>
 
       {helpTopic && <HelpDrawer open={helpOpen} onClose={() => setHelpOpen(false)} topic={helpTopic} />}
 
@@ -1055,3 +1025,4 @@ const ServiceTypeFormPage: React.FC = () => {
 };
 
 export default ServiceTypeFormPage;
+

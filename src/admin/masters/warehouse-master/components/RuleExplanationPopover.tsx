@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Info } from 'lucide-react';
+import { MASTER_POPUP_SURFACE_STYLE } from '../../../../experience/components/overlay/overlayTokens';
 
 export interface RuleExplanationPopoverProps {
   title: string;
@@ -38,15 +39,12 @@ export function RuleExplanationPopover({
       {open && (
         <div
           style={{
+            ...MASTER_POPUP_SURFACE_STYLE,
             position: 'absolute',
             top: '24px',
             right: 0,
             width: '260px',
             padding: '10px 12px',
-            borderRadius: '10px',
-            border: '1px solid var(--color-border)',
-            background: 'var(--color-surface)',
-            boxShadow: '0 10px 30px rgba(15, 23, 42, 0.14)',
             zIndex: 20,
           }}
         >

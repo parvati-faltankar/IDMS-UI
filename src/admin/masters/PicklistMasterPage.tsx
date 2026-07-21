@@ -488,8 +488,6 @@ const PicklistMasterPage: React.FC = () => {
     <AdminShell>
       <AdminListPageShell
         title={master.label}
-        description={master.description}
-        breadcrumbs={['Admin', group.label]}
         primaryAction={
           activeSection === 'config' ? { label: 'New', onClick: openConfigForCreate }
           : activeSection === 'levels' ? { label: 'Add Level', onClick: openLevelForCreate }

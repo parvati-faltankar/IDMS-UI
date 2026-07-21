@@ -10,6 +10,8 @@ import {
   INDIAN_STATES,
 } from '../../constants/customerMaster.constants';
 import AppDialog from '../../../../../components/app/AppDialog';
+import { CustomerAccordionSection } from '../CustomerAccordionSection';
+import { MasterFormSectionSummary } from '../../../../../experience/components/AdminPageShell';
 
 // ─── Style constants ──────────────────────────────────────────────────────────
 
@@ -25,15 +27,6 @@ const inputDisabled: React.CSSProperties = {
 const labelBase: React.CSSProperties = {
   display: 'block', fontSize: '11px', fontWeight: 600,
   color: 'var(--color-text-muted)', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.03em',
-};
-const sectionCard: React.CSSProperties = {
-  background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-  borderRadius: '12px', overflow: 'hidden', marginBottom: '16px',
-};
-const sCardHead: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-  padding: '12px 16px', borderBottom: '1px solid var(--color-border)',
-  background: 'var(--color-surface-subtle)',
 };
 const sCardBody: React.CSSProperties = {
   display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', padding: '16px',
@@ -51,10 +44,6 @@ function Req() { return <span style={{ color: '#DC2626', marginLeft: '2px' }}>*<
 function Hint({ text }: { text: string }) {
   return <p style={{ fontSize: '10px', color: 'var(--color-text-muted)', marginTop: '4px', lineHeight: 1.4 }}>{text}</p>;
 }
-function STitle({ children }: { children: React.ReactNode }) {
-  return <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{children}</span>;
-}
-
 function kycDocStatusColor(s: string) {
   if (s === 'Verified')           return { bg: '#F0FDF4', color: '#15803D' };
   if (s === 'Rejected')           return { bg: '#FEF2F2', color: '#DC2626' };
@@ -71,6 +60,12 @@ function kycOverallStatusColor(s: string) {
   if (s === 'Rejected')           return { bg: '#FEF2F2', color: '#DC2626' };
   if (s === 'Expired')            return { bg: '#FFF7ED', color: '#EA580C' };
   return { bg: '#F8FAFC', color: '#64748B' };
+}
+
+function summaryText(label: string, value: string | number | null | undefined | boolean) {
+  if (value === null || value === undefined || value === '' || value === false) return null;
+  if (value === true) return label;
+  return `${label}: ${value}`;
 }
 
 // ─── KYC Document form types ──────────────────────────────────────────────────
@@ -204,12 +199,17 @@ export function KycDetailsStep({ form, onChange, isViewOnly }: Props) {
 
   const inp = isViewOnly ? inputDisabled : inputBase;
   const overallSC = form.overallKYCStatus ? kycOverallStatusColor(form.overallKYCStatus) : null;
+  const verifiedDocs = form.kycDocuments.filter((d) => d.documentStatus === 'Verified').length;
+  const primaryTaxMap = form.kycTaxMappings.find((t) => t.isPrimaryTaxRegistration) ?? form.kycTaxMappings[0];
 
   return (
     <div>
       {/* ── Profile Image ─────────────────────────────────────────────────── */}
-      <div style={sectionCard}>
-        <div style={sCardHead}><STitle>Profile Image</STitle></div>
+      <CustomerAccordionSection
+        title="Profile Image"
+        description="Maintain the customer profile image reference using the shared collapsible section layout."
+        summary={<MasterFormSectionSummary items={[summaryText('Image', form.profileImageReference || 'Not uploaded')]} />}
+      >
         <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '16px' }}>
           <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: 'var(--color-surface-subtle)', border: '2px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
             {form.profileImageReference ? (
@@ -234,14 +234,15 @@ export function KycDetailsStep({ form, onChange, isViewOnly }: Props) {
             <p style={{ fontSize: '10px', color: 'var(--color-text-muted)', marginTop: '6px' }}>JPG or PNG, max 2MB. Optional.</p>
           </div>
         </div>
-      </div>
+      </CustomerAccordionSection>
 
       {/* ── Overall KYC Status ────────────────────────────────────────────── */}
-      <div style={sectionCard}>
-        <div style={sCardHead}>
-          <STitle>Overall KYC Status</STitle>
-          <span style={{ fontSize: '10px', color: 'var(--color-text-muted)', fontWeight: 500 }}>System-derived</span>
-        </div>
+      <CustomerAccordionSection
+        title="Overall KYC Status"
+        description="Review the derived KYC status before drilling into the underlying documents."
+        summary={<MasterFormSectionSummary items={[summaryText('Status', form.overallKYCStatus), verifiedDocs > 0 ? `${verifiedDocs} verified document(s)` : null]} />}
+        actions={<span style={{ fontSize: '10px', color: 'var(--color-text-muted)', fontWeight: 500 }}>System-derived</span>}
+      >
         <div style={{ ...sCardBody, background: 'var(--color-surface-subtle)' }}>
           <div>
             <label style={labelBase}>KYC Status</label>
@@ -262,16 +263,17 @@ export function KycDetailsStep({ form, onChange, isViewOnly }: Props) {
             </select>
           </div>
         </div>
-      </div>
+      </CustomerAccordionSection>
 
       {/* ── KYC Documents ─────────────────────────────────────────────────── */}
-      <div style={sectionCard}>
-        <div style={sCardHead}>
-          <STitle>KYC Documents ({form.kycDocuments.length})</STitle>
-          {!isViewOnly && (
-            <button type="button" onClick={openAddDoc} style={{ ...btnPrimary, height: '30px', fontSize: '12px', padding: '0 14px' }}>+ Add Document</button>
-          )}
-        </div>
+      <CustomerAccordionSection
+        title={`KYC Documents (${form.kycDocuments.length})`}
+        description="Track all customer KYC documents with the same shared accordion treatment as supplier master."
+        summary={<MasterFormSectionSummary items={[`${form.kycDocuments.length} document(s)`, verifiedDocs > 0 ? `${verifiedDocs} verified` : null, form.kycDocuments[0] ? `Latest: ${form.kycDocuments[0].documentType}` : null]} />}
+        actions={!isViewOnly ? (
+          <button type="button" onClick={openAddDoc} style={{ ...btnPrimary, height: '30px', fontSize: '12px', padding: '0 14px' }}>+ Add Document</button>
+        ) : undefined}
+      >
         {form.kycDocuments.length === 0 ? (
           <div style={{ padding: '32px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '13px' }}>
             No KYC documents added. Click <strong>+ Add Document</strong> to upload.
@@ -304,16 +306,17 @@ export function KycDetailsStep({ form, onChange, isViewOnly }: Props) {
             })}
           </div>
         )}
-      </div>
+      </CustomerAccordionSection>
 
       {/* ── Tax Registration Mapping ──────────────────────────────────────── */}
-      <div style={sectionCard}>
-        <div style={sCardHead}>
-          <STitle>Tax Registration Mapping</STitle>
-          {!isViewOnly && (
-            <button type="button" onClick={openAddTax} style={{ ...btnOutline, height: '30px', fontSize: '12px', padding: '0 14px' }}>+ Map Tax Reg</button>
-          )}
-        </div>
+      <CustomerAccordionSection
+        title="Tax Registration Mapping"
+        description="Map tax registrations to states and addresses in a collapsible shared section."
+        summary={<MasterFormSectionSummary items={[`${form.kycTaxMappings.length} mapping(s)`, summaryText('Primary State', primaryTaxMap?.mappedState), summaryText('Tax Number', primaryTaxMap?.taxRegistrationNumber)]} />}
+        actions={!isViewOnly ? (
+          <button type="button" onClick={openAddTax} style={{ ...btnOutline, height: '30px', fontSize: '12px', padding: '0 14px' }}>+ Map Tax Reg</button>
+        ) : undefined}
+      >
         {form.kycTaxMappings.length === 0 ? (
           <div style={{ padding: '20px 16px', fontSize: '12px', color: 'var(--color-text-muted)' }}>
             No tax registration mappings. Add GSTIN or tax documents above, then map them to addresses and states here.
@@ -341,7 +344,7 @@ export function KycDetailsStep({ form, onChange, isViewOnly }: Props) {
             ))}
           </div>
         )}
-      </div>
+      </CustomerAccordionSection>
 
       {/* ── KYC Document Dialog ───────────────────────────────────────────── */}
       <AppDialog

@@ -204,8 +204,6 @@ export default function CustomerListPage() {
 
       <AdminListPageShell
         title="Customer Master"
-        description="Manage customer profiles, contacts, KYC, and consent preferences."
-        breadcrumbs={['Admin', 'Business Partners', 'Customer Master']}
         primaryAction={{ label: '+ New Customer', onClick: () => setPickerOpen(true) }}
         secondaryActions={[{
           label: 'Filters',

@@ -289,8 +289,6 @@ const NumberingSettingsPage: React.FC = () => {
     <AdminShell>
       <AdminListPageShell
         title={master.label}
-        description="Configure document numbering prefixes for each entity."
-        breadcrumbs={['Admin', group.label]}
         primaryAction={{ label: 'New Prefix', tone: 'primary', onClick: openDrawerForCreate }}
         helpTopicId="numbering-code-setup"
         onHelpClick={(id) => { setHelpTopicId(id); setHelpOpen(true); }}

@@ -13,9 +13,12 @@ type NavigationSupplement =
 
 export type MasterCreateFormShellProps = {
   title: string;
+  description?: AdminPageShellProps['description'];
+  breadcrumbs?: AdminPageShellProps['breadcrumbs'];
   backAction?: AdminPageShellProps['backAction'];
   statusLabel?: AdminPageShellProps['statusLabel'];
   statusTone?: AdminPageShellProps['statusTone'];
+  badges?: AdminPageShellProps['badges'];
   primaryAction?: AdminPageShellProps['primaryAction'];
   secondaryActions?: AdminPageShellProps['secondaryActions'];
   helpTopicId?: AdminPageShellProps['helpTopicId'];
@@ -32,9 +35,12 @@ export type MasterCreateFormShellProps = {
 
 export function MasterCreateFormShell({
   title,
+  description,
+  breadcrumbs,
   backAction,
   statusLabel,
   statusTone,
+  badges,
   primaryAction,
   secondaryActions,
   helpTopicId,
@@ -53,9 +59,12 @@ export function MasterCreateFormShell({
       variant="master-form"
       headerVariant="appbar"
       title={title}
+      description={description}
+      breadcrumbs={breadcrumbs}
       backAction={backAction}
       statusLabel={statusLabel}
       statusTone={statusTone}
+      badges={badges}
       primaryAction={primaryAction}
       secondaryActions={secondaryActions}
       helpTopicId={helpTopicId}

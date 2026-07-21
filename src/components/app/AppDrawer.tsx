@@ -1,5 +1,9 @@
 import Drawer from '@mui/material/Drawer';
 import type { SxProps, Theme } from '@mui/material/styles';
+import {
+  getMasterDrawerPaperSx,
+  getMasterOverlayBackdropSx,
+} from '../../experience/components/overlay/overlayTokens';
 
 interface AppDrawerProps {
   open: boolean;
@@ -26,21 +30,14 @@ export default function AppDrawer({
       ModalProps={{ keepMounted: true }}
       slotProps={{
         backdrop: {
-          sx: {
-            backgroundColor: backdropColor,
-          },
+          sx: [
+            getMasterOverlayBackdropSx(),
+            backdropColor ? { backgroundColor: backdropColor } : {},
+          ],
         },
         paper: {
           sx: [
-            {
-              width: `min(${width}px, 100vw)`,
-              borderLeft: '1px solid',
-              borderColor: 'divider',
-              backgroundColor: 'background.paper',
-              boxShadow: (theme: Theme) => theme.shadows[8],
-              backgroundImage: 'none',
-              overflowX: 'hidden',
-            },
+            getMasterDrawerPaperSx(width),
             ...(Array.isArray(paperSx) ? paperSx : paperSx ? [paperSx] : []),
           ],
         },

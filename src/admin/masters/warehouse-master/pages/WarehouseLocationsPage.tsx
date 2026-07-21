@@ -271,8 +271,6 @@ const WarehouseLocationsPage: React.FC = () => {
     <AdminShell>
       <AdminListPageShell
         title="Warehouse Locations"
-        description={`Browse and govern the hierarchy nodes and BIN records for ${details.warehouse.warehouseName}.`}
-        breadcrumbs={['Admin', 'Warehouse & Inventory', 'Warehouse Master', details.warehouse.warehouseCode, 'Locations']}
         searchValue={search}
         searchPlaceholder="Search code, name, path, type, or BIN type"
         onSearchChange={setSearch}

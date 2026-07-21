@@ -530,8 +530,6 @@ const WarehouseListPage: React.FC = () => {
 
       <AdminListPageShell
         title="Warehouse Master"
-        description="Manage warehouse ownership, branch access, hierarchy, inventory control, and operational policies"
-        breadcrumbs={['Admin', 'Warehouse & Inventory', 'Warehouse Master']}
         primaryAction={{ label: 'New Warehouse', onClick: () => navigate(WAREHOUSE_ROUTES.create) }}
         secondaryActions={[{
           label: 'Filters',

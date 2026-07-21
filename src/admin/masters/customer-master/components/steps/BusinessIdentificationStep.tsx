@@ -1,6 +1,8 @@
 import React from 'react';
 import type { Customer, CustomerKYCDocument } from '../../types/customerMaster.types';
 import { INDIAN_STATES } from '../../constants/customerMaster.constants';
+import { CustomerAccordionSection } from '../CustomerAccordionSection';
+import { MasterFormSectionSummary } from '../../../../../experience/components/AdminPageShell';
 
 // ─── Style constants ──────────────────────────────────────────────────────────
 
@@ -14,20 +16,20 @@ const inputDisabled: React.CSSProperties = {
   ...inputBase, background: 'var(--color-surface-subtle)', color: 'var(--color-text-muted)', cursor: 'not-allowed',
 };
 const labelBase: React.CSSProperties = {
-  display: 'block', fontSize: '11px', fontWeight: 600,
+  display: 'block', fontSize: '12px', fontWeight: 600,
   color: 'var(--color-text-muted)', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.03em',
 };
 const sectionCard: React.CSSProperties = {
   background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-  borderRadius: '12px', overflow: 'hidden', marginBottom: '16px',
+  borderRadius: '16px', overflow: 'hidden', marginBottom: '20px',
 };
 const sCardHead: React.CSSProperties = {
   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-  padding: '12px 16px', borderBottom: '1px solid var(--color-border)',
+  padding: '14px 20px', borderBottom: '1px solid var(--color-border)',
   background: 'var(--color-surface-subtle)',
 };
 const sCardBody: React.CSSProperties = {
-  display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', padding: '16px',
+  display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', padding: '20px 24px',
 };
 const fw: React.CSSProperties = { gridColumn: '1 / -1' };
 
@@ -36,7 +38,7 @@ function Hint({ text }: { text: string }) {
   return <p style={{ fontSize: '10px', color: 'var(--color-text-muted)', marginTop: '4px', lineHeight: 1.4 }}>{text}</p>;
 }
 function STitle({ children }: { children: React.ReactNode }) {
-  return <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{children}</span>;
+  return <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-text)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{children}</span>;
 }
 function ReadOnly({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
@@ -48,6 +50,12 @@ function ReadOnly({ label, value, hint }: { label: string; value: string; hint?:
       {hint && <Hint text={hint} />}
     </div>
   );
+}
+
+function summaryText(label: string, value: string | number | null | undefined | boolean) {
+  if (value === null || value === undefined || value === '' || value === false) return null;
+  if (value === true) return label;
+  return `${label}: ${value}`;
 }
 
 // ─── Derive tax fields from KYC documents ────────────────────────────────────
@@ -83,22 +91,26 @@ export function BusinessIdentificationStep({ form, onChange, kycDocuments, isVie
   return (
     <div>
       {/* ── Business Profile ──────────────────────────────────────────────── */}
-      <div style={sectionCard}>
-        <div style={sCardHead}><STitle>Business Profile</STitle></div>
+      <CustomerAccordionSection
+        title="Business Profile"
+        description="Capture incorporation and business profile details in the shared accordion layout."
+        summary={<MasterFormSectionSummary items={[summaryText('Incorporated', form.dateOfIncorporation)]} />}
+      >
         <div style={sCardBody}>
           <div>
             <label style={labelBase}>Date of Incorporation</label>
             <input type="date" value={form.dateOfIncorporation} onChange={(e) => onChange({ dateOfIncorporation: e.target.value })} disabled={isViewOnly} max={new Date().toISOString().split('T')[0]} style={inp} />
           </div>
         </div>
-      </div>
+      </CustomerAccordionSection>
 
       {/* ── Read-only Business & Tax Summary ─────────────────────────────── */}
-      <div style={sectionCard}>
-        <div style={sCardHead}>
-          <STitle>Business &amp; Tax Identification</STitle>
-          <span style={{ fontSize: '10px', color: 'var(--color-text-muted)', fontWeight: 500 }}>Derived from KYC Details</span>
-        </div>
+      <CustomerAccordionSection
+        title="Business & Tax Identification"
+        description="Review business and tax identifiers derived from KYC documents."
+        summary={<MasterFormSectionSummary items={[summaryText('Business Reg', derived.businessRegNumber), summaryText('PAN', derived.taxIdNumber), summaryText('GSTIN', derived.taxRegNumber)]} />}
+        actions={<span style={{ fontSize: '10px', color: 'var(--color-text-muted)', fontWeight: 500 }}>Derived from KYC Details</span>}
+      >
         <div style={{ ...sCardBody, background: 'var(--color-surface-subtle)' }}>
           <ReadOnly label="Business Registration Number" value={derived.businessRegNumber} hint="Populated from KYC — Company Registration Certificate." />
           <div />
@@ -114,11 +126,14 @@ export function BusinessIdentificationStep({ form, onChange, kycDocuments, isVie
             </div>
           )}
         </div>
-      </div>
+      </CustomerAccordionSection>
 
       {/* ── Tax Exemption ─────────────────────────────────────────────────── */}
-      <div style={sectionCard}>
-        <div style={sCardHead}><STitle>Tax Exemption</STitle></div>
+      <CustomerAccordionSection
+        title="Tax Exemption"
+        description="Maintain exemption reason, validity, and proof in the shared collapsible section."
+        summary={<MasterFormSectionSummary items={[summaryText('Tax Exempt', form.isTaxExempt), summaryText('Reason', form.taxExemptionReason), summaryText('From', form.taxExemptionEffectiveFrom), summaryText('To', form.taxExemptionEffectiveTo), summaryText('Attachment', form.taxExemptionAttachment)]} />}
+      >
         <div style={sCardBody}>
           <div style={fw}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: isViewOnly ? 'default' : 'pointer', userSelect: 'none' }}>
@@ -172,12 +187,15 @@ export function BusinessIdentificationStep({ form, onChange, kycDocuments, isVie
             </>
           )}
         </div>
-      </div>
+      </CustomerAccordionSection>
 
       {/* ── State Mapping (for GSTIN) ──────────────────────────────────────── */}
       {derived.taxRegNumber && (
-        <div style={sectionCard}>
-          <div style={sCardHead}><STitle>GSTIN / Tax Registration — State Mapping</STitle></div>
+        <CustomerAccordionSection
+          title="GSTIN / Tax Registration — State Mapping"
+          description="Map GST registrations to states using the same accordion treatment as supplier master."
+          summary={<MasterFormSectionSummary items={[summaryText('GSTIN', derived.taxRegNumber), summaryText('State', form.kycTaxMappings[0]?.mappedState), summaryText('Primary Registration', form.kycTaxMappings[0]?.isPrimaryTaxRegistration)]} />}
+        >
           <div style={sCardBody}>
             <div>
               <label style={labelBase}>Mapped State</label>
@@ -202,7 +220,7 @@ export function BusinessIdentificationStep({ form, onChange, kycDocuments, isVie
               </label>
             </div>
           </div>
-        </div>
+        </CustomerAccordionSection>
       )}
     </div>
   );

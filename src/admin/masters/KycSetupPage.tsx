@@ -24,6 +24,10 @@ import { recordRecentAdminMaster } from '../adminStorage';
 import { ValidationChecklist } from '../../experience/components/ValidationChecklist';
 import { FieldHelpPopover } from '../../experience/components/FieldHelpPopover';
 import { HelpDrawer } from '../../experience/components/HelpDrawer';
+import {
+  MASTER_OVERLAY_STYLE,
+  MASTER_POPUP_SURFACE_STYLE,
+} from '../../experience/components/overlay/overlayTokens';
 import { getHelpTopic } from '../../experience/help/helpTopics';
 import { getFieldHelp } from '../../experience/help/fieldHelp';
 
@@ -727,8 +731,6 @@ const KycSetupPage: React.FC = () => {
   const renderList = () => (
     <AdminListPageShell
       title={master?.label ?? 'KYC Setup'}
-      description="Manage KYC configurations for entity-specific document verification."
-      breadcrumbs={group?.label ? ['Admin', group.label] : ['Admin']}
       primaryAction={{ label: 'Add KYC Config', tone: 'primary', onClick: openAddForm }}
       helpTopicId="kyc-setup"
       onHelpClick={(id) => { setHelpTopicId(id); setHelpOpen(true); }}
@@ -1025,8 +1027,6 @@ const KycSetupPage: React.FC = () => {
   const renderForm = () => (
     <AdminPageShell
       title={currentCode}
-      description={isViewOnly ? 'Viewing — read only' : 'Fill all sections, then activate'}
-      breadcrumbs={[group?.label ?? '', master?.label ?? '']}
       compactHeader
       helpIconOnly
       statusLabel={editingConfig?.status}
@@ -1294,9 +1294,9 @@ const KycSetupPage: React.FC = () => {
   const renderDeactivationModal = () => {
     if (!deactivationOpen || !deactivationTarget) return null;
     return (
-      <div style={{ position: 'fixed', inset: 0, zIndex: 1300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div onClick={() => setDeactivationOpen(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)' }} />
-        <div style={{ position: 'relative', width: '480px', background: 'var(--color-surface)', borderRadius: '16px', boxShadow: '0 24px 64px rgba(0,0,0,0.18)', overflow: 'hidden' }}>
+      <div style={MASTER_OVERLAY_STYLE}>
+        <div onClick={() => setDeactivationOpen(false)} style={{ position: 'absolute', inset: 0 }} />
+        <div style={{ ...MASTER_POPUP_SURFACE_STYLE, position: 'relative', width: '480px', overflow: 'hidden' }}>
           <div style={{ padding: '18px 20px 14px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', borderBottom: '1px solid var(--color-border)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'color-mix(in srgb, var(--color-danger) 12%, var(--color-surface))', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><ZapOff size={16} style={{ color: 'var(--color-danger)' }} /></div>
@@ -1349,3 +1349,4 @@ const KycSetupPage: React.FC = () => {
 };
 
 export default KycSetupPage;
+

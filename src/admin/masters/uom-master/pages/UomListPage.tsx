@@ -6,6 +6,10 @@ import { AdminListPageShell } from '../../../../experience/components/AdminListP
 import { SmartPreviewDrawer } from '../../../../experience/components/SmartPreviewDrawer';
 import type { PreviewSection } from '../../../../experience/components/SmartPreviewDrawer/SmartPreviewDrawer.types';
 import { HelpDrawer } from '../../../../experience/components/HelpDrawer';
+import {
+  MASTER_OVERLAY_STYLE,
+  MASTER_POPUP_SURFACE_STYLE,
+} from '../../../../experience/components/overlay/overlayTokens';
 import { getHelpTopic } from '../../../../experience/help/helpTopics';
 import { findGroupForMasterKey, findMasterByKey } from '../../../adminNavConfig';
 import { recordRecentAdminMaster } from '../../../adminStorage';
@@ -435,8 +439,8 @@ const UomListPage: React.FC = () => {
       )}
 
       {activateOpen && activateTarget && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 1300, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setActivateOpen(false)}>
-          <div style={{ background: 'var(--color-surface)', borderRadius: '16px', padding: '28px', maxWidth: '420px', width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.18)' }} onClick={(event) => event.stopPropagation()}>
+        <div style={MASTER_OVERLAY_STYLE} onClick={() => setActivateOpen(false)}>
+          <div style={{ ...MASTER_POPUP_SURFACE_STYLE, padding: '28px', maxWidth: '420px', width: '90%' }} onClick={(event) => event.stopPropagation()}>
             <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text)', marginBottom: '8px' }}>Activate Unit</div>
             <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', lineHeight: 1.6, marginBottom: '24px' }}>
               Activate <strong>{activateTarget.unitName}</strong> ({activateTarget.unitCode})?
@@ -451,8 +455,8 @@ const UomListPage: React.FC = () => {
       )}
 
       {inactivateOpen && inactivateTarget && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 1300, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setInactivateOpen(false)}>
-          <div style={{ background: 'var(--color-surface)', borderRadius: '16px', padding: '28px', maxWidth: '420px', width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.18)' }} onClick={(event) => event.stopPropagation()}>
+        <div style={MASTER_OVERLAY_STYLE} onClick={() => setInactivateOpen(false)}>
+          <div style={{ ...MASTER_POPUP_SURFACE_STYLE, padding: '28px', maxWidth: '420px', width: '90%' }} onClick={(event) => event.stopPropagation()}>
             <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text)', marginBottom: '8px' }}>Mark as Inactive</div>
             <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', lineHeight: 1.6, marginBottom: '24px' }}>
               <strong>{inactivateTarget.unitName}</strong> will no longer be selectable in new transactions.
@@ -467,8 +471,8 @@ const UomListPage: React.FC = () => {
       )}
 
       {deleteOpen && deleteTarget && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 1300, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setDeleteOpen(false)}>
-          <div style={{ background: 'var(--color-surface)', borderRadius: '16px', padding: '28px', maxWidth: '420px', width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.18)' }} onClick={(event) => event.stopPropagation()}>
+        <div style={MASTER_OVERLAY_STYLE} onClick={() => setDeleteOpen(false)}>
+          <div style={{ ...MASTER_POPUP_SURFACE_STYLE, padding: '28px', maxWidth: '420px', width: '90%' }} onClick={(event) => event.stopPropagation()}>
             <div style={{ fontSize: '15px', fontWeight: 700, color: '#DC2626', marginBottom: '8px' }}>Delete Draft Unit</div>
             <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', lineHeight: 1.6, marginBottom: '24px' }}>
               Permanently delete <strong>{deleteTarget.unitName}</strong> ({deleteTarget.unitCode})?
