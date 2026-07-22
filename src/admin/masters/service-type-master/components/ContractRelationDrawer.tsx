@@ -190,7 +190,7 @@ export const ContractRelationDrawer: React.FC<ContractRelationDrawerProps> = ({
   return (
     <>
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 1200 }} />
-      <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: '520px', background: 'var(--color-surface)', zIndex: 1201, display: 'flex', flexDirection: 'column', boxShadow: '-4px 0 24px rgba(0,0,0,0.12)' }}>
+      <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 'min(520px, 100vw)', background: 'var(--color-surface)', zIndex: 1201, display: 'flex', flexDirection: 'column', boxShadow: '-4px 0 24px rgba(0,0,0,0.12)' }}>
 
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>

@@ -18,45 +18,19 @@ import {
 } from './themeRegistry';
 import { ThemeContext, type ThemeContextValue } from './themeContext';
 import { createAppMuiTheme } from './materialTheme';
-import {
-  CUSTOM_THEMES_UPDATED_EVENT,
-  clearInactiveStoredTheme,
-  getPublishedThemeBuilderThemes,
-  toBrandThemeDefinition,
-} from './customThemeBuilder';
 
 function getAvailableThemes(): Record<string, BrandThemeDefinition> {
-  return {
-    ...themeRegistry,
-    ...Object.fromEntries(getPublishedThemeBuilderThemes().map((theme) => [theme.key, toBrandThemeDefinition(theme)])),
-  };
+  return { ...themeRegistry };
 }
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { direction } = useLocalization();
   const [themeKey, setThemeKey] = useState<ThemeKey>(() => initializeTheme());
   const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>(() => getStoredAppearanceMode());
-  const [themes, setThemes] = useState<Record<string, BrandThemeDefinition>>(() => getAvailableThemes());
+  const [themes] = useState<Record<string, BrandThemeDefinition>>(() => getAvailableThemes());
   const themeKeys = useMemo(() => Object.keys(themes), [themes]);
   const resolvedThemeKey = themes[themeKey] ? themeKey : DEFAULT_THEME_KEY;
   const resolvedTheme = themes[resolvedThemeKey] ?? themeRegistry[DEFAULT_THEME_KEY];
-
-  useEffect(() => {
-    const handleThemesUpdated = () => {
-      clearInactiveStoredTheme();
-      const nextThemes = getAvailableThemes();
-      setThemes(nextThemes);
-      setThemeKey((current) => (nextThemes[current] ? current : DEFAULT_THEME_KEY));
-    };
-
-    window.addEventListener(CUSTOM_THEMES_UPDATED_EVENT, handleThemesUpdated);
-    window.addEventListener('storage', handleThemesUpdated);
-
-    return () => {
-      window.removeEventListener(CUSTOM_THEMES_UPDATED_EVENT, handleThemesUpdated);
-      window.removeEventListener('storage', handleThemesUpdated);
-    };
-  }, []);
 
   useEffect(() => {
     applyThemeKey(resolvedThemeKey, resolvedTheme);

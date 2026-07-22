@@ -22,16 +22,18 @@ export function createAppMuiTheme(
 ) {
   const brand = (theme ?? themeRegistry[themeKey] ?? themeRegistry[DEFAULT_THEME_KEY]).brandScale;
   const isDark = appearanceMode === 'dark';
-  const surface = isDark ? '#151e2a' : '#ffffff';
-  const surfaceSubtle = isDark ? '#101720' : '#f8fafc';
-  const surfaceHover = isDark ? '#1d2838' : '#f5f7fa';
-  const textPrimary = isDark ? '#e5edf7' : '#1f2937';
-  const textSecondary = isDark ? '#98a6b8' : '#6b7280';
-  const divider = isDark ? '#324154' : '#d9dee5';
-  const bodyBackground = isDark ? '#0f1724' : '#f8fafc';
-  const overlay = isDark ? 'rgb(0 0 0 / 50%)' : 'rgb(15 23 42 / 24%)';
+  /* Surfaces/text/borders aligned to the Excellon DS cool-slate ramp
+     (light exact; dark derived — mirrors src/styles/excellon-ds/tokens.css). */
+  const surface = isDark ? '#1b1d21' : '#ffffff';
+  const surfaceSubtle = isDark ? '#141619' : '#f4f7fa';
+  const surfaceHover = isDark ? '#23262c' : '#eff2f5';
+  const textPrimary = isDark ? '#f4f7fa' : '#1b1d21';
+  const textSecondary = isDark ? '#a8b5c2' : '#6a7682';
+  const divider = isDark ? '#2c3138' : '#dee4eb';
+  const bodyBackground = isDark ? '#141619' : '#f4f7fa';
+  const overlay = isDark ? 'rgb(0 0 0 / 50%)' : 'rgb(27 29 33 / 24%)';
   const focusRing = alpha(brand[500], isDark ? 0.28 : 0.22);
-  const hoverBorder = isDark ? '#475569' : '#c7ced8';
+  const hoverBorder = isDark ? '#3a4048' : '#c3ccd6';
 
   return createTheme({
     direction,
@@ -50,7 +52,7 @@ export function createAppMuiTheme(
         contrastText: '#ffffff',
       },
       error: {
-        main: '#d14343',
+        main: '#f5222d',
       },
       background: {
         default: bodyBackground,

@@ -19,6 +19,7 @@ import {
   saveDataGridPreferences,
   setColumnPinState,
 } from '../../utils/dataGridPreferences';
+import { useBreakpoint } from '../../hooks/useBreakpoint';
 
 const selectionColumnWidth = 44;
 
@@ -149,6 +150,9 @@ const CommonDataGrid = <TData, TSortKey extends string = string>({
   const [loadedRowCount, setLoadedRowCount] = useState(initialBatchSize);
   const selectAllRef = useRef<HTMLInputElement | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  // Below `md` the grid renders as stacked cards (same data/actions) instead
+  // of a horizontally-scrolling table. Desktop rendering is unchanged.
+  const { isMobile } = useBreakpoint();
 
   const preferences = useMemo(
     () => sanitizeDataGridPreferences(storedPreferences, columns, defaultDensity),
@@ -505,6 +509,64 @@ const CommonDataGrid = <TData, TSortKey extends string = string>({
     );
   };
 
+  const cardDataColumns = arrangedColumns.filter((column) => column.type !== 'actions');
+  const cardActionColumns = arrangedColumns.filter((column) => column.type === 'actions');
+
+  const renderRowCard = (row: TData, rowIndex: number) => {
+    const id = rowId(row);
+    const [primaryColumn, ...detailColumns] = cardDataColumns;
+    const cellContext = {
+      row,
+      rowId: id,
+      rowIndex,
+      isSelected: selectedRowIds.includes(id),
+    };
+
+    return (
+      <div key={id} className={cn('catalogue-grid-card', rowClassName?.(row))} role="listitem">
+        <div className="catalogue-grid-card__header">
+          {selectable && (
+            <input
+              type="checkbox"
+              className="catalogue-grid-card__select"
+              checked={selectedRowIds.includes(id)}
+              aria-label={`Select row ${rowIndex + 1}`}
+              onChange={(event) =>
+                setSelectedRowIds((current) =>
+                  event.target.checked
+                    ? [...current, id]
+                    : current.filter((selectedId) => selectedId !== id)
+                )
+              }
+            />
+          )}
+          {primaryColumn && (
+            <div className="catalogue-grid-card__title">
+              {primaryColumn.renderCell(row, cellContext)}
+            </div>
+          )}
+          {cardActionColumns.length > 0 && (
+            <div className="catalogue-grid-card__actions">
+              {cardActionColumns.map((column) => (
+                <React.Fragment key={column.id}>{column.renderCell(row, cellContext)}</React.Fragment>
+              ))}
+            </div>
+          )}
+        </div>
+        {detailColumns.length > 0 && (
+          <dl className="catalogue-grid-card__body">
+            {detailColumns.map((column) => (
+              <div key={column.id} className="catalogue-grid-card__row">
+                <dt className="catalogue-grid-card__label">{column.label}</dt>
+                <dd className="catalogue-grid-card__value">{column.renderCell(row, cellContext)}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+      </div>
+    );
+  };
+
   const hasToolbarActions =
     (selectable && selectedRows.length > 0 && bulkActions !== undefined) ||
     Boolean(exportFileName) ||
@@ -580,6 +642,45 @@ const CommonDataGrid = <TData, TSortKey extends string = string>({
         </div>
       )}
 
+      {isMobile && (
+        <div className="catalogue-grid-cards" role="list">
+          {!preferences.groupByColumnId &&
+            renderedRows.map((row, rowIndex) => renderRowCard(row, rowIndex))}
+
+          {preferences.groupByColumnId &&
+            groupedRows.map((group) => {
+              const isCollapsed = collapsedGroupLabels[group.label] === true;
+              return (
+                <div key={group.label} className="catalogue-grid-cards__group">
+                  <button
+                    type="button"
+                    className="catalogue-grid__group-button catalogue-grid-cards__group-button"
+                    onClick={() =>
+                      setCollapsedGroupLabels((current) => ({
+                        ...current,
+                        [group.label]: !current[group.label],
+                      }))
+                    }
+                  >
+                    <span className="catalogue-grid__group-title">{group.label}</span>
+                    <span className="catalogue-grid__group-meta">
+                      {group.rows.length} {group.rows.length === 1 ? 'row' : 'rows'}
+                    </span>
+                  </button>
+                  {!isCollapsed && group.rows.map((row, rowIndex) => renderRowCard(row, rowIndex))}
+                </div>
+              );
+            })}
+
+          {renderCount < sortedRows.length && (
+            <div ref={loadMoreRef} className="catalogue-grid__load-more catalogue-grid-cards__load-more">
+              Loading more rows...
+            </div>
+          )}
+        </div>
+      )}
+
+      {!isMobile && (
       <div
         className={cn(
           'catalogue-table-scroll',
@@ -787,6 +888,7 @@ const CommonDataGrid = <TData, TSortKey extends string = string>({
           </tbody>
         </table>
       </div>
+      )}
 
       <DataGridConfigurator
         isOpen={isConfiguratorOpen}

@@ -29,6 +29,7 @@ import SideDrawer from '../../components/common/SideDrawer';
 import StatusBadge from '../../components/common/StatusBadge';
 import type { RequisitionPriority, RequisitionStatus } from '../purchase-requisition/purchaseRequisitionCatalogueData';
 import { cn } from '../../utils/classNames';
+import { recordSidebarRecentDocument } from '../../utils/sidebarRecentDocuments';
 import { formatDate, formatDateTime } from '../../utils/dateFormat';
 import type { SortState } from '../../utils/sortState';
 import type { CatalogueViewDefinition, EditableCatalogueViewDefinition } from '../../utils/catalogueViews';
@@ -1469,7 +1470,20 @@ const SaleOrderV2List: React.FC<SaleOrderListProps> = ({
   };
 
   const registerRecentlyViewedDocument = (documentId: string) => {
+    const document = documents.find((item) => item.id === documentId);
     setRecentlyViewedEntries(recordRecentlyViewedDocument(SALE_ORDER_CATALOGUE_VIEW_ENTITY, documentId));
+
+    if (document) {
+      recordSidebarRecentDocument({
+        documentId: document.id,
+        documentNumber: document.number,
+        moduleKey: 'sale-order-v2',
+        moduleLabel: 'Sale Order V2',
+        partyLabel: document.customerName,
+        status: document.status,
+        route: '/sale-order-v2',
+      });
+    }
   };
 
   const handleOpenCancelDialog = (documentId: string) => {

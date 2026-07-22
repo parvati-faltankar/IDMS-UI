@@ -71,23 +71,26 @@ const AppShell: React.FC<AppShellProps> = ({
         onFormLayoutClick={onFormLayoutClick}
         onBusinessSettingsClick={onBusinessSettingsClick}
       />
+
       <div className="app-shell__body">
-        <AppSidebar
-          activeLeaf={activeLeaf}
-          isCollapsed={isSidebarCollapsed}
-          onPurchaseOrderClick={onPurchaseOrderClick}
-          onPurchaseReceiptClick={onPurchaseReceiptClick}
-          onPurchaseInvoiceClick={onPurchaseInvoiceClick}
-          onPurchaseRequisitionClick={onPurchaseRequisitionClick}
-          onSaleOrderClick={onSaleOrderClick}
-          onSaleOrderV2Click={onSaleOrderV2Click}
-          onSaleAllocationRequisitionClick={onSaleAllocationRequisitionClick}
-          onSaleAllocationClick={onSaleAllocationClick}
-          onSaleInvoiceClick={onSaleInvoiceClick}
-          onDeliveryClick={onDeliveryClick}
-          isMobileOpen={isMobileNavOpen}
-          onCloseMobile={() => setIsMobileNavOpen(false)}
-        />
+        <div className="app-shell__sidebar-wrap">
+          <AppSidebar
+            activeLeaf={activeLeaf}
+            isCollapsed={isSidebarCollapsed}
+            onPurchaseOrderClick={onPurchaseOrderClick}
+            onPurchaseReceiptClick={onPurchaseReceiptClick}
+            onPurchaseInvoiceClick={onPurchaseInvoiceClick}
+            onPurchaseRequisitionClick={onPurchaseRequisitionClick}
+            onSaleOrderClick={onSaleOrderClick}
+            onSaleOrderV2Click={onSaleOrderV2Click}
+            onSaleAllocationRequisitionClick={onSaleAllocationRequisitionClick}
+            onSaleAllocationClick={onSaleAllocationClick}
+            onSaleInvoiceClick={onSaleInvoiceClick}
+            onDeliveryClick={onDeliveryClick}
+            isMobileOpen={isMobileNavOpen}
+            onCloseMobile={() => setIsMobileNavOpen(false)}
+          />
+        </div>
         <button
           type="button"
           className={cn('app-shell__overlay', isMobileNavOpen && 'app-shell__overlay--visible')}

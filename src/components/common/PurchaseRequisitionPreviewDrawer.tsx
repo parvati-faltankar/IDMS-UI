@@ -1,5 +1,5 @@
-import type React from 'react';
-import DocumentPreviewDrawer from './DocumentPreviewDrawer';
+﻿import type React from 'react';
+import CompactTransactionPreviewDrawer from './CompactTransactionPreviewDrawer';
 import type { PurchaseRequisitionDocument } from '../../pages/purchase-requisition/purchaseRequisitionCatalogueData';
 
 interface PurchaseRequisitionPreviewDrawerProps {
@@ -21,11 +21,11 @@ const PurchaseRequisitionPreviewDrawer: React.FC<PurchaseRequisitionPreviewDrawe
   canEdit,
   canCancel,
 }) => (
-  <DocumentPreviewDrawer
+  <CompactTransactionPreviewDrawer
     document={document}
     isOpen={isOpen}
-    documentTypeLabel="Purchase Requisition"
-    subtitle="Purchase Requisition preview"
+    documentTypeLabel='Purchase Requisition'
+    subtitle='Purchase Requisition preview'
     onClose={onClose}
     onEdit={onEdit}
     onCancel={onCancel}

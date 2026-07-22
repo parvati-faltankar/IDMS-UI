@@ -1682,7 +1682,7 @@ const CodeGenerationPolicyPage: React.FC = () => {
     return (
       <>
         <div style={{ position: 'fixed', inset: 0, zIndex: 400 }} onClick={() => setPreviewPolicy(null)} />
-        <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, zIndex: 401, width: '380px', background: 'var(--color-surface)', borderLeft: '1px solid var(--color-border)', boxShadow: '-8px 0 32px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, zIndex: 401, width: 'min(380px, 100vw)', background: 'var(--color-surface)', borderLeft: '1px solid var(--color-border)', boxShadow: '-8px 0 32px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {/* Header */}
           <div style={{ flexShrink: 0, padding: '16px 20px', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -1772,7 +1772,7 @@ const CodeGenerationPolicyPage: React.FC = () => {
     return (
       <div style={MASTER_OVERLAY_STYLE}>
         <div onClick={() => setDeactivationOpen(false)} style={{ position: 'absolute', inset: 0 }} />
-        <div style={{ ...MASTER_POPUP_SURFACE_STYLE, position: 'relative', width: '520px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ ...MASTER_POPUP_SURFACE_STYLE, position: 'relative', width: 'min(520px, calc(100vw - 32px))', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {/* Header */}
           <div style={{ padding: '18px 20px 14px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', borderBottom: '1px solid var(--color-border)' }}>
             <div>
@@ -1850,7 +1850,7 @@ const CodeGenerationPolicyPage: React.FC = () => {
     return (
       <div style={MASTER_OVERLAY_STYLE}>
         <div onClick={() => setDeleteConfirmOpen(false)} style={{ position: 'absolute', inset: 0 }} />
-        <div style={{ ...MASTER_POPUP_SURFACE_STYLE, position: 'relative', width: '440px', overflow: 'hidden' }}>
+        <div style={{ ...MASTER_POPUP_SURFACE_STYLE, position: 'relative', width: 'min(440px, calc(100vw - 32px))', overflow: 'hidden' }}>
           <div style={{ padding: '18px 20px 14px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', borderBottom: '1px solid var(--color-border)' }}>
             <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-text)' }}>Delete Policy</div>
             <button type="button" onClick={() => setDeleteConfirmOpen(false)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', border: 'none', borderRadius: '8px', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-muted)' }}>
@@ -1896,7 +1896,7 @@ const CodeGenerationPolicyPage: React.FC = () => {
     return (
       <div style={MASTER_OVERLAY_STYLE}>
         <div onClick={() => setActivateConfirmOpen(false)} style={{ position: 'absolute', inset: 0 }} />
-        <div style={{ ...MASTER_POPUP_SURFACE_STYLE, position: 'relative', width: '460px', overflow: 'hidden' }}>
+        <div style={{ ...MASTER_POPUP_SURFACE_STYLE, position: 'relative', width: 'min(460px, calc(100vw - 32px))', overflow: 'hidden' }}>
           <div style={{ padding: '18px 20px 14px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', borderBottom: '1px solid var(--color-border)' }}>
             <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-text)' }}>Activate Policy</div>
             <button type="button" onClick={() => setActivateConfirmOpen(false)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', border: 'none', borderRadius: '8px', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-muted)' }}>

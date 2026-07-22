@@ -1,0 +1,82 @@
+/* ==========================================================================
+   Excellon Design System — token foundation
+   --------------------------------------------------------------------------
+   Values sourced from the Excellon Design System (Claude Design project
+   6f97bcb3-…). Light values are exact (from the DS guideline cards + token
+   files); dark values are derived faithfully from the DS cool-slate ramp per
+   the DS dark conventions (to be visually verified against the DS).
+
+   This file is imported LAST (after excellon-brand-guidelines.css) so its
+   :root re-values the repo's existing token NAMES to DS values without
+   touching component styling — the "value-map, keep names" strategy.
+   Dark mode is keyed on the repo's existing [data-appearance='dark'] toggle.
+   ========================================================================== */
+
+:root {
+  /* --- DS raw ramps (source of truth) --------------------------------- */
+  /* Brand — warm orange (identical to the repo's existing excellon ramp). */
+  --color-brand-50: #fff7f0;
+  --color-brand-100: #ffe7d4;
+  --color-brand-200: #ffceab;
+  --color-brand-300: #ffb282;
+  --color-brand-400: #f78f57;
+  --color-brand-500: #eb6a2c;
+  --color-brand-600: #c44b1b;
+  --color-brand-700: #9e320e;
+  --color-brand-800: #781e05;
+  --color-brand-900: #521102;
+
+  /* Neutral — cool slate ramp (DS: colors-neutral card). */
+  --color-neutral-50: #f4f7fa;
+  --color-neutral-100: #eff2f5;
+  --color-neutral-200: #dee4eb;
+  --color-neutral-300: #c3ccd6;
+  --color-neutral-400: #a8b5c2;
+  --color-neutral-500: #8593a3;
+  --color-neutral-600: #6a7682;
+  --color-neutral-700: #505862;
+  --color-neutral-800: #353b41;
+  --color-neutral-900: #1b1d21;
+
+  /* Semantic (DS: colors-semantic card) — base + soft tint. */
+  --color-success: #52c41a;
+  --color-success-soft: #f6ffed;
+  --color-warning: #ffab00;
+  --color-warning-soft: #fff7e5;
+  --color-error: #f5222d;
+  --color-error-soft: #fff1f0;
+  --color-info: #3697ff;
+  --color-info-soft: #eef6ff;
+
+  /* --- Typography families (DS) --------------------------------------- */
+  --font-family-display: "Strawford", "Poppins", sans-serif; /* headings / display */
+  --font-family-data: "Inter", "Noto Sans", system-ui, sans-serif; /* numerals / IDs */
+
+  /* --- Repo semantic tokens re-valued to the DS light foundation ------ */
+  --color-text: var(--color-neutral-900);
+  --color-text-muted: var(--color-neutral-600);
+  --color-border: var(--color-neutral-200);
+  --color-border-strong: var(--color-neutral-300);
+  --color-surface: #ffffff;
+  --color-surface-subtle: var(--color-neutral-50);
+  --color-surface-hover: var(--color-neutral-100);
+  --color-surface-elevated: #ffffff;
+  --color-table-header: var(--color-neutral-100);
+  --color-danger: var(--color-error);
+  --color-nav-muted: var(--color-neutral-600);
+}
+
+:root[data-appearance='dark'] {
+  /* Dark — derived from the DS slate ramp (deep-slate surfaces, slate-50/100
+     text, mid-slate borders; brand orange retained). Verify visually. */
+  --color-text: #f4f7fa;
+  --color-text-muted: #a8b5c2;
+  --color-border: #2c3138;
+  --color-border-strong: #3a4048;
+  --color-surface: #1b1d21;
+  --color-surface-subtle: #141619;
+  --color-surface-hover: #23262c;
+  --color-surface-elevated: #212429;
+  --color-table-header: #212429;
+  --color-danger: #ff7875;
+}

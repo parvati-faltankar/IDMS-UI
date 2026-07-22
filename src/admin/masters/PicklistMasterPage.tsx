@@ -1130,7 +1130,7 @@ const ConfigDrawer: React.FC<ConfigDrawerProps> = ({ visible, isEdit, formData, 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 1200 }}>
       <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: `rgba(0,0,0,${visible ? 0.35 : 0})`, transition: 'background 0.25s ease' }} />
-      <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '500px', background: 'var(--color-surface-subtle)', borderLeft: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', transform: visible ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.25s ease', boxShadow: '-4px 0 24px rgba(0,0,0,0.12)' }}>
+      <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 'min(500px, 100vw)', background: 'var(--color-surface-subtle)', borderLeft: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', transform: visible ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.25s ease', boxShadow: '-4px 0 24px rgba(0,0,0,0.12)' }}>
         <div style={{ flexShrink: 0, background: 'var(--color-surface)', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', height: '52px', padding: '0 4px' }}>
           <button type="button" onClick={onClose} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-text)', flexShrink: 0, borderRadius: '8px' }}><ArrowLeft size={20} strokeWidth={2} /></button>
           <span style={{ flex: 1, fontSize: '15px', fontWeight: 600, color: 'var(--color-text)', paddingLeft: '4px' }}>{isEdit ? 'Edit Picklist Configuration' : 'New Picklist Configuration'}</span>
@@ -1235,7 +1235,7 @@ const LevelDrawer: React.FC<LevelDrawerProps> = ({ visible, isEdit, formData, co
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 1200 }}>
       <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: `rgba(0,0,0,${visible ? 0.35 : 0})`, transition: 'background 0.25s ease' }} />
-      <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '480px', background: 'var(--color-surface-subtle)', borderLeft: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', transform: visible ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.25s ease', boxShadow: '-4px 0 24px rgba(0,0,0,0.12)' }}>
+      <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 'min(480px, 100vw)', background: 'var(--color-surface-subtle)', borderLeft: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', transform: visible ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.25s ease', boxShadow: '-4px 0 24px rgba(0,0,0,0.12)' }}>
         <div style={{ flexShrink: 0, background: 'var(--color-surface)', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', height: '52px', padding: '0 4px' }}>
           <button type="button" onClick={onClose} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-text)', flexShrink: 0, borderRadius: '8px' }}><ArrowLeft size={20} strokeWidth={2} /></button>
           <span style={{ flex: 1, fontSize: '15px', fontWeight: 600, color: 'var(--color-text)', paddingLeft: '4px' }}>{isEdit ? 'Edit Picklist Level' : 'New Picklist Level'}</span>
@@ -1344,7 +1344,7 @@ const ValueDrawer: React.FC<ValueDrawerProps> = ({ visible, isEdit, formData, co
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 1200 }}>
       <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: `rgba(0,0,0,${visible ? 0.35 : 0})`, transition: 'background 0.25s ease' }} />
-      <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '500px', background: 'var(--color-surface-subtle)', borderLeft: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', transform: visible ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.25s ease', boxShadow: '-4px 0 24px rgba(0,0,0,0.12)' }}>
+      <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 'min(500px, 100vw)', background: 'var(--color-surface-subtle)', borderLeft: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', transform: visible ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.25s ease', boxShadow: '-4px 0 24px rgba(0,0,0,0.12)' }}>
         <div style={{ flexShrink: 0, background: 'var(--color-surface)', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', height: '52px', padding: '0 4px' }}>
           <button type="button" onClick={onClose} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-text)', flexShrink: 0, borderRadius: '8px' }}><ArrowLeft size={20} strokeWidth={2} /></button>
           <span style={{ flex: 1, fontSize: '15px', fontWeight: 600, color: 'var(--color-text)', paddingLeft: '4px' }}>{isEdit ? 'Edit Picklist Value' : 'New Picklist Value'}</span>

@@ -47,6 +47,7 @@ import {
   saveCatalogueDisplayViewMode,
 } from '../../utils/catalogueViewModes';
 import { useBusinessSettings } from '../../utils/businessSettings';
+import { recordSidebarRecentDocument } from '../../utils/sidebarRecentDocuments';
 import {
   createCustomCatalogueView,
   loadCatalogueViewState,
@@ -1374,7 +1375,20 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
   };
 
   const registerRecentlyViewedDocument = (documentId: string) => {
+    const document = documents.find((item) => item.id === documentId);
     setRecentlyViewedEntries(recordRecentlyViewedDocument(PURCHASE_REQUISITION_CATALOGUE_VIEW_ENTITY, documentId));
+
+    if (document) {
+      recordSidebarRecentDocument({
+        documentId: document.id,
+        documentNumber: document.number,
+        moduleKey: 'purchase-requisition',
+        moduleLabel: 'Purchase Requisition',
+        partyLabel: document.supplierName,
+        status: document.status,
+        route: '/purchase-requisition',
+      });
+    }
   };
 
   const handleViewDocument = (documentId: string) => {

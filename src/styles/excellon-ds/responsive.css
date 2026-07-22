@@ -1,0 +1,178 @@
+/* ==========================================================================
+   Excellon DS — responsive patterns
+   Shared, reusable responsive styling introduced by the responsive pass.
+   Kept in one file so responsive additions stay isolated and reviewable.
+   ========================================================================== */
+
+/* --- Adaptive data-grid cards (rendered below `md` by CommonDataGrid) ----- */
+.catalogue-grid-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 0 8px;
+}
+
+.catalogue-grid-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-soft);
+  padding: 14px 16px;
+}
+
+.catalogue-grid-card__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.catalogue-grid-card__select {
+  flex-shrink: 0;
+}
+
+.catalogue-grid-card__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: var(--font-weight-semibold, 600);
+  color: var(--color-text);
+}
+
+.catalogue-grid-card__actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.catalogue-grid-card__body {
+  margin: 12px 0 0;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.catalogue-grid-card__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.catalogue-grid-card__label {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold, 600);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.catalogue-grid-card__value {
+  margin: 0;
+  min-width: 0;
+  text-align: right;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.catalogue-grid-cards__group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.catalogue-grid-cards__group-button {
+  width: 100%;
+}
+
+.catalogue-grid-cards__load-more {
+  text-align: center;
+  color: var(--color-text-muted);
+  padding: 12px 0;
+}
+
+/* --- Reusable responsive grid utilities (apply during the per-screen pass) - */
+.exl-cols-2,
+.exl-cols-3,
+.exl-form-grid {
+  display: grid;
+  gap: var(--space-4);
+}
+.exl-cols-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.exl-cols-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.exl-form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* --- Small-screen adaptations --------------------------------------------- */
+@media (max-width: 767.98px) {
+  /* Guard: the app body must never scroll horizontally on small screens. */
+  html,
+  body {
+    overflow-x: hidden;
+  }
+
+  /* Utilities collapse to a single column. */
+  .exl-cols-2,
+  .exl-cols-3,
+  .exl-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Recurring multi-column layouts collapse to a single column. */
+  :is(
+    .catalogue-view-configurator__form-grid,
+    .catalogue-grid-configurator__density,
+    .catalogue-chart-builder__controls,
+    .catalogue-chart-builder__stats,
+    .catalogue-split-view__configured-sections--two,
+    .catalogue-split-view__compact-grid,
+    .catalogue-split-view__field-grid,
+    .sale-allocation-create__order-card-grid,
+    .sale-invoice-create__summary-grid,
+    .master-filter-drawer__footer,
+    .drawer-form__date-grid,
+    .business-settings__grid,
+    .app-topbar__language-modal-grid,
+    .dashboard-grid--balanced,
+    .dashboard-grid--wide
+  ) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Master split view (list + preview) stacks vertically. */
+  .catalogue-split-view {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Side drawers & dialogs become full-width sheets on phones. MUI injects
+     high-specificity styles, so these overrides are marked important. */
+  .MuiDrawer-paper {
+    width: 100vw !important;
+    max-width: 100vw !important;
+  }
+  .MuiDialog-paper {
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    border-radius: 0 !important;
+  }
+
+  /* Inline multi-equal-column grids (style={{ gridTemplateColumns: '1fr 1fr' }},
+     repeat(2, …), repeat(3, …)) collapse to a single column on phones. React
+     serializes the prop into the style attribute, so this attribute selector
+     with !important overrides the inline value — covers the ~108 bespoke form
+     grids across admin/masters without per-file edits. Layout only. */
+  [style*="grid-template-columns: 1fr 1fr"],
+  [style*="grid-template-columns: repeat(2"],
+  [style*="grid-template-columns: repeat(3"] {
+    grid-template-columns: 1fr !important;
+  }
+}

@@ -4,17 +4,17 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>my-react-app</title>
+    <meta name="theme-color" content="#eb6a2c" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/excellon-icon.svg" />
+    <title>Excellon</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" rel="stylesheet" />
     <script>
       (function () {
         try {
-          var theme = window.localStorage.getItem('app-theme');
           var appearance = window.localStorage.getItem('app-theme-mode');
-          var supportedThemes = ['excellon', 'bajaj', 'tata-motors', 'ola', 'eka', 'hero', 'royal-enfield'];
-          document.documentElement.dataset.theme = supportedThemes.indexOf(theme) >= 0 ? theme : 'excellon';
+          document.documentElement.dataset.theme = 'excellon';
           document.documentElement.dataset.appearance = appearance === 'dark' ? 'dark' : 'light';
           document.documentElement.style.colorScheme = appearance === 'dark' ? 'dark' : 'light';
         } catch (error) {

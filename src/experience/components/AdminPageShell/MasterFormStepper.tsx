@@ -1,23 +1,11 @@
 import { X } from 'lucide-react';
 import React, { useState } from 'react';
+import { FieldHelpPopover } from '../FieldHelpPopover';
 import { HeaderIconButton } from '../PageHeader/HeaderIconButton';
-
-export type MasterFormStepState = 'default' | 'current' | 'complete' | 'partial' | 'disabled';
-export type MasterFormStepperMode = 'expanded' | 'collapsed' | 'drawer';
-
-export type MasterFormStep = {
-  id: string;
-  label: string;
-  description?: string;
-  count?: number;
-  disabled?: boolean;
-  state?: MasterFormStepState;
-  icon?: React.ReactNode;
-  tooltipLabel?: string;
-};
+import type { MasterFormStepItem, MasterFormStepperMode, MasterFormStepState } from './MasterFormStepper.types';
 
 type MasterFormStepperProps = {
-  steps: MasterFormStep[];
+  steps: MasterFormStepItem[];
   activeStepId: string;
   onStepChange?: (stepId: string) => void;
   mode?: MasterFormStepperMode;
@@ -79,7 +67,7 @@ export function MasterFormStepper({
     left: number;
   } | null>(null);
 
-  const showTooltip = (step: MasterFormStep, element: HTMLButtonElement) => {
+  const showTooltip = (step: MasterFormStepItem, element: HTMLButtonElement) => {
     const rect = element.getBoundingClientRect();
     setHoveredTooltip({
       id: step.id,
@@ -281,14 +269,25 @@ export function MasterFormStepper({
                 <span style={{ minWidth: 0 }}>
                   <span
                     style={{
-                      display: 'block',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
                       fontSize: '14px',
                       fontWeight: 400,
                       color: 'rgb(24, 24, 24)',
                       lineHeight: 1.3,
                     }}
                   >
-                    {step.label}
+                    <span>{step.label}</span>
+                    {step.tooltipDescription ? (
+                      <span onClick={(event) => event.stopPropagation()} onMouseDown={(event) => event.stopPropagation()}>
+                        <FieldHelpPopover
+                          title={step.tooltipTitle ?? step.label}
+                          description={step.tooltipDescription}
+                          example={step.tooltipExample}
+                        />
+                      </span>
+                    ) : null}
                   </span>
                 </span>
                 {typeof step.count === 'number' && (

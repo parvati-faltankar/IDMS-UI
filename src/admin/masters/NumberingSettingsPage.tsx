@@ -462,7 +462,7 @@ const PrefixDrawer: React.FC<PrefixDrawerProps> = ({ visible, isEdit, formData, 
       <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: `rgba(0,0,0,${visible ? 0.35 : 0})`, transition: 'background 0.25s ease' }} />
       {/* Panel */}
       <div style={{
-        position: 'absolute', right: 0, top: 0, bottom: 0, width: '480px',
+        position: 'absolute', right: 0, top: 0, bottom: 0, width: 'min(480px, 100vw)',
         background: 'var(--color-surface-subtle)', borderLeft: '1px solid var(--color-border)',
         display: 'flex', flexDirection: 'column',
         transform: visible ? 'translateX(0)' : 'translateX(100%)',
@@ -743,7 +743,7 @@ const CodeGenDrawer: React.FC<CodeGenDrawerProps> = ({ visible, isEdit, formData
     <div style={{ position: 'fixed', inset: 0, zIndex: 1200 }}>
       <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: `rgba(0,0,0,${visible ? 0.35 : 0})`, transition: 'background 0.25s ease' }} />
       <div style={{
-        position: 'absolute', right: 0, top: 0, bottom: 0, width: '520px',
+        position: 'absolute', right: 0, top: 0, bottom: 0, width: 'min(520px, 100vw)',
         background: 'var(--color-surface-subtle)', borderLeft: '1px solid var(--color-border)',
         display: 'flex', flexDirection: 'column',
         transform: visible ? 'translateX(0)' : 'translateX(100%)',

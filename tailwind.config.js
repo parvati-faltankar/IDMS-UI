@@ -6,30 +6,37 @@ export default {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        // Excellon DS typography: Noto Sans (UI), Poppins (display), Inter (data).
+        sans: ['Noto Sans', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
+        display: ['Strawford', 'Poppins', 'sans-serif'],
+        data: ['Inter', 'system-ui', 'sans-serif'],
+        mono: ['JetBrains Mono', 'SF Mono', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'monospace'],
+      },
       colors: {
-        // Primary Blue (Enterprise)
-        'primary': '#0066CC',
-        'primary-dark': '#0052A3',
-        
-        // Neutral palette (Slate)
+        // Brand — Excellon warm orange
+        'primary': '#eb6a2c',
+        'primary-dark': '#c44b1b',
+
+        // Neutral palette — Excellon DS cool slate ramp
         'slate': {
-          50: '#F8FAFC',
-          100: '#F1F5F9',
-          200: '#E2E8F0',
-          300: '#CBD5E1',
-          400: '#94A3B8',
-          500: '#64748B',
-          600: '#475569',
-          700: '#334155',
-          800: '#1E293B',
-          900: '#0F172A',
+          50: '#f4f7fa',
+          100: '#eff2f5',
+          200: '#dee4eb',
+          300: '#c3ccd6',
+          400: '#a8b5c2',
+          500: '#8593a3',
+          600: '#6a7682',
+          700: '#505862',
+          800: '#353b41',
+          900: '#1b1d21',
         },
-        
-        // Semantic colors
-        'success': '#10B981',
-        'warning': '#F59E0B',
-        'error': '#EF4444',
-        'info': '#3B82F6',
+
+        // Semantic colors — Excellon DS
+        'success': '#52c41a',
+        'warning': '#ffab00',
+        'error': '#f5222d',
+        'info': '#3697ff',
       },
       spacing: {
         '0.5': '0.125rem',  // 2px

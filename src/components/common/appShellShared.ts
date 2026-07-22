@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
 import {
   CalendarDays,
+  CarFront,
   ClipboardCheck,
   ClipboardList,
   FileCheck2,
@@ -71,10 +72,18 @@ export interface Level2Item {
   hideLabel?: boolean;
 }
 
+export interface FlyoutGroupItem {
+  key: string;
+  label: string;
+  icon?: LucideIcon;
+  items: Level3Item[];
+}
+
 export interface Level1Item {
   label: string;
   icon?: LucideIcon;
   level2: Level2Item[];
+  flyoutGroups?: FlyoutGroupItem[];
 }
 
 export interface SidebarComponentProps extends SidebarProps {
@@ -148,6 +157,28 @@ export const menuStructure: Level1Item[] = [
             icon: FolderKanban,
             route: '/approval-studio',
           },
+        ],
+      },
+    ],
+  },
+  {
+    label: 'Vehicle',
+    icon: CarFront,
+    level2: [
+      {
+        label: 'Procurement',
+        level3: [
+          { key: 'purchase-order', label: 'Purchase Order', icon: ShoppingCart },
+        ],
+      },
+    ],
+    flyoutGroups: [
+      {
+        key: 'vehicle-procurement',
+        label: 'Procurement',
+        icon: ClipboardList,
+        items: [
+          { key: 'purchase-order', label: 'Purchase Order', icon: ShoppingCart },
         ],
       },
     ],
@@ -291,7 +322,7 @@ export function getSpeechRecognitionConstructor(): BrowserSpeechRecognitionConst
 export function normalizeVoiceText(value: string) {
   return value
     .toLowerCase()
-    .replace(/[’']/g, '')
+    .replace(/[â€™']/g, '')
     .replace(/[^a-z0-9\s-]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -318,3 +349,10 @@ export function getWakeCommand(transcript: string) {
     command: normalizedTranscript.slice(wakePhraseMatch.index + wakePhraseMatch[0].length).trim(),
   };
 }
+
+
+
+
+
+
+

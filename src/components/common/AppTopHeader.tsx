@@ -1,20 +1,26 @@
 import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation } from 'react-router-dom';
 import {
   Bell,
   ChevronDown,
-  Grip,
+  ClipboardCheck,
+  FilePlus2,
   HelpCircle,
+  Keyboard,
+  MessageSquare,
   Layers,
   LayoutDashboard,
   LogOut,
   Mic,
   MicOff,
-  Palette,
+  Grip,
+  Plus,
   Printer,
+  ReceiptText,
   Settings,
-  Sparkles,
   Search,
+  ShoppingBag,
+  ShoppingCart,
+  Menu,
   UserCircle2,
   X,
 } from 'lucide-react';
@@ -43,8 +49,11 @@ import { useTheme } from '../../theme/useTheme';
 import { formatDate } from '../../utils/dateFormat';
 import { cn } from '../../utils/classNames';
 import { useLocalization } from '../../localization';
+import { paths } from '../../routes/routeConfig';
 import GlobalSearchPanel from './GlobalSearchPanel';
-import ThemeSwitcher from './ThemeSwitcher';
+import HeaderSettingsDialog from './HeaderSettingsDialog';
+import { HelpDrawer } from '../../experience/components/HelpDrawer';
+import { getHelpTopic } from '../../experience/help/helpTopics';
 import {
   type BrowserSpeechRecognition,
   getSpeechRecognitionConstructor,
@@ -56,7 +65,13 @@ import {
   type VoiceState,
 } from './appShellShared';
 
-const AIDocumentDrawer = React.lazy(() => import('../../features/ai-document/AIDocumentDrawer'));
+const getIsMastersWorkspace = () => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  return window.location.hash.replace(/^#/, '').startsWith(paths.adminMaster);
+};
 
 const AppTopHeader: React.FC<TopHeaderProps> = ({
   activeLeaf = 'purchase-requisition',
@@ -66,9 +81,8 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
   onFormLayoutClick,
   onBusinessSettingsClick,
 }) => {
-  const { t, enabledLanguages, selectedLanguageCode, setLanguage } = useLocalization();
+  const { t } = useLocalization();
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
-  const [isLanguageMenuOpen, setIsLanguageMenuOpen] = useState(false);
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
   const [selectedSearchScope, setSelectedSearchScope] = useState<SearchScopeId>('all');
   const [recentSearches, setRecentSearches] = useState<SearchRecentEntry[]>(() => loadRecentSearches());
@@ -81,9 +95,19 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
   const [voiceInsight, setVoiceInsight] = useState<SearchInsightMatch | null>(null);
   const [isVoicePanelOpen, setIsVoicePanelOpen] = useState(false);
   const [activeVoiceSuggestionIndex, setActiveVoiceSuggestionIndex] = useState(0);
-  const [isAIDrawerOpen, setIsAIDrawerOpen] = useState(false);
+  const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(false);
+  const [isHelpActionsOpen, setIsHelpActionsOpen] = useState(false);
+  const [helpTopicId, setHelpTopicId] = useState('admin-dashboard');
+  const [isHelpDrawerOpen, setIsHelpDrawerOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isMastersWorkspace, setIsMastersWorkspace] = useState(getIsMastersWorkspace);
+  const notificationCount = 3;
+  const quickActionsRef = useRef<HTMLDivElement | null>(null);
+  const quickActionTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const helpActionsRef = useRef<HTMLDivElement | null>(null);
+  const helpActionTriggerRef = useRef<HTMLButtonElement | null>(null);
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
-  const languageMenuRef = useRef<HTMLDivElement | null>(null);
+  const profileTriggerRef = useRef<HTMLButtonElement | null>(null);
   const globalSearchRef = useRef<HTMLDivElement | null>(null);
   const globalSearchInputRef = useRef<HTMLInputElement | null>(null);
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
@@ -106,6 +130,33 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
     ? `global-search-result-${flatSearchResults[resolvedActiveSearchIndex].entity}-${flatSearchResults[resolvedActiveSearchIndex].id}`
     : undefined;
   const isVoiceListening = voiceState === 'listening';
+
+  useEffect(() => {
+    const syncWorkspaceMode = () => {
+      setIsMastersWorkspace(getIsMastersWorkspace());
+    };
+
+    syncWorkspaceMode();
+    window.addEventListener('hashchange', syncWorkspaceMode);
+
+    return () => {
+      window.removeEventListener('hashchange', syncWorkspaceMode);
+    };
+  }, []);
+
+  const quickActions = [
+    { key: 'job-card', label: 'Job Card', href: '#/job-card', icon: <ClipboardCheck size={16} /> },
+    { key: 'service-estimate', label: 'Estimate', href: '#/service-estimate', icon: <FilePlus2 size={16} /> },
+    { key: 'purchase-order', label: 'Purchase Order', href: '#/purchase-order/new', icon: <ShoppingCart size={16} /> },
+    { key: 'sale-order', label: 'Sale Order', href: '#/sale-order/new', icon: <ShoppingBag size={16} /> },
+    { key: 'sale-invoice', label: 'Sale Invoice', href: '#/sale-invoice/new', icon: <ReceiptText size={16} /> },
+  ] as const;
+
+  const helpActions = [
+    { key: 'page-help', label: 'Help for this page', description: 'Contextual guidance for this page.', topicId: 'admin-dashboard', icon: <HelpCircle size={16} /> },
+    { key: 'keyboard-shortcuts', label: 'Keyboard shortcuts', description: 'Search, navigation and productivity commands.', topicId: 'keyboard-shortcuts', icon: <Keyboard size={16} /> },
+    { key: 'contact-support', label: 'Contact support', description: 'Create a support request with diagnostics.', topicId: 'contact-support', icon: <MessageSquare size={16} /> },
+  ] as const;
 
   useEffect(() => {
     voiceStateRef.current = voiceState;
@@ -149,14 +200,37 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
     }
   }
 
+  const closeHelpActions = () => {
+    setIsHelpActionsOpen(false);
+    window.setTimeout(() => helpActionTriggerRef.current?.focus(), 0);
+  };
+
+  const openHelpTopic = (topicId: string) => {
+    setHelpTopicId(topicId);
+    setIsHelpDrawerOpen(true);
+  };
+  const closeQuickActions = () => {
+    setIsQuickActionsOpen(false);
+    window.setTimeout(() => quickActionTriggerRef.current?.focus(), 0);
+  };
+
+  const closeSettings = () => {
+    setIsSettingsOpen(false);
+    window.setTimeout(() => profileTriggerRef.current?.focus(), 0);
+  };
+
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
       if (!profileMenuRef.current?.contains(event.target as Node)) {
         setIsProfileMenuOpen(false);
       }
 
-      if (!languageMenuRef.current?.contains(event.target as Node)) {
-        setIsLanguageMenuOpen(false);
+      if (!quickActionsRef.current?.contains(event.target as Node)) {
+        setIsQuickActionsOpen(false);
+      }
+
+      if (!helpActionsRef.current?.contains(event.target as Node)) {
+        setIsHelpActionsOpen(false);
       }
 
       if (!globalSearchRef.current?.contains(event.target as Node) && voiceState !== 'listening') {
@@ -170,11 +244,12 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
       if (event.key === 'Escape') {
         wakeListenerEnabledRef.current = false;
         setIsProfileMenuOpen(false);
-        setIsLanguageMenuOpen(false);
+        closeQuickActions();
+        closeHelpActions();
+        setIsHelpDrawerOpen(false);
         setIsGlobalSearchOpen(false);
         setIsVoicePanelOpen(false);
         setVoiceInsight(null);
-        setIsAIDrawerOpen(false);
         clearVoiceTimeout();
         recognitionRef.current?.abort();
       }
@@ -561,7 +636,7 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
           aria-label={isMobileNavOpen ? 'Close navigation' : isSidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
           aria-expanded={isMobileNavOpen || !isSidebarCollapsed}
         >
-          {isMobileNavOpen ? <X size={18} /> : <Grip size={16} />}
+          {isMobileNavOpen ? <X size={18} /> : <Menu size={16} />}
         </button>
         <span className="app-topbar__divider" aria-hidden="true" />
         <img
@@ -579,10 +654,24 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
         />
         <span className="app-topbar__divider app-topbar__divider--wide" aria-hidden="true" />
         <div className="app-topbar__module-label">{moduleLabel}</div>
-        <AdminModeToggle />
       </div>
 
       <div className="app-topbar__center">
+        <button
+          type="button"
+          className={cn('app-topbar__mobile-search-trigger', isGlobalSearchOpen && 'app-topbar__mobile-search-trigger--active')}
+          aria-label={t('header.searchPlaceholder')}
+          aria-haspopup="dialog"
+          aria-expanded={isGlobalSearchOpen}
+          onClick={() => {
+            setIsQuickActionsOpen(false);
+            setIsHelpActionsOpen(false);
+            setIsGlobalSearchOpen(true);
+            window.setTimeout(() => globalSearchInputRef.current?.focus(), 0);
+          }}
+        >
+          <Search size={16} />
+        </button>
         <div
           ref={globalSearchRef}
           className={cn('app-topbar__search-wrap', isGlobalSearchOpen && 'app-topbar__search-wrap--active')}
@@ -647,24 +736,24 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
                   <X size={14} />
                 </button>
               )}
+              <button
+                type="button"
+                className={cn(
+                  'app-topbar__voice-button',
+                  'app-topbar__voice-button--inside',
+                  isVoiceListening && 'app-topbar__voice-button--listening',
+                  voiceState === 'error' && 'app-topbar__voice-button--error'
+                )}
+                onClick={handleVoiceCommand}
+                aria-label={isVoiceListening ? 'Stop voice command' : 'Start voice command'}
+                aria-pressed={isVoiceListening}
+                title={isVoiceListening ? 'Stop listening' : 'Speak a command'}
+              >
+                {voiceState === 'unsupported' ? <MicOff size={16} /> : <Mic size={16} />}
+              </button>
             </div>
           </div>
 
-          <button
-            type="button"
-            className={cn(
-              'app-topbar__voice-button',
-              'app-topbar__voice-button--outside',
-              isVoiceListening && 'app-topbar__voice-button--listening',
-              voiceState === 'error' && 'app-topbar__voice-button--error'
-            )}
-            onClick={handleVoiceCommand}
-            aria-label={isVoiceListening ? 'Stop voice command' : 'Start voice command'}
-            aria-pressed={isVoiceListening}
-            title={isVoiceListening ? 'Stop listening' : 'Speak a command'}
-          >
-            {voiceState === 'unsupported' ? <MicOff size={16} /> : <Mic size={16} />}
-          </button>
 
           {shouldShowSearchPanel && (
             <GlobalSearchPanel
@@ -826,72 +915,139 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
       </div>
 
       <div className="app-topbar__right">
-        <button
-          type="button"
-          className="app-topbar__icon-button app-topbar__icon-button--secondary"
-          aria-label={t('header.aiAssistant')}
-          onClick={() => setIsAIDrawerOpen(true)}
-        >
-          <Sparkles size={18} className="app-topbar__icon" />
-        </button>
-
-        <ThemeSwitcher />
-
-        <div ref={languageMenuRef} className="app-topbar__language-menu">
+        <div ref={quickActionsRef} className="app-topbar__quick-actions">
           <button
+            ref={quickActionTriggerRef}
             type="button"
-            className={cn('app-topbar__language-trigger', isLanguageMenuOpen && 'app-topbar__language-trigger--open')}
-            aria-label={t('header.selectLanguage')}
-            aria-expanded={isLanguageMenuOpen}
-            onClick={() => setIsLanguageMenuOpen((current) => !current)}
+            className={cn(
+              'app-topbar__quick-action',
+              'app-topbar__quick-action-trigger',
+              isQuickActionsOpen && 'app-topbar__quick-action-trigger--open'
+            )}
+            aria-label="Quick actions"
+            aria-haspopup="menu"
+            aria-expanded={isQuickActionsOpen}
+            onClick={() => {
+              setIsHelpActionsOpen(false);
+              setIsQuickActionsOpen((current) => !current);
+            }}
           >
-            <span className="app-topbar__language-code">{selectedLanguageCode.toUpperCase()}</span>
-            <span className="app-topbar__language-name">
-              {enabledLanguages.find((language) => language.code === selectedLanguageCode)?.nativeName ?? selectedLanguageCode.toUpperCase()}
-            </span>
-            <ChevronDown size={14} className={cn('app-topbar__language-chevron', isLanguageMenuOpen && 'app-topbar__language-chevron--open')} />
+            <Plus size={16} />
           </button>
 
-          {isLanguageMenuOpen && (
-            <div className="app-topbar__dropdown app-topbar__dropdown--language" role="menu" aria-label={t('header.selectLanguage')}>
-              <div className="app-topbar__dropdown-label">{t('header.currentLanguage')}</div>
-              {enabledLanguages.map((language) => (
+          {isQuickActionsOpen && (
+            <div className="app-topbar__dropdown app-topbar__dropdown--quick-actions" role="menu" aria-label="Quick actions">
+              <div className="app-topbar__quick-actions-header">
+                <div className="app-topbar__quick-actions-copy">
+                  <div className="app-topbar__quick-actions-title">Quick actions</div>
+                </div>
                 <button
-                  key={language.code}
                   type="button"
-                  role="menuitemradio"
-                  aria-checked={language.code === selectedLanguageCode}
-                  className={cn(
-                    'app-topbar__dropdown-item app-topbar__dropdown-item--language',
-                    language.code === selectedLanguageCode && 'app-topbar__dropdown-item--active'
-                  )}
-                  onClick={() => {
-                    setLanguage(language.code);
-                    setIsLanguageMenuOpen(false);
-                  }}
+                  className="app-topbar__quick-actions-close"
+                  aria-label="Close quick actions"
+                  onClick={closeQuickActions}
                 >
-                  <span className="app-topbar__dropdown-item-copy">
-                    <strong>{language.nativeName}</strong>
-                    <small>{language.displayName}</small>
-                  </span>
-                  {language.isDefault && <span className="brand-badge brand-badge--draft">{t('common.default')}</span>}
+                  <X size={14} />
                 </button>
-              ))}
+              </div>
+
+              <div className="app-topbar__quick-actions-list">
+                {quickActions.map((action) => (
+                  <button
+                    key={action.key}
+                    type="button"
+                    role="menuitem"
+                    className={cn('app-topbar__dropdown-item app-topbar__dropdown-item--quick-action')}
+                    onClick={() => {
+                      closeQuickActions();
+                      navigateToHash(action.href);
+                    }}
+                  >
+                    <span className="app-topbar__quick-actions-item-icon">{action.icon}</span>
+                    <span className="app-topbar__dropdown-item-copy app-topbar__quick-actions-item-copy">
+                      <strong>{action.label}</strong>
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>
 
-        <button type="button" className="app-topbar__icon-button" aria-label={t('header.notifications')}>
-          <Bell size={18} className="app-topbar__icon" />
-          <span className="app-topbar__notification-dot" />
-        </button>
+        <div ref={helpActionsRef} className="app-topbar__help">
+          <button
+            ref={helpActionTriggerRef}
+            type="button"
+            className={cn('app-topbar__icon-button app-topbar__help-trigger', isHelpActionsOpen && 'app-topbar__help-trigger--open')}
+            aria-label="Help and support"
+            aria-haspopup="menu"
+            aria-expanded={isHelpActionsOpen}
+            onClick={() => {
+              setIsQuickActionsOpen(false);
+              setIsHelpActionsOpen((current) => !current);
+            }}
+          >
+            <HelpCircle size={18} className="app-topbar__icon" />
+          </button>
 
-        <button type="button" className="app-topbar__icon-button app-topbar__icon-button--secondary" aria-label={t('header.help')}>
-          <HelpCircle size={18} className="app-topbar__icon" />
+          {isHelpActionsOpen && (
+            <div className="app-topbar__dropdown app-topbar__dropdown--help" role="menu" aria-label="Help and support">
+              <div className="app-topbar__quick-actions-header">
+                <div className="app-topbar__help-copy">
+                  <div className="app-topbar__help-title">Help and support</div>
+                </div>
+                <button
+                  type="button"
+                  className="app-topbar__quick-actions-close"
+                  aria-label="Close help and support"
+                  onClick={closeHelpActions}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+
+              <div className="app-topbar__help-list">
+                {helpActions.map((action) => (
+                  <button
+                    key={action.key}
+                    type="button"
+                    role="menuitem"
+                    className="app-topbar__dropdown-item app-topbar__dropdown-item--help"
+                    onClick={() => {
+                      closeHelpActions();
+                      openHelpTopic(action.topicId);
+                    }}
+                  >
+                    <span className="app-topbar__help-item-icon">{action.icon}</span>
+                    <span className="app-topbar__dropdown-item-copy app-topbar__help-item-copy">
+                      <strong>{action.label}</strong>
+                      <small>{action.description}</small>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <button
+          type="button"
+          className="app-topbar__icon-button app-topbar__notification-button"
+          aria-label={t('header.notifications')}
+        >
+          <span className="app-topbar__notification-icon" aria-hidden="true">
+            <Bell size={18} className="app-topbar__icon" />
+          </span>
+          {notificationCount > 0 && (
+            <span className="app-topbar__notification-badge" aria-hidden="true">
+              <span className="app-topbar__notification-badge-count">{notificationCount}</span>
+            </span>
+          )}
         </button>
 
         <div ref={profileMenuRef} className="app-topbar__profile-menu">
           <button
+            ref={profileTriggerRef}
             type="button"
             onClick={() => setIsProfileMenuOpen((current) => !current)}
             className={cn('app-topbar__profile-trigger', isProfileMenuOpen && 'app-topbar__profile-trigger--open')}
@@ -911,13 +1067,55 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
 
           {isProfileMenuOpen && (
             <div className="app-topbar__dropdown" role="menu" aria-label="Profile actions">
+              <div className="app-topbar__profile-utility-group" role="group" aria-label="Workspace switcher">
+                <div className="app-topbar__theme-menu-copy">
+                  <span className="app-topbar__theme-menu-title">Workspace mode</span>
+                  <span className="app-topbar__theme-menu-subtitle">Switch between documents and master setup.</span>
+                </div>
+                <div className="app-topbar__mode-switcher--menu">
+                  <button
+                    type="button"
+                    className={cn('app-topbar__mode-button', !isMastersWorkspace && 'app-topbar__mode-button--active')}
+                    role="menuitemradio"
+                    aria-checked={!isMastersWorkspace}
+                    onClick={() => {
+                      setIsProfileMenuOpen(false);
+                      navigateToHash(`#${paths.home}`);
+                    }}
+                  >
+                    <ReceiptText size={14} />
+                    Transactions
+                  </button>
+                  <button
+                    type="button"
+                    className={cn('app-topbar__mode-button', isMastersWorkspace && 'app-topbar__mode-button--active')}
+                    role="menuitemradio"
+                    aria-checked={isMastersWorkspace}
+                    onClick={() => {
+                      setIsProfileMenuOpen(false);
+                      navigateToHash(`#${paths.adminMaster}`);
+                    }}
+                  >
+                    <Layers size={14} />
+                    Masters
+                  </button>
+                </div>
+              </div>
               <button type="button" className="app-topbar__dropdown-item" role="menuitem">
                 <UserCircle2 size={16} />
                 {t('header.profile')}
               </button>
-              <button type="button" className="app-topbar__dropdown-item" role="menuitem">
+              <button
+                type="button"
+                className="app-topbar__dropdown-item"
+                role="menuitem"
+                onClick={() => {
+                  setIsProfileMenuOpen(false);
+                  setIsSettingsOpen(true);
+                }}
+              >
                 <Settings size={16} />
-                {t('header.preferences')}
+                Settings
               </button>
               <button
                 type="button"
@@ -965,18 +1163,6 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
                 role="menuitem"
                 onClick={() => {
                   setIsProfileMenuOpen(false);
-                  navigateToHash('#/profile/theme-builder');
-                }}
-              >
-                <Palette size={16} />
-                {t('header.themeBuilder')}
-              </button>
-              <button
-                type="button"
-                className="app-topbar__dropdown-item"
-                role="menuitem"
-                onClick={() => {
-                  setIsProfileMenuOpen(false);
                   navigateToHash('#/profile/menu-builder');
                 }}
               >
@@ -1007,99 +1193,20 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
           )}
         </div>
       </div>
-
-      {isAIDrawerOpen && (
-        <React.Suspense fallback={null}>
-          <AIDocumentDrawer
-            isOpen={isAIDrawerOpen}
-            username="Alex Kumar"
-            onClose={() => setIsAIDrawerOpen(false)}
-            onViewDocument={(documentType, id) => {
-              const hash =
-                documentType === 'sale_order'
-                  ? `#/sale-order/new?id=${encodeURIComponent(id)}&mode=edit`
-                  : `#/purchase-order/new?id=${encodeURIComponent(id)}&mode=edit`;
-              navigateToHash(hash);
-              setIsAIDrawerOpen(false);
-            }}
-          />
-        </React.Suspense>
-      )}
+      <HeaderSettingsDialog
+        open={isSettingsOpen}
+        onClose={closeSettings}
+        onBusinessSettingsClick={onBusinessSettingsClick}
+        onFormLayoutClick={onFormLayoutClick}
+      />
+      <HelpDrawer
+        open={isHelpDrawerOpen}
+        topic={getHelpTopic(helpTopicId)}
+        onClose={() => setIsHelpDrawerOpen(false)}
+        onTopicChange={(id) => setHelpTopicId(id)}
+        titleFallback="Help and support"
+      />
     </header>
-  );
-};
-
-// ─── Admin Mode Toggle ────────────────────────────────────────────────────────
-
-const AdminModeToggle: React.FC = () => {
-  const location = useLocation();
-  const isAdminMode = location.pathname.startsWith('/admin');
-
-  const handleTransaction = () => navigateToHash('#/purchase-requisition');
-  const handleAdmin = () => navigateToHash('#/admin');
-
-  const containerStyle: React.CSSProperties = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    background: 'rgba(255,255,255,0.09)',
-    borderRadius: '10px',
-    padding: '3px',
-    gap: '2px',
-    marginLeft: '8px',
-    flexShrink: 0,
-  };
-
-  const baseButtonStyle: React.CSSProperties = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '5px',
-    padding: '4px 10px',
-    borderRadius: '7px',
-    fontSize: '12px',
-    fontWeight: 500,
-    cursor: 'pointer',
-    border: 'none',
-    transition: 'all 0.18s ease',
-    whiteSpace: 'nowrap' as const,
-    lineHeight: 1.4,
-  };
-
-  const activeStyle: React.CSSProperties = {
-    ...baseButtonStyle,
-    background: 'rgba(255,255,255,0.18)',
-    color: 'rgba(255,255,255,0.97)',
-    boxShadow: '0 1px 4px rgba(0,0,0,0.25)',
-  };
-
-  const inactiveStyle: React.CSSProperties = {
-    ...baseButtonStyle,
-    background: 'transparent',
-    color: 'rgba(255,255,255,0.60)',
-  };
-
-  return (
-    <div style={containerStyle} role="group" aria-label="Application mode">
-      <button
-        type="button"
-        style={!isAdminMode ? activeStyle : inactiveStyle}
-        onClick={handleTransaction}
-        aria-pressed={!isAdminMode}
-        title="Switch to Transaction mode"
-      >
-        <Layers size={12} />
-        <span>Transaction</span>
-      </button>
-      <button
-        type="button"
-        style={isAdminMode ? { ...activeStyle, background: 'rgba(99,102,241,0.45)' } : inactiveStyle}
-        onClick={handleAdmin}
-        aria-pressed={isAdminMode}
-        title="Switch to Admin / Master setup mode"
-      >
-        <Settings size={12} />
-        <span>Admin</span>
-      </button>
-    </div>
   );
 };
 

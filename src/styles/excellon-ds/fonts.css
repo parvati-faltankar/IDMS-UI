@@ -1,0 +1,12 @@
+/* Excellon Design System — web fonts.
+   Noto Sans (primary UI / body), Inter (data / numerals / IDs),
+   Poppins (display / headings — stands in for the licensed Strawford face).
+   Drop licensed Strawford web-font files in and replace the @font-face src
+   below for pixel-accurate display type. */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap');
+
+/* Alias so `Strawford` resolves to the Poppins substitute until real files exist. */
+@font-face { font-family: "Strawford"; font-style: normal; font-weight: 400; font-display: swap; src: local("Poppins"), local("Poppins-Regular"); }
+@font-face { font-family: "Strawford"; font-style: normal; font-weight: 500; font-display: swap; src: local("Poppins Medium"), local("Poppins-Medium"); }
+@font-face { font-family: "Strawford"; font-style: normal; font-weight: 600; font-display: swap; src: local("Poppins SemiBold"), local("Poppins-SemiBold"); }
+@font-face { font-family: "Strawford"; font-style: normal; font-weight: 700; font-display: swap; src: local("Poppins Bold"), local("Poppins-Bold"); }

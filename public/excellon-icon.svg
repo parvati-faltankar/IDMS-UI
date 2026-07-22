@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Excellon">
+  <!-- PLACEHOLDER brand mark. Full-bleed orange keeps it maskable-safe; the
+       chevron sits inside the maskable safe zone. Replace with the official
+       EXCELLON logo (PNG set 192/512 + maskable) when available. -->
+  <rect width="512" height="512" fill="#eb6a2c"/>
+  <path d="M188 148 L320 256 L188 364" fill="none" stroke="#ffffff" stroke-width="52" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

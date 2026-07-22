@@ -183,7 +183,7 @@ export function LocationBulkCreateDrawer({
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 1800, background: 'rgba(15, 23, 42, 0.28)', display: 'flex', justifyContent: 'flex-end' }}>
-      <div style={{ width: '560px', maxWidth: '100%', height: '100%', background: 'var(--color-surface)', borderLeft: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ width: 'min(560px, 100vw)', maxWidth: '100%', height: '100%', background: 'var(--color-surface)', borderLeft: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 18px', borderBottom: '1px solid var(--color-border)' }}>
           <div>
             <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text)' }}>

@@ -1,0 +1,38 @@
+/* ==========================================================================
+   Excellon DS — cross-browser normalizations (evergreen target)
+   Last 2 versions of Chrome/Edge/Firefox/Safari + iOS Safari & Android Chrome.
+   Safe, additive rules only — no functional/behavioral change.
+   ========================================================================== */
+
+:root {
+  /* Prevent iOS/Android auto-inflating text in landscape. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  /* Remove the grey tap-flash on touch devices. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Form controls inherit the DS font across engines (some browsers default
+   native controls to a system face). MUI controls set their own font at a
+   higher specificity, so they are unaffected. */
+input,
+textarea,
+select,
+button {
+  font-family: inherit;
+}
+
+/* Honour the OS "reduce motion" setting consistently across browsers. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,10 +1,11 @@
-// ─── Service Type Master — Smart Wizard Form ─────────────────────────────────
+// â”€â”€â”€ Service Type Master â€” Smart Wizard Form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AlertCircle, CalendarClock, ChevronDown, ChevronRight, FileText, HandCoins, Settings2, ShieldCheck, Users } from 'lucide-react';
 import AdminShell from '../../../AdminShell';
 import { MasterCreateFormShell } from '../../../../experience/components';
+import { FieldHelpPopover } from '../../../../experience/components/FieldHelpPopover';
 import { HelpDrawer } from '../../../../experience/components/HelpDrawer';
 import { getHelpTopic } from '../../../../experience/help/helpTopics';
 import { findGroupForMasterKey, findMasterByKey } from '../../../adminNavConfig';
@@ -64,19 +65,20 @@ import { BillingRatioGrid } from '../components/BillingRatioGrid';
 import { ProductApplicabilityGrid } from '../components/ProductApplicabilityGrid';
 import { ContractRelationSection } from '../components/ContractRelationSection';
 import { AttributeTaggingGrid } from '../components/AttributeTaggingGrid';
+import { STEP_HELP, FIELD_HELP, describeHelp, type ServiceTypeHelpKey } from '../serviceTypeHelp';
 
-// ─── Wizard step definitions ──────────────────────────────────────────────────
+// â”€â”€â”€ Wizard step definitions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const WIZARD_STEPS = [
-  { index: 0, label: 'Service Identity' },
-  { index: 1, label: 'Billing & Contract' },
-  { index: 2, label: 'Asset & Scheduling' },
-  { index: 3, label: 'Team & Delivery' },
-  { index: 4, label: 'Safety & SLA' },
-  { index: 5, label: 'Advanced Settings' },
-];
+  { index: 0, label: 'Service Identity', helpKey: 'serviceIdentityStep' },
+  { index: 1, label: 'Billing & Contract', helpKey: 'billingContractStep' },
+  { index: 2, label: 'Asset & Scheduling', helpKey: 'assetSchedulingStep' },
+  { index: 3, label: 'Team & Delivery', helpKey: 'teamDeliveryStep' },
+  { index: 4, label: 'Safety & SLA', helpKey: 'safetySlaStep' },
+  { index: 5, label: 'Advanced Settings', helpKey: 'advancedSettingsStep' },
+] as const;
 
-// ─── Profile display meta (for badge in Step 0) ──────────────────────────────
+// â”€â”€â”€ Profile display meta (for badge in Step 0) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const PROFILE_META: Record<ServiceProfile, { label: string; accent: string }> = {
   warranty: { label: 'Warranty Service',     accent: '#2563EB' },
@@ -87,7 +89,7 @@ const PROFILE_META: Record<ServiceProfile, { label: string; accent: string }> = 
   custom:   { label: 'Custom',               accent: '#6B7280' },
 };
 
-// ─── Shared style constants ───────────────────────────────────────────────────
+// â”€â”€â”€ Shared style constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const inputBase: React.CSSProperties = { width: '100%', padding: '9px 12px', fontSize: '13px', border: '1px solid var(--color-border)', borderRadius: '8px', background: 'var(--color-surface)', color: 'var(--color-text)', outline: 'none', boxSizing: 'border-box' };
 const inputErr: React.CSSProperties  = { ...inputBase, border: '1px solid #FCA5A5' };
@@ -101,21 +103,51 @@ const sectionCard: React.CSSProperties = { border: '1px solid var(--color-border
 const sCardHead: React.CSSProperties   = { padding: '12px 20px', borderBottom: '1px solid var(--color-border)', background: 'var(--color-surface-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' };
 const sCardBody: React.CSSProperties   = { padding: '20px 24px', background: 'var(--color-surface)' };
 
-// ─── Reusable micro-components ────────────────────────────────────────────────
+// â”€â”€â”€ Reusable micro-components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-function CB({ checked, onChange, label, disabled }: { checked: boolean; onChange: (v: boolean) => void; label: string; disabled?: boolean }) {
+function LabelWithInfo({
+  label,
+  helpKey,
+  required = false,
+  muted = false,
+}: {
+  label: string;
+  helpKey: ServiceTypeHelpKey;
+  required?: boolean;
+  muted?: boolean;
+}) {
+  const help = FIELD_HELP[helpKey];
+  const textStyle = muted ? labelMuted : labelBase;
+
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', ...textStyle }}>
+      <span>
+        {label}
+        {required ? ' *' : ''}
+      </span>
+      <FieldHelpPopover title={help.title} description={describeHelp(help)} example={help.example} />
+    </span>
+  );
+}
+
+function CB({ checked, onChange, label, disabled, helpKey }: { checked: boolean; onChange: (v: boolean) => void; label: string; disabled?: boolean; helpKey?: ServiceTypeHelpKey }) {
   return (
     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', cursor: disabled ? 'not-allowed' : 'pointer', userSelect: 'none', opacity: disabled ? 0.5 : 1 }}>
       <input type="checkbox" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} style={{ width: '14px', height: '14px' }} />
-      {label}
+      {helpKey ? (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
+          <span>{label}</span>
+          <FieldHelpPopover title={FIELD_HELP[helpKey].title} description={describeHelp(FIELD_HELP[helpKey])} example={FIELD_HELP[helpKey].example} />
+        </span>
+      ) : label}
     </label>
   );
 }
 
-function MultiChips({ label, options, selected, onChange, muted }: { label: string; options: string[]; selected: string[]; onChange: (v: string[]) => void; muted?: boolean }) {
+function MultiChips({ label, options, selected, onChange, muted, helpKey }: { label: string; options: string[]; selected: string[]; onChange: (v: string[]) => void; muted?: boolean; helpKey: ServiceTypeHelpKey }) {
   return (
     <div style={fw}>
-      <label style={muted ? labelMuted : labelBase}>{label}</label>
+      <LabelWithInfo label={label} helpKey={helpKey} muted={muted} />
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
         {options.map((opt) => {
           const on = selected.includes(opt);
@@ -149,10 +181,10 @@ function SegmentedControl({ options, value, onChange, error }: { options: Array<
   );
 }
 
-function OptionCards<T extends string>({ label, options, value, onChange }: { label: string; options: Array<{ value: T; label: string; desc?: string }>; value: T | ''; onChange: (v: T) => void }) {
+function OptionCards<T extends string>({ label, options, value, onChange, helpKey }: { label: string; options: Array<{ value: T; label: string; desc?: string }>; value: T | ''; onChange: (v: T) => void; helpKey: ServiceTypeHelpKey }) {
   return (
     <div style={fw}>
-      <label style={labelBase}>{label}</label>
+      <LabelWithInfo label={label} helpKey={helpKey} />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
         {options.map((opt) => {
           const active = value === opt.value;
@@ -187,9 +219,6 @@ function AccordionGroup({ title, children, badge }: { title: string; children: R
     </div>
   );
 }
-
-// ─── Main Component ───────────────────────────────────────────────────────────
-
 const ServiceTypeFormPage: React.FC = () => {
   const { recordId } = useParams<{ recordId: string }>();
   const navigate = useNavigate();
@@ -340,7 +369,7 @@ const ServiceTypeFormPage: React.FC = () => {
     );
   }
 
-  // ── Step renderers ────────────────────────────────────────────────────────
+  // â”€â”€ Step renderers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   function renderStep0() {
     const meta = selectedProfile ? PROFILE_META[selectedProfile] : null;
@@ -359,21 +388,21 @@ const ServiceTypeFormPage: React.FC = () => {
           <div style={sCardBody}>
             <div style={twoCol}>
               <div style={fw}>
-                <label style={labelBase}>Service Type Name <span style={{ color: '#DC2626' }}>*</span></label>
+                <LabelWithInfo label="Service Type Name" helpKey="serviceTypeName" required />
                 <input value={form.name} onChange={(e) => setF('name', e.target.value)} style={fieldErrors.name ? inputErr : inputBase} placeholder="e.g. Annual Maintenance Contract" autoFocus />
                 {fieldErrors.name && <span style={errTxt}>{fieldErrors.name}</span>}
               </div>
               <div style={fw}>
-                <label style={labelBase}>Posting Type <span style={{ color: '#DC2626' }}>*</span></label>
+                <LabelWithInfo label="Posting Type" helpKey="postingType" required />
                 <select value={form.postingType} onChange={(e) => setF('postingType', e.target.value as PostingType | '')} style={fieldErrors.postingType ? inputErr : inputBase}>
-                  <option value="">— Select —</option>
+                  <option value="">â€” Select â€”</option>
                   {POSTING_TYPE_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
                 </select>
                 {fieldErrors.postingType && <span style={errTxt}>{fieldErrors.postingType}</span>}
               </div>
             </div>
             <div style={fw}>
-              <label style={labelMuted}>Description (optional)</label>
+              <LabelWithInfo label="Description (optional)" helpKey="description" muted />
               <textarea value={form.description} onChange={(e) => setF('description', e.target.value)} rows={3} placeholder="Brief description of what this service type covers..." style={{ ...inputBase, resize: 'vertical' as const }} />
             </div>
           </div>
@@ -392,7 +421,7 @@ const ServiceTypeFormPage: React.FC = () => {
           </div>
           <div style={sCardBody}>
             <div style={fw}>
-              <label style={labelBase}>Used as <span style={{ color: '#DC2626' }}>*</span></label>
+              <LabelWithInfo label="Used as" helpKey="usedAs" required />
               <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '10px' }}>How does this service type appear on transactions?</div>
               <SegmentedControl
                 options={[{ value: 'header', label: 'Header' }, { value: 'line', label: 'Line Item' }, { value: 'both', label: 'Both' }]}
@@ -400,9 +429,9 @@ const ServiceTypeFormPage: React.FC = () => {
               />
             </div>
             <div style={{ display: 'flex', gap: '28px', flexWrap: 'wrap' }}>
-              <CB checked={form.saleable}    onChange={(v) => setF('saleable', v)}    label="Saleable" />
-              <CB checked={form.taxExempted} onChange={(v) => setF('taxExempted', v)} label="Tax Exempted" />
-              <CB checked={form.active}      onChange={(v) => setF('active', v)}      label="Active" />
+              <CB checked={form.saleable}    onChange={(v) => setF('saleable', v)}    label="Saleable" helpKey="saleable" />
+              <CB checked={form.taxExempted} onChange={(v) => setF('taxExempted', v)} label="Tax Exempted" helpKey="taxExempted" />
+              <CB checked={form.active}      onChange={(v) => setF('active', v)}      label="Active" helpKey="active" />
             </div>
           </div>
         </div>
@@ -411,13 +440,13 @@ const ServiceTypeFormPage: React.FC = () => {
         <div style={sectionCard}>
           <div style={sCardHead}>
             <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-text)' }}>Billing</span>
-            <CB checked={form.isRatioApplicable} onChange={(v) => setF('isRatioApplicable', v)} label="Billing Ratio Applicable" />
+            <CB checked={form.isRatioApplicable} onChange={(v) => setF('isRatioApplicable', v)} label="Billing Ratio Applicable" helpKey="billingRatioApplicable" />
           </div>
           <div style={sCardBody}>
             <div style={fw}>
-              <label style={labelBase}>Billing Responsibility</label>
+              <LabelWithInfo label="Billing Responsibility" helpKey="billingResponsibility" />
               <select value={form.billingResponsibility} onChange={(e) => setF('billingResponsibility', e.target.value as BillingResponsibility | '')} style={{ ...inputBase, maxWidth: '340px' }}>
-                <option value="">— Select —</option>
+                <option value="">â€” Select â€”</option>
                 {BILLING_RESPONSIBILITY_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
               </select>
             </div>
@@ -434,22 +463,22 @@ const ServiceTypeFormPage: React.FC = () => {
           </div>
           <div style={sCardBody}>
             <div style={fw}>
-              <CB checked={form.contractRequired} onChange={(v) => setF('contractRequired', v)} label="Contract Required" />
+              <CB checked={form.contractRequired} onChange={(v) => setF('contractRequired', v)} label="Contract Required" helpKey="contractRequired" />
               <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '4px', marginLeft: '22px' }}>Service can only be availed against a valid contract</div>
             </div>
             {form.contractRequired && (
               <div style={twoCol}>
                 <div style={fw}>
-                  <label style={labelMuted}>Contract Operator</label>
+                  <LabelWithInfo label="Contract Operator" helpKey="contractOperator" muted />
                   <select value={form.contractOperator} onChange={(e) => setF('contractOperator', e.target.value as ContractOperator | '')} style={inputBase}>
-                    <option value="">— None —</option>
+                    <option value="">â€” None â€”</option>
                     {CONTRACT_OPERATOR_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
                   </select>
                 </div>
                 <div style={fw}>
-                  <label style={labelMuted}>Applicable Contract</label>
+                  <LabelWithInfo label="Applicable Contract" helpKey="applicableContract" muted />
                   <select value={form.applicableContract} onChange={(e) => setF('applicableContract', e.target.value)} style={inputBase}>
-                    <option value="">— None —</option>
+                    <option value="">â€” None â€”</option>
                     {MOCK_CONTRACTS.map((c) => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
@@ -474,6 +503,7 @@ const ServiceTypeFormPage: React.FC = () => {
           <div style={sCardBody}>
             <OptionCards
               label="How is recurrence tracked?"
+              helpKey="recurrenceTracking"
               options={[
                 { value: 'none',     label: 'None',        desc: 'No restriction' },
                 { value: 'meter',    label: 'By Meter',    desc: 'KM / Hours / Cycles' },
@@ -486,15 +516,15 @@ const ServiceTypeFormPage: React.FC = () => {
             {showMeter && (
               <div style={twoCol}>
                 <div style={fw}>
-                  <label style={labelBase}>Meter Reading Type <span style={{ color: '#DC2626' }}>*</span></label>
+                  <LabelWithInfo label="Meter Reading Type" helpKey="meterReadingType" required />
                   <select value={form.meterReadingType} onChange={(e) => setF('meterReadingType', e.target.value as MeterReadingType | '')} style={fieldErrors.meterReadingType ? inputErr : inputBase}>
-                    <option value="">— Select —</option>
+                    <option value="">â€” Select â€”</option>
                     {METER_READING_TYPE_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
                   </select>
                   {fieldErrors.meterReadingType && <span style={errTxt}>{fieldErrors.meterReadingType}</span>}
                 </div>
                 <div style={fw}>
-                  <label style={labelBase}>Meter Reading Value <span style={{ color: '#DC2626' }}>*</span></label>
+                  <LabelWithInfo label="Meter Reading Value" helpKey="meterReadingValue" required />
                   <input type="number" min={0} value={form.meterReading} onChange={(e) => setF('meterReading', e.target.value)} style={fieldErrors.meterReading ? inputErr : inputBase} placeholder="e.g. 10000" />
                   {fieldErrors.meterReading && <span style={errTxt}>{fieldErrors.meterReading}</span>}
                 </div>
@@ -503,15 +533,15 @@ const ServiceTypeFormPage: React.FC = () => {
             {showDuration && (
               <div style={twoCol}>
                 <div style={fw}>
-                  <label style={labelBase}>Duration Type <span style={{ color: '#DC2626' }}>*</span></label>
+                  <LabelWithInfo label="Duration Type" helpKey="durationType" required />
                   <select value={form.durationType} onChange={(e) => setF('durationType', e.target.value as DurationType | '')} style={fieldErrors.durationType ? inputErr : inputBase}>
-                    <option value="">— Select —</option>
+                    <option value="">â€” Select â€”</option>
                     {DURATION_TYPE_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
                   </select>
                   {fieldErrors.durationType && <span style={errTxt}>{fieldErrors.durationType}</span>}
                 </div>
                 <div style={fw}>
-                  <label style={labelBase}>Duration Value <span style={{ color: '#DC2626' }}>*</span></label>
+                  <LabelWithInfo label="Duration Value" helpKey="durationValue" required />
                   <input type="number" min={1} value={form.durationValue} onChange={(e) => setF('durationValue', e.target.value)} style={fieldErrors.durationValue ? inputErr : inputBase} placeholder="e.g. 12" />
                   {fieldErrors.durationValue && <span style={errTxt}>{fieldErrors.durationValue}</span>}
                 </div>
@@ -519,8 +549,8 @@ const ServiceTypeFormPage: React.FC = () => {
             )}
             {recurrenceMode === 'both' && (
               <div style={fw}>
-                <label style={labelBase}>Operator (when both apply)</label>
-                <SegmentedControl options={[{ value: 'AND', label: 'AND — whichever comes first' }, { value: 'OR', label: 'OR — either is sufficient' }]} value={form.operator} onChange={(v) => setF('operator', v as '' | OperatorType)} />
+                <LabelWithInfo label="Operator (when both apply)" helpKey="recurrenceOperator" />
+                <SegmentedControl options={[{ value: 'AND', label: 'AND â€” whichever comes first' }, { value: 'OR', label: 'OR â€” either is sufficient' }]} value={form.operator} onChange={(v) => setF('operator', v as '' | OperatorType)} />
               </div>
             )}
           </div>
@@ -533,20 +563,20 @@ const ServiceTypeFormPage: React.FC = () => {
           </div>
           <div style={sCardBody}>
             <div style={fw}>
-              <CB checked={form.installedAssetRequired} onChange={(v) => setF('installedAssetRequired', v)} label="Installed Asset Required" />
+              <CB checked={form.installedAssetRequired} onChange={(v) => setF('installedAssetRequired', v)} label="Installed Asset Required" helpKey="installedAssetRequired" />
               <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '4px', marginLeft: '22px' }}>Service requires a registered asset to be linked</div>
             </div>
             {form.installedAssetRequired && (
               <div style={twoCol}>
                 <div style={fw}>
-                  <label style={labelMuted}>Asset Identification Level</label>
+                  <LabelWithInfo label="Asset Identification Level" helpKey="assetIdentificationLevel" muted />
                   <select value={form.assetIdentificationLevel} onChange={(e) => setF('assetIdentificationLevel', e.target.value as AssetIdentificationLevel | '')} style={inputBase}>
-                    <option value="">— Select —</option>
+                    <option value="">â€” Select â€”</option>
                     {ASSET_ID_LEVEL_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
                   </select>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: '18px' }}>
-                  <CB checked={form.multiAssetServiceAllowed} onChange={(v) => setF('multiAssetServiceAllowed', v)} label="Multi-Asset Allowed" />
+                  <CB checked={form.multiAssetServiceAllowed} onChange={(v) => setF('multiAssetServiceAllowed', v)} label="Multi-Asset Allowed" helpKey="multiAssetServiceAllowed" />
                 </div>
               </div>
             )}
@@ -561,21 +591,21 @@ const ServiceTypeFormPage: React.FC = () => {
           <div style={sCardBody}>
             <div style={twoCol}>
               <div style={fw}>
-                <label style={labelBase}>Standard Service Duration (hours)</label>
+                <LabelWithInfo label="Standard Service Duration (hours)" helpKey="standardServiceDuration" />
                 <input type="number" min={0} step={0.5} value={form.standardServiceDuration} onChange={(e) => setF('standardServiceDuration', e.target.value)} style={inputBase} placeholder="e.g. 2" />
               </div>
             </div>
             <div style={fw}>
-              <CB checked={form.serviceTimeWindowRequired} onChange={(v) => setF('serviceTimeWindowRequired', v)} label="Service Time Window Required" />
+              <CB checked={form.serviceTimeWindowRequired} onChange={(v) => setF('serviceTimeWindowRequired', v)} label="Service Time Window Required" helpKey="serviceTimeWindowRequired" />
             </div>
             {form.serviceTimeWindowRequired && (
               <div style={twoCol}>
                 <div style={fw}>
-                  <label style={labelMuted}>Window From <span style={{ color: '#DC2626' }}>*</span></label>
+                  <LabelWithInfo label="Window From" helpKey="windowFrom" required muted />
                   <input type="time" value={form.defaultServiceWindowFrom} onChange={(e) => setF('defaultServiceWindowFrom', e.target.value)} style={fieldErrors.defaultServiceWindowFrom ? inputErr : inputBase} />
                 </div>
                 <div style={fw}>
-                  <label style={labelMuted}>Window To <span style={{ color: '#DC2626' }}>*</span></label>
+                  <LabelWithInfo label="Window To" helpKey="windowTo" required muted />
                   <input type="time" value={form.defaultServiceWindowTo} onChange={(e) => setF('defaultServiceWindowTo', e.target.value)} style={fieldErrors.defaultServiceWindowTo ? inputErr : inputBase} />
                 </div>
               </div>
@@ -597,16 +627,16 @@ const ServiceTypeFormPage: React.FC = () => {
           <div style={sCardBody}>
             <div style={twoCol}>
               <div style={fw}>
-                <label style={labelBase}>Service Delivery Mode</label>
+                <LabelWithInfo label="Service Delivery Mode" helpKey="serviceDeliveryMode" />
                 <select value={form.serviceDeliveryMode} onChange={(e) => setF('serviceDeliveryMode', e.target.value as ServiceDeliveryMode | '')} style={inputBase}>
-                  <option value="">— Select —</option>
+                  <option value="">â€” Select â€”</option>
                   {SERVICE_DELIVERY_MODE_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
                 </select>
               </div>
               <div style={fw}>
-                <label style={labelBase}>Service Provider Type</label>
+                <LabelWithInfo label="Service Provider Type" helpKey="serviceProviderType" />
                 <select value={form.serviceProviderType} onChange={(e) => setF('serviceProviderType', e.target.value as ServiceProviderType | '')} style={inputBase}>
-                  <option value="">— Select —</option>
+                  <option value="">â€” Select â€”</option>
                   {SERVICE_PROVIDER_TYPE_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
                 </select>
               </div>
@@ -620,9 +650,9 @@ const ServiceTypeFormPage: React.FC = () => {
             <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-text)' }}>Skills & Certifications</span>
           </div>
           <div style={sCardBody}>
-            <MultiChips label="Required Skills" options={MOCK_SKILLS} selected={form.requiredSkill} onChange={(v) => setF('requiredSkill', v)} />
-            <MultiChips label="Required Certifications" options={MOCK_CERTIFICATIONS} selected={form.requiredCertification} onChange={(v) => setF('requiredCertification', v)} />
-            <MultiChips label="Applicable Territories" options={MOCK_TERRITORIES} selected={form.applicableServiceTerritory} onChange={(v) => setF('applicableServiceTerritory', v)} />
+            <MultiChips label="Required Skills" helpKey="requiredSkills" options={MOCK_SKILLS} selected={form.requiredSkill} onChange={(v) => setF('requiredSkill', v)} />
+            <MultiChips label="Required Certifications" helpKey="requiredCertifications" options={MOCK_CERTIFICATIONS} selected={form.requiredCertification} onChange={(v) => setF('requiredCertification', v)} />
+            <MultiChips label="Applicable Territories" helpKey="applicableTerritories" options={MOCK_TERRITORIES} selected={form.applicableServiceTerritory} onChange={(v) => setF('applicableServiceTerritory', v)} />
           </div>
         </div>
 
@@ -633,12 +663,12 @@ const ServiceTypeFormPage: React.FC = () => {
           </div>
           <div style={sCardBody}>
             <div style={{ display: 'flex', gap: '28px', flexWrap: 'wrap', alignItems: 'center' }}>
-              <CB checked={form.crewRequired} onChange={(v) => setF('crewRequired', v)} label="Crew Required" />
-              <CB checked={form.remoteServiceAllowed} onChange={(v) => setF('remoteServiceAllowed', v)} label="Remote Service Allowed" />
+              <CB checked={form.crewRequired} onChange={(v) => setF('crewRequired', v)} label="Crew Required" helpKey="crewRequired" />
+              <CB checked={form.remoteServiceAllowed} onChange={(v) => setF('remoteServiceAllowed', v)} label="Remote Service Allowed" helpKey="remoteServiceAllowed" />
             </div>
             {form.crewRequired && (
               <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <label style={labelBase}>Minimum Technicians</label>
+                <LabelWithInfo label="Minimum Technicians" helpKey="minimumTechnicians" />
                 <input type="number" min={1} value={form.minimumTechnicianCount} onChange={(e) => setF('minimumTechnicianCount', e.target.value)} style={{ ...inputBase, maxWidth: '100px' }} />
               </div>
             )}
@@ -658,13 +688,13 @@ const ServiceTypeFormPage: React.FC = () => {
           </div>
           <div style={sCardBody}>
             <div style={fw}>
-              <CB checked={form.safetyPermitRequired} onChange={(v) => setF('safetyPermitRequired', v)} label="Safety Permit Required" />
+              <CB checked={form.safetyPermitRequired} onChange={(v) => setF('safetyPermitRequired', v)} label="Safety Permit Required" helpKey="safetyPermitRequired" />
             </div>
             {form.safetyPermitRequired && (
               <div style={fw}>
-                <label style={labelBase}>Safety Checklist Template <span style={{ color: '#DC2626' }}>*</span></label>
+                <LabelWithInfo label="Safety Checklist Template" helpKey="safetyChecklistTemplate" required />
                 <select value={form.safetyChecklistTemplate} onChange={(e) => setF('safetyChecklistTemplate', e.target.value)} style={fieldErrors.safetyChecklistTemplate ? inputErr : inputBase}>
-                  <option value="">— Select template —</option>
+                  <option value="">â€” Select template â€”</option>
                   {MOCK_CHECKLIST_TEMPLATES.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
                 {fieldErrors.safetyChecklistTemplate && <span style={errTxt}>{fieldErrors.safetyChecklistTemplate}</span>}
@@ -680,27 +710,27 @@ const ServiceTypeFormPage: React.FC = () => {
           </div>
           <div style={sCardBody}>
             <div style={fw}>
-              <label style={labelBase}>SLA Profile</label>
+              <LabelWithInfo label="SLA Profile" helpKey="slaProfile" />
               <select value={form.slaProfile} onChange={(e) => setF('slaProfile', e.target.value)} style={inputBase}>
-                <option value="">— None —</option>
+                <option value="">â€” None â€”</option>
                 {MOCK_SLA_PROFILES.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
             {form.slaProfile && (
               <div style={threeCol}>
                 <div style={fw}>
-                  <label style={labelMuted}>SLA Calendar</label>
+                  <LabelWithInfo label="SLA Calendar" helpKey="slaCalendar" muted />
                   <select value={form.slaCalendar} onChange={(e) => setF('slaCalendar', e.target.value as SLACalendarType | '')} style={inputBase}>
-                    <option value="">— Select —</option>
+                    <option value="">â€” Select â€”</option>
                     {SLA_CALENDAR_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
                   </select>
                 </div>
                 <div style={fw}>
-                  <label style={labelMuted}>Response SLA (hrs)</label>
+                  <LabelWithInfo label="Response SLA (hrs)" helpKey="responseSla" muted />
                   <input type="number" min={0} value={form.responseSLA} onChange={(e) => setF('responseSLA', e.target.value)} style={inputBase} placeholder="4" />
                 </div>
                 <div style={fw}>
-                  <label style={labelMuted}>Resolution SLA (hrs)</label>
+                  <LabelWithInfo label="Resolution SLA (hrs)" helpKey="resolutionSla" muted />
                   <input type="number" min={0} value={form.resolutionSLA} onChange={(e) => setF('resolutionSLA', e.target.value)} style={inputBase} placeholder="24" />
                 </div>
               </div>
@@ -714,7 +744,7 @@ const ServiceTypeFormPage: React.FC = () => {
             <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-text)' }}>Approval</span>
           </div>
           <div style={sCardBody}>
-            <CB checked={form.approvalRequired} onChange={(v) => setF('approvalRequired', v)} label="Approval Required before service execution" />
+            <CB checked={form.approvalRequired} onChange={(v) => setF('approvalRequired', v)} label="Approval Required before service execution" helpKey="approvalRequired" />
           </div>
         </div>
       </>
@@ -729,46 +759,46 @@ const ServiceTypeFormPage: React.FC = () => {
         </div>
         <AccordionGroup title="Availability & Status Flags">
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px 24px', marginBottom: '14px' }}>
-            <CB checked={form.subscriptionApplicable} onChange={(v) => setF('subscriptionApplicable', v)} label="Subscription Applicable" />
-            <CB checked={form.separateBillRequired}   onChange={(v) => setF('separateBillRequired', v)}   label="Separate Bill Required" />
-            <CB checked={form.discontinued}           onChange={(v) => setF('discontinued', v)}           label="Discontinued" />
-            <CB checked={form.availWithUCN}           onChange={(v) => setF('availWithUCN', v)}           label="Avail with UCN" />
-            <CB checked={form.isCustom}               onChange={(v) => setF('isCustom', v)}               label="Is Custom" />
-            <CB checked={form.availedAtOrganization}  onChange={(v) => setF('availedAtOrganization', v)}  label="Availed At Organization" />
-            <CB checked={form.availMultipleTimes}     onChange={(v) => setF('availMultipleTimes', v)}     label="Avail Multiple Times" />
-            <CB checked={form.offlineExecutionAllowed}onChange={(v) => setF('offlineExecutionAllowed', v)} label="Offline Execution Allowed" />
+            <CB checked={form.subscriptionApplicable} onChange={(v) => setF('subscriptionApplicable', v)} label="Subscription Applicable" helpKey="subscriptionApplicable" />
+            <CB checked={form.separateBillRequired}   onChange={(v) => setF('separateBillRequired', v)}   label="Separate Bill Required" helpKey="separateBillRequired" />
+            <CB checked={form.discontinued}           onChange={(v) => setF('discontinued', v)}           label="Discontinued" helpKey="discontinued" />
+            <CB checked={form.availWithUCN}           onChange={(v) => setF('availWithUCN', v)}           label="Avail with UCN" helpKey="availWithUCN" />
+            <CB checked={form.isCustom}               onChange={(v) => setF('isCustom', v)}               label="Is Custom" helpKey="isCustom" />
+            <CB checked={form.availedAtOrganization}  onChange={(v) => setF('availedAtOrganization', v)}  label="Availed At Organization" helpKey="availedAtOrganization" />
+            <CB checked={form.availMultipleTimes}     onChange={(v) => setF('availMultipleTimes', v)}     label="Avail Multiple Times" helpKey="availMultipleTimes" />
+            <CB checked={form.offlineExecutionAllowed}onChange={(v) => setF('offlineExecutionAllowed', v)} label="Offline Execution Allowed" helpKey="offlineExecutionAllowed" />
           </div>
           {!form.availMultipleTimes && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <label style={labelMuted}>Avail Limit</label>
-              <input type="number" min={1} value={form.availLimit} onChange={(e) => setF('availLimit', e.target.value)} style={{ ...inputBase, maxWidth: '90px' }} placeholder="—" />
+              <LabelWithInfo label="Avail Limit" helpKey="availLimit" muted />
+              <input type="number" min={1} value={form.availLimit} onChange={(e) => setF('availLimit', e.target.value)} style={{ ...inputBase, maxWidth: '90px' }} placeholder="â€”" />
             </div>
           )}
         </AccordionGroup>
 
         <AccordionGroup title="Contract Flags">
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px 24px' }}>
-            <CB checked={form.generateReminder}         onChange={(v) => setF('generateReminder', v)}         label="Generate Reminder" />
-            <CB checked={form.applicableToAllParts}     onChange={(v) => setF('applicableToAllParts', v)}     label="Applicable To All Parts" />
-            <CB checked={form.applicableToAllServices}  onChange={(v) => setF('applicableToAllServices', v)}  label="Applicable To All Services" />
-            <CB checked={form.applicableToAllProducts}  onChange={(v) => setF('applicableToAllProducts', v)}  label="Applicable To All Products" />
-            <CB checked={form.copyToWarrantyTab}        onChange={(v) => setF('copyToWarrantyTab', v)}        label="Copy to Warranty Tab" />
+            <CB checked={form.generateReminder}         onChange={(v) => setF('generateReminder', v)}         label="Generate Reminder" helpKey="generateReminder" />
+            <CB checked={form.applicableToAllParts}     onChange={(v) => setF('applicableToAllParts', v)}     label="Applicable To All Parts" helpKey="applicableToAllParts" />
+            <CB checked={form.applicableToAllServices}  onChange={(v) => setF('applicableToAllServices', v)}  label="Applicable To All Services" helpKey="applicableToAllServices" />
+            <CB checked={form.applicableToAllProducts}  onChange={(v) => setF('applicableToAllProducts', v)}  label="Applicable To All Products" helpKey="applicableToAllProducts" />
+            <CB checked={form.copyToWarrantyTab}        onChange={(v) => setF('copyToWarrantyTab', v)}        label="Copy to Warranty Tab" helpKey="copyToWarrantyTab" />
           </div>
         </AccordionGroup>
 
         <AccordionGroup title="Child Contract Mapping">
           <div style={fw}>
-            <CB checked={form.childContractActive} onChange={(v) => setF('childContractActive', v)} label="Child Contract Active" />
+            <CB checked={form.childContractActive} onChange={(v) => setF('childContractActive', v)} label="Child Contract Active" helpKey="childContractActive" />
           </div>
           <div style={{ ...twoCol, opacity: form.childContractActive ? 1 : 0.4, pointerEvents: form.childContractActive ? 'auto' : 'none' }}>
             <div>
-              <label style={labelMuted}>Child Contracts</label>
+              <LabelWithInfo label="Child Contracts" helpKey="childContracts" muted />
               <select multiple value={form.childContracts} onChange={(e) => setF('childContracts', Array.from(e.target.selectedOptions, (o) => o.value))} style={{ ...inputBase, height: '80px' }}>
                 {MOCK_CONTRACTS.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
             <div>
-              <label style={labelMuted}>Child Labours</label>
+              <LabelWithInfo label="Child Labours" helpKey="childLabours" muted />
               <select multiple value={form.childLabours} onChange={(e) => setF('childLabours', Array.from(e.target.selectedOptions, (o) => o.value))} style={{ ...inputBase, height: '80px' }}>
                 {MOCK_SERVICE_TYPES.map((s) => <option key={s.code} value={s.code}>{s.name}</option>)}
               </select>
@@ -779,23 +809,23 @@ const ServiceTypeFormPage: React.FC = () => {
         <AccordionGroup title="Classification">
           <div style={threeCol}>
             <div>
-              <label style={labelMuted}>Segment Type</label>
+              <LabelWithInfo label="Segment Type" helpKey="segmentType" muted />
               <select value={form.segmentType} onChange={(e) => setF('segmentType', e.target.value)} style={inputBase}>
-                <option value="">— Select —</option>
+                <option value="">â€” Select â€”</option>
                 {MOCK_SEGMENTS.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
             <div>
-              <label style={labelMuted}>Sub-Segment Type</label>
+              <LabelWithInfo label="Sub-Segment Type" helpKey="subSegmentType" muted />
               <select value={form.subSegmentType} onChange={(e) => setF('subSegmentType', e.target.value)} style={inputBase}>
-                <option value="">— Select —</option>
+                <option value="">â€” Select â€”</option>
                 {MOCK_SUBSEGMENTS.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
             <div>
-              <label style={labelMuted}>Organization</label>
+              <LabelWithInfo label="Organization" helpKey="organization" muted />
               <select value={form.organization} onChange={(e) => setF('organization', e.target.value)} style={inputBase}>
-                <option value="">— All —</option>
+                <option value="">â€” All â€”</option>
                 {MOCK_ORGS.map((o) => <option key={o} value={o}>{o}</option>)}
               </select>
             </div>
@@ -805,27 +835,27 @@ const ServiceTypeFormPage: React.FC = () => {
         <AccordionGroup title="Contract Settings">
           <div style={{ ...twoCol, marginBottom: '14px' }}>
             <div>
-              <label style={labelMuted}>Claim To</label>
+              <LabelWithInfo label="Claim To" helpKey="claimTo" muted />
               <select value={form.claimTo} onChange={(e) => setF('claimTo', e.target.value)} style={inputBase}>
-                <option value="">— None —</option>
+                <option value="">â€” None â€”</option>
                 {MOCK_SUPPLIERS.map((s) => <option key={s.code} value={s.code}>{s.name}</option>)}
               </select>
             </div>
             <div>
-              <label style={labelMuted}>Dependent Contract</label>
+              <LabelWithInfo label="Dependent Contract" helpKey="dependentContract" muted />
               <select value={form.dependentContract} onChange={(e) => setF('dependentContract', e.target.value)} style={inputBase}>
-                <option value="">— None —</option>
+                <option value="">â€” None â€”</option>
                 {MOCK_CONTRACTS.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
           </div>
           <div style={twoCol}>
             <div>
-              <label style={labelMuted}>Default Max Duration (days)</label>
+              <LabelWithInfo label="Default Max Duration (days)" helpKey="defaultMaxDuration" muted />
               <input type="number" min={0} value={form.defaultMaxDuration} onChange={(e) => setF('defaultMaxDuration', e.target.value)} style={inputBase} />
             </div>
             <div>
-              <label style={labelMuted}>Default Max Usage</label>
+              <LabelWithInfo label="Default Max Usage" helpKey="defaultMaxUsage" muted />
               <input type="number" min={0} value={form.defaultMaxUsage} onChange={(e) => setF('defaultMaxUsage', e.target.value)} style={inputBase} />
             </div>
           </div>
@@ -834,32 +864,32 @@ const ServiceTypeFormPage: React.FC = () => {
         <AccordionGroup title="Warranty, Billing & Operations">
           <div style={{ ...twoCol, marginBottom: '14px' }}>
             <div>
-              <label style={labelMuted}>Warranty Eligibility Basis</label>
+              <LabelWithInfo label="Warranty Eligibility Basis" helpKey="warrantyEligibilityBasis" muted />
               <select value={form.warrantyEligibilityBasis} onChange={(e) => setF('warrantyEligibilityBasis', e.target.value as WarrantyEligibilityBasis | '')} style={inputBase}>
-                <option value="">— None —</option>
+                <option value="">â€” None â€”</option>
                 {WARRANTY_BASIS_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
               </select>
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px 24px', marginBottom: '14px' }}>
-            <CB checked={form.visitChargeApplicable}       onChange={(v) => setF('visitChargeApplicable', v)}       label="Visit Charge Applicable" />
-            <CB checked={form.diagnosisChargeApplicable}   onChange={(v) => setF('diagnosisChargeApplicable', v)}   label="Diagnosis Charge Applicable" />
-            <CB checked={form.pickupAndDropRequired}       onChange={(v) => setF('pickupAndDropRequired', v)}       label="Pickup & Drop Required" />
-            <CB checked={form.closureEvidenceRequired}     onChange={(v) => setF('closureEvidenceRequired', v)}     label="Closure Evidence Required" />
-            <CB checked={form.complaintReviewRequired}     onChange={(v) => setF('complaintReviewRequired', v)}     label="Complaint Review Required" />
-            <CB checked={form.testInspectionEvidenceRequired} onChange={(v) => setF('testInspectionEvidenceRequired', v)} label="Test/Inspection Evidence" />
+            <CB checked={form.visitChargeApplicable}       onChange={(v) => setF('visitChargeApplicable', v)}       label="Visit Charge Applicable" helpKey="visitChargeApplicable" />
+            <CB checked={form.diagnosisChargeApplicable}   onChange={(v) => setF('diagnosisChargeApplicable', v)}   label="Diagnosis Charge Applicable" helpKey="diagnosisChargeApplicable" />
+            <CB checked={form.pickupAndDropRequired}       onChange={(v) => setF('pickupAndDropRequired', v)}       label="Pickup & Drop Required" helpKey="pickupAndDropRequired" />
+            <CB checked={form.closureEvidenceRequired}     onChange={(v) => setF('closureEvidenceRequired', v)}     label="Closure Evidence Required" helpKey="closureEvidenceRequired" />
+            <CB checked={form.complaintReviewRequired}     onChange={(v) => setF('complaintReviewRequired', v)}     label="Complaint Review Required" helpKey="complaintReviewRequired" />
+            <CB checked={form.testInspectionEvidenceRequired} onChange={(v) => setF('testInspectionEvidenceRequired', v)} label="Test/Inspection Evidence" helpKey="testInspectionEvidenceRequired" />
           </div>
           <div style={fw}>
-            <CB checked={form.followUpRequired} onChange={(v) => setF('followUpRequired', v)} label="Follow-up Required" />
+            <CB checked={form.followUpRequired} onChange={(v) => setF('followUpRequired', v)} label="Follow-up Required" helpKey="followUpRequired" />
             {form.followUpRequired && (
               <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <label style={labelMuted}>Follow-up Interval (days)</label>
+                <LabelWithInfo label="Follow-up Interval (days)" helpKey="followUpInterval" muted />
                 <input type="number" min={1} value={form.followUpInterval} onChange={(e) => setF('followUpInterval', e.target.value)} style={{ ...inputBase, maxWidth: '90px' }} />
               </div>
             )}
           </div>
           <div>
-            <label style={labelMuted}>Knowledge Article Reference</label>
+            <LabelWithInfo label="Knowledge Article Reference" helpKey="knowledgeArticleReference" muted />
             <input value={form.knowledgeArticleReference} onChange={(e) => setF('knowledgeArticleReference', e.target.value)} style={inputBase} placeholder="URL or reference code" />
           </div>
         </AccordionGroup>
@@ -867,23 +897,23 @@ const ServiceTypeFormPage: React.FC = () => {
         <AccordionGroup title="Checklist Templates">
           <div style={threeCol}>
             <div>
-              <label style={labelMuted}>Pre-Service Checklist</label>
+              <LabelWithInfo label="Pre-Service Checklist" helpKey="preServiceChecklist" muted />
               <select value={form.preServiceChecklistTemplate} onChange={(e) => setF('preServiceChecklistTemplate', e.target.value)} style={inputBase}>
-                <option value="">— None —</option>
+                <option value="">â€” None â€”</option>
                 {MOCK_CHECKLIST_TEMPLATES.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
             <div>
-              <label style={labelMuted}>Post-Service Checklist</label>
+              <LabelWithInfo label="Post-Service Checklist" helpKey="postServiceChecklist" muted />
               <select value={form.postServiceChecklistTemplate} onChange={(e) => setF('postServiceChecklistTemplate', e.target.value)} style={inputBase}>
-                <option value="">— None —</option>
+                <option value="">â€” None â€”</option>
                 {MOCK_CHECKLIST_TEMPLATES.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
             <div>
-              <label style={labelMuted}>Proficiency Level</label>
+              <LabelWithInfo label="Proficiency Level" helpKey="proficiencyLevel" muted />
               <select value={form.skillProficiencyLevel} onChange={(e) => setF('skillProficiencyLevel', e.target.value as ServiceTypeRecord['skillProficiencyLevel'])} style={inputBase}>
-                <option value="">— Any —</option>
+                <option value="">â€” Any â€”</option>
                 {['Junior', 'Senior', 'Expert', 'OEM Certified'].map((o) => <option key={o} value={o}>{o}</option>)}
               </select>
             </div>
@@ -891,6 +921,9 @@ const ServiceTypeFormPage: React.FC = () => {
         </AccordionGroup>
 
         <AccordionGroup title="Service Source Applicability">
+          <div style={{ marginBottom: '10px' }}>
+            <LabelWithInfo label="Service Source Applicability" helpKey="serviceRequestSourceApplicability" muted />
+          </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
             {(['Complaint', 'Contract', 'Warranty', 'Scheduled PM', 'IoT Alert', 'Customer Request'] as const).map((opt) => {
               const on = form.serviceRequestSourceApplicability.includes(opt);
@@ -910,13 +943,13 @@ const ServiceTypeFormPage: React.FC = () => {
 
         {form.contractRequired && (
           <>
-            <AccordionGroup title="Contract Relation — Labour" badge={form.labourRows.length}>
+            <AccordionGroup title="Contract Relation â€” Labour" badge={form.labourRows.length}>
               <ContractRelationSection type="labour"
                 rows={form.labourRows as (ContractRelationLabourRow | ContractRelationPartRow)[]}
                 onChange={(rows) => setF('labourRows', rows as ContractRelationLabourRow[])}
               />
             </AccordionGroup>
-            <AccordionGroup title="Contract Relation — Parts" badge={form.partRows.length}>
+            <AccordionGroup title="Contract Relation â€” Parts" badge={form.partRows.length}>
               <ContractRelationSection type="part"
                 rows={form.partRows as (ContractRelationLabourRow | ContractRelationPartRow)[]}
                 onChange={(rows) => setF('partRows', rows as ContractRelationPartRow[])}
@@ -935,7 +968,7 @@ const ServiceTypeFormPage: React.FC = () => {
     );
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const stepContent = [renderStep0, renderStep1, renderStep2, renderStep3, renderStep4, renderStep5];
   const isLastStep  = activeStep === 5;
@@ -953,6 +986,10 @@ const ServiceTypeFormPage: React.FC = () => {
             : step.index === 4
               ? <ShieldCheck size={14} />
               : <Settings2 size={14} />,
+    tooltipLabel: STEP_HELP[step.helpKey].title,
+    tooltipTitle: STEP_HELP[step.helpKey].title,
+    tooltipDescription: describeHelp(STEP_HELP[step.helpKey]),
+    tooltipExample: STEP_HELP[step.helpKey].example,
     state: activeStep === step.index
       ? 'current'
       : skippedSteps.has(step.index)
@@ -1025,4 +1062,3 @@ const ServiceTypeFormPage: React.FC = () => {
 };
 
 export default ServiceTypeFormPage;
-

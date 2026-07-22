@@ -795,7 +795,7 @@ const KycSetupPage: React.FC = () => {
       {deleteConfirmId && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div onClick={() => setDeleteConfirmId(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)' }} />
-          <div style={{ position: 'relative', width: '400px', background: 'var(--color-surface)', borderRadius: '14px', padding: '24px', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
+          <div style={{ position: 'relative', width: 'min(400px, calc(100vw - 32px))', background: 'var(--color-surface)', borderRadius: '14px', padding: '24px', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
               <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Trash2 size={16} style={{ color: '#DC2626' }} /></div>
               <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text)' }}>Delete Configuration?</div>
@@ -823,7 +823,7 @@ const KycSetupPage: React.FC = () => {
         {/* Overlay */}
         <div onClick={closeDrawer} style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(1px)' }} />
         {/* Drawer panel */}
-        <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: '520px', zIndex: 1101, background: 'var(--color-surface)', boxShadow: '-8px 0 40px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 'min(520px, 100vw)', zIndex: 1101, background: 'var(--color-surface)', boxShadow: '-8px 0 40px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column' }}>
           {/* Drawer header */}
           <div style={{ flexShrink: 0, padding: '16px 20px', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -1296,7 +1296,7 @@ const KycSetupPage: React.FC = () => {
     return (
       <div style={MASTER_OVERLAY_STYLE}>
         <div onClick={() => setDeactivationOpen(false)} style={{ position: 'absolute', inset: 0 }} />
-        <div style={{ ...MASTER_POPUP_SURFACE_STYLE, position: 'relative', width: '480px', overflow: 'hidden' }}>
+        <div style={{ ...MASTER_POPUP_SURFACE_STYLE, position: 'relative', width: 'min(480px, calc(100vw - 32px))', overflow: 'hidden' }}>
           <div style={{ padding: '18px 20px 14px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', borderBottom: '1px solid var(--color-border)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'color-mix(in srgb, var(--color-danger) 12%, var(--color-surface))', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><ZapOff size={16} style={{ color: 'var(--color-danger)' }} /></div>

@@ -25,3 +25,12 @@ createRoot(document.getElementById('root')!).render(
     </HashRouter>
   </StrictMode>,
 )
+
+// PWA: register the minimal service worker so the app is installable.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {
+      /* registration failures are non-fatal */
+    });
+  });
+}

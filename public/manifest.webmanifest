@@ -1,0 +1,15 @@
+{
+  "name": "Excellon",
+  "short_name": "Excellon",
+  "description": "Excellon — Solutions Assured. Dealer & Workshop Management System.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#ffffff",
+  "theme_color": "#eb6a2c",
+  "icons": [
+    { "src": "/excellon-icon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "any" },
+    { "src": "/excellon-icon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "maskable" }
+  ]
+}

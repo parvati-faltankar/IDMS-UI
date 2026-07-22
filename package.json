@@ -1,8 +1,16 @@
 {
-  "name": "my-react-app",
+  "name": "excellon-idms-ui",
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "browserslist": [
+    "last 2 Chrome versions",
+    "last 2 Edge versions",
+    "last 2 Firefox versions",
+    "last 2 Safari versions",
+    "last 2 iOS versions",
+    "last 2 ChromeAndroid versions"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -17,6 +25,7 @@
     "ui:contracts-check": "node scripts/check-component-contracts.js",
     "ui:future-check": "node scripts/check-future-feature-standard.js",
     "ui:audit": "node scripts/ui-audit.js",
+    "ui:responsive-check": "node scripts/check-responsive.js",
     "ui:governance": "node scripts/ui-audit.js"
   },
   "dependencies": {
