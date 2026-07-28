@@ -117,9 +117,8 @@ function SummarySegment({ items }: { items: AdminListSummaryItem[] }) {
           }}
         >
           <span
+            className="masters-code"
             style={{
-              fontSize: '13px',
-              fontWeight: 700,
               lineHeight: 1,
               color: TONE_COLORS[tone],
             }}
@@ -127,11 +126,8 @@ function SummarySegment({ items }: { items: AdminListSummaryItem[] }) {
             {value}
           </span>
           <span
+            className="masters-meta"
             style={{
-              fontSize: '11px',
-              fontWeight: 600,
-              letterSpacing: '0.04em',
-              textTransform: 'uppercase',
               color: 'var(--color-text-muted)',
             }}
           >
@@ -341,13 +337,13 @@ export function AdminListPageShell({
                       /
                     </span>
                   )}
-                  <span>{crumb}</span>
+                  <span className="masters-meta">{crumb}</span>
                 </React.Fragment>
               ))}
             </nav>
           )}
 
-          <h1
+          <h1 className="masters-row-title"
             style={{
               margin: 0,
               fontSize: isCompact ? '15px' : '16px',
@@ -364,7 +360,7 @@ export function AdminListPageShell({
           </h1>
 
           {description && (
-            <p
+            <p className="font-sans text-sm text-slate-500"
               style={{
                 margin: 0,
                 fontSize: '12px',
@@ -643,3 +639,6 @@ export function AdminListPageShell({
     </div>
   );
 }
+
+
+

@@ -2,6 +2,8 @@ import { DEFAULT_THEME_KEY, THEME_STORAGE_KEY, type BrandThemeDefinition } from 
 
 export const CUSTOM_THEMES_STORAGE_KEY = 'theme-builder-themes:v1';
 export const CUSTOM_THEMES_UPDATED_EVENT = 'theme-builder-themes-updated';
+const TATA_MOTORS_THEME_KEY = 'tata-motors';
+const TATA_MOTORS_THEME_RESET_STORAGE_KEY = 'theme-builder:tata-motors-reset-original:v1';
 
 export type ThemeBuilderStatus = 'draft' | 'published' | 'deactivated';
 
@@ -217,6 +219,38 @@ export function sanitizeThemeBuilderTheme(theme: Partial<ThemeBuilderTheme>): Th
         layout.shadowStyle === 'soft' || layout.shadowStyle === 'strong' ? layout.shadowStyle : defaultThemeBuilderLayout.shadowStyle,
     },
   };
+}
+
+export function resetTataMotorsThemeBuilderOverride() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  if (window.localStorage.getItem(TATA_MOTORS_THEME_RESET_STORAGE_KEY) === 'done') {
+    return;
+  }
+
+  try {
+    const rawValue = window.localStorage.getItem(CUSTOM_THEMES_STORAGE_KEY);
+    const parsedValue = rawValue ? (JSON.parse(rawValue) as Partial<ThemeBuilderTheme>[]) : [];
+
+    if (!Array.isArray(parsedValue)) {
+      window.localStorage.setItem(TATA_MOTORS_THEME_RESET_STORAGE_KEY, 'done');
+      return;
+    }
+
+    const nextThemes = parsedValue.filter((theme) => theme?.key !== TATA_MOTORS_THEME_KEY);
+
+    if (nextThemes.length !== parsedValue.length) {
+      const sanitizedThemes = nextThemes.map(sanitizeThemeBuilderTheme);
+      window.localStorage.setItem(CUSTOM_THEMES_STORAGE_KEY, JSON.stringify(sanitizedThemes));
+      window.dispatchEvent(new CustomEvent(CUSTOM_THEMES_UPDATED_EVENT, { detail: sanitizedThemes }));
+    }
+
+    window.localStorage.setItem(TATA_MOTORS_THEME_RESET_STORAGE_KEY, 'done');
+  } catch {
+    window.localStorage.setItem(TATA_MOTORS_THEME_RESET_STORAGE_KEY, 'done');
+  }
 }
 
 export function loadThemeBuilderThemes(): ThemeBuilderTheme[] {

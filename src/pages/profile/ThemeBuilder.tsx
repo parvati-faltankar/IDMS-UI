@@ -24,6 +24,7 @@ import {
   getAllowedThemeFonts,
   isValidHexColor,
   loadThemeBuilderThemes,
+  resetTataMotorsThemeBuilderOverride,
   saveThemeBuilderThemes,
   upsertThemeBuilderTheme,
   type ThemeBuilderColors,
@@ -860,6 +861,7 @@ const ThemeBuilder: React.FC<ThemeBuilderProps> = () => {
 
     window.setTimeout(() => {
       try {
+        resetTataMotorsThemeBuilderOverride();
         setCustomThemes(loadThemeBuilderThemes());
       } catch {
         setError('Themes could not be loaded right now.');

@@ -939,6 +939,45 @@ export const helpTopics: HelpTopic[] = [
     ],
     relatedTopics: ['warehouse-import', 'warehouse-stock-governance'],
   },
+  {
+    id: 'keyboard-shortcuts',
+    title: 'Keyboard Shortcuts',
+    summary: 'Use the built-in shortcuts to move around faster, open search, and dismiss overlays without leaving the keyboard.',
+    steps: [
+      { title: 'Open global search', description: 'Use Ctrl+K from the header search entry to jump into search and command lookup quickly.' },
+      { title: 'Use quick actions and help', description: 'The header quick-action and help menus keep common workflows one click away.' },
+      { title: 'Dismiss overlays safely', description: 'Press Escape to close open panels, menus, and drawers before continuing work.' },
+    ],
+    tips: [
+      'Keep your hands on the keyboard when switching between documents and search.',
+      'Use the header actions for repeated tasks instead of hunting through the sidebar.',
+    ],
+    commonMistakes: [
+      'Forgetting that Escape closes the current overlay first.',
+      'Using the mouse to reopen search when Ctrl+K already exists in the header.',
+    ],
+    relatedTopics: ['admin-dashboard', 'numbering-code-setup'],
+  },
+  {
+    id: 'contact-support',
+    title: 'How to Contact Support',
+    summary: 'Raise a support request with the right context so the team can reproduce the issue and respond quickly.',
+    steps: [
+      { title: 'Capture the document context', description: 'Note the page name, document number, and any reference IDs shown on screen.' },
+      { title: 'Attach a screenshot', description: 'Include the visible error, warning, or unexpected layout state to reduce back-and-forth.' },
+      { title: 'Describe the steps taken', description: 'List the exact clicks or keyboard actions that led to the problem.' },
+      { title: 'Share the environment details', description: 'Mention browser name, approximate time, and whether the issue repeats after refresh.' },
+    ],
+    tips: [
+      'A short, reproducible report is faster to resolve than a long summary without steps.',
+      'Include any recent configuration changes that might be related to the issue.',
+    ],
+    commonMistakes: [
+      'Reporting only the symptom without the last successful step.',
+      'Sending a screenshot without document context or timestamps.',
+    ],
+    relatedTopics: ['admin-dashboard', 'organisation-master'],
+  },
 ];
 
 export function getHelpTopic(topicId?: string): HelpTopic | undefined {

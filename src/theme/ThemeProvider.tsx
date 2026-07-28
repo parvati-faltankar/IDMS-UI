@@ -22,10 +22,13 @@ import {
   CUSTOM_THEMES_UPDATED_EVENT,
   clearInactiveStoredTheme,
   getPublishedThemeBuilderThemes,
+  resetTataMotorsThemeBuilderOverride,
   toBrandThemeDefinition,
 } from './customThemeBuilder';
 
 function getAvailableThemes(): Record<string, BrandThemeDefinition> {
+  resetTataMotorsThemeBuilderOverride();
+
   return {
     ...themeRegistry,
     ...Object.fromEntries(getPublishedThemeBuilderThemes().map((theme) => [theme.key, toBrandThemeDefinition(theme)])),

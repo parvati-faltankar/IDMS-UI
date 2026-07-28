@@ -330,8 +330,8 @@ const FormSection: React.FC<FormSectionProps> = ({ title, description, children 
     style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
   >
     <div className="mb-5">
-      <div role="heading" aria-level={2} className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>{title}</div>
-      <p className="text-sm mt-0.5" style={{ color: 'var(--color-text-muted)' }}>{description}</p>
+      <div role="heading" aria-level={2} className="masters-row-title">{title}</div>
+      <p className="font-sans text-sm text-slate-500 mt-0.5" style={{ color: 'var(--color-text-muted)' }}>{description}</p>
     </div>
     {children}
   </div>
@@ -362,19 +362,21 @@ const FormField: React.FC<FormFieldProps> = ({
   options,
   rows = 3,
 }) => {
+  const useMono = /code|sort order/i.test(label);
+
   const inputStyle = {
     background: disabled ? 'var(--color-surface-subtle)' : 'var(--color-surface)',
     borderColor: 'var(--color-border)',
     color: 'var(--color-text)',
   };
 
-  const baseClass = 'w-full px-3 py-2 rounded-lg border text-sm outline-none transition-all';
+  const baseClass = cn('w-full px-3 py-2 rounded-lg border text-sm outline-none transition-all font-sans', useMono && 'font-mono tabular-nums');
   const focusStyle = disabled ? '' : 'focus:ring-2 focus:ring-offset-0';
 
   return (
     <div>
-      <label className="block text-xs font-semibold mb-1.5">
-        <span style={{ color: 'var(--color-text)' }}>{label}</span>
+      <label className="masters-meta block mb-1.5">
+        <span className="font-sans" style={{ color: 'var(--color-text)' }}>{label}</span>
         {required && <span className="ml-0.5" style={{ color: 'var(--color-danger)' }}>*</span>}
       </label>
       {type === 'textarea' ? (
@@ -409,10 +411,11 @@ const FormField: React.FC<FormFieldProps> = ({
         />
       )}
       {hint && (
-        <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>{hint}</p>
+        <p className="font-sans text-xs mt-1 text-slate-500" style={{ color: 'var(--color-text-muted)' }}>{hint}</p>
       )}
     </div>
   );
 };
 
 export default MasterFormPage;
+

@@ -14,7 +14,7 @@ import {
   SERVICE_CATALOGUE_ROWS,
 } from '../serviceCatalogueConfig';
 
-type ServiceDomainStatus = 'Draft' | 'Active' | 'Inactive' | 'Retired';
+type ServiceDomainStatus =  'Active' | 'Inactive';
 type ScopeLevel = 'Global' | 'Regional' | 'Country' | 'Dealer' | 'Branch';
 
 type ServiceDomainFormState = {
@@ -55,7 +55,7 @@ type FieldHelpEntry = {
 const LIST_PATH = '/admin/master/service-domain';
 const ACTIVE_BRAND_OPTIONS = ['Toyota', 'Lexus', 'Honda', 'Mercedes-Benz', 'Tata Motors', 'Tata Commercial', 'Tata EV'];
 const SCOPE_LEVEL_OPTIONS: ScopeLevel[] = ['Global', 'Regional', 'Country', 'Dealer', 'Branch'];
-const STATUS_OPTIONS: ServiceDomainStatus[] = ['Draft', 'Active', 'Inactive', 'Retired'];
+const STATUS_OPTIONS: ServiceDomainStatus[] = [ 'Active', 'Inactive'];
 
 const EMPTY_FORM: ServiceDomainFormState = {
   serviceDomainCode: '',
@@ -65,7 +65,7 @@ const EMPTY_FORM: ServiceDomainFormState = {
   applicableBusinessUnits: '',
   applicableBrands: '',
   applicableRegions: '',
-  status: 'Draft',
+  status: 'Inactive',
   effectiveFrom: '',
   effectiveTo: '',
 };
@@ -194,7 +194,7 @@ const gridThree: React.CSSProperties = {
   gap: '16px',
 };
 
-const fullWidth: React.CSSProperties = { gridColumn: '1 / -1' };
+const fullWidth: React.CSSProperties = { gridColumn: '4 / -4' };
 
 function summaryText(label: string, value: string | string[] | null | undefined) {
   if (value === null || value === undefined) return null;
@@ -405,7 +405,7 @@ export default function ServiceDomainFormPage() {
 
   const statusTone = form.status === 'Active'
     ? 'active'
-    : form.status === 'Inactive' || form.status === 'Retired'
+    : form.status === 'Inactive' 
       ? 'inactive'
       : 'draft';
 
@@ -517,16 +517,14 @@ export default function ServiceDomainFormPage() {
                 <SelectField label="Status" helpKey="status" required value={form.status} onChange={(value) => patch('status', value as ServiceDomainStatus)} options={STATUS_OPTIONS} error={formErrors.status} />
                 <InputField label="Effective From" helpKey="effectiveFrom" required value={form.effectiveFrom} onChange={(value) => patch('effectiveFrom', value)} placeholder="2026-04-01" error={formErrors.effectiveFrom} />
                 <InputField label="Effective To" helpKey="effectiveTo" value={form.effectiveTo} onChange={(value) => patch('effectiveTo', value)} placeholder="2027-03-31" error={formErrors.effectiveTo} />
-                <div style={fullWidth}>
+               
                   <SelectField label="Applicable Business Units" helpKey="applicableBusinessUnits" value={form.applicableBusinessUnits} onChange={(value) => patch('applicableBusinessUnits', value)} options={SERVICE_CATALOGUE_BUSINESS_UNIT_OPTIONS} error={formErrors.applicableBusinessUnits} />
-                </div>
-                <div style={fullWidth}>
+              
                   <SelectField label="Applicable Brands / OEMs" helpKey="applicableBrands" value={form.applicableBrands} onChange={(value) => patch('applicableBrands', value)} options={ACTIVE_BRAND_OPTIONS} error={formErrors.applicableBrands} />
-                </div>
-                <div style={fullWidth}>
+              
                   <SelectField label="Applicable Regions / Locations" helpKey="applicableRegions" value={form.applicableRegions} onChange={(value) => patch('applicableRegions', value)} options={SERVICE_CATALOGUE_REGION_OPTIONS} error={formErrors.applicableRegions} />
                 </div>
-              </div>
+              
             </MasterFormAccordionSection>
           )}
         </div>

@@ -29,6 +29,7 @@ import { buildCountInsight, formatInsightAmount, formatInsightCount, getInsightP
 import { formatDate, formatDateTime } from '../../utils/dateFormat';
 import type { SortState } from '../../utils/sortState';
 import { useBusinessSettings } from '../../utils/businessSettings';
+import { recordSidebarRecentDocument } from '../../utils/sidebarRecentDocuments';
 import { extendedPurchaseOrderDocuments, type PurchaseOrderDocument } from './purchaseOrderData';
 import { DOCUMENT_STORE_EVENTS, getPurchaseOrders } from '../../stores/documentStore';
 
@@ -607,7 +608,26 @@ const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({
     setSortState(direction ? { key, direction } : null);
   };
 
+  const recordRecentPurchaseOrderDocument = (documentId: string) => {
+    const document = documents.find((item) => item.id === documentId);
+
+    if (!document) {
+      return;
+    }
+
+    recordSidebarRecentDocument({
+      documentId: document.id,
+      documentNumber: document.number,
+      moduleKey: 'purchase-order',
+      moduleLabel: 'Purchase Order',
+      partyLabel: document.supplierName,
+      status: document.status,
+      route: '/purchase-order',
+    });
+  };
+
   const handleViewDocument = (documentId: string) => {
+    recordRecentPurchaseOrderDocument(documentId);
     setPreviewDocumentId(documentId);
     setOpenActionMenuId(null);
   };
@@ -617,6 +637,7 @@ const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({
       return;
     }
 
+    recordRecentPurchaseOrderDocument(documentId);
     setOpenActionMenuId(null);
     onEdit(documentId);
   };

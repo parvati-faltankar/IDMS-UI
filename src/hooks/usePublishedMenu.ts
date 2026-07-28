@@ -20,9 +20,12 @@ import {
  * Convert published menu configuration to Level1Item structure for rendering
  */
 function convertMenuSectionToLevel1Item(section: MenuSectionData): Level1Item {
+  const canonicalSection = menuStructure.find((item) => item.label === section.label);
+
   return {
     label: section.label,
     icon: getIconByName(section.iconName ?? getDefaultSectionIconName(section.label)),
+    flyoutGroups: canonicalSection?.flyoutGroups,
     level2: section.level2Groups
       .filter((level2) => level2.isVisible !== false)
       .map((level2) => ({
@@ -120,3 +123,5 @@ export function useHasPublishedMenu(): boolean {
 
   return hasPublishedMenu;
 }
+
+

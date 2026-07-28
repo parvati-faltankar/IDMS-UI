@@ -201,7 +201,7 @@ const MasterListPage: React.FC = () => {
         activeQuickFilter={statusFilter}
         onQuickFilterChange={(key) => { setStatusFilter(key); setCurrentPage(1); }}
         toolbarActions={
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--color-text-muted)' }}>
+          <div className="font-sans text-sm text-slate-500" style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-text-muted)' }}>
             <span>{filteredRecords.length} record{filteredRecords.length !== 1 ? 's' : ''}</span>
             <span style={{ margin: '0 2px', opacity: 0.4, userSelect: 'none' }}>|</span>
             <span>Show</span>
@@ -251,7 +251,7 @@ const MasterListPage: React.FC = () => {
                 <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'var(--color-surface-subtle)', border: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
                   <Plus size={20} style={{ color: 'var(--color-text-muted)' }} />
                 </div>
-                <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text)', marginBottom: '6px' }}>No {master.label} records yet</div>
+                <div className="masters-row-title" style={{ marginBottom: '6px' }}>No {master.label} records yet</div>
                 <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', maxWidth: '320px', margin: '0 auto 20px', lineHeight: 1.6 }}>
                   Get started by adding your first {master.label.toLowerCase()} record.
                 </div>
@@ -268,7 +268,7 @@ const MasterListPage: React.FC = () => {
                 <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'var(--color-surface-subtle)', border: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
                   <Search size={20} style={{ color: 'var(--color-text-muted)' }} />
                 </div>
-                <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text)', marginBottom: '6px' }}>No records match your filters</div>
+                <div className="masters-row-title" style={{ marginBottom: '6px' }}>No records match your filters</div>
                 <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Try adjusting your search or status filter.</div>
               </>
             )}
@@ -287,22 +287,22 @@ const MasterListPage: React.FC = () => {
                 />
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('id')}>
-                <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Code</span>
+                <span className="masters-meta">Code</span>
                 {sortField === 'id' && <ChevronDown size={11} style={{ color: 'var(--color-text-muted)', transform: sortDir === 'asc' ? 'rotate(180deg)' : 'none' }} />}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('name')}>
-                <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Name</span>
+                <span className="masters-meta">Name</span>
                 {sortField === 'name' && <ChevronDown size={11} style={{ color: 'var(--color-text-muted)', transform: sortDir === 'asc' ? 'rotate(180deg)' : 'none' }} />}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('status')}>
-                <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</span>
+                <span className="masters-meta">Status</span>
                 {sortField === 'status' && <ChevronDown size={11} style={{ color: 'var(--color-text-muted)', transform: sortDir === 'asc' ? 'rotate(180deg)' : 'none' }} />}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('createdDate')}>
-                <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Created</span>
+                <span className="masters-meta">Created</span>
                 {sortField === 'createdDate' && <ChevronDown size={11} style={{ color: 'var(--color-text-muted)', transform: sortDir === 'asc' ? 'rotate(180deg)' : 'none' }} />}
               </div>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Actions</div>
+              <div className="masters-meta" style={{ textAlign: 'right' }}>Actions</div>
             </div>
 
             {/* Data rows */}
@@ -329,14 +329,14 @@ const MasterListPage: React.FC = () => {
 
                   {/* Code */}
                   <div style={{ paddingRight: '8px' }}>
-                    <span style={{ fontFamily: 'monospace', fontSize: '11px', fontWeight: 600, padding: '2px 6px', borderRadius: '4px', background: 'var(--color-surface-subtle)', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
+                    <span className="masters-code" style={{ padding: '2px 6px', borderRadius: '4px', background: 'var(--color-surface-subtle)', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
                       {record.id}
                     </span>
                   </div>
 
                   {/* Name */}
                   <div style={{ minWidth: 0, paddingRight: '8px', overflow: 'hidden' }}>
-                    <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <span className="masters-row-title" style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {record.name}
                     </span>
                   </div>
@@ -407,7 +407,7 @@ const MasterListPage: React.FC = () => {
           {/* ── Pagination ─────────────────────────────────────────── */}
           {filteredRecords.length > pageSize && (
             <div className="flex items-center justify-between mt-4">
-              <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+              <span className="font-sans text-xs text-slate-500" style={{ color: 'var(--color-text-muted)' }}>
                 Showing {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, filteredRecords.length)} of {filteredRecords.length}
               </span>
               <div className="flex items-center gap-1">
@@ -497,3 +497,4 @@ const PaginationButton: React.FC<PaginationButtonProps> = ({ icon, label, disabl
 );
 
 export default MasterListPage;
+

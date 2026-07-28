@@ -25,7 +25,7 @@ type LabourFormState = {
   skillCategory: string;
   skillLevel: string;
   resourceRole: string;
-  executionMode: 'In-house' | 'Outside' | '';
+  executionMode: 'In-house' | 'Outside' | 'Pickup & Drop' |'Outside';
   status: LabourStatus;
   effectiveFrom: string;
   effectiveTo: string;
@@ -107,8 +107,8 @@ const MODEL_GROUP_OPTIONS_BY_BRAND: Record<string, string[]> = {
 
 const SKILL_CATEGORY_OPTIONS = ['Mechanical Technician', 'EV Technician', 'Body Painter', 'Diagnostic Specialist'];
 const SKILL_LEVEL_OPTIONS = ['Basic', 'Intermediate', 'Advanced', 'Expert'];
-const RESOURCE_ROLE_OPTIONS = ['Technician', 'Helper', 'Service Advisor', 'Driver', 'Vendor', 'Inspector'];
-const EXECUTION_MODE_OPTIONS = ['In-house', 'Outside'] as const;
+
+const EXECUTION_MODE_OPTIONS = ['In-house', 'Outside', 'Pickup & Drop'] as const;
 const SCOPE_LEVEL_OPTIONS: ScopeLevel[] = ['Global', 'Regional', 'Country', 'Dealer', 'Branch'];
 const BUSINESS_UNIT_OPTIONS = ['Passenger Vehicles', 'Commercial Vehicles', 'Two-Wheeler', 'EV Division'];
 const ASSET_CATEGORY_OPTIONS = ['Vehicle', 'EV Vehicle', 'Commercial Vehicle', 'Equipment'];
@@ -246,13 +246,7 @@ const FIELD_HELP: Record<FieldHelpKey, FieldHelpEntry> = {
     impact: 'Logical impact',
     outcome: 'Better assignment quality and reduced wrong technician allocation.',
   },
-  resourceRole: {
-    title: 'Resource Role',
-    useCase: 'Defines the primary role expected to execute this labour.',
-    purpose: 'Separates technician work from driver, vendor, advisor, or inspector work.',
-    impact: 'Logical impact',
-    outcome: 'Cleaner resource planning and better job assignment.',
-  },
+
   executionMode: {
     title: 'Execution Mode',
     useCase: 'Defines whether this labour is performed internally or by an external vendor.',
@@ -843,7 +837,7 @@ export default function LabourMasterFormPage() {
                 <SelectField label="Asset Required" helpKey="assetRequired" required value={form.assetRequired} onChange={(value) => patch('assetRequired', value as 'Yes' | 'No')} options={['Yes', 'No']} error={formErrors.assetRequired} />
                 <SelectField label="Skill Category" helpKey="skillCategory" value={form.skillCategory} onChange={(value) => patch('skillCategory', value)} options={SKILL_CATEGORY_OPTIONS} error={formErrors.skillCategory} />
                 <SelectField label="Skill Level" helpKey="skillLevel" value={form.skillLevel} onChange={(value) => patch('skillLevel', value)} options={SKILL_LEVEL_OPTIONS} error={formErrors.skillLevel} />
-                <SelectField label="Resource Role" helpKey="resourceRole" value={form.resourceRole} onChange={(value) => patch('resourceRole', value)} options={RESOURCE_ROLE_OPTIONS} error={formErrors.resourceRole} />
+                {/* <SelectField label="Resource Role" helpKey="resourceRole" value={form.resourceRole} onChange={(value) => patch('resourceRole', value)} options={RESOURCE_ROLE_OPTIONS} error={formErrors.resourceRole} /> */}
                 <SelectField label="Execution Mode" helpKey="executionMode" required value={form.executionMode} onChange={(value) => patch('executionMode', value as LabourFormState['executionMode'])} options={[...EXECUTION_MODE_OPTIONS]} error={formErrors.executionMode} />
               </div>
             </MasterFormAccordionSection>

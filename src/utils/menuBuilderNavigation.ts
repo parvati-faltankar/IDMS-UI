@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
 import {
   CalendarDays,
+  CarFront,
   ClipboardCheck,
   ClipboardList,
   FileCheck2,
@@ -28,6 +29,7 @@ export const MENU_BUILDER_EVENTS = {
 
 export const menuBuilderIconRegistry: Record<string, LucideIcon> = {
   CalendarDays,
+  CarFront,
   ClipboardCheck,
   ClipboardList,
   FileCheck2,
@@ -367,3 +369,4 @@ export function notifyPublishedMenuUpdated() {
 export function notifyDraftSaved() {
   window.dispatchEvent(new CustomEvent(MENU_BUILDER_EVENTS.draftSaved));
 }
+

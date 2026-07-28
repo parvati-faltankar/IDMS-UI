@@ -70,6 +70,7 @@ export function renderAdminRoutes() {
   return (
     <>
       <Route path={paths.adminHome} element={<AdminDashboard />} />
+      <Route path={paths.adminMaster} element={<AdminDashboard />} />
 
       {/* Numbering & Code Setup — direct settings page, no list */}
       <Route path="/admin/master/numbering-code-setup" element={<NumberingSettingsPage />} />

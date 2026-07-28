@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { emptyCatalogueFilters } from './utils/catalogueFilters';
 import { AppRoutes } from './routes/AppRoutes';
+import ViewportSimulator, { isViewportSimulatorFrame } from './components/dev/ViewportSimulator';
 
 class AppErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   constructor(props: { children: ReactNode }) {
@@ -55,27 +56,34 @@ function App() {
     }
   };
 
-  return (
+  const appContent = (
     <AppErrorBoundary>
       <Suspense fallback={null}>
         <AppRoutes
-        editingDocumentId={editingDocumentId}
-        isLayoutConfigurationMode={routeQuery.get('config') === 'form-layout'}
-        locationSearch={location.search}
-        navigateTo={navigateTo}
-        purchaseInvoiceCatalogueFilters={purchaseInvoiceCatalogueFilters}
-        purchaseOrderCatalogueFilters={purchaseOrderCatalogueFilters}
-        purchaseReceiptCatalogueFilters={purchaseReceiptCatalogueFilters}
-        requisitionCatalogueFilters={requisitionCatalogueFilters}
-        routeQuery={routeQuery}
-        setPurchaseInvoiceCatalogueFilters={setPurchaseInvoiceCatalogueFilters}
-        setPurchaseOrderCatalogueFilters={setPurchaseOrderCatalogueFilters}
-        setPurchaseReceiptCatalogueFilters={setPurchaseReceiptCatalogueFilters}
-        setRequisitionCatalogueFilters={setRequisitionCatalogueFilters}
-      />
+          editingDocumentId={editingDocumentId}
+          isLayoutConfigurationMode={routeQuery.get('config') === 'form-layout'}
+          locationSearch={location.search}
+          navigateTo={navigateTo}
+          purchaseInvoiceCatalogueFilters={purchaseInvoiceCatalogueFilters}
+          purchaseOrderCatalogueFilters={purchaseOrderCatalogueFilters}
+          purchaseReceiptCatalogueFilters={purchaseReceiptCatalogueFilters}
+          requisitionCatalogueFilters={requisitionCatalogueFilters}
+          routeQuery={routeQuery}
+          setPurchaseInvoiceCatalogueFilters={setPurchaseInvoiceCatalogueFilters}
+          setPurchaseOrderCatalogueFilters={setPurchaseOrderCatalogueFilters}
+          setPurchaseReceiptCatalogueFilters={setPurchaseReceiptCatalogueFilters}
+          setRequisitionCatalogueFilters={setRequisitionCatalogueFilters}
+        />
       </Suspense>
     </AppErrorBoundary>
   );
+
+  if (!import.meta.env.DEV || isViewportSimulatorFrame()) {
+    return appContent;
+  }
+
+  return <ViewportSimulator>{appContent}</ViewportSimulator>;
 }
 
 export default App;
+

@@ -1,9 +1,10 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { Ban, Download, PencilLine, Printer } from 'lucide-react';
 import SideDrawer from './SideDrawer';
 import StatusBadge from './StatusBadge';
 import { cn } from '../../utils/classNames';
 import { formatDate, formatDateTime } from '../../utils/dateFormat';
+import { recordSidebarRecentDocument } from '../../utils/sidebarRecentDocuments';
 import { useDocumentPrint } from '../../print-builder/useDocumentPrint';
 import type { PrintEntityType } from '../../print-builder/types';
 
@@ -75,6 +76,46 @@ function getDocumentNumber(document: PreviewRecord): string {
 
 function getStatus(document: PreviewRecord): string {
   return String(document.status ?? '').trim();
+}
+
+function getStringField(document: PreviewRecord, keys: string[]): string {
+  for (const key of keys) {
+    const value = document[key];
+
+    if (typeof value === 'string' || typeof value === 'number') {
+      const normalizedValue = String(value).trim();
+
+      if (normalizedValue) {
+        return normalizedValue;
+      }
+    }
+  }
+
+  return '';
+}
+
+function getRecentDocumentId(document: PreviewRecord): string {
+  return getStringField(document, ['id', 'documentId', 'key']);
+}
+
+function getRecentPartyLabel(document: PreviewRecord): string {
+  return getStringField(document, [
+    'customerName',
+    'customer',
+    'supplierName',
+    'supplier',
+    'partyName',
+    'party',
+    'requesterName',
+    'buyerName',
+    'receiverName',
+  ]);
+}
+
+function isPersistedPreviewDocument(documentId: string): boolean {
+  const normalizedId = documentId.toLowerCase();
+
+  return Boolean(normalizedId) && !normalizedId.includes('preview') && !normalizedId.startsWith('draft-');
 }
 
 function formatPreviewValue(key: string, value: unknown): React.ReactNode {
@@ -260,6 +301,28 @@ const DocumentPreviewDrawer = <TDocument extends object>({
   const sections = useMemo(() => (previewRecord ? createSections(previewRecord) : []), [previewRecord]);
   const lineCollections = useMemo(() => (previewRecord ? getLineCollections(previewRecord) : []), [previewRecord]);
   const printTools = useDocumentPrint(printEntityType ?? 'sale-order');
+
+  useEffect(() => {
+    if (!isOpen || !previewRecord || !printEntityType) {
+      return;
+    }
+
+    const documentId = getRecentDocumentId(previewRecord);
+
+    if (!isPersistedPreviewDocument(documentId)) {
+      return;
+    }
+
+    recordSidebarRecentDocument({
+      documentId,
+      documentNumber: getDocumentNumber(previewRecord),
+      moduleKey: printEntityType,
+      moduleLabel: documentTypeLabel,
+      partyLabel: getRecentPartyLabel(previewRecord),
+      status: getStatus(previewRecord),
+      route: `/${printEntityType}`,
+    });
+  }, [documentTypeLabel, isOpen, previewRecord, printEntityType]);
 
   if (!document || !previewRecord) {
     return null;

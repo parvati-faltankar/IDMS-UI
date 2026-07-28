@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Ban, Check, ChevronDown, ChevronUp, Circle, Columns3, Eye, FileText, Filter, LayoutGrid, List, MoreVertical, PencilLine, Plus, Search, X } from 'lucide-react';
+import { Ban, Check, ChevronDown, ChevronUp, Circle, Columns3, Eye, FileText, Filter, LayoutGrid, List, MoreVertical, PencilLine, Plus, X } from 'lucide-react';
 import AppShell from '../../components/common/AppShell';
 import CatalogueInsightCards from '../../components/common/CatalogueInsightCards';
 import CatalogueFieldDisplaySettings from '../../components/common/CatalogueFieldDisplaySettings';
@@ -7,7 +7,7 @@ import type { CatalogueDisplayField } from '../../components/common/CatalogueFie
 import CatalogueSectionLayoutSettings from '../../components/common/CatalogueSectionLayoutSettings';
 import type { CatalogueConfigurableSection, CatalogueSectionLayoutMode } from '../../components/common/CatalogueSectionLayoutSettings';
 import CatalogueViewConfigurator from '../../components/common/CatalogueViewConfigurator';
-import CatalogueViewSelector from '../../components/common/CatalogueViewSelector';
+import TransactionCatalogueHeader from '../../components/common/TransactionCatalogueHeader';
 import CommonDataGrid from '../../components/common/CommonDataGrid';
 import type { DataGridColumn } from '../../components/common/dataGridTypes';
 import GuidedTour, { type GuidedTourStep } from '../../components/common/GuidedTour';
@@ -47,6 +47,7 @@ import {
   saveCatalogueDisplayViewMode,
 } from '../../utils/catalogueViewModes';
 import { useBusinessSettings } from '../../utils/businessSettings';
+import { recordSidebarRecentDocument } from '../../utils/sidebarRecentDocuments';
 import {
   createCustomCatalogueView,
   loadCatalogueViewState,
@@ -1374,7 +1375,20 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
   };
 
   const registerRecentlyViewedDocument = (documentId: string) => {
+    const document = documents.find((item) => item.id === documentId);
     setRecentlyViewedEntries(recordRecentlyViewedDocument(PURCHASE_REQUISITION_CATALOGUE_VIEW_ENTITY, documentId));
+
+    if (document) {
+      recordSidebarRecentDocument({
+        documentId: document.id,
+        documentNumber: document.number,
+        moduleKey: 'purchase-requisition',
+        moduleLabel: 'Purchase Requisition',
+        partyLabel: document.supplierName,
+        status: document.status,
+        route: '/purchase-requisition',
+      });
+    }
   };
 
   const handleViewDocument = (documentId: string) => {
@@ -1638,91 +1652,63 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
       activeLeaf="purchase-requisition"
       onPurchaseRequisitionClick={onNavigateToList}
       onPurchaseOrderClick={onNavigateToPurchaseOrderList}
-    >
-      <div className="catalogue-toolbar">
-        <div className="catalogue-toolbar__inner catalogue-toolbar__inner--stacked">
-          <div className="catalogue-toolbar__top">
-            <div className="catalogue-toolbar__heading">
-              <div data-tour="pr-catalogue-title">
-                <CatalogueViewSelector
-                  items={catalogueViewItems}
-                  activeViewId={activeView.id}
-                  activeCount={sortedRows.length}
-                  onSelect={handleSelectCatalogueView}
-                  onTogglePin={handleTogglePinnedView}
-                  onOpenConfigurator={() => setIsViewConfiguratorOpen(true)}
-                />
-              </div>
-            </div>
-
-            <div className="catalogue-toolbar__actions">
-              <div className="catalogue-toolbar__utility-group">
-                <div className="catalogue-toolbar__search">
-                  <Search size={16} className="catalogue-toolbar__search-icon" />
-                  <input
-                    type="search"
-                    value={tableSearch}
-                    onChange={(event) => setTableSearch(event.target.value)}
-                    placeholder="Search..."
-                    className="search-input catalogue-toolbar__search-input"
-                    aria-label="Search purchase requisitions"
-                  />
-                </div>
-
-                <div className="catalogue-view-toggle" role="group" aria-label="Catalogue view mode">
-                  {availableCatalogueViewModes.map((viewMode) => {
-                    const ViewModeIcon = catalogueViewModeIconMap[viewMode.id];
-
-                    return (
-                      <button
-                        key={viewMode.id}
-                        type="button"
-                        onClick={() => handleCatalogueViewModeChange(viewMode.id)}
-                        className={cn(
-                          'catalogue-view-toggle__button',
-                          activeCatalogueViewMode === viewMode.id && 'catalogue-view-toggle__button--active'
-                        )}
-                        aria-label={viewMode.description}
-                        aria-pressed={activeCatalogueViewMode === viewMode.id}
-                        title={viewMode.label}
-                      >
-                        <ViewModeIcon size={16} />
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="catalogue-toolbar__primary-group">
-                <button
-                  type="button"
-                  onClick={openFilterDrawer}
-                  className={cn('btn btn--outline btn--icon-left catalogue-filter-button', hasActiveFilters && 'catalogue-filter-button--active')}
-                  aria-label={hasActiveFilters ? `Filter purchase requisitions. ${activeFilterCount} filters applied.` : 'Filter purchase requisitions'}
-                >
-                  <Filter size={16} />
-                  Filters
-                  {hasActiveFilters && <span className="catalogue-filter-button__badge">{activeFilterCount}</span>}
-                </button>
-
-                <button type="button" onClick={onNew} className="btn btn--primary btn--icon-left catalogue-toolbar__primary-button" data-tour="pr-new-button">
-                  <Plus size={16} />
-                  New
-                </button>
-              </div>
-            </div>
-          </div>
-
+      bottomBar={
+        <div className="purchase-requisition-mobile-cta">
+          <button type="button" className="purchase-requisition-mobile-cta__button" onClick={onNew} data-tour="pr-new-button-mobile">
+            <Plus size={18} />
+            New Purchase Requisition
+          </button>
         </div>
-      </div>
-
-      <div className="mx-auto flex w-full max-w-[1800px] flex-col gap-4 px-4 py-4">
+      }
+    >
+      <TransactionCatalogueHeader
+        titleDataTour="pr-catalogue-title"
+        viewSelector={{
+          items: catalogueViewItems,
+          activeViewId: activeView.id,
+          activeCount: sortedRows.length,
+          onSelect: handleSelectCatalogueView,
+          onTogglePin: handleTogglePinnedView,
+          onOpenConfigurator: () => setIsViewConfiguratorOpen(true),
+        }}
+        search={{
+          value: tableSearch,
+          placeholder: 'Search...',
+          ariaLabel: 'Search purchase requisitions',
+          onChange: setTableSearch,
+        }}
+        viewModes={availableCatalogueViewModes.map((viewMode) => ({
+          ...viewMode,
+          icon: catalogueViewModeIconMap[viewMode.id],
+        }))}
+        activeViewMode={activeCatalogueViewMode}
+        onViewModeChange={(viewModeId) => handleCatalogueViewModeChange(viewModeId as CatalogueViewModeId)}
+        filter={{
+          label: 'Filters',
+          ariaLabel: hasActiveFilters ? `Filter purchase requisitions. ${activeFilterCount} filters applied.` : 'Filter purchase requisitions',
+          activeCount: activeFilterCount,
+          icon: Filter,
+          onClick: openFilterDrawer,
+        }}
+        primaryAction={{
+          label: 'New',
+          icon: Plus,
+          onClick: onNew,
+          dataTour: 'pr-new-button',
+          hideOnMobile: true,
+          moveToBottomBarOnCompact: true,
+        }}
+      />
+      <div className="purchase-requisition-catalogue-content mx-auto flex w-full max-w-[1800px] flex-col gap-4 px-4 py-4">
         {loadState === 'ready' && (
           <div data-tour="pr-insight-cards">
             <CatalogueInsightCards
               items={insightItems}
               activeKey={activeInsightKey}
               ariaLabel="Purchase requisition insights"
+              variant="enterprise"
+              density="compact"
+              maxVisibleItems={4}
               onSelect={(key) => setActiveInsightKey((current) => (current === key || key === 'all' ? null : key))}
             />
           </div>
@@ -1901,3 +1887,4 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
 };
 
 export default PurchaseRequisitionCatalogueView;
+

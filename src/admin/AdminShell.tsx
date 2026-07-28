@@ -2,8 +2,6 @@ import React, { useEffect, useState } from 'react';
 import AppTopHeader from '../components/common/AppTopHeader';
 import AdminSidebar from './AdminSidebar';
 import { cn } from '../utils/classNames';
-import { HelpDrawer } from '../experience/components/HelpDrawer';
-import { getHelpTopic } from '../experience/help/helpTopics';
 
 interface AdminShellProps {
   children: React.ReactNode;
@@ -13,9 +11,6 @@ interface AdminShellProps {
 const AdminShell: React.FC<AdminShellProps> = ({ children, contentClassName }) => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
-  const [globalHelpOpen, setGlobalHelpOpen] = useState(false);
-  const [globalHelpTopicId, setGlobalHelpTopicId] = useState('admin-dashboard');
-
   const handleToggleNavigation = () => {
     if (window.innerWidth > 1024) {
       setIsSidebarCollapsed((prev) => !prev);
@@ -75,13 +70,6 @@ const AdminShell: React.FC<AdminShellProps> = ({ children, contentClassName }) =
           </div>
         </div>
       </div>
-      <HelpDrawer
-        open={globalHelpOpen}
-        topic={getHelpTopic(globalHelpTopicId)}
-        onClose={() => setGlobalHelpOpen(false)}
-        onTopicChange={(id) => setGlobalHelpTopicId(id)}
-        titleFallback="Admin Help & Guidance"
-      />
     </div>
   );
 };

@@ -18,6 +18,11 @@ interface CatalogueInsightCardsProps {
   activeKey: string | null;
   ariaLabel: string;
   onSelect: (key: string) => void;
+  variant?: 'classic' | 'enterprise';
+  density?: 'compact' | 'comfortable';
+  maxVisibleItems?: number;
+  badgeLabel?: string;
+  activeBadgeLabel?: string;
 }
 
 const CatalogueInsightCards: React.FC<CatalogueInsightCardsProps> = ({
@@ -25,9 +30,21 @@ const CatalogueInsightCards: React.FC<CatalogueInsightCardsProps> = ({
   activeKey,
   ariaLabel,
   onSelect,
+  variant = 'classic',
+  density = 'compact',
+  maxVisibleItems = 4,
+  badgeLabel = 'Live insight',
+  activeBadgeLabel = 'Applied',
 }) => (
-  <div className="catalogue-analytics" aria-label={ariaLabel}>
-    {items.slice(0, 4).map((item) => {
+  <div
+    className={cn(
+      'catalogue-analytics',
+      `catalogue-analytics--${variant}`,
+      `catalogue-analytics--density-${density}`
+    )}
+    aria-label={ariaLabel}
+  >
+    {items.slice(0, maxVisibleItems).map((item) => {
       const isActive = activeKey === item.key;
       const progress = Math.max(8, Math.min(item.progress ?? 0, 100));
 
@@ -45,7 +62,7 @@ const CatalogueInsightCards: React.FC<CatalogueInsightCardsProps> = ({
         >
           <div className="catalogue-analytics__header">
             <span className="catalogue-analytics__label">{item.label}</span>
-            <span className="catalogue-analytics__eyebrow">{isActive ? 'Applied' : 'Live insight'}</span>
+            <span className="catalogue-analytics__eyebrow">{isActive ? activeBadgeLabel : badgeLabel}</span>
           </div>
           <div className="catalogue-analytics__headline-row">
             <strong className="catalogue-analytics__value">{item.value}</strong>
@@ -67,3 +84,4 @@ const CatalogueInsightCards: React.FC<CatalogueInsightCardsProps> = ({
 );
 
 export default CatalogueInsightCards;
+
