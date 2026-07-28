@@ -1112,6 +1112,7 @@ const CodeGenerationPolicyPage: React.FC = () => {
         >
           <MasterDataTable
             gridId="code-generation-policy-master-table"
+            ariaLabel="Code generation policies table"
             rows={filteredPolicies}
             columns={gridColumns}
             rowId={(policy) => policy.id}

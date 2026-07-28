@@ -17,6 +17,7 @@
     "ui:contracts-check": "node scripts/check-component-contracts.js",
     "ui:future-check": "node scripts/check-future-feature-standard.js",
     "ui:audit": "node scripts/ui-audit.js",
+    "check-ui": "npm run ui:audit",
     "ui:governance": "node scripts/ui-audit.js"
   },
   "dependencies": {

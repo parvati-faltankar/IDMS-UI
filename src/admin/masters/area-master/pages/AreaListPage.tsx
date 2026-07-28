@@ -404,6 +404,7 @@ const AreaListPage: React.FC = () => {
       >
         <MasterDataTable
           gridId="area-master-table"
+          ariaLabel="Areas table"
           rows={filtered}
           columns={gridColumns}
           rowId={(area) => area.id}

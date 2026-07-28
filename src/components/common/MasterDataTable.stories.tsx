@@ -120,6 +120,7 @@ export const DefaultMasterCatalogue: Story = {
     <div style={{ padding: '24px', background: 'var(--color-surface-subtle)' }}>
       <MasterDataTable
         gridId="storybook-master-data-table"
+        ariaLabel="Master records table"
         rows={rows}
         columns={columns}
         rowId={(row) => row.id}

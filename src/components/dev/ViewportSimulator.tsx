@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Maximize2, Monitor, RotateCcw, Smartphone, Tablet } from 'lucide-react';
+import { Columns3, Maximize2, Monitor, Smartphone, Tablet } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { cn } from '../../utils/classNames';
 
-type ViewportSimulatorMode = 'actual' | 'desktop' | 'tablet-portrait' | 'tablet-landscape' | 'mobile';
+type ViewportDeviceMode = 'desktop' | 'tablet-portrait' | 'tablet-landscape' | 'mobile';
+type ViewportSimulatorMode = 'actual' | ViewportDeviceMode | 'side-by-side';
 
 interface ViewportPreset {
   label: string;
@@ -21,7 +22,7 @@ interface ViewportSimulatorProps {
 const STORAGE_KEY = 'viewport-simulator-mode';
 const FRAME_MARKER = 'viewport-simulator-frame';
 
-const VIEWPORT_PRESETS: Record<Exclude<ViewportSimulatorMode, 'actual'>, ViewportPreset> = {
+const VIEWPORT_PRESETS: Record<ViewportDeviceMode, ViewportPreset> = {
   desktop: {
     label: 'Desktop',
     shortLabel: 'Desktop',
@@ -53,8 +54,18 @@ const VIEWPORT_PRESETS: Record<Exclude<ViewportSimulatorMode, 'actual'>, Viewpor
   },
 };
 
+const SIDE_BY_SIDE_MODES: ViewportDeviceMode[] = ['desktop', 'tablet-portrait', 'tablet-landscape', 'mobile'];
+
 const isViewportSimulatorMode = (value: string | null): value is ViewportSimulatorMode =>
-  value === 'actual' || value === 'desktop' || value === 'tablet-portrait' || value === 'tablet-landscape' || value === 'mobile';
+  value === 'actual' ||
+  value === 'desktop' ||
+  value === 'tablet-portrait' ||
+  value === 'tablet-landscape' ||
+  value === 'mobile' ||
+  value === 'side-by-side';
+
+const isViewportDeviceMode = (mode: ViewportSimulatorMode): mode is ViewportDeviceMode =>
+  mode !== 'actual' && mode !== 'side-by-side';
 
 export const isViewportSimulatorFrame = () => {
   if (typeof window === 'undefined') {
@@ -82,7 +93,7 @@ const ViewportSimulator: React.FC<ViewportSimulatorProps> = ({ children }) => {
   const [mode, setMode] = useState<ViewportSimulatorMode>(() => getStoredMode());
   const [frameSource, setFrameSource] = useState(() => (typeof window === 'undefined' ? '' : getFrameSource()));
 
-  const activePreset = mode === 'actual' ? null : VIEWPORT_PRESETS[mode];
+  const activePreset = isViewportDeviceMode(mode) ? VIEWPORT_PRESETS[mode] : null;
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, mode);
@@ -111,6 +122,43 @@ const ViewportSimulator: React.FC<ViewportSimulatorProps> = ({ children }) => {
     );
   }
 
+  if (mode === 'side-by-side') {
+    return (
+      <div className="viewport-simulator viewport-simulator--side-by-side">
+        <SimulatorToolbar activeMode={mode} onSelectMode={setMode} />
+        <div className="viewport-simulator__stage viewport-simulator__stage--side-by-side" aria-label="Viewport simulator comparison canvas">
+          <div className="viewport-simulator__comparison-grid">
+            {SIDE_BY_SIDE_MODES.map((viewportMode) => {
+              const preset = VIEWPORT_PRESETS[viewportMode];
+
+              return (
+                <section key={viewportMode} className="viewport-simulator__comparison-card" aria-label={`${preset.label} preview`}>
+                  <div className="viewport-simulator__comparison-header">
+                    <span>{preset.shortLabel}</span>
+                    <small>{preset.width} x {preset.height}</small>
+                  </div>
+                  <div className={cn('viewport-simulator__comparison-frame', `viewport-simulator__comparison-frame--${viewportMode}`)}>
+                    <div
+                      className={cn('viewport-simulator__comparison-viewport', `viewport-simulator__comparison-viewport--${viewportMode}`)}
+                      style={{ width: `${preset.width}px`, height: `${preset.height}px` }}
+                    >
+                      <iframe
+                        key={`${viewportMode}-${frameSource}`}
+                        title={`${preset.label} viewport preview`}
+                        className="viewport-simulator__iframe"
+                        src={frameSource}
+                        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
+                      />
+                    </div>
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="viewport-simulator">
       <SimulatorToolbar activeMode={mode} onSelectMode={setMode} />
@@ -147,16 +195,13 @@ const SimulatorToolbar: React.FC<SimulatorToolbarProps> = ({ activeMode, onSelec
       icon: preset.icon,
       iconClassName: preset.iconClassName,
     })),
+    { mode: 'side-by-side', label: 'Side by side viewports', shortLabel: 'Side by side', icon: Columns3 },
   ];
 
   return (
     <div className="viewport-simulator__toolbar" role="toolbar" aria-label="Temporary viewport simulator">
-      <div className="viewport-simulator__title">
-        <RotateCcw size={14} aria-hidden="true" />
-        <span>Viewport simulator</span>
-      </div>
       <div className="viewport-simulator__controls" role="group" aria-label="Select viewport size">
-        {modes.map(({ mode: viewportMode, label, shortLabel, icon: Icon, iconClassName }) => {
+        {modes.map(({ mode: viewportMode, label, icon: Icon, iconClassName }) => {
           const isActive = activeMode === viewportMode;
 
           return (
@@ -170,7 +215,6 @@ const SimulatorToolbar: React.FC<SimulatorToolbarProps> = ({ activeMode, onSelec
               title={label}
             >
               <Icon size={15} className={iconClassName} aria-hidden="true" />
-              <span>{shortLabel}</span>
             </button>
           );
         })}

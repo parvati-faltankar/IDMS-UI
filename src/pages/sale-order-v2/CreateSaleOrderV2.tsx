@@ -2283,6 +2283,7 @@ const CreateSaleOrderV2: React.FC<CreateSaleOrderProps> = ({
           onNavigateToSaleOrderList();
         }}
         onClose={() => setIsDiscardDialogOpen(false)}
+        compactPresentation="bottom-sheet"
       />
       <ConfirmationDialog
         isOpen={isCustomerChangeDialogOpen}
@@ -2459,3 +2460,4 @@ const CreateSaleOrderV2: React.FC<CreateSaleOrderProps> = ({
 };
 
 export default CreateSaleOrderV2;
+

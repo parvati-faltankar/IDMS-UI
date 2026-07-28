@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Ban,
   Columns3,
@@ -1469,7 +1469,7 @@ const SaleOrderList: React.FC<SaleOrderListProps> = ({
     }
   };
 
-  const registerRecentlyViewedDocument = (documentId: string) => {
+  const registerRecentlyViewedDocument = useCallback((documentId: string) => {
     const document = documents.find((item) => item.id === documentId);
     setRecentlyViewedEntries(recordRecentlyViewedDocument(SALE_ORDER_CATALOGUE_VIEW_ENTITY, documentId));
 
@@ -1484,18 +1484,18 @@ const SaleOrderList: React.FC<SaleOrderListProps> = ({
         route: '/sale-order',
       });
     }
-  };
+  }, [documents]);
 
-  const handleOpenCancelDialog = (documentId: string) => {
+  const handleOpenCancelDialog = useCallback((documentId: string) => {
     setOpenActionMenuId(null);
     setCancelDocumentId(documentId);
-  };
+  }, []);
 
-  const handlePreviewDocument = (documentId: string) => {
+  const handlePreviewDocument = useCallback((documentId: string) => {
     registerRecentlyViewedDocument(documentId);
     setPreviewDocumentId(documentId);
     setOpenActionMenuId(null);
-  };
+  }, [registerRecentlyViewedDocument]);
 
   const handleConfirmCancelDocument = () => {
     if (!cancelDocumentId) {
@@ -1515,7 +1515,7 @@ const SaleOrderList: React.FC<SaleOrderListProps> = ({
     setCancelDocumentId(null);
   };
 
-  const renderActionMenu = (item: SaleOrderDocument) => (
+  const renderActionMenu = useCallback((item: SaleOrderDocument) => (
     <div
       ref={(element) => {
         actionMenuRefs.current[item.id] = element;
@@ -1555,9 +1555,9 @@ const SaleOrderList: React.FC<SaleOrderListProps> = ({
         </div>
       )}
     </div>
-  );
+  ), [handleOpenCancelDialog, handlePreviewDocument, onEdit, openActionMenuId]);
 
-  const gridColumns: DataGridColumn<SaleOrderDocument>[] = [
+  const gridColumns = useMemo<DataGridColumn<SaleOrderDocument>[]>(() => [
     {
       id: 'number',
       label: 'Document Number',
@@ -1755,7 +1755,7 @@ const SaleOrderList: React.FC<SaleOrderListProps> = ({
       getValue: () => '',
       renderCell: (item) => renderActionMenu(item),
     },
-  ];
+  ], [handlePreviewDocument, renderActionMenu]);
 
   return (
     <AppShell activeLeaf="sale-order" onSaleOrderClick={onNavigateToSaleOrderList}>
@@ -1883,17 +1883,16 @@ const SaleOrderList: React.FC<SaleOrderListProps> = ({
         )}
 
         {loadState === 'ready' && sortedRows.length > 0 && catalogueViewMode === 'list' && (
-          <div className="catalogue-table-scroll">
-            <CommonDataGrid
-              gridId="sale-order-catalogue"
-              rows={sortedRows}
-              columns={gridColumns}
-              rowId={(item) => item.id}
-              sortState={sortState}
-              onSortChange={handleSortChange}
-              chartTitle="Sale Order"
-            />
-          </div>
+          <CommonDataGrid
+            gridId="sale-order-catalogue"
+            ariaLabel="Sale orders table"
+            rows={sortedRows}
+            columns={gridColumns}
+            rowId={(item) => item.id}
+            sortState={sortState}
+            onSortChange={handleSortChange}
+            chartTitle="Sale Order"
+          />
         )}
 
         {loadState === 'ready' && sortedRows.length > 0 && catalogueViewMode === 'grid' && (

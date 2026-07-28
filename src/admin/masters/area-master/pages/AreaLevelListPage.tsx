@@ -396,6 +396,7 @@ const AreaLevelListPage: React.FC = () => {
       >
         <MasterDataTable
           gridId="area-level-master-table"
+          ariaLabel="Area levels table"
           rows={filtered}
           columns={gridColumns}
           rowId={(level) => level.id}

@@ -341,6 +341,7 @@ export default function ServiceCatalogueListPage({
       >
         <MasterDataTable
           gridId={`${config.masterKey}-table`}
+          ariaLabel={`${config.title} table`}
           rows={filtered}
           columns={columns}
           rowId={(row) => row.id}

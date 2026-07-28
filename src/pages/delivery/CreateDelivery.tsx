@@ -536,6 +536,7 @@ const CreateDelivery: React.FC<CreateDeliveryProps> = ({
           onNavigateToDeliveryList();
         }}
         onClose={() => setIsDiscardDialogOpen(false)}
+        compactPresentation="bottom-sheet"
       />
 
       <SuccessSummaryDialog
@@ -564,3 +565,4 @@ const CreateDelivery: React.FC<CreateDeliveryProps> = ({
 };
 
 export default CreateDelivery;
+

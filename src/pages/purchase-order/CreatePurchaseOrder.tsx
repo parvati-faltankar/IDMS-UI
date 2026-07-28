@@ -1653,6 +1653,7 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({
         cancelLabel="No"
         onConfirm={handleDiscardConfirm}
         onClose={handleDiscardClose}
+        compactPresentation="bottom-sheet"
       />
       <SuccessSummaryDialog
         isOpen={isSaveSuccessDialogOpen}
@@ -1701,3 +1702,4 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({
 };
 
 export default CreatePurchaseOrder;
+

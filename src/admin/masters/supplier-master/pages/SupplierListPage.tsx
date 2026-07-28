@@ -474,6 +474,7 @@ const SupplierListPage: React.FC = () => {
         {/* â”€â”€ Table view â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <MasterDataTable
           gridId="supplier-master-table"
+          ariaLabel="Business partners table"
           rows={filtered}
           columns={gridColumns}
           rowId={(bp) => bp.id}

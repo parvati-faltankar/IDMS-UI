@@ -1231,9 +1231,11 @@ const CreatePurchaseInvoice: React.FC<CreatePurchaseInvoiceProps> = ({
         cancelLabel="No"
         onConfirm={handleDiscardConfirm}
         onClose={handleDiscardClose}
+        compactPresentation="bottom-sheet"
       />
     </AppShell>
   );
 };
 
 export default CreatePurchaseInvoice;
+

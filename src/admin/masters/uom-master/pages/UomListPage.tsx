@@ -360,6 +360,7 @@ const UomListPage: React.FC = () => {
       >
         <MasterDataTable
           gridId="uom-master-table"
+          ariaLabel="Units of measurement table"
           rows={filtered}
           columns={gridColumns}
           rowId={(uom) => uom.id}

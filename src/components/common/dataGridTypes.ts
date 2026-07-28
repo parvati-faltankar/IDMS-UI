@@ -94,9 +94,9 @@ export interface CommonDataGridProps<TData, TSortKey extends string = string> {
   rows: TData[];
   columns: DataGridColumn<TData>[];
   rowId: (row: TData) => string;
+  ariaLabel: string;
   variant?: 'default' | 'master';
   rowClassName?: (row: TData) => string | undefined;
-  emptyLabel?: string;
   selectable?: boolean;
   sortState?: SortState<TSortKey>;
   onSortChange?: (key: TSortKey, direction: 'asc' | 'desc' | null) => void;

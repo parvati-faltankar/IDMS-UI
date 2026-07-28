@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Ban, Check, ChevronDown, ChevronUp, Circle, Columns3, Eye, FileText, Filter, LayoutGrid, List, MoreVertical, PencilLine, Plus, X } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import { Ban, Check, ChevronRight, Circle, Columns3, Eye, FileText, Filter, LayoutGrid, List, PencilLine, Plus, Search, X } from 'lucide-react';
 import AppShell from '../../components/common/AppShell';
 import CatalogueInsightCards from '../../components/common/CatalogueInsightCards';
 import CatalogueFieldDisplaySettings from '../../components/common/CatalogueFieldDisplaySettings';
@@ -9,14 +10,15 @@ import type { CatalogueConfigurableSection, CatalogueSectionLayoutMode } from '.
 import CatalogueViewConfigurator from '../../components/common/CatalogueViewConfigurator';
 import TransactionCatalogueHeader from '../../components/common/TransactionCatalogueHeader';
 import CommonDataGrid from '../../components/common/CommonDataGrid';
+import DataGridRowActionMenu from '../../components/common/DataGridRowActionMenu';
 import type { DataGridColumn } from '../../components/common/dataGridTypes';
 import GuidedTour, { type GuidedTourStep } from '../../components/common/GuidedTour';
-import SideDrawer from '../../components/common/SideDrawer';
+import EnterpriseFilterDialog, { type EnterpriseFilterSection } from '../../components/common/EnterpriseFilterDialog';
 import CancelDocumentDialog from '../../components/common/CancelDocumentDialog';
 import PurchaseRequisitionPreviewDrawer from '../../components/common/PurchaseRequisitionPreviewDrawer';
 import StatusBadge from '../../components/common/StatusBadge';
 import TourInvitePopup from '../../components/common/TourInvitePopup';
-import { Input, Select } from '../../components/common/FormControls';
+import { Input } from '../../components/common/FormControls';
 import { emptyCatalogueFilters, getActiveFilterCount, validateDateRange } from '../../utils/catalogueFilters';
 import type { CatalogueFilters } from '../../utils/catalogueFilters';
 import {
@@ -140,6 +142,153 @@ const purchaseRequisitionSortOptions = [
 
 const purchaseRequisitionCatalogueDocumentType = 'purchase-requisition';
 
+type MultiSelectCatalogueFilterField = 'suppliers' | 'priorities' | 'branches';
+type LegacySingleCatalogueFilterField = 'supplier' | 'priority' | 'branch';
+
+const multiSelectFilterFieldMap: Record<MultiSelectCatalogueFilterField, LegacySingleCatalogueFilterField> = {
+  suppliers: 'supplier',
+  priorities: 'priority',
+  branches: 'branch',
+};
+type FilterChoiceOption = {
+  value: string;
+  label: string;
+  helper?: string;
+};
+
+function getFilterChoiceId(sectionId: string, value: string): string {
+  const normalizedValue = value || 'all';
+
+  return `pr-filter-${sectionId}-${normalizedValue.replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase()}`;
+}
+
+function getActiveChoicesSummary(values: string[], fallback: string): string {
+  if (values.length === 0) {
+    return fallback;
+  }
+
+  if (values.length === 1) {
+    return values[0];
+  }
+
+  return `${values.length} selected`;
+}
+
+function getSelectedFilterValues(values: string[] | undefined, legacyValue: string): string[] {
+  return values && values.length > 0 ? values : legacyValue ? [legacyValue] : [];
+}
+
+const FilterChoiceGroup: React.FC<{
+  sectionId: string;
+  name: string;
+  ariaLabel: string;
+  options: FilterChoiceOption[];
+  selectionMode?: 'single' | 'multiple';
+  value?: string;
+  values?: string[];
+  onChange?: (value: string) => void;
+  onValuesChange?: (values: string[]) => void;
+  searchValue?: string;
+  searchPlaceholder?: string;
+  emptyLabel?: string;
+  onSearchChange?: (value: string) => void;
+}> = ({
+  sectionId,
+  name,
+  ariaLabel,
+  options,
+  selectionMode = 'single',
+  value = '',
+  values = [],
+  onChange,
+  onValuesChange,
+  searchValue = '',
+  searchPlaceholder = 'Search options',
+  emptyLabel = 'No options found.',
+  onSearchChange,
+}) => {
+  const normalizedSearchValue = searchValue.trim().toLowerCase();
+  const visibleOptions = normalizedSearchValue
+    ? options.filter((option) => option.label.toLowerCase().includes(normalizedSearchValue))
+    : options;
+  const isMultiple = selectionMode === 'multiple';
+  const selectedValues = isMultiple ? values : value ? [value] : [];
+
+  const handleSelectOption = (optionValue: string) => {
+    if (!isMultiple) {
+      onChange?.(optionValue);
+      return;
+    }
+
+    if (!optionValue) {
+      onValuesChange?.([]);
+      return;
+    }
+
+    const nextValues = selectedValues.includes(optionValue)
+      ? selectedValues.filter((selectedValue) => selectedValue !== optionValue)
+      : [...selectedValues, optionValue];
+
+    onValuesChange?.(nextValues);
+  };
+
+  return (
+    <div className="enterprise-filter-dialog__choice-stack">
+      {onSearchChange && (
+        <label className="enterprise-filter-dialog__search">
+          <Search size={16} className="enterprise-filter-dialog__search-icon" aria-hidden="true" />
+          <input
+            type="search"
+            value={searchValue}
+            onChange={(event) => onSearchChange(event.target.value)}
+            placeholder={searchPlaceholder}
+            className="enterprise-filter-dialog__search-input"
+          />
+        </label>
+      )}
+
+      <div className="enterprise-filter-dialog__choice-list" role={isMultiple ? 'group' : 'radiogroup'} aria-label={ariaLabel}>
+        {visibleOptions.map((option) => {
+          const isSelected = option.value ? selectedValues.includes(option.value) : selectedValues.length === 0;
+          const optionId = getFilterChoiceId(sectionId, option.value);
+
+          return (
+            <label
+              key={option.value || 'all'}
+              htmlFor={optionId}
+              className={cn(
+                'enterprise-filter-dialog__choice',
+                isSelected && 'enterprise-filter-dialog__choice--selected'
+              )}
+            >
+              <input
+                id={optionId}
+                type={isMultiple ? 'checkbox' : 'radio'}
+                name={name}
+                value={option.value}
+                checked={isSelected}
+                onChange={() => handleSelectOption(option.value)}
+                className="enterprise-filter-dialog__choice-input"
+              />
+              <span className="enterprise-filter-dialog__choice-control" aria-hidden="true">
+                <Check size={13} />
+              </span>
+              <span className="enterprise-filter-dialog__choice-copy">
+                <span className="enterprise-filter-dialog__choice-title">{option.label}</span>
+                {option.helper && <span className="enterprise-filter-dialog__choice-helper">{option.helper}</span>}
+              </span>
+            </label>
+          );
+        })}
+
+        {visibleOptions.length === 0 && (
+          <div className="enterprise-filter-dialog__no-results">{emptyLabel}</div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const FilterDrawer: React.FC<{
   isOpen: boolean;
   draftFilters: CatalogueFilters;
@@ -148,8 +297,9 @@ const FilterDrawer: React.FC<{
   dateRangeError: string;
   onClose: () => void;
   onApply: () => void;
-  onReset: () => void;
+  onClearAll: () => void;
   onFilterChange: (field: keyof CatalogueFilters, value: string) => void;
+  onFilterValuesChange: (field: MultiSelectCatalogueFilterField, values: string[]) => void;
 }> = ({
   isOpen,
   draftFilters,
@@ -158,226 +308,254 @@ const FilterDrawer: React.FC<{
   dateRangeError,
   onClose,
   onApply,
-  onReset,
+  onClearAll,
   onFilterChange,
+  onFilterValuesChange,
 }) => {
-  const firstFieldRef = useRef<HTMLSelectElement | null>(null);
+  const [choiceSearchBySection, setChoiceSearchBySection] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (isOpen) {
+      setChoiceSearchBySection({});
+    }
+  }, [isOpen]);
+
+  const getChoiceSearchValue = (sectionId: string) => choiceSearchBySection[sectionId] ?? '';
+  const handleChoiceSearchChange = (sectionId: string, value: string) => {
+    setChoiceSearchBySection((currentSearch) => ({
+      ...currentSearch,
+      [sectionId]: value,
+    }));
+  };
+
+  const supplierChoiceOptions: FilterChoiceOption[] = [
+    { value: '', label: 'All suppliers' },
+    ...supplierOptions.map((supplier) => ({ value: supplier, label: supplier })),
+  ];
+  const priorityChoiceOptions: FilterChoiceOption[] = [
+    { value: '', label: 'All priorities' },
+    ...purchaseRequisitionPriorityOptions,
+  ];
+  const branchChoiceOptions: FilterChoiceOption[] = [
+    { value: '', label: 'All branches' },
+    ...branchOptions.map((branch) => ({ value: branch, label: branch })),
+  ];
+  const selectedSuppliers = getSelectedFilterValues(draftFilters.suppliers, draftFilters.supplier);
+  const selectedPriorities = getSelectedFilterValues(draftFilters.priorities, draftFilters.priority);
+  const selectedBranches = getSelectedFilterValues(draftFilters.branches, draftFilters.branch);
+  const dateBadgeCount = Number(Boolean(draftFilters.startDate)) + Number(Boolean(draftFilters.endDate));
+  const dateSummary = dateBadgeCount
+    ? `${draftFilters.startDate || 'Any start'} to ${draftFilters.endDate || 'Any end'}`
+    : 'Any document date';
+
+  const sections: EnterpriseFilterSection[] = [
+    {
+      id: 'supplier',
+      label: 'Supplier',
+      summary: getActiveChoicesSummary(selectedSuppliers, 'All suppliers'),
+      badgeCount: selectedSuppliers.length || undefined,
+      render: () => (
+        <FilterChoiceGroup
+          sectionId="supplier"
+          name="purchase-requisition-supplier-filter"
+          ariaLabel="Supplier filter"
+          selectionMode="multiple"
+          values={selectedSuppliers}
+          options={supplierChoiceOptions}
+          searchValue={getChoiceSearchValue('supplier')}
+          searchPlaceholder="Search suppliers"
+          emptyLabel="No suppliers found."
+          onSearchChange={(value) => handleChoiceSearchChange('supplier', value)}
+          onValuesChange={(values) => onFilterValuesChange('suppliers', values)}
+        />
+      ),
+    },
+    {
+      id: 'priority',
+      label: 'Priority',
+      summary: getActiveChoicesSummary(selectedPriorities, 'All priorities'),
+      badgeCount: selectedPriorities.length || undefined,
+      render: () => (
+        <FilterChoiceGroup
+          sectionId="priority"
+          name="purchase-requisition-priority-filter"
+          ariaLabel="Priority filter"
+          selectionMode="multiple"
+          values={selectedPriorities}
+          options={priorityChoiceOptions}
+          searchValue={getChoiceSearchValue('priority')}
+          searchPlaceholder="Search priorities"
+          emptyLabel="No priorities found."
+          onSearchChange={(value) => handleChoiceSearchChange('priority', value)}
+          onValuesChange={(values) => onFilterValuesChange('priorities', values)}
+        />
+      ),
+    },
+    {
+      id: 'branch',
+      label: 'Branch',
+      summary: getActiveChoicesSummary(selectedBranches, 'All branches'),
+      badgeCount: selectedBranches.length || undefined,
+      render: () => (
+        <FilterChoiceGroup
+          sectionId="branch"
+          name="purchase-requisition-branch-filter"
+          ariaLabel="Branch filter"
+          selectionMode="multiple"
+          values={selectedBranches}
+          options={branchChoiceOptions}
+          searchValue={getChoiceSearchValue('branch')}
+          searchPlaceholder="Search branches"
+          emptyLabel="No branches found."
+          onSearchChange={(value) => handleChoiceSearchChange('branch', value)}
+          onValuesChange={(values) => onFilterValuesChange('branches', values)}
+        />
+      ),
+    },
+    {
+      id: 'date-range',
+      label: 'Date range',
+      summary: dateSummary,
+      badgeCount: dateBadgeCount || undefined,
+      render: () => (
+        <div className="enterprise-filter-dialog__date-section">
+          <div className="enterprise-filter-dialog__date-grid">
+            <label className="enterprise-filter-dialog__field">
+              <span className="field-label">Start Date</span>
+              <Input
+                type="date"
+                value={draftFilters.startDate}
+                onChange={(event) => onFilterChange('startDate', event.target.value)}
+                max={draftFilters.endDate || undefined}
+              />
+            </label>
+
+            <label className="enterprise-filter-dialog__field">
+              <span className="field-label">End Date</span>
+              <Input
+                type="date"
+                value={draftFilters.endDate}
+                onChange={(event) => onFilterChange('endDate', event.target.value)}
+                min={draftFilters.startDate || undefined}
+                error={dateRangeError}
+              />
+            </label>
+          </div>
+
+          {dateRangeError && <p className="field-error enterprise-filter-dialog__date-error">{dateRangeError}</p>}
+        </div>
+      ),
+    },
+  ];
 
   return (
-    <SideDrawer
+    <EnterpriseFilterDialog
       isOpen={isOpen}
       title="Filters"
       subtitle="Narrow down purchase requisitions using business-ready criteria."
+      sections={sections}
       onClose={onClose}
-      initialFocusRef={firstFieldRef}
-      panelClassName="side-drawer__panel--narrow"
-      footer={
-        <>
-          <button type="button" onClick={onReset} className="btn btn--outline">
-            Reset
-          </button>
-          <button type="button" onClick={onApply} className="btn btn--primary">
-            Apply
-          </button>
-        </>
-      }
-    >
-      <div className="drawer-form">
-        <label className="drawer-form__field">
-          <span className="field-label">Supplier</span>
-          <Select
-            ref={firstFieldRef}
-            value={draftFilters.supplier}
-            onChange={(event) => onFilterChange('supplier', event.target.value)}
-            className="field-select"
-            options={[
-              { value: '', label: 'All suppliers' },
-              ...supplierOptions.map((supplier) => ({ value: supplier, label: supplier })),
-            ]}
-          >
-          </Select>
-        </label>
-
-        <label className="drawer-form__field">
-          <span className="field-label">Priority</span>
-          <Select
-            value={draftFilters.priority}
-            onChange={(event) => onFilterChange('priority', event.target.value)}
-            className="field-select"
-            options={[
-              { value: '', label: 'All priorities' },
-              { value: 'Low', label: 'Low' },
-              { value: 'Medium', label: 'Medium' },
-              { value: 'High', label: 'High' },
-              { value: 'Critical', label: 'Critical' },
-            ]}
-          >
-          </Select>
-        </label>
-
-        <label className="drawer-form__field">
-          <span className="field-label">Branch</span>
-          <Select
-            value={draftFilters.branch}
-            onChange={(event) => onFilterChange('branch', event.target.value)}
-            className="field-select"
-            options={[
-              { value: '', label: 'All branches' },
-              ...branchOptions.map((branch) => ({ value: branch, label: branch })),
-            ]}
-          >
-          </Select>
-        </label>
-
-        <div className="drawer-form__date-grid">
-          <label className="drawer-form__field">
-            <span className="field-label">Start Date</span>
-            <Input
-              type="date"
-              value={draftFilters.startDate}
-              onChange={(event) => onFilterChange('startDate', event.target.value)}
-              max={draftFilters.endDate || undefined}
-            />
-          </label>
-
-          <label className="drawer-form__field">
-            <span className="field-label">End Date</span>
-            <Input
-              type="date"
-              value={draftFilters.endDate}
-              onChange={(event) => onFilterChange('endDate', event.target.value)}
-              min={draftFilters.startDate || undefined}
-              error={dateRangeError}
-            />
-          </label>
-        </div>
-
-        {dateRangeError && <p className="field-error">{dateRangeError}</p>}
-      </div>
-    </SideDrawer>
+      onApply={onApply}
+      onClearAll={onClearAll}
+    />
   );
 };
 
-function getRequisitionCardAmount(document: PurchaseRequisitionDocument): string {
-  const totalRequestedQty = document.productLines.reduce(
-    (sum, line) => sum + Number.parseFloat(line.requestedQty || '0'),
-    0
-  );
+const requisitionAmountNumberFormatter = new Intl.NumberFormat('en-IN', {
+  maximumFractionDigits: 2,
+});
 
-  return totalRequestedQty.toFixed(2);
+function formatRequisitionAmount(amount: string | undefined, currency: string): string {
+  if (!amount) {
+    return '-';
+  }
+
+  const numericAmount = Number.parseFloat(amount);
+  if (!Number.isFinite(numericAmount)) {
+    return '-';
+  }
+
+  try {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(numericAmount);
+  } catch {
+    return `${currency} ${requisitionAmountNumberFormatter.format(numericAmount)}`;
+  }
+}
+function getRequisitionLineCountLabel(lineCount: number): string {
+  return `${lineCount} ${lineCount === 1 ? 'line' : 'lines'}`;
+}
+
+function getRequisitionPrimaryLineSummary(document: PurchaseRequisitionDocument): string {
+  const firstLine = document.productLines[0];
+  if (!firstLine) {
+    return `${getRequisitionLineCountLabel(document.lineCount)} requested`;
+  }
+
+  const additionalLineCount = Math.max(document.lineCount - 1, 0);
+  return additionalLineCount > 0
+    ? `${firstLine.productName} + ${additionalLineCount} more`
+    : firstLine.productName;
 }
 
 const RequisitionCard: React.FC<{
   item: PurchaseRequisitionDocument;
-  isExpanded: boolean;
-  isMenuOpen: boolean;
-  setActionMenuRef: (element: HTMLDivElement | null) => void;
-  onToggleExpand: () => void;
-  onToggleMenu: () => void;
   onView: () => void;
-  onEdit: () => void;
-  onCancel: () => void;
-  canEdit: boolean;
-  canCancel: boolean;
-}> = ({
-  item,
-  isExpanded,
-  isMenuOpen,
-  setActionMenuRef,
-  onToggleExpand,
-  onToggleMenu,
-  onView,
-  onEdit,
-  onCancel,
-  canEdit,
-  canCancel,
-}) => {
-  const isCancelled = item.status === 'Cancelled';
-  const documentDate = formatDate(item.documentDateTime.slice(0, 10));
-  const createdDate = formatDate(item.documentDateTime.slice(0, 10));
-  const displayAmount = getRequisitionCardAmount(item);
+}> = ({ item, onView }) => {
+  const documentDateTime = formatDateTime(item.documentDateTime);
+  const totalAmount = formatRequisitionAmount(item.totalAmount, item.currency);
+  const primaryLineSummary = getRequisitionPrimaryLineSummary(item);
 
   return (
-    <article className="catalogue-card">
-      <div className="catalogue-card__top">
-        <div className="catalogue-card__identity">
-          <button type="button" onClick={onView} className="catalogue-card__number">
-            {item.number}
-          </button>
-          <div className="catalogue-card__date">{documentDate}</div>
+    <article className="purchase-requisition-feed-card" aria-label={`Purchase requisition ${item.number}`}>
+      <div className="purchase-requisition-feed-card__top-row">
+        <div className="purchase-requisition-feed-card__badges" aria-label="Requisition state">
+          <StatusBadge kind="requisition-status" value={item.status} />
+          <StatusBadge kind="priority" value={item.priority} />
         </div>
 
-        <div className="catalogue-card__top-actions">
-          <StatusBadge kind="requisition-status" value={item.status} />
-          <div ref={setActionMenuRef} className="catalogue-action-menu">
-            <button
-              type="button"
-              onClick={onToggleMenu}
-              className="catalogue-action-menu__trigger"
-              aria-label={`Open actions for ${item.number}`}
-              aria-expanded={isMenuOpen}
-            >
-              <MoreVertical size={15} />
-            </button>
-
-            {isMenuOpen && (
-              <div className="catalogue-action-menu__panel" role="menu" aria-label={`Actions for ${item.number}`}>
-                <button type="button" className="catalogue-action-menu__item" role="menuitem" onClick={onView}>
-                  <Eye size={16} />
-                  View
-                </button>
-                <button type="button" className="catalogue-action-menu__item" role="menuitem" disabled={!canEdit} onClick={onEdit}>
-                  <PencilLine size={16} />
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  className="catalogue-action-menu__item catalogue-action-menu__item--danger"
-                  role="menuitem"
-                  disabled={isCancelled || !canCancel}
-                  onClick={onCancel}
-                >
-                  <Ban size={16} />
-                  Cancel
-                </button>
-              </div>
-            )}
-          </div>
+        <div className="purchase-requisition-feed-card__actions">
+          <button
+            type="button"
+            className="purchase-requisition-feed-card__icon-button"
+            onClick={onView}
+            aria-label={`Open ${item.number}`}
+            title={`Open ${item.number}`}
+          >
+            <ChevronRight size={20} />
+          </button>
         </div>
       </div>
 
-      {isExpanded && (
-        <div className="catalogue-card__body">
-          <div className="catalogue-card__info-grid">
-            <div className="catalogue-card__label">Supplier:</div>
-            <div className="catalogue-card__value">
-              <span>{item.supplierName}</span>
-            </div>
-
-            <div className="catalogue-card__label">Department:</div>
-            <div className="catalogue-card__value">{item.department}</div>
-
-            <div className="catalogue-card__label">Requirement date:</div>
-            <div className="catalogue-card__value">{formatDate(item.requirementDate)}</div>
-
-            <div className="catalogue-card__label">Created by:</div>
-            <div className="catalogue-card__value">{item.requesterName}</div>
-
-            <div className="catalogue-card__label">Created date:</div>
-            <div className="catalogue-card__value">{createdDate}</div>
-
-            <div className="catalogue-card__label">Amount (₹):</div>
-            <div className="catalogue-card__value">{displayAmount}</div>
-          </div>
-        </div>
-      )}
-
-      <div className="catalogue-card__footer">
-        <StatusBadge kind="priority" value={item.priority} />
-        <button type="button" onClick={onToggleExpand} className="catalogue-card__expand-toggle">
-          {isExpanded ? 'Close' : 'Open'}
-          {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+      <div className="purchase-requisition-feed-card__identity-row">
+        <button type="button" onClick={onView} className="purchase-requisition-feed-card__number">
+          {item.number}
         </button>
+        <span className="purchase-requisition-feed-card__timestamp">
+          {documentDateTime.dateLabel}, {documentDateTime.timeLabel}
+        </span>
+      </div>
+
+      <div className="purchase-requisition-feed-card__context">
+        <p className="purchase-requisition-feed-card__supplier">{item.supplierName}</p>
+        <p className="purchase-requisition-feed-card__meta" aria-label={`GSTIN ${item.supplierGstin ?? 'not available'}`}>
+          <span>GSTIN: {item.supplierGstin ?? 'Not available'}</span>
+        </p>
+      </div>
+
+      <div className="purchase-requisition-feed-card__divider" aria-hidden="true" />
+      <p className="purchase-requisition-feed-card__requester">Requested by {item.requesterName}</p>
+
+      <div className="purchase-requisition-feed-card__summary-row">
+        <p className="purchase-requisition-feed-card__summary-title">{primaryLineSummary}</p>
+        <div className="purchase-requisition-feed-card__amount" aria-label={`${totalAmount} total amount`}>
+          <span className="purchase-requisition-feed-card__amount-value">{totalAmount}</span>
+          <span className="purchase-requisition-feed-card__amount-label">Amount</span>
+        </div>
       </div>
     </article>
   );
@@ -522,7 +700,6 @@ const purchaseRequisitionSplitFields: CatalogueDisplayField<PurchaseRequisitionD
 
 function getRequisitionTimelineSteps(item: PurchaseRequisitionDocument) {
   const documentDateTime = formatDateTime(item.documentDateTime);
-  const requirementDate = formatDate(item.requirementDate);
   const validTillDate = formatDate(item.validTillDate);
   const isCancelled = item.status === 'Cancelled';
   const isRejected = item.status === 'Rejected';
@@ -879,10 +1056,7 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
     )
   );
   const [dateRangeError, setDateRangeError] = useState('');
-  const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null);
-  const [menuAnchorRect, setMenuAnchorRect] = useState<DOMRect | null>(null);
   const [cancelDocumentId, setCancelDocumentId] = useState<string | null>(null);
-  const [expandedCardIds, setExpandedCardIds] = useState<Record<string, boolean>>({});
   const [activeInsightKey, setActiveInsightKey] = useState<string | null>(null);
   const [isTourInviteVisible, setIsTourInviteVisible] = useState(() => !isPurchaseRequisitionTourDismissedForSession);
   const [isTourActive, setIsTourActive] = useState(false);
@@ -911,16 +1085,21 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
   const [isViewConfiguratorOpen, setIsViewConfiguratorOpen] = useState(false);
   const businessSettings = useBusinessSettings();
   const actionSettings = businessSettings.actions.purchaseRequisition;
-  const actionMenuRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const isCompactCatalogueViewport = useMediaQuery('(max-width: 1024px)', { noSsr: true });
   const viewModeConfig = useMemo(
     () => getCatalogueViewModeConfig(purchaseRequisitionCatalogueDocumentType),
     []
   );
   const availableCatalogueViewModes = useMemo(
-    () => viewModeConfig.enabledViews.map((viewMode) => catalogueViewModeRegistry[viewMode]),
-    [viewModeConfig.enabledViews]
+    () => viewModeConfig.enabledViews
+      .filter((viewMode) => isCompactCatalogueViewport || viewMode !== 'grid')
+      .map((viewMode) => catalogueViewModeRegistry[viewMode]),
+    [isCompactCatalogueViewport, viewModeConfig.enabledViews]
   );
-  const activeCatalogueViewMode = resolveCatalogueViewMode(purchaseRequisitionCatalogueDocumentType, catalogueViewMode);
+  const resolvedCatalogueViewMode = resolveCatalogueViewMode(purchaseRequisitionCatalogueDocumentType, catalogueViewMode);
+  const activeCatalogueViewMode: CatalogueViewModeId = !isCompactCatalogueViewport && resolvedCatalogueViewMode === 'grid'
+    ? 'list'
+    : resolvedCatalogueViewMode;
 
   const systemViews = useMemo(
     () => getPurchaseRequisitionSystemViews(currentUserName),
@@ -997,32 +1176,6 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
     return () => window.clearTimeout(timer);
   }, [loadState]);
 
-  useEffect(() => {
-    if (!openActionMenuId) {
-      return;
-    }
-
-    const handlePointerDown = (event: MouseEvent) => {
-      const menuNode = actionMenuRefs.current[openActionMenuId];
-      if (menuNode && !menuNode.contains(event.target as Node)) {
-        setOpenActionMenuId(null);
-      }
-    };
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setOpenActionMenuId(null);
-      }
-    };
-
-    window.addEventListener('mousedown', handlePointerDown);
-    window.addEventListener('keydown', handleEscape);
-
-    return () => {
-      window.removeEventListener('mousedown', handlePointerDown);
-      window.removeEventListener('keydown', handleEscape);
-    };
-  }, [openActionMenuId]);
 
   const supplierOptions = useMemo(
     () => Array.from(new Set(viewFilteredRows.map((item) => item.supplierName))).sort(),
@@ -1056,15 +1209,19 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
     const normalizedSearch = tableSearch.trim().toLowerCase();
 
     return viewFilteredRows.filter((item) => {
-      const matchesSupplier = !filters.supplier || item.supplierName === filters.supplier;
-      const matchesPriority = !filters.priority || item.priority === filters.priority;
-      const matchesBranch = !filters.branch || item.branch === filters.branch;
+      const selectedSuppliers = getSelectedFilterValues(filters.suppliers, filters.supplier);
+      const selectedPriorities = getSelectedFilterValues(filters.priorities, filters.priority);
+      const selectedBranches = getSelectedFilterValues(filters.branches, filters.branch);
+      const matchesSupplier = selectedSuppliers.length === 0 || selectedSuppliers.includes(item.supplierName);
+      const matchesPriority = selectedPriorities.length === 0 || selectedPriorities.includes(item.priority);
+      const matchesBranch = selectedBranches.length === 0 || selectedBranches.includes(item.branch);
       const matchesStartDate = !startDate || item.requirementDate >= startDate;
       const matchesEndDate = !endDate || item.validTillDate <= endDate;
       const matchesSearch =
         normalizedSearch.length === 0 ||
         item.number.toLowerCase().includes(normalizedSearch) ||
         item.supplierName.toLowerCase().includes(normalizedSearch) ||
+        (item.supplierGstin ?? '').toLowerCase().includes(normalizedSearch) ||
         item.requesterName.toLowerCase().includes(normalizedSearch) ||
         item.priority.toLowerCase().includes(normalizedSearch) ||
         item.status.toLowerCase().includes(normalizedSearch) ||
@@ -1263,6 +1420,18 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
     setDateRangeError(validateDateRange(nextFilters));
   };
 
+  const handleFilterValuesChange = (field: MultiSelectCatalogueFilterField, values: string[]) => {
+    const legacyField = multiSelectFilterFieldMap[field];
+    const nextFilters = {
+      ...draftFilters,
+      [field]: values,
+      [legacyField]: '',
+    };
+
+    setDraftFilters(nextFilters);
+    setDateRangeError(validateDateRange(nextFilters));
+  };
+
   const handleApplyFilters = () => {
     const validationError = validateDateRange(draftFilters);
     if (validationError) {
@@ -1282,12 +1451,18 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
     setIsFilterDrawerOpen(false);
   };
 
+  const handleClearDraftFilters = () => {
+    setDraftFilters(emptyCatalogueFilters);
+    setDateRangeError('');
+  };
+
   const handleSortChange = (key: SortKey, direction: 'asc' | 'desc' | null) => {
     setSortState(direction ? { key, direction } : null);
   };
 
   const handleCatalogueViewModeChange = (viewMode: CatalogueViewModeId) => {
-    const nextViewMode = resolveCatalogueViewMode(purchaseRequisitionCatalogueDocumentType, viewMode);
+    const requestedViewMode = !isCompactCatalogueViewport && viewMode === 'grid' ? 'list' : viewMode;
+    const nextViewMode = resolveCatalogueViewMode(purchaseRequisitionCatalogueDocumentType, requestedViewMode);
     setCatalogueViewMode(nextViewMode);
     saveCatalogueDisplayViewMode(purchaseRequisitionCatalogueDocumentType, nextViewMode);
   };
@@ -1374,7 +1549,7 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
     }
   };
 
-  const registerRecentlyViewedDocument = (documentId: string) => {
+  const registerRecentlyViewedDocument = useCallback((documentId: string) => {
     const document = documents.find((item) => item.id === documentId);
     setRecentlyViewedEntries(recordRecentlyViewedDocument(PURCHASE_REQUISITION_CATALOGUE_VIEW_ENTITY, documentId));
 
@@ -1389,25 +1564,23 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
         route: '/purchase-requisition',
       });
     }
-  };
+  }, [documents]);
 
-  const handleViewDocument = (documentId: string) => {
+  const handleViewDocument = useCallback((documentId: string) => {
     registerRecentlyViewedDocument(documentId);
     setPreviewDocumentId(documentId);
-    setOpenActionMenuId(null);
-  };
+  }, [registerRecentlyViewedDocument]);
 
-  const handleEditDocument = (documentId: string) => {
+  const handleEditDocument = useCallback((documentId: string) => {
     if (!actionSettings.allowEdit) {
       return;
     }
 
     registerRecentlyViewedDocument(documentId);
-    setOpenActionMenuId(null);
     onEdit(documentId);
-  };
+  }, [actionSettings.allowEdit, onEdit, registerRecentlyViewedDocument]);
 
-  const handleOpenCancelDialog = (documentId: string) => {
+  const handleOpenCancelDialog = useCallback((documentId: string) => {
     if (!actionSettings.allowCancel) {
       return;
     }
@@ -1416,10 +1589,8 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
     if (!document) {
       return;
     }
-
-    setOpenActionMenuId(null);
     setCancelDocumentId(documentId);
-  };
+  }, [actionSettings.allowCancel, documents]);
 
   const handleConfirmCancelDocument = () => {
     if (!cancelDocumentId) {
@@ -1439,186 +1610,153 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
     setCancelDocumentId(null);
   };
 
-  const renderActionMenu = (item: PurchaseRequisitionDocument) => (
-    <div
-      ref={(element) => {
-        actionMenuRefs.current[item.id] = element;
-      }}
-      className="catalogue-action-menu"
-    >
-      <button
-        type="button"
-        onClick={(event) => {
-          const rect = (event.currentTarget as HTMLButtonElement).getBoundingClientRect();
-          setMenuAnchorRect(openActionMenuId === item.id ? null : rect);
-          setOpenActionMenuId((current) => (current === item.id ? null : item.id));
-        }}
-        className="catalogue-action-menu__trigger"
-        aria-label={`Open actions for ${item.number}`}
-        aria-expanded={openActionMenuId === item.id}
-      >
-        <MoreVertical size={15} />
-      </button>
-
-      {openActionMenuId === item.id && menuAnchorRect && (
-        <div
-          className="catalogue-action-menu__panel"
-          role="menu"
-          aria-label={`Actions for ${item.number}`}
-          style={{
-            position: 'fixed',
-            top: menuAnchorRect.bottom + 8,
-            right: window.innerWidth - menuAnchorRect.right,
-            left: 'auto',
-          }}
-        >
-          <button type="button" className="catalogue-action-menu__item" role="menuitem" onClick={() => handleViewDocument(item.id)}>
-            <Eye size={16} />
-            View
-          </button>
-          <button
-            type="button"
-            className="catalogue-action-menu__item"
-            role="menuitem"
-            disabled={!actionSettings.allowEdit}
-            onClick={() => handleEditDocument(item.id)}
-          >
-            <PencilLine size={16} />
-            Edit
-          </button>
-          <button
-            type="button"
-            className="catalogue-action-menu__item catalogue-action-menu__item--danger"
-            role="menuitem"
-            disabled={item.status === 'Cancelled' || !actionSettings.allowCancel}
-            onClick={() => handleOpenCancelDialog(item.id)}
-          >
-            <Ban size={16} />
-            Cancel
-          </button>
-        </div>
-      )}
-    </div>
-  );
-
-  const gridColumns: DataGridColumn<PurchaseRequisitionDocument>[] = [
-      {
-        id: 'number',
-        label: 'Document No.',
-        type: 'text',
-        width: 164,
-        getValue: (item) => item.number,
-        renderCell: (item) => (
-          <button
-            type="button"
-            onClick={() => handleViewDocument(item.id)}
-            className="catalogue-table__document-link"
-          >
-            {item.number}
-          </button>
-        ),
-      },
-      {
-        id: 'documentDateTime',
-        label: 'Document date & time',
-        type: 'date',
-        width: 192,
-        getValue: (item) => item.documentDateTime,
-        renderCell: (item) => {
-          const documentDateTime = formatDateTime(item.documentDateTime);
-          return (
-            <div className="catalogue-table__datetime">
-              {documentDateTime.dateLabel}, {documentDateTime.timeLabel}
-            </div>
-          );
+  const renderActionMenu = useCallback((item: PurchaseRequisitionDocument) => (
+    <DataGridRowActionMenu
+      triggerLabel={'Open actions for ' + item.number}
+      menuLabel={'Actions for ' + item.number}
+      actions={[
+        {
+          id: 'view',
+          label: 'View',
+          icon: <Eye size={16} />,
+          onSelect: () => handleViewDocument(item.id),
         },
-      },
-      {
-        id: 'supplierName',
-        label: 'Supplier name',
-        type: 'text',
-        width: 188,
-        getValue: (item) => item.supplierName,
-        renderCell: (item) => (
-          <div className="catalogue-table__truncate" title={item.supplierName}>
-            {item.supplierName}
-          </div>
-        ),
-      },
-      {
-        id: 'requesterName',
-        label: 'Requester name',
-        type: 'text',
-        width: 164,
-        getValue: (item) => item.requesterName,
-        renderCell: (item) => <div className="catalogue-table__primary">{item.requesterName}</div>,
-      },
-      {
-        id: 'priority',
-        label: 'Priority',
-        type: 'status',
-        width: 118,
-        getValue: (item) => item.priority,
-        options: [
-          { value: 'Low', label: 'Low' },
-          { value: 'Medium', label: 'Medium' },
-          { value: 'High', label: 'High' },
-          { value: 'Critical', label: 'Critical' },
-        ],
-        renderCell: (item) => <StatusBadge kind="priority" value={item.priority} />,
-      },
-      {
-        id: 'requirementDate',
-        label: 'Requirement date',
-        type: 'date',
-        width: 156,
-        getValue: (item) => item.requirementDate,
-        renderCell: (item) => formatDate(item.requirementDate),
-      },
-      {
-        id: 'validTillDate',
-        label: 'Valid till date',
-        type: 'date',
-        width: 148,
-        getValue: (item) => item.validTillDate,
-        renderCell: (item) => formatDate(item.validTillDate),
-      },
-      {
-        id: 'status',
-        label: 'Status',
-        type: 'status',
-        width: 154,
-        getValue: (item) => item.status,
-        options: [
-          { value: 'Draft', label: 'Draft' },
-          { value: 'Pending Approval', label: 'Pending Approval' },
-          { value: 'Approved', label: 'Approved' },
-          { value: 'Rejected', label: 'Rejected' },
-          { value: 'Cancelled', label: 'Cancelled' },
-        ],
-        renderCell: (item) => <StatusBadge kind="requisition-status" value={item.status} />,
-      },
-      {
-        id: 'actions',
-        label: 'Action',
-        type: 'actions',
-        width: 86,
-        sortable: false,
-        filterable: false,
-        groupable: false,
-        defaultPin: 'right',
-        hideable: false,
-        getValue: () => '',
-        renderCell: (item) => renderActionMenu(item),
-      },
-    ];
+        {
+          id: 'edit',
+          label: 'Edit',
+          icon: <PencilLine size={16} />,
+          disabled: !actionSettings.allowEdit,
+          onSelect: () => handleEditDocument(item.id),
+        },
+        {
+          id: 'cancel',
+          label: 'Cancel',
+          icon: <Ban size={16} />,
+          tone: 'danger',
+          disabled: item.status === 'Cancelled' || !actionSettings.allowCancel,
+          onSelect: () => handleOpenCancelDialog(item.id),
+        },
+      ]}
+    />
+  ), [
+    actionSettings.allowCancel,
+    actionSettings.allowEdit,
+    handleEditDocument,
+    handleOpenCancelDialog,
+    handleViewDocument,
+  ]);
 
-  const handleToggleCard = (documentId: string) => {
-    setExpandedCardIds((current) => ({
-      ...current,
-      [documentId]: current[documentId] === false,
-    }));
-  };
+  const gridColumns = useMemo<DataGridColumn<PurchaseRequisitionDocument>[]>(() => [
+    {
+      id: 'number',
+      label: 'Document No.',
+      type: 'text',
+      width: 164,
+      getValue: (item) => item.number,
+      renderCell: (item) => (
+        <button
+          type="button"
+          onClick={() => handleViewDocument(item.id)}
+          className="catalogue-table__document-link"
+        >
+          {item.number}
+        </button>
+      ),
+    },
+    {
+      id: 'documentDateTime',
+      label: 'Document date & time',
+      type: 'date',
+      width: 192,
+      getValue: (item) => item.documentDateTime,
+      renderCell: (item) => {
+        const documentDateTime = formatDateTime(item.documentDateTime);
+        return (
+          <div className="catalogue-table__datetime">
+            {documentDateTime.dateLabel}, {documentDateTime.timeLabel}
+          </div>
+        );
+      },
+    },
+    {
+      id: 'supplierName',
+      label: 'Supplier name',
+      type: 'text',
+      width: 188,
+      getValue: (item) => item.supplierName,
+      renderCell: (item) => (
+        <div className="catalogue-table__truncate" title={item.supplierName}>
+          {item.supplierName}
+        </div>
+      ),
+    },
+    {
+      id: 'requesterName',
+      label: 'Requester name',
+      type: 'text',
+      width: 164,
+      getValue: (item) => item.requesterName,
+      renderCell: (item) => <div className="catalogue-table__primary">{item.requesterName}</div>,
+    },
+    {
+      id: 'priority',
+      label: 'Priority',
+      type: 'status',
+      width: 118,
+      getValue: (item) => item.priority,
+      options: [
+        { value: 'Low', label: 'Low' },
+        { value: 'Medium', label: 'Medium' },
+        { value: 'High', label: 'High' },
+        { value: 'Critical', label: 'Critical' },
+      ],
+      renderCell: (item) => <StatusBadge kind="priority" value={item.priority} />,
+    },
+    {
+      id: 'requirementDate',
+      label: 'Requirement date',
+      type: 'date',
+      width: 156,
+      getValue: (item) => item.requirementDate,
+      renderCell: (item) => formatDate(item.requirementDate),
+    },
+    {
+      id: 'validTillDate',
+      label: 'Valid till date',
+      type: 'date',
+      width: 148,
+      getValue: (item) => item.validTillDate,
+      renderCell: (item) => formatDate(item.validTillDate),
+    },
+    {
+      id: 'status',
+      label: 'Status',
+      type: 'status',
+      width: 154,
+      getValue: (item) => item.status,
+      options: [
+        { value: 'Draft', label: 'Draft' },
+        { value: 'Pending Approval', label: 'Pending Approval' },
+        { value: 'Approved', label: 'Approved' },
+        { value: 'Rejected', label: 'Rejected' },
+        { value: 'Cancelled', label: 'Cancelled' },
+      ],
+      renderCell: (item) => <StatusBadge kind="requisition-status" value={item.status} />,
+    },
+    {
+      id: 'actions',
+      label: 'Action',
+      type: 'actions',
+      width: 86,
+      sortable: false,
+      filterable: false,
+      groupable: false,
+      defaultPin: 'right',
+      hideable: false,
+      getValue: () => '',
+      renderCell: (item) => renderActionMenu(item),
+    },
+  ], [handleViewDocument, renderActionMenu]);
 
   const dismissTourForSession = () => {
     isPurchaseRequisitionTourDismissedForSession = true;
@@ -1709,6 +1847,8 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
               variant="enterprise"
               density="compact"
               maxVisibleItems={4}
+              badgeLabel=""
+              activeBadgeLabel="Applied"
               onSelect={(key) => setActiveInsightKey((current) => (current === key || key === 'all' ? null : key))}
             />
           </div>
@@ -1716,8 +1856,6 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
 
         <section>
           <div>
-            <div className="catalogue-table-toolbar">
-            </div>
 
             {loadState === 'loading' && (
               <div className="space-y-3" aria-live="polite">
@@ -1759,37 +1897,28 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
             )}
 
             {loadState === 'ready' && sortedRows.length > 0 && activeCatalogueViewMode === 'list' && (
-              <div className="catalogue-table-scroll" data-tour="pr-catalogue-table">
+              <div data-tour="pr-catalogue-table">
                 <CommonDataGrid
                   gridId="purchase-requisition-catalogue"
                   rows={sortedRows}
                   columns={gridColumns}
                   rowId={(item) => item.id}
+                  ariaLabel="Purchase requisitions table"
                   sortState={sortState}
                   onSortChange={handleSortChange}
                   chartTitle="Purchase Requisition"
+                  exportFileName="purchase-requisitions.csv"
                 />
               </div>
             )}
 
-            {loadState === 'ready' && sortedRows.length > 0 && activeCatalogueViewMode === 'grid' && (
-              <div className="catalogue-card-grid">
+            {loadState === 'ready' && sortedRows.length > 0 && isCompactCatalogueViewport && activeCatalogueViewMode === 'grid' && (
+              <div className="purchase-requisition-feed-grid">
                 {sortedRows.map((item) => (
                   <RequisitionCard
                     key={item.id}
                     item={item}
-                    isExpanded={expandedCardIds[item.id] !== false}
-                    isMenuOpen={openActionMenuId === item.id}
-                    setActionMenuRef={(element) => {
-                      actionMenuRefs.current[item.id] = element;
-                    }}
-                    onToggleExpand={() => handleToggleCard(item.id)}
-                    onToggleMenu={() => setOpenActionMenuId((current) => (current === item.id ? null : item.id))}
                     onView={() => handleViewDocument(item.id)}
-                    onEdit={() => handleEditDocument(item.id)}
-                    onCancel={() => handleOpenCancelDialog(item.id)}
-                    canEdit={actionSettings.allowEdit}
-                    canCancel={actionSettings.allowCancel}
                   />
                 ))}
               </div>
@@ -1818,8 +1947,9 @@ const PurchaseRequisitionCatalogueView: React.FC<PurchaseRequisitionCatalogueVie
         dateRangeError={dateRangeError}
         onClose={() => setIsFilterDrawerOpen(false)}
         onApply={handleApplyFilters}
-        onReset={handleResetFilters}
+        onClearAll={handleClearDraftFilters}
         onFilterChange={handleFilterChange}
+        onFilterValuesChange={handleFilterValuesChange}
       />
 
       <CatalogueViewConfigurator

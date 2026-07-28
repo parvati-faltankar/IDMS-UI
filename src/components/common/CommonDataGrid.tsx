@@ -90,16 +90,24 @@ function compareValues(left: unknown, right: unknown): number {
   return String(left ?? '').localeCompare(String(right ?? ''), undefined, { numeric: true });
 }
 
+export function sanitizeCsvCellValue(value: string): string {
+  return /^[\s\uFEFF]*[=+\-@]/.test(value) || /^[\t\r\n]/.test(value) ? "'" + value : value;
+}
+
+export function escapeCsvCell(value: string): string {
+  const safeValue = sanitizeCsvCellValue(value);
+  return `"${safeValue.replace(/"/g, '""')}"`;
+}
+
 function exportRowsToCsv<TData>(
   rows: TData[],
   columns: DataGridColumn<TData>[],
   fileName: string
 ) {
-  const escapeCell = (value: string) => `"${value.replace(/"/g, '""')}"`;
-  const headerRow = columns.map((column) => escapeCell(column.label)).join(',');
+  const headerRow = columns.map((column) => escapeCsvCell(column.label)).join(',');
   const dataRows = rows.map((row) =>
     columns
-      .map((column) => escapeCell(column.getExportValue?.(row) ?? String(column.getValue?.(row) ?? '')))
+      .map((column) => escapeCsvCell(column.getExportValue?.(row) ?? String(column.getValue?.(row) ?? '')))
       .join(',')
   );
   const csvContent = [headerRow, ...dataRows].join('\n');
@@ -118,6 +126,7 @@ const CommonDataGrid = <TData, TSortKey extends string = string>({
   rows,
   columns,
   rowId,
+  ariaLabel,
   variant = 'default',
   rowClassName,
   selectable = false,
@@ -232,10 +241,14 @@ const CommonDataGrid = <TData, TSortKey extends string = string>({
     });
   }, [columnMap, effectiveSortState, filteredRows, rowId, sortState]);
 
+  const isGrouped = Boolean(preferences.groupByColumnId);
+
   const renderCount =
-    sortedRows.length > incrementalRenderingThreshold
-      ? Math.min(Math.max(initialBatchSize, loadedRowCount), sortedRows.length)
-      : sortedRows.length;
+    isGrouped
+      ? sortedRows.length
+      : sortedRows.length > incrementalRenderingThreshold
+        ? Math.min(Math.max(initialBatchSize, loadedRowCount), sortedRows.length)
+        : sortedRows.length;
 
   useEffect(() => {
     if (sortedRows.length <= renderCount) {
@@ -261,8 +274,8 @@ const CommonDataGrid = <TData, TSortKey extends string = string>({
   }, [batchSize, renderCount, sortedRows.length]);
 
   const renderedRows = useMemo(
-    () => sortedRows.slice(0, renderCount),
-    [renderCount, sortedRows]
+    () => (isGrouped ? sortedRows : sortedRows.slice(0, renderCount)),
+    [isGrouped, renderCount, sortedRows]
   );
 
   const groupedRows = useMemo(() => {
@@ -276,7 +289,7 @@ const CommonDataGrid = <TData, TSortKey extends string = string>({
     }
 
     const groups = new Map<string, TData[]>();
-    renderedRows.forEach((row) => {
+    sortedRows.forEach((row) => {
       const groupLabel = String(getFilterValue(groupColumn, row) ?? 'Not specified');
       if (!groups.has(groupLabel)) {
         groups.set(groupLabel, []);
@@ -288,7 +301,7 @@ const CommonDataGrid = <TData, TSortKey extends string = string>({
       label,
       rows: groupRows,
     }));
-  }, [columnMap, preferences.groupByColumnId, renderedRows]);
+  }, [columnMap, preferences.groupByColumnId, sortedRows]);
 
   const selectedRows = useMemo(
     () => rows.filter((row) => selectedRowIds.includes(rowId(row))),
@@ -442,33 +455,52 @@ const CommonDataGrid = <TData, TSortKey extends string = string>({
     });
   };
 
-  const handleResizeStart = (column: DataGridColumn<TData>, event: React.MouseEvent<HTMLSpanElement>) => {
+  const updateColumnWidth = (column: DataGridColumn<TData>, width: number) => {
+    const minWidth = column.minWidth ?? 110;
+    const maxWidth = column.maxWidth ?? 420;
+    const nextWidth = Math.max(minWidth, Math.min(maxWidth, Math.round(width)));
+
+    updatePreferences((current) => ({
+      ...current,
+      columnWidths: {
+        ...current.columnWidths,
+        [column.id]: nextWidth,
+      },
+    }));
+  };
+
+  const handleResizeStart = (column: DataGridColumn<TData>, event: React.PointerEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
 
     const startX = event.clientX;
     const startWidth = columnWidths[column.id];
-    const minWidth = column.minWidth ?? 110;
-    const maxWidth = column.maxWidth ?? 420;
 
-    const handlePointerMove = (moveEvent: MouseEvent) => {
-      const nextWidth = Math.max(minWidth, Math.min(maxWidth, startWidth + moveEvent.clientX - startX));
-      updatePreferences((current) => ({
-        ...current,
-        columnWidths: {
-          ...current.columnWidths,
-          [column.id]: Math.round(nextWidth),
-        },
-      }));
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      updateColumnWidth(column, startWidth + moveEvent.clientX - startX);
     };
 
     const handlePointerUp = () => {
-      window.removeEventListener('mousemove', handlePointerMove);
-      window.removeEventListener('mouseup', handlePointerUp);
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerUp);
     };
 
-    window.addEventListener('mousemove', handlePointerMove);
-    window.addEventListener('mouseup', handlePointerUp);
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerUp);
+  };
+
+  const handleResizeKeyDown = (column: DataGridColumn<TData>, event: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    const step = event.shiftKey ? 24 : 8;
+    const direction = event.key === 'ArrowRight' ? 1 : -1;
+    updateColumnWidth(column, columnWidths[column.id] + step * direction);
   };
 
   const renderDataCell = (column: DataGridColumn<TData>, row: TData, rowIndex: number) => {
@@ -517,275 +549,289 @@ const CommonDataGrid = <TData, TSortKey extends string = string>({
 
   return (
     <>
-      {shouldRenderToolbar && (
-        <div className="catalogue-table-toolbar catalogue-grid-toolbar" aria-label={toolbarLabel}>
-          <div className="catalogue-table-toolbar__meta">
-            {preferences.groupByColumnId && (
-              <span className="catalogue-grid-toolbar__pill">
-                Grouped by {columnMap.get(preferences.groupByColumnId)?.label ?? 'column'}
-              </span>
-            )}
-          </div>
-
-          <div className="catalogue-grid-toolbar__actions">
-            {selectable && selectedRows.length > 0 && bulkActions?.(selectedRows)}
-            {exportFileName && (
-              <button
-                type="button"
-                className="btn btn--outline btn--icon-left"
-                onClick={() => exportRowsToCsv(sortedRows, arrangedColumns.filter((column) => column.type !== 'actions'), exportFileName)}
-              >
-                <Download size={16} />
-                Export CSV
-              </button>
-            )}
-            {showChartAction && (
-              <Tooltip title="Visualize" arrow placement="top">
-                <button
-                  type="button"
-                  className="catalogue-grid-toolbar__icon-button"
-                  onClick={() => setIsChartDrawerOpen(true)}
-                  aria-label="Visualize"
-                >
-                  <BarChart3 size={14} />
-                </button>
-              </Tooltip>
-            )}
-            {showViewConfiguratorAction && (
-              <Tooltip title="View" arrow placement="top">
-                <button
-                  type="button"
-                  className="catalogue-grid-toolbar__icon-button"
-                  onClick={() => setIsConfiguratorOpen(true)}
-                  aria-label="View"
-                >
-                  <LayoutTemplate size={14} />
-                </button>
-              </Tooltip>
-            )}
-            {showResetAction && (
-              <Tooltip title="Reset" arrow placement="top">
-                <button
-                  type="button"
-                  className="catalogue-grid-toolbar__icon-button"
-                  onClick={handleResetView}
-                  aria-label="Reset"
-                >
-                  <RotateCcw size={14} />
-                </button>
-              </Tooltip>
-            )}
-            {toolbarEndSlot}
-          </div>
-        </div>
-      )}
-
       <div
         className={cn(
-          'catalogue-table-scroll',
-          'catalogue-grid-scroll',
-          `catalogue-grid-scroll--${preferences.density}`,
-          variant === 'master' && 'catalogue-grid-scroll--master'
+          'catalogue-grid-shell',
+          shouldRenderToolbar && 'catalogue-grid-shell--with-toolbar'
         )}
       >
-        <table
+        {shouldRenderToolbar && (
+          <div className="catalogue-table-toolbar catalogue-grid-toolbar" aria-label={toolbarLabel}>
+            <div className="catalogue-table-toolbar__meta">
+              {preferences.groupByColumnId && (
+                <span className="catalogue-grid-toolbar__pill">
+                  Grouped by {columnMap.get(preferences.groupByColumnId)?.label ?? 'column'}
+                </span>
+              )}
+            </div>
+
+            <div className="catalogue-grid-toolbar__actions">
+              {selectable && selectedRows.length > 0 && bulkActions?.(selectedRows)}
+              {exportFileName && (
+                <Tooltip title="Export CSV" arrow placement="top">
+                  <button
+                    type="button"
+                    className="catalogue-grid-toolbar__icon-button"
+                    onClick={() => exportRowsToCsv(sortedRows, arrangedColumns.filter((column) => column.type !== 'actions'), exportFileName)}
+                    aria-label="Export CSV"
+                  >
+                    <Download size={14} />
+                  </button>
+                </Tooltip>
+              )}
+              {showChartAction && (
+                <Tooltip title="Visualize" arrow placement="top">
+                  <button
+                    type="button"
+                    className="catalogue-grid-toolbar__icon-button"
+                    onClick={() => setIsChartDrawerOpen(true)}
+                    aria-label="Visualize"
+                  >
+                    <BarChart3 size={14} />
+                  </button>
+                </Tooltip>
+              )}
+              {showViewConfiguratorAction && (
+                <Tooltip title="View" arrow placement="top">
+                  <button
+                    type="button"
+                    className="catalogue-grid-toolbar__icon-button"
+                    onClick={() => setIsConfiguratorOpen(true)}
+                    aria-label="View"
+                  >
+                    <LayoutTemplate size={14} />
+                  </button>
+                </Tooltip>
+              )}
+              {showResetAction && (
+                <Tooltip title="Reset" arrow placement="top">
+                  <button
+                    type="button"
+                    className="catalogue-grid-toolbar__icon-button"
+                    onClick={handleResetView}
+                    aria-label="Reset"
+                  >
+                    <RotateCcw size={14} />
+                  </button>
+                </Tooltip>
+              )}
+              {toolbarEndSlot}
+            </div>
+          </div>
+        )}
+
+        <div
           className={cn(
-            'catalogue-table',
-            'catalogue-grid',
-            `catalogue-grid--${preferences.density}`,
-            variant === 'master' && 'catalogue-grid--master'
+            'catalogue-table-scroll',
+            'catalogue-grid-scroll',
+            shouldRenderToolbar && 'catalogue-grid-scroll--with-toolbar',
+            `catalogue-grid-scroll--${preferences.density}`,
+            variant === 'master' && 'catalogue-grid-scroll--master'
           )}
         >
-          <thead>
-            <tr>
-              {selectable && (
-                <th
-                  className="catalogue-grid__selection-header"
-                  style={{ width: `${selectionColumnWidth}px`, minWidth: `${selectionColumnWidth}px`, left: '0px' }}
-                >
-                  <input
-                    ref={selectAllRef}
-                    type="checkbox"
-                    checked={allFilteredSelected}
-                    aria-label="Select visible rows"
-                    onChange={(event) =>
-                      setSelectedRowIds((current) => {
-                        const currentSet = new Set(current);
-                        if (event.target.checked) {
-                          filteredRowIds.forEach((id) => currentSet.add(id));
-                        } else {
-                          filteredRowIds.forEach((id) => currentSet.delete(id));
-                        }
-                        return Array.from(currentSet);
-                      })
-                    }
-                  />
-                </th>
-              )}
-
-              {arrangedColumns.map((column) => {
-                const pinState = preferences.pinnedLeftColumnIds.includes(column.id)
-                  ? 'left'
-                  : preferences.pinnedRightColumnIds.includes(column.id)
-                    ? 'right'
-                    : null;
-                const style =
-                  pinState === 'left'
-                    ? { width: `${columnWidths[column.id]}px`, minWidth: `${columnWidths[column.id]}px`, left: `${leftOffsets[column.id]}px` }
-                    : pinState === 'right'
-                      ? { width: `${columnWidths[column.id]}px`, minWidth: `${columnWidths[column.id]}px`, right: `${rightOffsets[column.id]}px` }
-                      : { width: `${columnWidths[column.id]}px`, minWidth: `${columnWidths[column.id]}px` };
-
-                return (
-                  <SortableTableHeader
-                    key={column.id}
-                    label={column.label}
-                    sortKey={column.id}
-                    sortState={effectiveSortState}
-                    onSortChange={handleSortChange}
-                    sortable={column.sortable !== false && column.type !== 'actions'}
-                    className={cn(
-                      column.headerClassName,
-                      pinState === 'left' && 'catalogue-grid__cell--pinned-left',
-                      pinState === 'right' && 'catalogue-grid__cell--pinned-right'
-                    )}
-                    dataType={
-                      column.type === 'enum' || column.type === 'boolean' || column.type === 'actions'
-                        ? 'text'
-                        : column.type
-                    }
-                    aggregation={aggregations[column.id]}
-                    menuLabel={column.menuLabel}
-                    canGroup={column.groupable !== false && column.type !== 'actions'}
-                    isGrouped={preferences.groupByColumnId === column.id}
-                    onGroupToggle={() =>
-                      updatePreferences((current) => ({
-                        ...current,
-                        groupByColumnId: current.groupByColumnId === column.id ? null : column.id,
-                      }))
-                    }
-                    canPin={column.pinnable !== false}
-                    pinState={pinState}
-                    onPinChange={(_, nextPinState) => handlePinChange(column.id, nextPinState)}
-                    canHide={!column.locked && column.hideable !== false && visibleColumns.length > 1}
-                    onHide={() => handleVisibilityChange(column.id, false)}
-                    onReset={() => handleResetColumn(column.id)}
-                    style={style}
-                    resizeHandle={
-                      column.resizable !== false && (
-                        <span
-                          className="catalogue-grid__resize-handle"
-                          onMouseDown={(event) => handleResizeStart(column, event)}
-                        />
-                      )
-                    }
-                  />
-                );
-              })}
-            </tr>
-          </thead>
-
-          <tbody>
-            {!preferences.groupByColumnId &&
-              renderedRows.map((row, rowIndex) => {
-                const id = rowId(row);
-
-                return (
-                  <tr key={id} className={rowClassName?.(row)}>
-                    {selectable && (
-                      <td
-                        className="catalogue-grid__selection-cell catalogue-grid__cell--pinned-left"
-                        style={{ width: `${selectionColumnWidth}px`, minWidth: `${selectionColumnWidth}px`, left: '0px' }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedRowIds.includes(id)}
-                          aria-label={`Select row ${rowIndex + 1}`}
-                          onChange={(event) =>
-                            setSelectedRowIds((current) =>
-                              event.target.checked
-                                ? [...current, id]
-                                : current.filter((selectedId) => selectedId !== id)
-                            )
-                          }
-                        />
-                      </td>
-                    )}
-                    {arrangedColumns.map((column) => renderDataCell(column, row, rowIndex))}
-                  </tr>
-                );
-              })}
-
-            {preferences.groupByColumnId &&
-              groupedRows.map((group) => {
-                const isCollapsed = collapsedGroupLabels[group.label] === true;
-
-                return (
-                  <React.Fragment key={group.label}>
-                    <tr className="catalogue-grid__group-row">
-                      <td colSpan={arrangedColumns.length + (selectable ? 1 : 0)}>
-                        <button
-                          type="button"
-                          className="catalogue-grid__group-button"
-                          onClick={() =>
-                            setCollapsedGroupLabels((current) => ({
-                              ...current,
-                              [group.label]: !current[group.label],
-                            }))
-                          }
-                        >
-                          <span className="catalogue-grid__group-title">{group.label}</span>
-                          <span className="catalogue-grid__group-meta">
-                            {group.rows.length} {group.rows.length === 1 ? 'row' : 'rows'}
-                          </span>
-                        </button>
-                      </td>
-                    </tr>
-
-                    {!isCollapsed &&
-                      group.rows.map((row, rowIndex) => {
-                        const id = rowId(row);
-
-                        return (
-                          <tr key={id} className={cn('catalogue-grid__group-child-row', rowClassName?.(row))}>
-                            {selectable && (
-                              <td
-                                className="catalogue-grid__selection-cell catalogue-grid__cell--pinned-left"
-                                style={{ width: `${selectionColumnWidth}px`, minWidth: `${selectionColumnWidth}px`, left: '0px' }}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={selectedRowIds.includes(id)}
-                                  aria-label={`Select row ${rowIndex + 1}`}
-                                  onChange={(event) =>
-                                    setSelectedRowIds((current) =>
-                                      event.target.checked
-                                        ? [...current, id]
-                                        : current.filter((selectedId) => selectedId !== id)
-                                    )
-                                  }
-                                />
-                              </td>
-                            )}
-                            {arrangedColumns.map((column) => renderDataCell(column, row, rowIndex))}
-                          </tr>
-                        );
-                      })}
-                  </React.Fragment>
-                );
-              })}
-
-            {renderCount < sortedRows.length && (
-              <tr>
-                <td colSpan={arrangedColumns.length + (selectable ? 1 : 0)} className="catalogue-grid__load-more-cell">
-                  <div ref={loadMoreRef} className="catalogue-grid__load-more">
-                    Loading more rows...
-                  </div>
-                </td>
-              </tr>
+          <table
+            aria-label={ariaLabel}
+            className={cn(
+              'catalogue-table',
+              'catalogue-grid',
+              `catalogue-grid--${preferences.density}`,
+              variant === 'master' && 'catalogue-grid--master'
             )}
-          </tbody>
-        </table>
+          >
+            <thead>
+              <tr>
+                {selectable && (
+                  <th
+                    className="catalogue-grid__selection-header"
+                    style={{ width: `${selectionColumnWidth}px`, minWidth: `${selectionColumnWidth}px`, left: '0px' }}
+                  >
+                    <input
+                      ref={selectAllRef}
+                      type="checkbox"
+                      checked={allFilteredSelected}
+                      aria-label="Select visible rows"
+                      onChange={(event) =>
+                        setSelectedRowIds((current) => {
+                          const currentSet = new Set(current);
+                          if (event.target.checked) {
+                            filteredRowIds.forEach((id) => currentSet.add(id));
+                          } else {
+                            filteredRowIds.forEach((id) => currentSet.delete(id));
+                          }
+                          return Array.from(currentSet);
+                        })
+                      }
+                    />
+                  </th>
+                )}
+
+                {arrangedColumns.map((column) => {
+                  const pinState = preferences.pinnedLeftColumnIds.includes(column.id)
+                    ? 'left'
+                    : preferences.pinnedRightColumnIds.includes(column.id)
+                      ? 'right'
+                      : null;
+                  const style =
+                    pinState === 'left'
+                      ? { width: `${columnWidths[column.id]}px`, minWidth: `${columnWidths[column.id]}px`, left: `${leftOffsets[column.id]}px` }
+                      : pinState === 'right'
+                        ? { width: `${columnWidths[column.id]}px`, minWidth: `${columnWidths[column.id]}px`, right: `${rightOffsets[column.id]}px` }
+                        : { width: `${columnWidths[column.id]}px`, minWidth: `${columnWidths[column.id]}px` };
+
+                  return (
+                    <SortableTableHeader
+                      key={column.id}
+                      label={column.label}
+                      sortKey={column.id}
+                      sortState={effectiveSortState}
+                      onSortChange={handleSortChange}
+                      sortable={column.sortable !== false && column.type !== 'actions'}
+                      className={cn(
+                        column.headerClassName,
+                        pinState === 'left' && 'catalogue-grid__cell--pinned-left',
+                        pinState === 'right' && 'catalogue-grid__cell--pinned-right'
+                      )}
+                      dataType={
+                        column.type === 'enum' || column.type === 'boolean' || column.type === 'actions'
+                          ? 'text'
+                          : column.type
+                      }
+                      aggregation={aggregations[column.id]}
+                      menuLabel={column.menuLabel}
+                      canGroup={column.groupable !== false && column.type !== 'actions'}
+                      isGrouped={preferences.groupByColumnId === column.id}
+                      onGroupToggle={() =>
+                        updatePreferences((current) => ({
+                          ...current,
+                          groupByColumnId: current.groupByColumnId === column.id ? null : column.id,
+                        }))
+                      }
+                      canPin={column.pinnable !== false}
+                      pinState={pinState}
+                      onPinChange={(_, nextPinState) => handlePinChange(column.id, nextPinState)}
+                      canHide={!column.locked && column.hideable !== false && visibleColumns.length > 1}
+                      onHide={() => handleVisibilityChange(column.id, false)}
+                      onReset={() => handleResetColumn(column.id)}
+                      style={style}
+                      resizeHandle={
+                        column.resizable !== false && (
+                          <button
+                            type="button"
+                            className="catalogue-grid__resize-handle"
+                            aria-label={`Resize ${column.label} column`}
+                            onPointerDown={(event) => handleResizeStart(column, event)}
+                            onKeyDown={(event) => handleResizeKeyDown(column, event)}
+                          />
+                        )
+                      }
+                    />
+                  );
+                })}
+              </tr>
+            </thead>
+
+            <tbody>
+              {!preferences.groupByColumnId &&
+                renderedRows.map((row, rowIndex) => {
+                  const id = rowId(row);
+
+                  return (
+                    <tr key={id} className={rowClassName?.(row)}>
+                      {selectable && (
+                        <td
+                          className="catalogue-grid__selection-cell catalogue-grid__cell--pinned-left"
+                          style={{ width: `${selectionColumnWidth}px`, minWidth: `${selectionColumnWidth}px`, left: '0px' }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedRowIds.includes(id)}
+                            aria-label={`Select row ${rowIndex + 1}`}
+                            onChange={(event) =>
+                              setSelectedRowIds((current) =>
+                                event.target.checked
+                                  ? [...current, id]
+                                  : current.filter((selectedId) => selectedId !== id)
+                              )
+                            }
+                          />
+                        </td>
+                      )}
+                      {arrangedColumns.map((column) => renderDataCell(column, row, rowIndex))}
+                    </tr>
+                  );
+                })}
+
+              {preferences.groupByColumnId &&
+                groupedRows.map((group) => {
+                  const isCollapsed = collapsedGroupLabels[group.label] === true;
+
+                  return (
+                    <React.Fragment key={group.label}>
+                      <tr className="catalogue-grid__group-row">
+                        <td colSpan={arrangedColumns.length + (selectable ? 1 : 0)}>
+                          <button
+                            type="button"
+                            className="catalogue-grid__group-button"
+                            onClick={() =>
+                              setCollapsedGroupLabels((current) => ({
+                                ...current,
+                                [group.label]: !current[group.label],
+                              }))
+                            }
+                          >
+                            <span className="catalogue-grid__group-title">{group.label}</span>
+                            <span className="catalogue-grid__group-meta">
+                              {group.rows.length} {group.rows.length === 1 ? 'row' : 'rows'}
+                            </span>
+                          </button>
+                        </td>
+                      </tr>
+
+                      {!isCollapsed &&
+                        group.rows.map((row, rowIndex) => {
+                          const id = rowId(row);
+
+                          return (
+                            <tr key={id} className={cn('catalogue-grid__group-child-row', rowClassName?.(row))}>
+                              {selectable && (
+                                <td
+                                  className="catalogue-grid__selection-cell catalogue-grid__cell--pinned-left"
+                                  style={{ width: `${selectionColumnWidth}px`, minWidth: `${selectionColumnWidth}px`, left: '0px' }}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedRowIds.includes(id)}
+                                    aria-label={`Select row ${rowIndex + 1}`}
+                                    onChange={(event) =>
+                                      setSelectedRowIds((current) =>
+                                        event.target.checked
+                                          ? [...current, id]
+                                          : current.filter((selectedId) => selectedId !== id)
+                                      )
+                                    }
+                                  />
+                                </td>
+                              )}
+                              {arrangedColumns.map((column) => renderDataCell(column, row, rowIndex))}
+                            </tr>
+                          );
+                        })}
+                    </React.Fragment>
+                  );
+                })}
+
+              {renderCount < sortedRows.length && (
+                <tr>
+                  <td colSpan={arrangedColumns.length + (selectable ? 1 : 0)} className="catalogue-grid__load-more-cell">
+                    <div ref={loadMoreRef} className="catalogue-grid__load-more">
+                      Loading more rows...
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <DataGridConfigurator

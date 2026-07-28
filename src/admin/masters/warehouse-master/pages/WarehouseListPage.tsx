@@ -558,6 +558,7 @@ const WarehouseListPage: React.FC = () => {
         ) : (
           <MasterDataTable
             gridId="warehouse-master-table"
+            ariaLabel="Warehouses table"
             rows={filtered}
             columns={gridColumns}
             rowId={(warehouse) => warehouse.id}

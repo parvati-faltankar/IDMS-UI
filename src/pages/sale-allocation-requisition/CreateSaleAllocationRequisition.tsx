@@ -1313,6 +1313,7 @@ const CreateSaleAllocationRequisition: React.FC<CreateSaleAllocationRequisitionP
           onNavigateToSaleAllocationRequisitionList();
         }}
         onClose={() => setIsDiscardDialogOpen(false)}
+        compactPresentation="bottom-sheet"
       />
 
       <SuccessSummaryDialog
@@ -1341,3 +1342,4 @@ const CreateSaleAllocationRequisition: React.FC<CreateSaleAllocationRequisitionP
 };
 
 export default CreateSaleAllocationRequisition;
+

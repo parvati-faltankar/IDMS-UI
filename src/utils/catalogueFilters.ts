@@ -2,6 +2,9 @@ export interface CatalogueFilters {
   supplier: string;
   priority: string;
   branch: string;
+  suppliers: string[];
+  priorities: string[];
+  branches: string[];
   startDate: string;
   endDate: string;
   poDateFrom: string;
@@ -16,6 +19,9 @@ export const emptyCatalogueFilters: CatalogueFilters = {
   supplier: '',
   priority: '',
   branch: '',
+  suppliers: [],
+  priorities: [],
+  branches: [],
   startDate: '',
   endDate: '',
   poDateFrom: '',

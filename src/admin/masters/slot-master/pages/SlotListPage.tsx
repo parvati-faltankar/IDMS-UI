@@ -359,6 +359,7 @@ const SlotListPage: React.FC = () => {
       >
         <MasterDataTable
           gridId="slot-master-table"
+          ariaLabel="Slots table"
           rows={filtered}
           columns={gridColumns}
           rowId={(record) => record.id}

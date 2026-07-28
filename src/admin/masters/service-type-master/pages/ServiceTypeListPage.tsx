@@ -301,6 +301,7 @@ const ServiceTypeListPage: React.FC = () => {
       >
         <MasterDataTable
           gridId="service-type-master-table"
+          ariaLabel="Service types table"
           rows={filtered}
           columns={gridColumns}
           rowId={(record) => record.id}

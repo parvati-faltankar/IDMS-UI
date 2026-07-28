@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import {
   ChevronDown,
@@ -78,6 +78,31 @@ const SortableTableHeader = <TKey extends string,>({
   const isActive = sortable && sortState?.key === sortKey;
   const ariaSort = sortable ? (!isActive ? 'none' : sortState.direction === 'asc' ? 'ascending' : 'descending') : undefined;
 
+  const closeMenu = useCallback((options?: { restoreFocus?: boolean }) => {
+    setIsMenuOpen(false);
+    if (options?.restoreFocus) {
+      window.setTimeout(() => triggerRef.current?.focus(), 0);
+    }
+  }, []);
+
+  const getEnabledMenuItems = useCallback(() => {
+    if (!menuContentRef.current) {
+      return [] as HTMLButtonElement[];
+    }
+
+    return Array.from(menuContentRef.current.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'))
+      .filter((item) => !item.disabled);
+  }, []);
+
+  const focusMenuItem = useCallback((index: number) => {
+    const menuItems = getEnabledMenuItems();
+    if (menuItems.length === 0) {
+      return;
+    }
+
+    const nextIndex = (index + menuItems.length) % menuItems.length;
+    menuItems[nextIndex]?.focus();
+  }, [getEnabledMenuItems]);
   useEffect(() => {
     if (!isMenuOpen) {
       return;
@@ -109,6 +134,7 @@ const SortableTableHeader = <TKey extends string,>({
     updatePosition();
     const rafId = window.requestAnimationFrame(updatePosition);
 
+    window.setTimeout(() => focusMenuItem(0), 0);
     const handlePointerDown = (event: MouseEvent) => {
       const target = event.target as Node;
       if (
@@ -117,13 +143,13 @@ const SortableTableHeader = <TKey extends string,>({
         triggerRef.current &&
         !triggerRef.current.contains(target)
       ) {
-        setIsMenuOpen(false);
+        closeMenu();
       }
     };
 
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        setIsMenuOpen(false);
+        closeMenu({ restoreFocus: true });
       }
     };
 
@@ -139,7 +165,7 @@ const SortableTableHeader = <TKey extends string,>({
       window.removeEventListener('resize', updatePosition);
       window.removeEventListener('scroll', updatePosition, true);
     };
-  }, [isMenuOpen]);
+  }, [closeMenu, focusMenuItem, isMenuOpen]);
 
   const availableAggregations = useMemo(() => {
     if (!aggregation) {
@@ -175,7 +201,7 @@ const SortableTableHeader = <TKey extends string,>({
     }
 
     onSortChange(sortKey, direction);
-    setIsMenuOpen(false);
+    closeMenu({ restoreFocus: true });
   };
 
   const handleGroupToggle = () => {
@@ -184,7 +210,7 @@ const SortableTableHeader = <TKey extends string,>({
     }
 
     onGroupToggle(sortKey);
-    setIsMenuOpen(false);
+    closeMenu({ restoreFocus: true });
   };
 
   const handlePinAction = (side: 'left' | 'right' | null) => {
@@ -193,7 +219,7 @@ const SortableTableHeader = <TKey extends string,>({
     }
 
     onPinChange(sortKey, side);
-    setIsMenuOpen(false);
+    closeMenu({ restoreFocus: true });
   };
 
   const handleHideColumn = () => {
@@ -202,7 +228,7 @@ const SortableTableHeader = <TKey extends string,>({
     }
 
     onHide(sortKey);
-    setIsMenuOpen(false);
+    closeMenu({ restoreFocus: true });
   };
 
   const handleResetColumn = () => {
@@ -211,7 +237,51 @@ const SortableTableHeader = <TKey extends string,>({
     }
 
     onReset(sortKey);
-    setIsMenuOpen(false);
+    closeMenu({ restoreFocus: true });
+  };
+
+  const handleTriggerKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') {
+      return;
+    }
+
+    event.preventDefault();
+    setIsMenuOpen(true);
+    window.setTimeout(() => focusMenuItem(event.key === 'ArrowUp' ? -1 : 0), 0);
+  };
+
+  const handleMenuKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const menuItems = getEnabledMenuItems();
+    const currentIndex = menuItems.indexOf(document.activeElement as HTMLButtonElement);
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeMenu({ restoreFocus: true });
+      return;
+    }
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      focusMenuItem(currentIndex + 1);
+      return;
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      focusMenuItem(currentIndex - 1);
+      return;
+    }
+
+    if (event.key === 'Home') {
+      event.preventDefault();
+      focusMenuItem(0);
+      return;
+    }
+
+    if (event.key === 'End') {
+      event.preventDefault();
+      focusMenuItem(menuItems.length - 1);
+    }
   };
 
   return (
@@ -234,6 +304,7 @@ const SortableTableHeader = <TKey extends string,>({
             aria-haspopup="menu"
             aria-expanded={isMenuOpen}
             onClick={() => setIsMenuOpen((current) => !current)}
+            onKeyDown={handleTriggerKeyDown}
           >
             <MoreVertical size={14} />
           </button>
@@ -252,6 +323,7 @@ const SortableTableHeader = <TKey extends string,>({
                   maxHeight: `${menuPosition.maxHeight}px`,
                   overflowY: 'auto',
                 }}
+                onKeyDown={handleMenuKeyDown}
               >
                 {sortable && (
                   <div className="catalogue-column-menu__section">

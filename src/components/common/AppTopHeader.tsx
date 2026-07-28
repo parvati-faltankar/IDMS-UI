@@ -13,6 +13,7 @@ import {
   LogOut,
   Mic,
   MicOff,
+  Moon,
   Grip,
   Palette,
   Plus,
@@ -20,10 +21,10 @@ import {
   ReceiptText,
   Settings,
   Search,
+  Sun,
   ShoppingBag,
   ShoppingCart,
   Menu,
-  UserCircle2,
   X,
 } from 'lucide-react';
 import {
@@ -54,6 +55,7 @@ import { useLocalization } from '../../localization';
 import { paths } from '../../routes/routeConfig';
 import GlobalSearchPanel from './GlobalSearchPanel';
 import HeaderSettingsDialog from './HeaderSettingsDialog';
+import ProfilePanel, { type ProfilePanelAction, type ProfilePanelWorkspaceItem } from './ProfilePanel';
 import { HelpDrawer } from '../../experience/components/HelpDrawer';
 import { getHelpTopic } from '../../experience/help/helpTopics';
 import {
@@ -98,11 +100,15 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
   const [isHelpDrawerOpen, setIsHelpDrawerOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const notificationCount = 3;
+  const profileIdentity = {
+    initials: 'AK',
+    name: 'Alex Kumar',
+    role: 'Buyer Lead',
+  } as const;
   const quickActionsRef = useRef<HTMLDivElement | null>(null);
   const quickActionTriggerRef = useRef<HTMLButtonElement | null>(null);
   const helpActionsRef = useRef<HTMLDivElement | null>(null);
   const helpActionTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const profileMenuRef = useRef<HTMLDivElement | null>(null);
   const profileTriggerRef = useRef<HTMLButtonElement | null>(null);
   const globalSearchRef = useRef<HTMLDivElement | null>(null);
   const globalSearchInputRef = useRef<HTMLInputElement | null>(null);
@@ -113,7 +119,7 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
   const voiceCommandHandledRef = useRef(false);
   const wakeListenerEnabledRef = useRef(false);
   const startVoiceRecognitionRef = useRef<(mode?: VoiceMode) => void>(() => undefined);
-  const { themeKey, theme } = useTheme();
+  const { themeKey, theme, appearanceMode, setAppearanceMode } = useTheme();
   const deferredSearchQuery = useDeferredValue(globalSearchQuery);
   const searchResolution = useMemo(
     () => resolveSearchExperience(deferredSearchQuery, selectedSearchScope),
@@ -143,6 +149,172 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
     { key: 'contact-support', label: 'Contact support', description: 'Create a support request with diagnostics.', topicId: 'contact-support', icon: <MessageSquare size={16} /> },
   ] as const;
 
+  const closeProfilePanel = () => {
+    setIsProfileMenuOpen(false);
+  };
+
+  const handleProfileTriggerClick = () => {
+    setIsQuickActionsOpen(false);
+    setIsHelpActionsOpen(false);
+    setIsProfileMenuOpen((current) => !current);
+  };
+
+  const openProfileSettings = () => {
+    closeProfilePanel();
+    setIsSettingsOpen(true);
+  };
+
+  const openProfileHelpTopic = (topicId: string) => {
+    closeProfilePanel();
+    openHelpTopic(topicId);
+  };
+
+  const profileWorkspaceItems: ProfilePanelWorkspaceItem[] = [
+    {
+      id: 'transactions',
+      label: 'Transactions',
+      icon: ReceiptText,
+      active: !isMastersWorkspace,
+      onClick: () => {
+        closeProfilePanel();
+        navigate(paths.home);
+      },
+    },
+    {
+      id: 'masters',
+      label: 'Masters',
+      icon: Layers,
+      active: isMastersWorkspace,
+      onClick: () => {
+        closeProfilePanel();
+        navigate(paths.adminMaster);
+      },
+    },
+  ];
+
+  const profileAppearanceControls = (
+    <section className="app-topbar__workspace-switch app-topbar__workspace-switch--profile-panel" aria-label="Appearance">
+      <div className="app-topbar__workspace-switch-head">
+        <span className="app-topbar__workspace-switch-title">Appearance</span>
+        <span className="app-topbar__workspace-switch-hint">Choose display mode.</span>
+      </div>
+      <div className="app-topbar__workspace-switch-options" role="radiogroup" aria-label="Display mode">
+        <button
+          type="button"
+          role="radio"
+          aria-checked={appearanceMode === 'light'}
+          className={cn('app-topbar__workspace-switch-option', appearanceMode === 'light' && 'app-topbar__workspace-switch-option--active')}
+          onClick={() => setAppearanceMode('light')}
+        >
+          <span className="app-topbar__workspace-switch-icon" aria-hidden="true">
+            <Sun size={14} />
+          </span>
+          <span className="app-topbar__workspace-switch-label">Light</span>
+        </button>
+        <button
+          type="button"
+          role="radio"
+          aria-checked={appearanceMode === 'dark'}
+          className={cn('app-topbar__workspace-switch-option', appearanceMode === 'dark' && 'app-topbar__workspace-switch-option--active')}
+          onClick={() => setAppearanceMode('dark')}
+        >
+          <span className="app-topbar__workspace-switch-icon" aria-hidden="true">
+            <Moon size={14} />
+          </span>
+          <span className="app-topbar__workspace-switch-label">Dark</span>
+        </button>
+      </div>
+    </section>
+  );
+  const profileFeaturedActions: ProfilePanelAction[] = [
+    {
+      id: 'keyboard-shortcuts',
+      label: 'Keyboard shortcuts',
+      description: 'Press ? to view shortcuts.',
+      icon: Keyboard,
+      accent: true,
+      onClick: () => openProfileHelpTopic('keyboard-shortcuts'),
+    },
+    {
+      id: 'support-portal',
+      label: 'View support portal',
+      description: 'Open help and diagnostics.',
+      icon: MessageSquare,
+      onClick: () => openProfileHelpTopic('contact-support'),
+    },
+  ];
+
+  const profileUtilityActions: ProfilePanelAction[] = [
+    {
+      id: 'business-settings',
+      label: t('header.businessSettings'),
+      icon: Settings,
+      onClick: () => {
+        closeProfilePanel();
+        if (onBusinessSettingsClick) {
+          onBusinessSettingsClick();
+          return;
+        }
+        navigateToHash('#/profile/business-settings');
+      },
+    },
+    {
+      id: 'print-builder',
+      label: t('header.printBuilder'),
+      icon: Printer,
+      onClick: () => {
+        closeProfilePanel();
+        navigateToHash('#/profile/print-builder');
+      },
+    },
+    {
+      id: 'language-builder',
+      label: t('header.languageBuilder'),
+      icon: Settings,
+      onClick: () => {
+        closeProfilePanel();
+        navigateToHash('#/profile/language-builder');
+      },
+    },
+    {
+      id: 'theme-builder',
+      label: t('header.themeBuilder'),
+      icon: Palette,
+      onClick: () => {
+        closeProfilePanel();
+        navigateToHash('#/profile/theme-builder');
+      },
+    },
+    {
+      id: 'menu-builder',
+      label: t('header.menuBuilder'),
+      icon: Grip,
+      onClick: () => {
+        closeProfilePanel();
+        navigateToHash('#/profile/menu-builder');
+      },
+    },
+    {
+      id: 'form-layout',
+      label: t('header.formLayout'),
+      icon: LayoutDashboard,
+      onClick: () => {
+        closeProfilePanel();
+        if (onFormLayoutClick) {
+          onFormLayoutClick();
+          return;
+        }
+        navigateToHash('#/profile/form-layout');
+      },
+    },
+    {
+      id: 'sign-out',
+      label: t('header.signOut'),
+      description: 'Not configured in this build.',
+      icon: LogOut,
+      disabled: true,
+    },
+  ];
   useEffect(() => {
     voiceStateRef.current = voiceState;
   }, [voiceState]);
@@ -206,10 +378,6 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
 
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
-      if (!profileMenuRef.current?.contains(event.target as Node)) {
-        setIsProfileMenuOpen(false);
-      }
-
       if (!quickActionsRef.current?.contains(event.target as Node)) {
         setIsQuickActionsOpen(false);
       }
@@ -1030,19 +1198,20 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
           )}
         </button>
 
-        <div ref={profileMenuRef} className="app-topbar__profile-menu">
+        <div className="app-topbar__profile-menu">
           <button
             ref={profileTriggerRef}
             type="button"
-            onClick={() => setIsProfileMenuOpen((current) => !current)}
+            onClick={handleProfileTriggerClick}
             className={cn('app-topbar__profile-trigger', isProfileMenuOpen && 'app-topbar__profile-trigger--open')}
-            aria-label="Open profile menu"
+            aria-label="Open profile panel"
+            aria-haspopup="dialog"
             aria-expanded={isProfileMenuOpen}
           >
-            <div className="app-topbar__avatar">AK</div>
+            <div className="app-topbar__avatar">{profileIdentity.initials}</div>
             <div className="app-topbar__profile-text">
-              <div className="app-topbar__profile-name">Alex Kumar</div>
-              <div className="app-topbar__profile-role">Buyer Lead</div>
+              <div className="app-topbar__profile-name">{profileIdentity.name}</div>
+              <div className="app-topbar__profile-role">{profileIdentity.role}</div>
             </div>
             <ChevronDown
               size={16}
@@ -1050,148 +1219,22 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
             />
           </button>
 
-          {isProfileMenuOpen && (
-            <div className="app-topbar__dropdown app-topbar__dropdown--profile" role="menu" aria-label="Profile actions">
-              <div className="app-topbar__workspace-switch" role="group" aria-label="Workspace switcher">
-                <div className="app-topbar__workspace-switch-head">
-                  <span className="app-topbar__workspace-switch-title">Workspace mode</span>
-                  <span className="app-topbar__workspace-switch-hint">Choose where you want to work.</span>
-                </div>
-                <div className="app-topbar__workspace-switch-options">
-                  <button
-                    type="button"
-                    className={cn('app-topbar__workspace-switch-option', !isMastersWorkspace && 'app-topbar__workspace-switch-option--active')}
-                    role="menuitemradio"
-                    aria-checked={!isMastersWorkspace}
-                    onClick={() => {
-                      setIsProfileMenuOpen(false);
-                      navigate(paths.home);
-                    }}
-                  >
-                    <span className="app-topbar__workspace-switch-icon" aria-hidden="true">
-                      <ReceiptText size={14} />
-                    </span>
-                    <span className="app-topbar__workspace-switch-label">Transactions</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={cn('app-topbar__workspace-switch-option', isMastersWorkspace && 'app-topbar__workspace-switch-option--active')}
-                    role="menuitemradio"
-                    aria-checked={isMastersWorkspace}
-                    onClick={() => {
-                      setIsProfileMenuOpen(false);
-                      navigate(paths.adminMaster);
-                    }}
-                  >
-                    <span className="app-topbar__workspace-switch-icon" aria-hidden="true">
-                      <Layers size={14} />
-                    </span>
-                    <span className="app-topbar__workspace-switch-label">Masters</span>
-                  </button>
-                </div>
-              </div>
-              <button type="button" className="app-topbar__dropdown-item" role="menuitem">
-                <UserCircle2 size={16} />
-                {t('header.profile')}
-              </button>
-              <button
-                type="button"
-                className="app-topbar__dropdown-item"
-                role="menuitem"
-                onClick={() => {
-                  setIsProfileMenuOpen(false);
-                  setIsSettingsOpen(true);
-                }}
-              >
-                <Settings size={16} />
-                Settings
-              </button>
-              <button
-                type="button"
-                className="app-topbar__dropdown-item"
-                role="menuitem"
-                onClick={() => {
-                  setIsProfileMenuOpen(false);
-                  if (onBusinessSettingsClick) {
-                    onBusinessSettingsClick();
-                    return;
-                  }
-                  navigateToHash('#/profile/business-settings');
-                }}
-              >
-                <Settings size={16} />
-                {t('header.businessSettings')}
-              </button>
-              <button
-                type="button"
-                className="app-topbar__dropdown-item"
-                role="menuitem"
-                onClick={() => {
-                  setIsProfileMenuOpen(false);
-                  navigateToHash('#/profile/print-builder');
-                }}
-              >
-                <Printer size={16} />
-                {t('header.printBuilder')}
-              </button>
-              <button
-                type="button"
-                className="app-topbar__dropdown-item"
-                role="menuitem"
-                onClick={() => {
-                  setIsProfileMenuOpen(false);
-                  navigateToHash('#/profile/language-builder');
-                }}
-              >
-                <Settings size={16} />
-                {t('header.languageBuilder')}
-              </button>
-              <button
-                type="button"
-                className="app-topbar__dropdown-item"
-                role="menuitem"
-                onClick={() => {
-                  setIsProfileMenuOpen(false);
-                  navigateToHash('#/profile/theme-builder');
-                }}
-              >
-                <Palette size={16} />
-                {t('header.themeBuilder')}
-              </button>
-              <button
-                type="button"
-                className="app-topbar__dropdown-item"
-                role="menuitem"
-                onClick={() => {
-                  setIsProfileMenuOpen(false);
-                  navigateToHash('#/profile/menu-builder');
-                }}
-              >
-                <Grip size={16} />
-                {t('header.menuBuilder')}
-              </button>
-              <button
-                type="button"
-                className="app-topbar__dropdown-item"
-                role="menuitem"
-                onClick={() => {
-                  setIsProfileMenuOpen(false);
-                  if (onFormLayoutClick) {
-                    onFormLayoutClick();
-                    return;
-                  }
-                  navigateToHash('#/profile/form-layout');
-                }}
-              >
-                <LayoutDashboard size={16} />
-                {t('header.formLayout')}
-              </button>
-              <button type="button" className="app-topbar__dropdown-item" role="menuitem">
-                <LogOut size={16} />
-                {t('header.signOut')}
-              </button>
-            </div>
-          )}
+          <ProfilePanel
+            open={isProfileMenuOpen}
+            onClose={closeProfilePanel}
+            triggerRef={profileTriggerRef}
+            name={profileIdentity.name}
+            role={profileIdentity.role}
+            initials={profileIdentity.initials}
+            settingsLabel="Profile settings"
+            onOpenSettings={openProfileSettings}
+            workspaceTitle="Workspace mode"
+            workspaceHint="Choose where you want to work."
+            workspaceItems={profileWorkspaceItems}
+            appearanceControls={profileAppearanceControls}
+            featuredActions={profileFeaturedActions}
+            utilityActions={profileUtilityActions}
+          />
         </div>
       </div>
       <HeaderSettingsDialog

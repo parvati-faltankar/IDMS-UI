@@ -24,6 +24,7 @@ export interface PurchaseRequisitionDocument {
   documentDateTime: string;
   supplierName: string;
   supplierContact: string;
+  supplierGstin?: string;
   requesterName: string;
   requesterEmail: string;
   department: string;
@@ -35,6 +36,7 @@ export interface PurchaseRequisitionDocument {
   priority: RequisitionPriority;
   status: RequisitionStatus;
   currency: string;
+  totalAmount?: string;
   lineCount: number;
   spendCategory: string;
   contractReference: string;
@@ -51,6 +53,7 @@ export const purchaseRequisitionDocuments: PurchaseRequisitionDocument[] = [
     documentDateTime: '2025-02-06T10:15:00',
     supplierName: 'Techsupply Corp',
     supplierContact: 'john.smith@techsupply.com',
+    supplierGstin: '27AAACT1111A1Z1',
     requesterName: 'Alex Kumar',
     requesterEmail: 'alex.kumar@excellonsoft.com',
     department: 'Manufacturing',
@@ -62,6 +65,7 @@ export const purchaseRequisitionDocuments: PurchaseRequisitionDocument[] = [
     priority: 'High',
     status: 'Draft',
     currency: 'USD',
+    totalAmount: '5150.00',
     lineCount: 2,
     spendCategory: 'Direct Materials',
     contractReference: 'CONTR-2024-001',
@@ -107,6 +111,7 @@ export const purchaseRequisitionDocuments: PurchaseRequisitionDocument[] = [
     documentDateTime: '2025-02-04T14:40:00',
     supplierName: 'Apex Industries',
     supplierContact: 'sales@apexindustries.com',
+    supplierGstin: '27AAAAP2222A1Z2',
     requesterName: 'Neha Sharma',
     requesterEmail: 'neha.sharma@excellonsoft.com',
     department: 'Operations',
@@ -118,6 +123,7 @@ export const purchaseRequisitionDocuments: PurchaseRequisitionDocument[] = [
     priority: 'Critical',
     status: 'Pending Approval',
     currency: 'USD',
+    totalAmount: '42800.00',
     lineCount: 12,
     spendCategory: 'Shutdown Maintenance',
     contractReference: 'CONTR-2024-114',
@@ -163,6 +169,7 @@ export const purchaseRequisitionDocuments: PurchaseRequisitionDocument[] = [
     documentDateTime: '2025-01-30T09:05:00',
     supplierName: 'Global Supplies Ltd',
     supplierContact: 'service@globalsupplies.com',
+    supplierGstin: '27AAAAG3333A1Z3',
     requesterName: 'Rohit Menon',
     requesterEmail: 'rohit.menon@excellonsoft.com',
     department: 'Engineering',
@@ -174,6 +181,7 @@ export const purchaseRequisitionDocuments: PurchaseRequisitionDocument[] = [
     priority: 'Medium',
     status: 'Approved',
     currency: 'USD',
+    totalAmount: '9600.00',
     lineCount: 8,
     spendCategory: 'Indirect Materials',
     contractReference: 'CONTR-2023-992',
@@ -204,6 +212,7 @@ export const purchaseRequisitionDocuments: PurchaseRequisitionDocument[] = [
     documentDateTime: '2025-01-24T16:20:00',
     supplierName: 'SafeWorks Trading',
     supplierContact: 'support@safeworks.com',
+    supplierGstin: '27AAACS4444A1Z4',
     requesterName: 'Priya Nair',
     requesterEmail: 'priya.nair@excellonsoft.com',
     department: 'Operations',
@@ -215,6 +224,7 @@ export const purchaseRequisitionDocuments: PurchaseRequisitionDocument[] = [
     priority: 'Low',
     status: 'Rejected',
     currency: 'USD',
+    totalAmount: '1250.00',
     lineCount: 5,
     spendCategory: 'Safety & Compliance',
     contractReference: 'CONTR-2024-217',
@@ -245,6 +255,7 @@ export const purchaseRequisitionDocuments: PurchaseRequisitionDocument[] = [
     documentDateTime: '2025-01-18T11:50:00',
     supplierName: 'MotionCore Systems',
     supplierContact: 'orders@motioncore.com',
+    supplierGstin: '27AAACM5555A1Z5',
     requesterName: 'Arjun Patel',
     requesterEmail: 'arjun.patel@excellonsoft.com',
     department: 'Manufacturing',
@@ -256,6 +267,7 @@ export const purchaseRequisitionDocuments: PurchaseRequisitionDocument[] = [
     priority: 'High',
     status: 'Pending Approval',
     currency: 'USD',
+    totalAmount: '31200.00',
     lineCount: 21,
     spendCategory: 'Direct Materials',
     contractReference: 'CONTR-2024-145',

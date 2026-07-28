@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Ban,
   ChevronDown,
@@ -608,7 +608,7 @@ const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({
     setSortState(direction ? { key, direction } : null);
   };
 
-  const recordRecentPurchaseOrderDocument = (documentId: string) => {
+  const recordRecentPurchaseOrderDocument = useCallback((documentId: string) => {
     const document = documents.find((item) => item.id === documentId);
 
     if (!document) {
@@ -624,15 +624,15 @@ const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({
       status: document.status,
       route: '/purchase-order',
     });
-  };
+  }, [documents]);
 
-  const handleViewDocument = (documentId: string) => {
+  const handleViewDocument = useCallback((documentId: string) => {
     recordRecentPurchaseOrderDocument(documentId);
     setPreviewDocumentId(documentId);
     setOpenActionMenuId(null);
-  };
+  }, [recordRecentPurchaseOrderDocument]);
 
-  const handleEditDocument = (documentId: string) => {
+  const handleEditDocument = useCallback((documentId: string) => {
     if (!actionSettings.allowEdit) {
       return;
     }
@@ -640,9 +640,9 @@ const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({
     recordRecentPurchaseOrderDocument(documentId);
     setOpenActionMenuId(null);
     onEdit(documentId);
-  };
+  }, [actionSettings.allowEdit, onEdit, recordRecentPurchaseOrderDocument]);
 
-  const handleOpenCancelDialog = (documentId: string) => {
+  const handleOpenCancelDialog = useCallback((documentId: string) => {
     if (!actionSettings.allowCancel) {
       return;
     }
@@ -654,7 +654,7 @@ const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({
 
     setOpenActionMenuId(null);
     setCancelDocumentId(documentId);
-  };
+  }, [actionSettings.allowCancel, documents]);
 
   const handleConfirmCancelDocument = () => {
     if (!cancelDocumentId) {
@@ -674,7 +674,7 @@ const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({
     setCancelDocumentId(null);
   };
 
-  const renderActionMenu = (item: PurchaseOrderDocument) => (
+  const renderActionMenu = useCallback((item: PurchaseOrderDocument) => (
     <div
       ref={(element) => {
         actionMenuRefs.current[item.id] = element;
@@ -720,9 +720,9 @@ const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({
         </div>
       )}
     </div>
-  );
+  ), [actionSettings.allowCancel, actionSettings.allowEdit, handleEditDocument, handleOpenCancelDialog, handleViewDocument, openActionMenuId]);
 
-  const gridColumns: DataGridColumn<PurchaseOrderDocument>[] = [
+  const gridColumns = useMemo<DataGridColumn<PurchaseOrderDocument>[]>(() => [
       {
         id: 'number',
         label: 'PO No.',
@@ -884,7 +884,7 @@ const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({
         getValue: () => '',
         renderCell: (item) => renderActionMenu(item),
       },
-    ];
+    ], [handleViewDocument, renderActionMenu]);
 
   return (
     <AppShell
@@ -1012,17 +1012,16 @@ const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({
           )}
 
           {loadState === 'ready' && sortedRows.length > 0 && (
-            <div className="catalogue-table-scroll">
-              <CommonDataGrid
-                gridId="purchase-order-catalogue"
-                rows={sortedRows}
-                columns={gridColumns}
-                rowId={(item) => item.id}
-                sortState={sortState}
-                onSortChange={handleSortChange}
-                chartTitle="Purchase Order"
-              />
-            </div>
+            <CommonDataGrid
+              gridId="purchase-order-catalogue"
+              ariaLabel="Purchase orders table"
+              rows={sortedRows}
+              columns={gridColumns}
+              rowId={(item) => item.id}
+              sortState={sortState}
+              onSortChange={handleSortChange}
+              chartTitle="Purchase Order"
+            />
           )}
         </section>
       </div>

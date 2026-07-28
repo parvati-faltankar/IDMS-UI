@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Archive,
   Copy,
@@ -250,7 +250,7 @@ const ApprovalStudioList: React.FC<ApprovalStudioListProps> = ({ onNew, onView, 
     setIsFilterDrawerOpen(false);
   };
 
-  const runDuplicate = (workflowId: string) => {
+  const runDuplicate = useCallback((workflowId: string) => {
     const duplicatedRecord = duplicateApprovalWorkflow(workflowId);
     if (!duplicatedRecord) {
       return;
@@ -260,7 +260,7 @@ const ApprovalStudioList: React.FC<ApprovalStudioListProps> = ({ onNew, onView, 
     setToastMessage('Approval workflow duplicated as draft.');
     setOpenActionMenuId(null);
     setMenuAnchorRect(null);
-  };
+  }, []);
 
   const runArchive = (workflowId: string) => {
     const archivedRecord = archiveApprovalWorkflow(workflowId);
@@ -300,7 +300,7 @@ const ApprovalStudioList: React.FC<ApprovalStudioListProps> = ({ onNew, onView, 
     setMenuAnchorRect(null);
   };
 
-  const renderRowActions = (workflow: ApprovalWorkflowRecord) => (
+  const renderRowActions = useCallback((workflow: ApprovalWorkflowRecord) => (
     <div
       ref={(element) => {
         actionMenuRefs.current[workflow.id] = element;
@@ -366,9 +366,9 @@ const ApprovalStudioList: React.FC<ApprovalStudioListProps> = ({ onNew, onView, 
         </div>
       )}
     </div>
-  );
+  ), [menuAnchorRect, onEdit, onView, openActionMenuId, runDuplicate]);
 
-  const gridColumns: DataGridColumn<ApprovalWorkflowRecord>[] = [
+  const gridColumns = useMemo<DataGridColumn<ApprovalWorkflowRecord>[]>(() => [
     {
       id: 'name',
       label: 'Approval name',
@@ -459,7 +459,7 @@ const ApprovalStudioList: React.FC<ApprovalStudioListProps> = ({ onNew, onView, 
       defaultPin: 'right',
       renderCell: (row) => renderRowActions(row),
     },
-  ];
+  ], [onView, renderRowActions]);
 
   return (
     <AppShell activeLeaf="approval-studio">
@@ -573,6 +573,7 @@ const ApprovalStudioList: React.FC<ApprovalStudioListProps> = ({ onNew, onView, 
         {loadState === 'ready' && sortedRows.length > 0 && (
           <CommonDataGrid
             gridId="approval-studio-catalogue-v2"
+            ariaLabel="Approval workflows table"
             rows={sortedRows}
             columns={gridColumns}
             rowId={(row) => row.id}

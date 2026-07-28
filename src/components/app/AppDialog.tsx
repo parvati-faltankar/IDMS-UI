@@ -1,4 +1,4 @@
-import Dialog from '@mui/material/Dialog';
+import Dialog, { type DialogProps } from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
@@ -20,12 +20,15 @@ interface AppDialogProps {
   children?: React.ReactNode;
   actions?: React.ReactNode;
   titleId?: string;
+  descriptionId?: string;
   showCloseButton?: boolean;
   width?: number;
   paperClassName?: string;
   contentClassName?: string;
   actionsClassName?: string;
   paperSx?: SxProps<Theme>;
+  disableBackdropClose?: boolean;
+  disableEscapeClose?: boolean;
 }
 
 export default function AppDialog({
@@ -36,20 +39,37 @@ export default function AppDialog({
   children,
   actions,
   titleId,
+  descriptionId,
   showCloseButton = false,
   width = 420,
   paperClassName,
   contentClassName,
   actionsClassName,
   paperSx,
+  disableBackdropClose = false,
+  disableEscapeClose = false,
 }: AppDialogProps) {
+  const handleDialogClose: NonNullable<DialogProps['onClose']> = (_event, reason) => {
+    if (disableBackdropClose && reason === 'backdropClick') {
+      return;
+    }
+
+    if (disableEscapeClose && reason === 'escapeKeyDown') {
+      return;
+    }
+
+    onClose();
+  };
+
   return (
     <Dialog
       open={open}
-      onClose={onClose}
+      onClose={handleDialogClose}
+      disableEscapeKeyDown={disableEscapeClose}
       fullWidth
       maxWidth={false}
       aria-labelledby={titleId}
+      aria-describedby={descriptionId}
       slotProps={{
         backdrop: {
           sx: getMasterOverlayBackdropSx(),
@@ -83,7 +103,7 @@ export default function AppDialog({
               </Typography>
             )}
             {description && (
-              <Typography variant="body2" color="text.secondary" sx={{ mt: title ? 0.5 : 0 }}>
+              <Typography id={descriptionId} variant="body2" color="text.secondary" sx={{ mt: title ? 0.5 : 0 }}>
                 {description}
               </Typography>
             )}

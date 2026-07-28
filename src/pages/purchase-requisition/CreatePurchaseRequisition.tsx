@@ -2164,6 +2164,7 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
         cancelLabel="No"
         onConfirm={handleDiscardConfirm}
         onClose={handleDiscardClose}
+        compactPresentation="bottom-sheet"
       />
       {layoutDialogCopy && (
         <CompactFormDialog
@@ -2223,4 +2224,5 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
 };
 
 export default CreatePurchaseRequisition;
+
 

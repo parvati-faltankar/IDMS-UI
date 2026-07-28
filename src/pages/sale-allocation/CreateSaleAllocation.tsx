@@ -1504,6 +1504,7 @@ const CreateSaleAllocation: React.FC<CreateSaleAllocationProps> = ({
           onNavigateToSaleAllocationList();
         }}
         onClose={() => setIsDiscardDialogOpen(false)}
+        compactPresentation="bottom-sheet"
       />
 
       <SuccessSummaryDialog
@@ -1532,3 +1533,4 @@ const CreateSaleAllocation: React.FC<CreateSaleAllocationProps> = ({
 };
 
 export default CreateSaleAllocation;
+

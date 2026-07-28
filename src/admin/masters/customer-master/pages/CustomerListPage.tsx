@@ -219,6 +219,7 @@ export default function CustomerListPage() {
       >
         <MasterDataTable
           gridId="customer-master-table"
+          ariaLabel="Customers table"
           rows={filtered}
           columns={gridColumns}
           rowId={(customer) => customer.id}

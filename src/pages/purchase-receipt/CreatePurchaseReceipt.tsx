@@ -1494,7 +1494,16 @@ const CreatePurchaseReceipt: React.FC<CreatePurchaseReceiptProps> = ({
         </div>
       </div>
 
-      <ConfirmationDialog isOpen={isDiscardDialogOpen} title="Discard changes?" description="Are you sure you want to discard? All your entered information will be cleared." confirmLabel="Yes" cancelLabel="No" onConfirm={handleDiscardConfirm} onClose={handleDiscardClose} />
+      <ConfirmationDialog
+        isOpen={isDiscardDialogOpen}
+        title="Discard changes?"
+        description="Are you sure you want to discard? All your entered information will be cleared."
+        confirmLabel="Yes"
+        cancelLabel="No"
+        onConfirm={handleDiscardConfirm}
+        onClose={handleDiscardClose}
+        compactPresentation="bottom-sheet"
+      />
       <SuccessSummaryDialog
         isOpen={isSaveSuccessDialogOpen}
         title="Saved successfully!"
@@ -1541,3 +1550,5 @@ const CreatePurchaseReceipt: React.FC<CreatePurchaseReceiptProps> = ({
 };
 
 export default CreatePurchaseReceipt;
+
+

@@ -377,6 +377,7 @@ const ProductListPage: React.FC = () => {
       >
         <MasterDataTable
           gridId="product-master-table"
+          ariaLabel="Products table"
           rows={filtered}
           columns={gridColumns}
           rowId={(product) => product.id}

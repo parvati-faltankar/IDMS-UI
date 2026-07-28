@@ -1380,6 +1380,7 @@ const CreateSaleInvoice: React.FC<CreateSaleInvoiceProps> = ({
           onNavigateToSaleInvoiceList();
         }}
         onClose={() => setIsDiscardDialogOpen(false)}
+        compactPresentation="bottom-sheet"
       />
 
       <ConfirmationDialog
@@ -1574,3 +1575,4 @@ const CreateSaleInvoice: React.FC<CreateSaleInvoiceProps> = ({
 };
 
 export default CreateSaleInvoice;
+

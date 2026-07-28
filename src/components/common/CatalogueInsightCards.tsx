@@ -13,7 +13,7 @@ export interface CatalogueInsightItem {
   tone?: CatalogueInsightTone;
 }
 
-interface CatalogueInsightCardsProps {
+export interface CatalogueInsightCardsProps {
   items: CatalogueInsightItem[];
   activeKey: string | null;
   ariaLabel: string;
@@ -42,11 +42,15 @@ const CatalogueInsightCards: React.FC<CatalogueInsightCardsProps> = ({
       `catalogue-analytics--${variant}`,
       `catalogue-analytics--density-${density}`
     )}
+    role="group"
     aria-label={ariaLabel}
   >
     {items.slice(0, maxVisibleItems).map((item) => {
       const isActive = activeKey === item.key;
-      const progress = Math.max(8, Math.min(item.progress ?? 0, 100));
+      const normalizedProgress = Math.max(0, Math.min(item.progress ?? 0, 100));
+      const visualProgress = normalizedProgress > 0 ? Math.max(8, normalizedProgress) : 0;
+      const eyebrowLabel = isActive ? activeBadgeLabel : badgeLabel;
+      const shouldRenderEyebrow = eyebrowLabel.trim().length > 0;
 
       return (
         <button
@@ -62,17 +66,17 @@ const CatalogueInsightCards: React.FC<CatalogueInsightCardsProps> = ({
         >
           <div className="catalogue-analytics__header">
             <span className="catalogue-analytics__label">{item.label}</span>
-            <span className="catalogue-analytics__eyebrow">{isActive ? activeBadgeLabel : badgeLabel}</span>
+            {shouldRenderEyebrow && <span className="catalogue-analytics__eyebrow">{eyebrowLabel}</span>}
           </div>
           <div className="catalogue-analytics__headline-row">
             <strong className="catalogue-analytics__value">{item.value}</strong>
             {item.progress !== undefined && (
-              <span className="catalogue-analytics__progress-text">{Math.round(item.progress)}%</span>
+              <span className="catalogue-analytics__progress-text">{Math.round(normalizedProgress)}%</span>
             )}
           </div>
           {item.progress !== undefined && (
             <div className="catalogue-analytics__progress-track" aria-hidden="true">
-              <span className="catalogue-analytics__progress-bar" style={{ width: `${progress}%` }} />
+              <span className="catalogue-analytics__progress-bar" style={{ width: `${visualProgress}%` }} />
             </div>
           )}
           <span className="catalogue-analytics__support">{item.support}</span>
@@ -84,4 +88,5 @@ const CatalogueInsightCards: React.FC<CatalogueInsightCardsProps> = ({
 );
 
 export default CatalogueInsightCards;
+
 
