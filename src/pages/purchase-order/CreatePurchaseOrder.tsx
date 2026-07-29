@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ChevronDown, ChevronRight, MoreVertical, PencilLine, Plus, Search, Trash2, X, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronRight, PencilLine, Plus, Search, Trash2, X, ChevronUp } from 'lucide-react';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import AppShell from '../../components/common/AppShell';
 import AmountBreakdownDrawer from '../../components/common/AmountBreakdownDrawer';
 import ConfirmationDialog from '../../components/common/ConfirmationDialog';
@@ -7,6 +8,7 @@ import { FormField, Input, Select } from '../../components/common/FormControls';
 import { handleGridLastCellTab, hasRequiredGridValues } from '../../components/common/gridKeyboard';
 import PurchaseRequisitionPreviewDrawer from '../../components/common/PurchaseRequisitionPreviewDrawer';
 import SuccessSummaryDialog from '../../components/common/SuccessSummaryDialog';
+import TransactionCreateHeader, { transactionCreateCompactActionsMediaQuery } from '../../components/common/TransactionCreateHeader';
 import { formatDate } from '../../utils/dateFormat';
 import { cn } from '../../utils/classNames';
 import { useBusinessSettings } from '../../utils/businessSettings';
@@ -1060,11 +1062,24 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({
     }));
   };
 
+  const isCompactCreateActionsViewport = useMediaQuery(transactionCreateCompactActionsMediaQuery, { noSsr: true });
+
+  const renderDocumentActions = (className?: string) => (
+    <div className={cn('transaction-create-action-cluster', className)}>
+      <button type="button" onClick={handleDiscardRequest} className="btn btn--outline">
+        Discard
+      </button>
+      <button type="button" onClick={handleSave} className="btn btn--primary">
+        Save
+      </button>
+    </div>
+  );
+
   return (
     <AppShell
       activeLeaf="purchase-order"
       bottomBar={
-        <div className="po-create__summary-bar">
+        <div className={cn('po-create__summary-bar', isCompactCreateActionsViewport && 'po-create__summary-bar--with-actions')}>
           <div className="po-create__summary-shell">
             <div className="po-create__summary-metric po-create__summary-metric--right">
               <span className="po-create__summary-label">Total amount</span>
@@ -1098,6 +1113,12 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({
                 </div>
               )}
             </div>
+
+            {isCompactCreateActionsViewport && (
+              <div className="po-create__summary-actions">
+                {renderDocumentActions()}
+              </div>
+            )}
           </div>
         </div>
       }
@@ -1105,167 +1126,138 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({
       onPurchaseRequisitionClick={onNavigateToPurchaseRequisitionList}
     >
       <div className="create-pr-page">
-        <div className="create-pr-header">
-          <div className="create-pr-header__top">
-            <div className="create-pr-header__title-group">
-              <a
-                href="#/purchase-order"
-                onClick={(event) => {
-                  event.preventDefault();
-                  onBack();
-                }}
-                className="page-back-button create-pr-header__back"
-                aria-label="Back to purchase order list"
-              >
-                <ArrowLeft size={18} />
-              </a>
-              <div className="create-pr-header__title-wrap">
-                <div className="create-pr-header__title-row">
-                  <h2 className="brand-page-title create-pr-header__title">
-                    {editingDocument ? 'Edit Purchase Order' : 'New Purchase Order'}
-                  </h2>
-                  <span className="create-pr-header__status">{editingDocument?.status ?? 'Open'}</span>
+        <TransactionCreateHeader
+          title={editingDocument ? 'Edit Purchase Order' : 'New Purchase Order'}
+          statusLabel={editingDocument?.status ?? 'Open'}
+          meta={[
+            { label: 'Doc No', value: formData.number },
+            {
+              label: 'Doc Date',
+              value: (
+                <span className="transaction-create-header__meta-inline">
+                  <span>{formatDate(formData.orderDate)}</span>
+                  <PencilLine size={12} className="transaction-create-header__meta-icon" aria-hidden="true" />
+                </span>
+              ),
+            },
+          ]}
+          onBack={onBack}
+          backLabel="Back to purchase order list"
+          primaryActions={!isCompactCreateActionsViewport ? renderDocumentActions() : undefined}
+          actionRow={
+            <>
+              <div className="po-create__requisition-picker">
+                <div className="po-create__requisition-search">
+                  <div className="po-create__requisition-search-shell">
+                    <Search size={16} className="po-create__requisition-search-icon" />
+                    {selectedRequisitions.map((requisition) => (
+                      <span key={requisition.id} className="po-create__selected-chip">
+                        <span className="po-create__selected-chip-text">{requisition.number}</span>
+                        <button
+                          type="button"
+                          className="po-create__selected-chip-remove"
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => handleRemoveRequisition(requisition.id)}
+                          aria-label={`Remove ${requisition.number}`}
+                        >
+                          <X size={12} />
+                        </button>
+                      </span>
+                    ))}
+                    <input
+                      type="search"
+                      value={requisitionSearch}
+                      onChange={(event) => {
+                        setRequisitionSearch(event.target.value);
+                        setIsRequisitionResultsOpen(true);
+                      }}
+                      onFocus={() => setIsRequisitionResultsOpen(true)}
+                      onBlur={() => {
+                        window.setTimeout(() => {
+                          setIsRequisitionResultsOpen(false);
+                        }, 120);
+                      }}
+                      className="search-input po-create__requisition-search-input"
+                      placeholder={
+                        !canConvertRequisitionToOrder
+                          ? 'PR to PO conversion disabled'
+                          : selectedRequisitions.length > 0
+                            ? ''
+                            : 'Search purchase requisition'
+                      }
+                      aria-label="Search purchase requisitions"
+                      disabled={
+                        !canConvertRequisitionToOrder ||
+                        (!purchaseOrderSettings.allowMultiplePurchaseRequisitions && selectedRequisitions.length > 0)
+                      }
+                    />
+                  </div>
                 </div>
-              </div>
-            </div>
 
-            <div className="create-pr-header__meta">
-              <div className="create-pr-header__meta-item">
-                <span className="create-pr-header__meta-label">Doc no:</span>
-                <span className="create-pr-header__meta-value">{formData.number}</span>
-              </div>
-              <div className="create-pr-header__meta-item">
-                <span className="create-pr-header__meta-label">Doc date:</span>
-                <span className="create-pr-header__meta-value">{formatDate(formData.orderDate)}</span>
-              </div>
-              <button type="button" className="create-pr-header__icon-button" aria-label="Edit purchase order metadata">
-                <PencilLine size={16} />
-              </button>
-              <button type="button" className="create-pr-header__icon-button" aria-label="More options">
-                <MoreVertical size={16} />
-              </button>
-            </div>
-          </div>
+                {isRequisitionResultsOpen && matchingRequisitions.length > 0 && (
+                  <div className="po-create__requisition-results" role="listbox" aria-label="Purchase requisition results">
+                    <table className="po-create__requisition-results-table">
+                      <thead>
+                        <tr>
+                          <th>PR No.</th>
+                          <th>Supplier</th>
+                          <th>Requester</th>
+                          <th>Created Date</th>
+                          <th>Aging</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {matchingRequisitions.map((requisition) => {
+                          const conversionStatus = getRequisitionConversionStatus(requisition);
+                          const agingInDays = getAgingInDays(requisition.documentDateTime);
 
-          <div className="create-pr-header__actions">
-            <div className="po-create__requisition-picker">
-              <div className="po-create__requisition-search">
-                <div className="po-create__requisition-search-shell">
-                  <Search size={16} className="po-create__requisition-search-icon" />
-                  {selectedRequisitions.map((requisition) => (
-                    <span key={requisition.id} className="po-create__selected-chip">
-                      <span className="po-create__selected-chip-text">{requisition.number}</span>
-                      <button
-                        type="button"
-                        className="po-create__selected-chip-remove"
-                        onMouseDown={(event) => event.preventDefault()}
-                        onClick={() => handleRemoveRequisition(requisition.id)}
-                        aria-label={`Remove ${requisition.number}`}
-                      >
-                        <X size={12} />
-                      </button>
-                    </span>
-                  ))}
-                  <input
-                    type="search"
-                    value={requisitionSearch}
-                    onChange={(event) => {
-                      setRequisitionSearch(event.target.value);
-                      setIsRequisitionResultsOpen(true);
-                    }}
-                    onFocus={() => setIsRequisitionResultsOpen(true)}
-                    onBlur={() => {
-                      window.setTimeout(() => {
-                        setIsRequisitionResultsOpen(false);
-                      }, 120);
-                    }}
-                    className="search-input po-create__requisition-search-input"
-                    placeholder={
-                      !canConvertRequisitionToOrder
-                        ? 'PR to PO conversion disabled'
-                        : selectedRequisitions.length > 0
-                          ? ''
-                          : 'Search purchase requisition'
-                    }
-                    aria-label="Search purchase requisitions"
-                    disabled={
-                      !canConvertRequisitionToOrder ||
-                      (!purchaseOrderSettings.allowMultiplePurchaseRequisitions && selectedRequisitions.length > 0)
-                    }
-                  />
-                </div>
+                          return (
+                            <tr
+                              key={requisition.id}
+                              className="po-create__requisition-results-row"
+                              role="option"
+                              tabIndex={0}
+                              aria-label={`Select ${requisition.number}`}
+                              onMouseDown={(event) => event.preventDefault()}
+                              onClick={() => handleSelectRequisition(requisition)}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter' || event.key === ' ') {
+                                  event.preventDefault();
+                                  handleSelectRequisition(requisition);
+                                }
+                              }}
+                            >
+                              <td className="po-create__requisition-results-number">{requisition.number}</td>
+                              <td title={requisition.supplierName}>{requisition.supplierName}</td>
+                              <td title={requisition.requesterName}>{requisition.requesterName}</td>
+                              <td>{formatDate(requisition.documentDateTime)}</td>
+                              <td>{agingInDays} day{agingInDays === 1 ? '' : 's'}</td>
+                              <td>
+                                <span
+                                  className={cn(
+                                    'brand-badge po-create__requisition-option-status',
+                                    conversionStatus === 'Partial Converted'
+                                      ? 'brand-badge--pending'
+                                      : 'brand-badge--draft'
+                                  )}
+                                >
+                                  {conversionStatus}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
 
-              {isRequisitionResultsOpen && matchingRequisitions.length > 0 && (
-                <div className="po-create__requisition-results" role="listbox" aria-label="Purchase requisition results">
-                  <table className="po-create__requisition-results-table">
-                    <thead>
-                      <tr>
-                        <th>PR No.</th>
-                        <th>Supplier</th>
-                        <th>Requester</th>
-                        <th>Created Date</th>
-                        <th>Aging</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {matchingRequisitions.map((requisition) => {
-                        const conversionStatus = getRequisitionConversionStatus(requisition);
-                        const agingInDays = getAgingInDays(requisition.documentDateTime);
-
-                        return (
-                          <tr
-                            key={requisition.id}
-                            className="po-create__requisition-results-row"
-                            role="option"
-                            tabIndex={0}
-                            aria-label={`Select ${requisition.number}`}
-                            onMouseDown={(event) => event.preventDefault()}
-                            onClick={() => handleSelectRequisition(requisition)}
-                            onKeyDown={(event) => {
-                              if (event.key === 'Enter' || event.key === ' ') {
-                                event.preventDefault();
-                                handleSelectRequisition(requisition);
-                              }
-                            }}
-                          >
-                            <td className="po-create__requisition-results-number">{requisition.number}</td>
-                            <td title={requisition.supplierName}>{requisition.supplierName}</td>
-                            <td title={requisition.requesterName}>{requisition.requesterName}</td>
-                            <td>{formatDate(requisition.documentDateTime)}</td>
-                            <td>{agingInDays} day{agingInDays === 1 ? '' : 's'}</td>
-                            <td>
-                              <span
-                                className={cn(
-                                  'brand-badge po-create__requisition-option-status',
-                                  conversionStatus === 'Partial Converted'
-                                    ? 'brand-badge--pending'
-                                    : 'brand-badge--draft'
-                                )}
-                              >
-                                {conversionStatus}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-
-            {workflowError && <p className="field-error po-create__selection-message">{workflowError}</p>}
-
-            <button type="button" onClick={handleDiscardRequest} className="btn btn--outline">
-              Discard
-            </button>
-            <button type="button" onClick={handleSave} className="btn btn--primary">
-              Save
-            </button>
-          </div>
-        </div>
+              {workflowError && <p className="field-error po-create__selection-message">{workflowError}</p>}
+            </>
+          }
+        />
 
         <div className="mx-auto flex w-full max-w-[1800px] flex-col gap-6 px-6 py-3">
           <div className="create-pr-tabs">

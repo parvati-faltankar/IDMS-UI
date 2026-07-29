@@ -13,6 +13,9 @@ type MasterFormAccordionSectionProps = {
   open?: boolean;
   onToggle?: (open: boolean) => void;
   state?: MasterFormAccordionSectionState;
+  stateLabel?: string;
+  statePresentation?: 'dot' | 'label';
+  hideAccentBorder?: boolean;
 };
 
 function getAccentColor(state: MasterFormAccordionSectionState) {
@@ -32,11 +35,17 @@ export function MasterFormAccordionSection({
   open,
   onToggle,
   state = 'default',
+  stateLabel,
+  statePresentation = 'dot',
+  hideAccentBorder = false,
 }: MasterFormAccordionSectionProps) {
   const isControlled = typeof open === 'boolean';
   const [internalOpen, setInternalOpen] = React.useState(defaultOpen);
   const isOpen = isControlled ? open : internalOpen;
   const accentColor = getAccentColor(state);
+  const accentBorder = hideAccentBorder
+    ? '0 solid transparent'
+    : `3px solid ${isOpen ? accentColor : 'transparent'}`;
 
   const handleToggle = () => {
     const next = !isOpen;
@@ -59,7 +68,7 @@ export function MasterFormAccordionSection({
     >
       <div
         style={{
-          borderLeft: `3px solid ${isOpen ? accentColor : 'transparent'}`,
+          borderLeft: accentBorder,
           background: 'var(--color-surface)',
         }}
       >
@@ -74,8 +83,11 @@ export function MasterFormAccordionSection({
             alignItems: 'flex-start',
             justifyContent: 'space-between',
             gap: '16px',
-            padding: '16px 20px',
+            padding: 'var(--master-form-accordion-section-header-padding, 16px 20px)',
             border: 'none',
+            borderBottom: isOpen
+              ? 'var(--master-form-accordion-section-header-border-bottom, none)'
+              : 'none',
             background: 'transparent',
             cursor: 'pointer',
             textAlign: 'left',
@@ -101,9 +113,29 @@ export function MasterFormAccordionSection({
               >
                 {title}
               </h2>
-              {state !== 'default' && (
+              {state !== 'default' && statePresentation === 'label' && (
                 <span
-                  aria-hidden="true"
+                  title={stateLabel}
+                  style={{
+                    border: `1px solid ${accentColor}`,
+                    borderRadius: '999px',
+                    color: accentColor,
+                    flexShrink: 0,
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    lineHeight: '16px',
+                    padding: '2px 8px',
+                  }}
+                >
+                  {stateLabel ?? state}
+                </span>
+              )}
+              {state !== 'default' && statePresentation === 'dot' && (
+                <span
+                  aria-hidden={stateLabel ? undefined : true}
+                  aria-label={stateLabel}
+                  role={stateLabel ? 'img' : undefined}
+                  title={stateLabel}
                   style={{
                     width: '8px',
                     height: '8px',
@@ -168,7 +200,8 @@ export function MasterFormAccordionSection({
       {isOpen && (
         <div
           style={{
-            padding: '0 20px 20px',
+            padding:
+              'var(--master-form-accordion-section-body-padding-top, 0) var(--master-form-accordion-section-body-padding-x, 20px) 20px',
             background: 'var(--color-surface)',
           }}
         >

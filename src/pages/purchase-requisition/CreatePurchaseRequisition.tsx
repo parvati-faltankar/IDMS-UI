@@ -1,6 +1,8 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, Eye, Plus, Trash2, Upload, FileText, ArrowLeft, MoreVertical, PencilLine, ChevronDown, GripVertical, RotateCcw, Save } from 'lucide-react';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import { CheckCircle2, ChevronRight, Copy, Eye, Plus, Trash2, Upload, FileText, PencilLine, GripVertical, RotateCcw, Save, X } from 'lucide-react';
 import AppShell from '../../components/common/AppShell';
+import AmountBreakdownDrawer from '../../components/common/AmountBreakdownDrawer';
 import CompactFormDialog from '../../components/common/CompactFormDialog';
 import ConfirmationDialog from '../../components/common/ConfirmationDialog';
 import FormLayoutPreviewOverlay from '../../components/common/FormLayoutPreviewOverlay';
@@ -8,7 +10,10 @@ import GridColumnConfigurator from '../../components/common/GridColumnConfigurat
 import GuidedTour, { type GuidedTourStep } from '../../components/common/GuidedTour';
 import SuccessSummaryDialog from '../../components/common/SuccessSummaryDialog';
 import { FormField, Input, Select, Textarea } from '../../components/common/FormControls';
-import { handleGridLastCellTab } from '../../components/common/gridKeyboard';
+import EditableTransactionGrid from '../../components/common/EditableTransactionGrid';
+import TransactionCreateHeader, { transactionCreateCompactActionsMediaQuery } from '../../components/common/TransactionCreateHeader';
+import { MasterFormAccordionSection, MasterFormSectionSummary, type MasterFormAccordionSectionState } from '../../experience/components';
+import type { EditableGridBulkAction, EditableGridCellElement, EditableGridColumn } from '../../components/common/editableTransactionGridTypes';
 import StatusBadge from '../../components/common/StatusBadge';
 import { useDocumentPrint } from '../../print-builder/useDocumentPrint';
 import { PURCHASE_REQUISITION_LAYOUT, purchaseRequisitionFieldLabels } from '../../utils/formLayoutRegistry';
@@ -29,6 +34,7 @@ import {
   saveDraftFormLayoutConfig,
   type FormLayoutConfig,
   type FormLayoutGridColumn,
+  type FormLayoutSection,
   getVisibleGridColumns,
   updateSectionFieldsPerRow,
 } from '../../utils/formLayoutConfig';
@@ -87,6 +93,15 @@ interface LineValidationErrors {
   cancelledQty?: string;
   cancellationReason?: string;
   remarks?: string;
+}
+
+interface BulkEditDraft {
+  priorityEnabled: boolean;
+  priority: LineItem['priority'];
+  requirementDateEnabled: boolean;
+  requirementDate: string;
+  remarksEnabled: boolean;
+  remarks: string;
 }
 
 interface ProductOption {
@@ -159,6 +174,15 @@ const linePriorityOptions = [
   { value: 'High', label: 'High' },
   { value: 'Critical', label: 'Critical' },
 ];
+
+const defaultBulkEditDraft: BulkEditDraft = {
+  priorityEnabled: false,
+  priority: '',
+  requirementDateEnabled: false,
+  requirementDate: '',
+  remarksEnabled: false,
+  remarks: '',
+};
 
 const cancellationReasonOptions = [
   { value: '', label: 'Select reason' },
@@ -335,79 +359,6 @@ function getHeaderStatusLabel(status: RequisitionData['status']): string {
   }
 }
 
-const PageHeader: React.FC<{
-  documentNumber: string;
-  documentDate: string;
-  title: string;
-  status: string;
-  onBack?: () => void;
-  onCancel: () => void;
-  onSave: () => void;
-  hideDocumentMeta?: boolean;
-  hideStatus?: boolean;
-  actions?: React.ReactNode;
-}> = ({ documentNumber, documentDate, title, status, onBack, onCancel, onSave, hideDocumentMeta = false, hideStatus = false, actions }) => {
-  return (
-    <div className="create-pr-header">
-      <div className="create-pr-header__top">
-        <div className="create-pr-header__title-group">
-          {onBack && (
-            <a
-              href="#/purchase-requisition"
-              onClick={(event) => {
-                event.preventDefault();
-                onBack();
-              }}
-              className="page-back-button create-pr-header__back"
-              aria-label="Back to purchase requisition list"
-            >
-              <ArrowLeft size={18} />
-            </a>
-          )}
-          <div className="create-pr-header__title-wrap">
-            <div className="create-pr-header__title-row">
-              <h2 className="brand-page-title create-pr-header__title">{title}</h2>
-              {!hideStatus && <span className="create-pr-header__status">{status}</span>}
-            </div>
-          </div>
-        </div>
-
-        {!hideDocumentMeta && (
-          <div className="create-pr-header__meta">
-            <div className="create-pr-header__meta-item">
-              <span className="create-pr-header__meta-label">Doc no:</span>
-              <span className="create-pr-header__meta-value">{documentNumber}</span>
-            </div>
-            <div className="create-pr-header__meta-item">
-              <span className="create-pr-header__meta-label">Doc date:</span>
-              <span className="create-pr-header__meta-value">{documentDate}</span>
-            </div>
-            <button type="button" className="create-pr-header__icon-button" aria-label="Document details">
-              <PencilLine size={16} />
-            </button>
-            <button type="button" className="create-pr-header__icon-button" aria-label="More options">
-              <MoreVertical size={16} />
-            </button>
-          </div>
-        )}
-      </div>
-
-      <div className="create-pr-header__actions">
-        {actions ?? (
-          <>
-            <button type="button" onClick={onCancel} className="btn btn--outline">
-              Discard
-            </button>
-            <button type="button" onClick={onSave} className="btn btn--primary" data-tour="pr-save-button">
-              Save
-            </button>
-          </>
-        )}
-      </div>
-    </div>
-  );
-};
-
 // ============================================================================
 // LINE ITEMS TABLE
 // ============================================================================
@@ -415,26 +366,40 @@ const PageHeader: React.FC<{
 const LineItemsSection: React.FC<{
   items: LineItem[];
   lineErrors: Record<string, LineValidationErrors>;
+  selectedLineIds: string[];
   onAddLine: () => void;
+  onDuplicateLine: (lineId: string) => void;
   onDeleteLine: (lineId: string) => void;
+  onSelectedLineIdsChange: (lineIds: string[]) => void;
+  onOpenBulkEdit: () => void;
+  onBulkDuplicateLines: () => void;
+  onBulkDeleteLines: () => void;
   onFieldChange: (lineId: string, fieldName: keyof Pick<LineItem, 'productCode' | 'uom' | 'priority' | 'requirementDate' | 'requestedQty' | 'cancellationReason' | 'remarks'>, value: string) => void;
   onNumericBlur: (lineId: string, fieldName: 'requestedQty') => void;
   onLineBlur: (lineId: string) => void;
-  onRemarksKeyDown: (event: React.KeyboardEvent<HTMLElement>, lineId: string) => void;
+  onIncompleteLine: (line: LineItem) => void;
+  isLineComplete: (line: LineItem) => boolean;
   setFieldRef: (
     lineId: string,
     fieldName: 'productCode' | 'uom' | 'priority' | 'requirementDate' | 'requestedQty' | 'cancellationReason' | 'remarks'
-  ) => (element: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null) => void;
+  ) => (element: EditableGridCellElement | null) => void;
   gridColumns: FormLayoutGridColumn[];
 }> = ({
   items,
   lineErrors,
+  selectedLineIds,
   onAddLine,
+  onDuplicateLine,
   onDeleteLine,
+  onSelectedLineIdsChange,
+  onOpenBulkEdit,
+  onBulkDuplicateLines,
+  onBulkDeleteLines,
   onFieldChange,
   onNumericBlur,
   onLineBlur,
-  onRemarksKeyDown,
+  onIncompleteLine,
+  isLineComplete,
   setFieldRef,
   gridColumns,
 }) => {
@@ -442,282 +407,285 @@ const LineItemsSection: React.FC<{
   const totalOrderedQty = items.reduce((sum, item) => sum + parseDecimal(item.orderedQty), 0);
   const totalCancelledQty = items.reduce((sum, item) => sum + parseDecimal(item.cancelledQty), 0);
   const totalPendingQty = items.reduce((sum, item) => sum + Math.max(getPendingQty(item), 0), 0);
-  const renderLineCell = (
-    columnKey: string,
-    item: LineItem,
-    index: number,
-    errors: LineValidationErrors,
-    product: ProductOption | undefined,
-    pendingQty: number,
-    status: ReturnType<typeof getLineStatus>,
-    cancellationRequired: boolean
-  ) => {
-    switch (columnKey) {
-      case 'action':
-        return (
-          <td className="create-pr-grid__body-cell create-pr-grid__body-cell--action">
-            <button
-              type="button"
-              onClick={() => onDeleteLine(item.id)}
-              className="create-pr-grid__delete"
-              aria-label={`Delete line ${index + 1}`}
-            >
-              <Trash2 size={14} />
-            </button>
-          </td>
-        );
-      case 'productCode':
-        return (
-          <td className="create-pr-grid__body-cell">
-            <Select
-              ref={setFieldRef(item.id, 'productCode')}
-              data-tour={index === 0 ? 'pr-product-code' : undefined}
-              value={item.productCode}
-              error={errors.productCode}
-              onChange={(event) => onFieldChange(item.id, 'productCode', event.target.value)}
-              onBlur={() => onLineBlur(item.id)}
-              options={[
-                { value: '', label: 'Select product' },
-                ...productOptions.map((option) => ({
-                  value: option.code,
-                  label: `${option.code} - ${option.name}`,
-                })),
-              ]}
-              className="create-pr-grid__control create-pr-grid__control--select min-w-36"
-            />
-            {errors.productCode && <p className="create-pr-grid__error">{errors.productCode}</p>}
-          </td>
-        );
-      case 'productName':
-        return (
-          <td className="create-pr-grid__body-cell">
-            <Input value={item.productName} readOnly disabled className="create-pr-grid__control create-pr-grid__control--readonly min-w-36" />
-          </td>
-        );
-      case 'description':
-        return (
-          <td className="create-pr-grid__body-cell">
-            <Input value={item.description} readOnly disabled className="create-pr-grid__control create-pr-grid__control--readonly min-w-44" />
-          </td>
-        );
-      case 'uom':
-        return (
-          <td className="create-pr-grid__body-cell">
-            <Select
-              ref={setFieldRef(item.id, 'uom')}
-              value={item.uom}
-              error={errors.uom}
-              onChange={(event) => onFieldChange(item.id, 'uom', event.target.value)}
-              onBlur={() => onLineBlur(item.id)}
-              options={[
-                { value: '', label: 'Select UOM' },
-                ...((product?.uoms ?? []).map((uom) => ({ value: uom, label: uom }))),
-              ]}
-              className="create-pr-grid__control create-pr-grid__control--select min-w-24"
-            />
-            {errors.uom && <p className="create-pr-grid__error">{errors.uom}</p>}
-          </td>
-        );
-      case 'priority':
-        return (
-          <td className="create-pr-grid__body-cell">
-            <Select
-              ref={setFieldRef(item.id, 'priority')}
-              value={item.priority}
-              onChange={(event) => onFieldChange(item.id, 'priority', event.target.value)}
-              options={linePriorityOptions}
-              className="create-pr-grid__control create-pr-grid__control--select min-w-28"
-            />
-          </td>
-        );
-      case 'requirementDate':
-        return (
-          <td className="create-pr-grid__body-cell">
-            <Input
-              ref={setFieldRef(item.id, 'requirementDate')}
-              type="date"
-              value={item.requirementDate}
-              onChange={(event) => onFieldChange(item.id, 'requirementDate', event.target.value)}
-              className="create-pr-grid__control create-pr-grid__control--date min-w-36"
-            />
-          </td>
-        );
-      case 'requestedQty':
-        return (
-          <td className="create-pr-grid__body-cell create-pr-grid__body-cell--number">
-            <Input
-              ref={setFieldRef(item.id, 'requestedQty')}
-              data-tour={index === 0 ? 'pr-requested-qty' : undefined}
-              value={item.requestedQty}
-              error={errors.requestedQty}
-              onChange={(event) => onFieldChange(item.id, 'requestedQty', event.target.value)}
-              onBlur={() => onNumericBlur(item.id, 'requestedQty')}
-              inputMode="decimal"
-              placeholder="0.00"
-              className="create-pr-grid__control create-pr-grid__control--input create-pr-grid__control--number min-w-24"
-            />
-            {errors.requestedQty && <p className="create-pr-grid__error">{errors.requestedQty}</p>}
-          </td>
-        );
-      case 'orderedQty':
-        return (
-          <td className="create-pr-grid__body-cell create-pr-grid__body-cell--number">
-            <Input value={formatDecimal(parseDecimal(item.orderedQty))} readOnly disabled className="create-pr-grid__control create-pr-grid__control--readonly create-pr-grid__control--number min-w-24" />
-          </td>
-        );
-      case 'cancelledQty':
-        return (
-          <td className="create-pr-grid__body-cell create-pr-grid__body-cell--number">
-            <Input value={formatDecimal(parseDecimal(item.cancelledQty))} readOnly disabled className="create-pr-grid__control create-pr-grid__control--readonly create-pr-grid__control--number min-w-24" />
-          </td>
-        );
-      case 'pendingQty':
-        return (
-          <td className="create-pr-grid__body-cell create-pr-grid__body-cell--number">
-            <Input value={formatDecimal(pendingQty)} readOnly disabled className="create-pr-grid__control create-pr-grid__control--readonly create-pr-grid__control--number min-w-24" />
-          </td>
-        );
-      case 'status':
-        return (
-          <td className="create-pr-grid__body-cell">
-            <StatusBadge kind="line-status" value={status} />
-          </td>
-        );
-      case 'cancellationReason':
-        return (
-          <td className="create-pr-grid__body-cell">
-            <Select
-              ref={setFieldRef(item.id, 'cancellationReason')}
-              value={item.cancellationReason}
-              error={errors.cancellationReason}
-              onChange={(event) => onFieldChange(item.id, 'cancellationReason', event.target.value)}
-              onBlur={() => onLineBlur(item.id)}
-              options={cancellationReasonOptions}
-              disabled={!cancellationRequired}
-              className={cn('create-pr-grid__control create-pr-grid__control--select min-w-36', !cancellationRequired && 'create-pr-grid__control--readonly')}
-            />
-            {errors.cancellationReason && <p className="create-pr-grid__error">{errors.cancellationReason}</p>}
-          </td>
-        );
-      case 'remarks':
-        return (
-          <td className="create-pr-grid__body-cell">
-            <div className="create-pr-grid__remarks">
-              <Input
-                ref={setFieldRef(item.id, 'remarks')}
-                value={item.remarks}
-                error={errors.remarks}
-                onChange={(event) => onFieldChange(item.id, 'remarks', event.target.value)}
-                onBlur={() => onLineBlur(item.id)}
-                onKeyDown={(event) => onRemarksKeyDown(event, item.id)}
-                maxLength={500}
-                className="create-pr-grid__control create-pr-grid__control--input min-w-40"
-                placeholder="Add remarks..."
-              />
-              <div className="create-pr-grid__remarks-meta">
-                <span className="create-pr-grid__error">{errors.remarks ?? ''}</span>
-                <span className="create-pr-grid__counter">{item.remarks.length}/500</span>
-              </div>
-            </div>
-          </td>
-        );
-      default:
-        return null;
-    }
-  };
+  const attentionLineCount = Object.values(lineErrors).filter((errors) => Object.values(errors).some(Boolean)).length;
 
-  const renderFooterCell = (columnKey: string, index: number) => {
-    const isNumberColumn = ['requestedQty', 'orderedQty', 'cancelledQty', 'pendingQty'].includes(columnKey);
-    const valueByColumn: Record<string, string> = {
-      requestedQty: formatDecimal(totalRequestedQty),
-      orderedQty: formatDecimal(totalOrderedQty),
-      cancelledQty: formatDecimal(totalCancelledQty),
-      pendingQty: formatDecimal(totalPendingQty),
-    };
+  const attentionMessage = attentionLineCount > 0
+    ? `${attentionLineCount} ${attentionLineCount === 1 ? 'line needs' : 'lines need'} attention`
+    : undefined;
 
-    return (
-      <td
-        key={columnKey}
-        className={cn('create-pr-grid__footer-cell', isNumberColumn && 'create-pr-grid__footer-cell--number')}
-      >
-        {index === 0 ? 'Total' : valueByColumn[columnKey] ?? ''}
-      </td>
-    );
-  };
+  const bulkActions = useMemo<EditableGridBulkAction<LineItem>[]>(() => [
+    {
+      id: 'bulk-edit',
+      label: 'Bulk edit',
+      icon: <PencilLine size={14} aria-hidden="true" />,
+      tone: 'primary',
+      onAction: onOpenBulkEdit,
+    },
+    {
+      id: 'duplicate',
+      label: 'Duplicate',
+      icon: <Copy size={14} aria-hidden="true" />,
+      onAction: onBulkDuplicateLines,
+    },
+    {
+      id: 'delete',
+      label: 'Delete',
+      icon: <Trash2 size={14} aria-hidden="true" />,
+      tone: 'danger',
+      onAction: onBulkDeleteLines,
+    },
+  ], [onBulkDeleteLines, onBulkDuplicateLines, onOpenBulkEdit]);
+
+  const editableColumns = useMemo<EditableGridColumn<LineItem>[]>(() => [
+    {
+      id: 'productCode',
+      label: 'Product Code',
+      kind: 'lookup',
+      width: 228,
+      minWidth: 196,
+      locked: true,
+      pinned: 'left',
+      hideable: false,
+      mobilePriority: 1,
+      required: true,
+      getValue: (line) => line.productCode,
+      inputRef: (line, element) => setFieldRef(line.id, 'productCode')(element),
+      dataTour: (_line, index) => index === 0 ? 'pr-product-code' : undefined,
+      lookupTitle: 'Select Product',
+      searchPlaceholder: 'Search product code or name',
+      searchable: true,
+      options: [
+        { value: '', label: 'Select product' },
+        ...productOptions.map((option) => ({
+          value: option.code,
+          label: `${option.code} - ${option.name}`,
+        })),
+      ],
+      onChange: (line, value) => onFieldChange(line.id, 'productCode', value),
+      onBlur: (line) => onLineBlur(line.id),
+    },
+    {
+      id: 'productName',
+      label: 'Product Name',
+      kind: 'computed',
+      width: 210,
+      minWidth: 180,
+      mobilePriority: 2,
+      readOnly: true,
+      getValue: (line) => line.productName,
+    },
+    {
+      id: 'description',
+      label: 'Description',
+      kind: 'computed',
+      width: 260,
+      minWidth: 220,
+      readOnly: true,
+      getValue: (line) => line.description,
+    },
+    {
+      id: 'uom',
+      label: 'UOM',
+      kind: 'select',
+      width: 128,
+      minWidth: 112,
+      locked: true,
+      hideable: false,
+      mobilePriority: 3,
+      required: true,
+      getValue: (line) => line.uom,
+      inputRef: (line, element) => setFieldRef(line.id, 'uom')(element),
+      options: (line) => {
+        const product = getProductOption(line.productCode);
+        return [
+          { value: '', label: 'Select UOM' },
+          ...((product?.uoms ?? []).map((uom) => ({ value: uom, label: uom }))),
+        ];
+      },
+      onChange: (line, value) => onFieldChange(line.id, 'uom', value),
+      onBlur: (line) => onLineBlur(line.id),
+    },
+    {
+      id: 'priority',
+      label: 'Priority',
+      kind: 'select',
+      width: 148,
+      minWidth: 128,
+      getValue: (line) => line.priority,
+      inputRef: (line, element) => setFieldRef(line.id, 'priority')(element),
+      options: linePriorityOptions,
+      onChange: (line, value) => onFieldChange(line.id, 'priority', value),
+    },
+    {
+      id: 'requirementDate',
+      label: 'Requirement Date',
+      kind: 'date',
+      width: 168,
+      minWidth: 148,
+      getValue: (line) => line.requirementDate,
+      inputRef: (line, element) => setFieldRef(line.id, 'requirementDate')(element),
+      onChange: (line, value) => onFieldChange(line.id, 'requirementDate', value),
+    },
+    {
+      id: 'requestedQty',
+      label: 'Requested Qty.',
+      kind: 'number',
+      width: 148,
+      minWidth: 124,
+      locked: true,
+      hideable: false,
+      mobilePriority: 4,
+      required: true,
+      placeholder: '0.00',
+      inputMode: 'decimal',
+      getValue: (line) => line.requestedQty,
+      inputRef: (line, element) => setFieldRef(line.id, 'requestedQty')(element),
+      dataTour: (_line, index) => index === 0 ? 'pr-requested-qty' : undefined,
+      onChange: (line, value) => onFieldChange(line.id, 'requestedQty', value),
+      onBlur: (line) => onNumericBlur(line.id, 'requestedQty'),
+    },
+    {
+      id: 'orderedQty',
+      label: 'Ordered Qty.',
+      kind: 'computed',
+      width: 148,
+      minWidth: 124,
+      locked: true,
+      hideable: false,
+      mobilePriority: 6,
+      readOnly: true,
+      className: 'editable-transaction-grid__control--number',
+      getValue: (line) => parseDecimal(line.orderedQty),
+      format: (value) => formatDecimal(Number(value) || 0),
+    },
+    {
+      id: 'cancelledQty',
+      label: 'Cancelled Qty.',
+      kind: 'computed',
+      width: 148,
+      minWidth: 124,
+      locked: true,
+      hideable: false,
+      mobilePriority: 7,
+      readOnly: true,
+      className: 'editable-transaction-grid__control--number',
+      getValue: (line) => parseDecimal(line.cancelledQty),
+      format: (value) => formatDecimal(Number(value) || 0),
+    },
+    {
+      id: 'pendingQty',
+      label: 'Pending Qty.',
+      kind: 'computed',
+      width: 148,
+      minWidth: 124,
+      locked: true,
+      hideable: false,
+      mobilePriority: 5,
+      readOnly: true,
+      className: 'editable-transaction-grid__control--number',
+      getValue: (line) => Math.max(getPendingQty(line), 0),
+      format: (value) => formatDecimal(Number(value) || 0),
+    },
+    {
+      id: 'status',
+      label: 'Status',
+      kind: 'status',
+      width: 168,
+      minWidth: 148,
+      mobilePriority: 8,
+      readOnly: true,
+      getValue: (line) => getLineStatus(line),
+      renderDisplay: (line) => <StatusBadge kind="line-status" value={getLineStatus(line)} />,
+    },
+    {
+      id: 'cancellationReason',
+      label: 'Cancellation Reason',
+      kind: 'select',
+      width: 210,
+      minWidth: 180,
+      getValue: (line) => line.cancellationReason,
+      inputRef: (line, element) => setFieldRef(line.id, 'cancellationReason')(element),
+      options: cancellationReasonOptions,
+      disabled: (line) => parseDecimal(line.cancelledQty) <= 0,
+      onChange: (line, value) => onFieldChange(line.id, 'cancellationReason', value),
+      onBlur: (line) => onLineBlur(line.id),
+    },
+    {
+      id: 'remarks',
+      label: 'Remarks',
+      kind: 'remarks',
+      width: 240,
+      minWidth: 200,
+      placeholder: 'Add remarks... (max 500 characters)',
+      maxLength: 500,
+      getValue: (line) => line.remarks,
+      inputRef: (line, element) => setFieldRef(line.id, 'remarks')(element),
+      onChange: (line, value) => onFieldChange(line.id, 'remarks', value),
+      onBlur: (line) => onLineBlur(line.id),
+    },
+  ], [onFieldChange, onLineBlur, onNumericBlur, setFieldRef]);
+
+  const renderedLayoutColumns = useMemo(
+    () => gridColumns.filter((column) => column.key !== 'action'),
+    [gridColumns]
+  );
+
+  const footerAggregates = useMemo(() => ({
+    requestedQty: formatDecimal(totalRequestedQty),
+    orderedQty: formatDecimal(totalOrderedQty),
+    cancelledQty: formatDecimal(totalCancelledQty),
+    pendingQty: formatDecimal(totalPendingQty),
+  }), [totalCancelledQty, totalOrderedQty, totalPendingQty, totalRequestedQty]);
 
   return (
-    <div className="create-pr-grid">
-      <div className="create-pr-grid__header">
-        <div className="create-pr-grid__title-wrap">
-          <div className="create-pr-grid__title-row">
-            <ChevronDown size={16} className="create-pr-grid__title-icon" />
-            <h4 className="create-pr-grid__title">Product details</h4>
-            <span className="create-pr-grid__count">{items.length}</span>
-          </div>
-          <p className="create-pr-grid__subtitle">
-            Finish a row and press Tab from remarks to add the next line quickly.
-          </p>
-        </div>
+    <EditableTransactionGrid
+      gridId="purchase-requisition-product-grid"
+      title="Product lines"
+      lineCountLabel={String(items.length)}
+      hideHeaderIdentity
+      attentionMessage={attentionMessage}
+      primaryActionLabel="Add line"
+      rows={items}
+      columns={editableColumns}
+      rowId={(line) => line.id}
+      errors={lineErrors}
+      selection={{
+        selectedRowIds: selectedLineIds,
+        onSelectionChange: (nextIds) => onSelectedLineIdsChange(nextIds),
+        ariaLabel: 'Select all product lines',
+      }}
+      bulkActions={bulkActions}
+      selectionColumnLabel="Select product lines"
+      layoutColumns={renderedLayoutColumns}
+      footerAggregates={footerAggregates}
+      ariaLabel="Purchase requisition product lines editable grid"
+      mobileEditorTitle={(_line, index) => `Product line ${index + 1}`}
+      emptyState="Add the first product line to start this requisition."
+      isRowComplete={isLineComplete}
+      onAddRow={onAddLine}
+      onDuplicateRow={(lineId) => onDuplicateLine(lineId)}
+      onDeleteRow={(lineId) => onDeleteLine(lineId)}
+      onIncompleteRow={onIncompleteLine}
+      getMobileRowSummary={(line, { rowIndex, firstError }) => {
+        const status = getLineStatus(line);
+        const productLabel = line.productCode
+          ? `${line.productCode}${line.productName ? ` - ${line.productName}` : ''}`
+          : `Line ${rowIndex + 1}`;
 
-        <button
-          type="button"
-          onClick={onAddLine}
-          className="btn btn--outline btn--icon-left create-pr-grid__add-button"
-        >
-          <Plus size={14} />
-          Add line
-        </button>
-      </div>
-
-      <div className="create-pr-grid__table-wrap">
-        <table className="create-pr-grid__table">
-          <thead>
-            <tr>
-              {gridColumns.map((column) => (
-                <th
-                  key={column.key}
-                  className={cn(
-                    'create-pr-grid__cell',
-                    column.key === 'action' && 'create-pr-grid__cell--action',
-                    ['requestedQty', 'orderedQty', 'cancelledQty', 'pendingQty'].includes(column.key) &&
-                      'create-pr-grid__cell--number'
-                  )}
-                >
-                  {column.key === 'action' ? '' : column.label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item, index) => {
-              const errors = lineErrors[item.id] ?? {};
-              const product = getProductOption(item.productCode);
-              const pendingQty = Math.max(getPendingQty(item), 0);
-              const status = getLineStatus(item);
-              const cancellationRequired = parseDecimal(item.cancelledQty) > 0;
-
-              return (
-                <tr key={item.id}>
-                  {gridColumns.map((column) => (
-                    <React.Fragment key={column.key}>
-                      {renderLineCell(column.key, item, index, errors, product, pendingQty, status, cancellationRequired)}
-                    </React.Fragment>
-                  ))}
-                </tr>
-              );
-            })}
-          </tbody>
-          <tfoot>
-            <tr>
-              {gridColumns.map((column, index) => renderFooterCell(column.key, index))}
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-    </div>
+        return {
+          title: productLabel,
+          subtitle: line.uom ? `UOM ${line.uom}` : 'Select product and UOM',
+          status: <StatusBadge kind="line-status" value={status} />,
+          detail: firstError,
+          metrics: [
+            { label: 'Requested', value: line.requestedQty || '0.00' },
+            { label: 'Pending', value: formatDecimal(Math.max(getPendingQty(line), 0)) },
+          ],
+        };
+      }}
+    />
   );
 };
-
 // ============================================================================
 // ATTACHMENTS SECTION
 // ============================================================================
@@ -867,6 +835,9 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
 
   const [lineItems, setLineItems] = useState<LineItem[]>(mockLineItems);
   const [lineErrors, setLineErrors] = useState<Record<string, LineValidationErrors>>({});
+  const [selectedLineIds, setSelectedLineIds] = useState<string[]>([]);
+  const [isBulkEditDialogOpen, setIsBulkEditDialogOpen] = useState(false);
+  const [bulkEditDraft, setBulkEditDraft] = useState<BulkEditDraft>(defaultBulkEditDraft);
   const [activeTab, setActiveTab] = useState<TabKey>('general');
   const [layoutConfig, setLayoutConfig] = useState<FormLayoutConfig>(() =>
     configurationMode
@@ -884,11 +855,15 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
   const [isCreateTourActive, setIsCreateTourActive] = useState(tourMode === 'pr-create');
   const [createTourStepIndex, setCreateTourStepIndex] = useState(0);
   const [isLayoutPreviewOpen, setIsLayoutPreviewOpen] = useState(false);
+  const [isQuantityDrawerOpen, setIsQuantityDrawerOpen] = useState(false);
+  const [quantitySummaryBarHeight, setQuantitySummaryBarHeight] = useState(0);
   const contentScrollRef = useRef<HTMLDivElement | null>(null);
   const createPageRef = useRef<HTMLDivElement | null>(null);
+  const quantitySummaryBarRef = useRef<HTMLDivElement | null>(null);
   const lastProductScrollTopRef = useRef(0);
   const focusLineIdRef = useRef<string | null>(null);
   const fieldRefs = useRef<Record<string, HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null>>({});
+  const isCompactCreateActionsViewport = useMediaQuery(transactionCreateCompactActionsMediaQuery, { noSsr: true });
 
   const handleTabChange = (nextTab: TabKey) => {
     setActiveTab(nextTab);
@@ -942,11 +917,24 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
   }, [lineItems]);
 
   useEffect(() => {
+    const existingLineIds = new Set(lineItems.map((line) => line.id));
+    setSelectedLineIds((currentIds) => {
+      const nextIds = currentIds.filter((lineId) => existingLineIds.has(lineId));
+      return nextIds.length === currentIds.length ? currentIds : nextIds;
+    });
+  }, [lineItems]);
+
+  useEffect(() => {
     lastProductScrollTopRef.current = contentScrollRef.current?.scrollTop ?? 0;
   }, [activeTab]);
 
   const totalRequestedQty = useMemo(
     () => lineItems.reduce((sum, line) => sum + parseDecimal(line.requestedQty), 0),
+    [lineItems]
+  );
+
+  const totalOrderedQty = useMemo(
+    () => lineItems.reduce((sum, line) => sum + parseDecimal(line.orderedQty), 0),
     [lineItems]
   );
 
@@ -959,6 +947,64 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
     () => lineItems.reduce((sum, line) => sum + Math.max(getPendingQty(line), 0), 0),
     [lineItems]
   );
+
+  const lineAttentionCount = useMemo(
+    () => Object.values(lineErrors).filter((errors) => Object.values(errors).some(Boolean)).length,
+    [lineErrors]
+  );
+
+  const cancelledLineCount = useMemo(
+    () => lineItems.filter((line) => parseDecimal(line.cancelledQty) > 0).length,
+    [lineItems]
+  );
+
+  const quantityFooterState = useMemo(() => {
+    if (lineAttentionCount > 0) {
+      return {
+        label: 'Needs attention',
+        tone: 'warning' as const,
+        context: `${formatCount(lineAttentionCount)} ${lineAttentionCount === 1 ? 'line needs' : 'lines need'} attention`,
+      };
+    }
+
+    if (lineItems.length === 0) {
+      return {
+        label: 'No lines',
+        tone: 'muted' as const,
+        context: 'No product lines',
+      };
+    }
+
+    if (cancelledLineCount > 0) {
+      return {
+        label: 'Partial cancellation',
+        tone: 'caution' as const,
+        context: `${formatCount(cancelledLineCount)} partially cancelled ${cancelledLineCount === 1 ? 'line' : 'lines'}`,
+      };
+    }
+
+    return {
+      label: 'Product lines ready',
+      tone: 'success' as const,
+      context: `${formatCount(lineItems.length)} ${lineItems.length === 1 ? 'product line' : 'product lines'}`,
+    };
+  }, [cancelledLineCount, lineAttentionCount, lineItems.length]);
+
+  const quantityBreakdownItems = useMemo(() => [
+    { label: 'Total line count', value: formatCount(lineItems.length) },
+    { label: 'Total requested qty', value: formatCount(totalRequestedQty) },
+    { label: 'Total ordered qty', value: formatCount(totalOrderedQty) },
+    { label: 'Total cancelled qty', value: formatCount(totalCancelledQty) },
+    { label: 'Total pending qty', value: formatCount(totalPendingQty), tone: 'accent' as const },
+    ...(lineAttentionCount > 0
+      ? [{ label: 'Lines needing attention', value: formatCount(lineAttentionCount), tone: 'accent' as const }]
+      : []),
+  ], [lineItems.length, lineAttentionCount, totalCancelledQty, totalOrderedQty, totalPendingQty, totalRequestedQty]);
+
+  const selectedLineIdsInOrder = useMemo(() => {
+    const selectedIdSet = new Set(selectedLineIds);
+    return lineItems.filter((line) => selectedIdSet.has(line.id)).map((line) => line.id);
+  }, [lineItems, selectedLineIds]);
   const createdOnLabel = useMemo(() => {
     const { dateLabel, timeLabel } = formatDateTime(requisition.createdOn);
     return `${dateLabel}, ${timeLabel}`;
@@ -1174,6 +1220,33 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
     setFormMessage('');
   };
 
+  const handleDuplicateLine = (lineId: string) => {
+    const sourceIndex = lineItems.findIndex((line) => line.id === lineId);
+    const sourceLine = lineItems[sourceIndex];
+    if (!sourceLine) {
+      return;
+    }
+
+    const duplicatedLine: LineItem = {
+      ...sourceLine,
+      id: `line-${Date.now()}-${lineItems.length + 1}`,
+    };
+
+    const nextLines = [...lineItems];
+    nextLines.splice(sourceIndex + 1, 0, duplicatedLine);
+    setLineItems(nextLines);
+    setLineErrors((currentErrors) => {
+      const nextErrors = { ...currentErrors };
+      const duplicatedErrors = validateLine(duplicatedLine);
+      if (Object.keys(duplicatedErrors).length > 0) {
+        nextErrors[duplicatedLine.id] = duplicatedErrors;
+      }
+      return nextErrors;
+    });
+    setSelectedLineIds([]);
+    setFormMessage('Line duplicated. Review quantity and requirement date before submitting.');
+  };
+
   const handleDeleteLine = (lineId: string) => {
     const lineNumber = lineItems.findIndex((line) => line.id === lineId) + 1;
     if (!window.confirm(`Delete line ${lineNumber}?`)) {
@@ -1186,30 +1259,134 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
       delete nextErrors[lineId];
       return nextErrors;
     });
+    setSelectedLineIds((currentIds) => currentIds.filter((selectedLineId) => selectedLineId !== lineId));
     setFormMessage('');
   };
 
-  const handleRemarksKeyDown = (event: React.KeyboardEvent<HTMLElement>, lineId: string) => {
-    const currentLineIndex = lineItems.findIndex((line) => line.id === lineId);
-    const currentLine = lineItems[currentLineIndex];
-    if (!currentLine) {
+  const handleOpenBulkEdit = () => {
+    if (selectedLineIdsInOrder.length === 0) {
+      setFormMessage('Select one or more product lines before using bulk edit.');
       return;
     }
 
-    handleGridLastCellTab({
-      event,
-      line: currentLine,
-      lineIndex: currentLineIndex,
-      lines: lineItems,
-      isLineComplete: (line) => Object.keys(validateLine(line)).length === 0,
-      onAddLine: handleAddLine,
-      onIncompleteLine: (line) => {
-        setLineErrors((currentErrors) => ({ ...currentErrors, [line.id]: validateLine(line) }));
-        setFormMessage('Resolve the current row errors before adding another line.');
-      },
-    });
+    setBulkEditDraft(defaultBulkEditDraft);
+    setIsBulkEditDialogOpen(true);
+    handleTabChange('product');
   };
 
+  const handleCloseBulkEdit = () => {
+    setIsBulkEditDialogOpen(false);
+  };
+
+  const handleApplyBulkEdit = () => {
+    const selectedIdSet = new Set(selectedLineIdsInOrder);
+    const selectedCount = selectedLineIdsInOrder.length;
+    if (selectedCount === 0) {
+      setIsBulkEditDialogOpen(false);
+      setFormMessage('No product lines are selected.');
+      return;
+    }
+
+    const hasBulkEditChange = bulkEditDraft.priorityEnabled || bulkEditDraft.requirementDateEnabled || bulkEditDraft.remarksEnabled;
+    if (!hasBulkEditChange) {
+      setFormMessage('Choose at least one field to update for selected lines.');
+      return;
+    }
+
+    const nextLines = lineItems.map((line) => {
+      if (!selectedIdSet.has(line.id)) {
+        return line;
+      }
+
+      return {
+        ...line,
+        ...(bulkEditDraft.priorityEnabled ? { priority: bulkEditDraft.priority } : {}),
+        ...(bulkEditDraft.requirementDateEnabled ? { requirementDate: bulkEditDraft.requirementDate } : {}),
+        ...(bulkEditDraft.remarksEnabled ? { remarks: bulkEditDraft.remarks.slice(0, 500) } : {}),
+      };
+    });
+    const updatedLines = nextLines.filter((line) => selectedIdSet.has(line.id));
+
+    setLineItems(nextLines);
+    setLineErrors((currentErrors) => {
+      const nextErrors = { ...currentErrors };
+      updatedLines.forEach((line) => {
+        const errors = validateLine(line);
+        if (Object.keys(errors).length > 0) {
+          nextErrors[line.id] = errors;
+        } else {
+          delete nextErrors[line.id];
+        }
+      });
+      return nextErrors;
+    });
+    setSelectedLineIds([]);
+    setIsBulkEditDialogOpen(false);
+    setFormMessage(`Updated ${selectedCount} selected ${selectedCount === 1 ? 'line' : 'lines'}.`);
+  };
+
+  const handleBulkDuplicateLines = () => {
+    if (selectedLineIdsInOrder.length === 0) {
+      setFormMessage('Select one or more product lines to duplicate.');
+      return;
+    }
+
+    const selectedIdSet = new Set(selectedLineIdsInOrder);
+    const selectedSourceLines = lineItems.filter((line) => selectedIdSet.has(line.id));
+    const lastSelectedIndex = lineItems.reduce(
+      (latestIndex, line, index) => selectedIdSet.has(line.id) ? index : latestIndex,
+      -1
+    );
+    const timestamp = Date.now();
+    const duplicatedLines = selectedSourceLines.map((line, index) => ({
+      ...line,
+      id: `line-${timestamp}-bulk-${index + 1}`,
+    }));
+
+    if (lastSelectedIndex < 0 || duplicatedLines.length === 0) {
+      setSelectedLineIds([]);
+      setFormMessage('Selected lines are no longer available.');
+      return;
+    }
+
+    const nextLines = [...lineItems];
+    nextLines.splice(lastSelectedIndex + 1, 0, ...duplicatedLines);
+    setLineItems(nextLines);
+    setLineErrors((currentErrors) => {
+      const nextErrors = { ...currentErrors };
+      duplicatedLines.forEach((line) => {
+        const errors = validateLine(line);
+        if (Object.keys(errors).length > 0) {
+          nextErrors[line.id] = errors;
+        }
+      });
+      return nextErrors;
+    });
+    setSelectedLineIds([]);
+    setFormMessage(`Duplicated ${duplicatedLines.length} selected ${duplicatedLines.length === 1 ? 'line' : 'lines'}.`);
+  };
+
+  const handleBulkDeleteLines = () => {
+    const selectedCount = selectedLineIdsInOrder.length;
+    if (selectedCount === 0) {
+      setFormMessage('Select one or more product lines to delete.');
+      return;
+    }
+
+    if (!window.confirm(`Delete ${selectedCount} selected product ${selectedCount === 1 ? 'line' : 'lines'}?`)) {
+      return;
+    }
+
+    const selectedIdSet = new Set(selectedLineIdsInOrder);
+    setLineItems((currentLines) => currentLines.filter((line) => !selectedIdSet.has(line.id)));
+    setLineErrors((currentErrors) => {
+      const nextErrors = { ...currentErrors };
+      selectedLineIdsInOrder.forEach((lineId) => delete nextErrors[lineId]);
+      return nextErrors;
+    });
+    setSelectedLineIds([]);
+    setFormMessage(`Deleted ${selectedCount} selected ${selectedCount === 1 ? 'line' : 'lines'}.`);
+  };
   const buildRequisitionPayload = () => ({
     requisition: {
       ...requisition,
@@ -1347,11 +1524,58 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
     }
   };
 
-  const effectiveActiveTab = layoutConfig.tabs.some((tab) => tab.id === activeTab)
+  const visibleLayoutTabs = useMemo(() => {
+    if (configurationMode) {
+      return layoutConfig.tabs;
+    }
+
+    const seenTabIds = new Set<string>();
+    const seenTabLabels = new Set<string>();
+    return layoutConfig.tabs.filter((tab) => {
+      const tabLabel = tab.label.trim().toLowerCase();
+      if (seenTabIds.has(tab.id) || seenTabLabels.has(tabLabel)) {
+        return false;
+      }
+
+      seenTabIds.add(tab.id);
+      seenTabLabels.add(tabLabel);
+      return true;
+    });
+  }, [configurationMode, layoutConfig.tabs]);
+
+  const effectiveActiveTab = visibleLayoutTabs.some((tab) => tab.id === activeTab)
     ? activeTab
-    : layoutConfig.tabs[0]?.id ?? 'general';
+    : visibleLayoutTabs[0]?.id ?? 'general';
   const isBottomFixedTabs = layoutConfig.tabPlacement === 'bottom-fixed';
+  const isQuantitySummaryBarVisible = !configurationMode;
   const [bottomTabsStyle, setBottomTabsStyle] = useState<React.CSSProperties>({});
+
+  useLayoutEffect(() => {
+    if (!isQuantitySummaryBarVisible) {
+      setQuantitySummaryBarHeight(0);
+      return;
+    }
+
+    const updateQuantitySummaryBarHeight = () => {
+      const nextHeight = quantitySummaryBarRef.current?.getBoundingClientRect().height ?? 0;
+      setQuantitySummaryBarHeight((currentHeight) => (currentHeight === nextHeight ? currentHeight : nextHeight));
+    };
+
+    updateQuantitySummaryBarHeight();
+    const resizeObserver = typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(updateQuantitySummaryBarHeight)
+      : null;
+
+    if (quantitySummaryBarRef.current && resizeObserver) {
+      resizeObserver.observe(quantitySummaryBarRef.current);
+    }
+
+    window.addEventListener('resize', updateQuantitySummaryBarHeight);
+    return () => {
+      window.removeEventListener('resize', updateQuantitySummaryBarHeight);
+      resizeObserver?.disconnect();
+    };
+  }, [isQuantitySummaryBarVisible, isCompactCreateActionsViewport]);
 
   useLayoutEffect(() => {
     if (!isBottomFixedTabs) {
@@ -1366,6 +1590,7 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
 
       const pageBounds = pageElement.getBoundingClientRect();
       setBottomTabsStyle({
+        bottom: `${isQuantitySummaryBarVisible ? quantitySummaryBarHeight : 0}px`,
         left: `${Math.max(0, pageBounds.left)}px`,
         width: `${Math.max(0, pageBounds.width)}px`,
       });
@@ -1385,7 +1610,7 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
       window.removeEventListener('resize', updateBottomTabsBounds);
       resizeObserver?.disconnect();
     };
-  }, [isBottomFixedTabs]);
+  }, [isBottomFixedTabs, isQuantitySummaryBarVisible, quantitySummaryBarHeight]);
 
   const readDropPayload = (event: React.DragEvent<HTMLElement>): LayoutDragPayload | null => {
     const rawPayload = event.dataTransfer.getData('application/json');
@@ -1740,18 +1965,29 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
       case 'productGrid':
         return (
           <div data-tour="pr-product-grid">
-          <LineItemsSection
-            items={lineItems}
-            lineErrors={lineErrors}
-            gridColumns={getVisibleGridColumns(layoutConfig, 'productGrid')}
-            onAddLine={handleAddLine}
-            onDeleteLine={handleDeleteLine}
-            onFieldChange={handleLineFieldChange}
-            onNumericBlur={handleNumericBlur}
-            onLineBlur={handleLineBlur}
-            onRemarksKeyDown={handleRemarksKeyDown}
-            setFieldRef={setFieldRef}
-          />
+            <LineItemsSection
+              items={lineItems}
+              lineErrors={lineErrors}
+              selectedLineIds={selectedLineIds}
+              gridColumns={getVisibleGridColumns(layoutConfig, 'productGrid')}
+              onAddLine={handleAddLine}
+              onDuplicateLine={handleDuplicateLine}
+              onDeleteLine={handleDeleteLine}
+              onSelectedLineIdsChange={setSelectedLineIds}
+              onOpenBulkEdit={handleOpenBulkEdit}
+              onBulkDuplicateLines={handleBulkDuplicateLines}
+              onBulkDeleteLines={handleBulkDeleteLines}
+              onFieldChange={handleLineFieldChange}
+              onNumericBlur={handleNumericBlur}
+              onLineBlur={handleLineBlur}
+              isLineComplete={(line) => Object.keys(validateLine(line)).length === 0}
+              onIncompleteLine={(line) => {
+                const nextErrors = validateLine(line);
+                setLineErrors((currentErrors) => ({ ...currentErrors, [line.id]: nextErrors }));
+                setFormMessage('Resolve the current row errors before adding another line.');
+              }}
+              setFieldRef={setFieldRef}
+            />
           </div>
         );
       case 'attachments':
@@ -1799,8 +2035,206 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
     );
   };
 
+  const getSectionSummaryItems = (section: FormLayoutSection): Array<React.ReactNode | null | undefined | false> => {
+    if (section.fieldIds.includes('productGrid')) {
+      const issueLineCount = Object.values(lineErrors).filter((errors) => Object.values(errors).some(Boolean)).length;
+      return [
+        `${lineItems.length} ${lineItems.length === 1 ? 'line' : 'lines'}`,
+        totalRequestedQty > 0 && `Requested: ${formatCount(totalRequestedQty)}`,
+        totalPendingQty > 0 && `Pending: ${formatCount(totalPendingQty)}`,
+        totalCancelledQty > 0 && `Cancelled: ${formatCount(totalCancelledQty)}`,
+        issueLineCount > 0 && `${issueLineCount} ${issueLineCount === 1 ? 'line' : 'lines'} need attention`,
+      ];
+    }
+
+    if (section.fieldIds.includes('attachments')) {
+      return ['Product_Specifications.pdf'];
+    }
+
+    const summaryByField: Record<string, React.ReactNode | null> = {
+      department: requisition.department ? `Department: ${requisition.department}` : null,
+      supplier: requisition.supplier ? `Supplier: ${requisition.supplier}` : null,
+      priority: requisition.priority ? `Priority: ${requisition.priority}` : null,
+      requirementDate: requisition.neededByDate ? `Requirement: ${formatDate(requisition.neededByDate)}` : null,
+      validTillDate: requisition.validTillDate ? `Valid till: ${formatDate(requisition.validTillDate)}` : null,
+      referenceNumber: requisition.referenceNumber ? `Reference: ${requisition.referenceNumber}` : null,
+      remarks: requisition.remarks.trim() ? 'Remarks added' : null,
+    };
+
+    return section.fieldIds.map((fieldId) => summaryByField[fieldId]);
+  };
+
+  const getSectionState = (section: FormLayoutSection): MasterFormAccordionSectionState => {
+    if (section.fieldIds.includes('productGrid')) {
+      const hasLineError = Object.values(lineErrors).some((errors) => Object.values(errors).some(Boolean));
+      if (hasLineError) {
+        return 'error';
+      }
+
+      const hasStartedLine = lineItems.some((line) =>
+        Boolean(line.productCode || line.uom || line.requestedQty || line.priority || line.requirementDate || line.remarks)
+      );
+      const allLinesComplete = lineItems.length > 0 && lineItems.every((line) => Object.keys(validateLine(line)).length === 0);
+
+      if (allLinesComplete) {
+        return 'complete';
+      }
+
+      return hasStartedLine ? 'partial' : 'default';
+    }
+
+    if (section.fieldIds.includes('attachments')) {
+      return 'complete';
+    }
+
+    const requiredGeneralFieldsComplete = Boolean(
+      requisition.department &&
+      requisition.supplier &&
+      requisition.priority &&
+      requisition.neededByDate &&
+      requisition.validTillDate
+    );
+    const hasGeneralDetails = Boolean(
+      requisition.department ||
+      requisition.supplier ||
+      requisition.priority ||
+      requisition.neededByDate ||
+      requisition.validTillDate ||
+      requisition.referenceNumber ||
+      requisition.remarks.trim()
+    );
+
+    if (requiredGeneralFieldsComplete) {
+      return 'complete';
+    }
+
+    return hasGeneralDetails ? 'partial' : 'default';
+  };
+
+  const getSectionStateLabel = (section: FormLayoutSection) => {
+    const state = getSectionState(section);
+    if (state === 'complete') {
+      return 'Complete';
+    }
+    if (state === 'error') {
+      return 'Needs attention';
+    }
+    if (state === 'partial') {
+      return 'In progress';
+    }
+    return undefined;
+  };
+
+  const getSectionTitle = (section: FormLayoutSection) => {
+    if (section.fieldIds.includes('productGrid')) {
+      return 'Products';
+    }
+
+    return section.label;
+  };
+  const getSectionDescription = (section: FormLayoutSection) => {
+    if (section.fieldIds.includes('productGrid')) {
+      return 'Add product lines, quantities, dates, and line remarks.';
+    }
+    if (section.fieldIds.includes('attachments')) {
+      return 'Keep supporting files and notes with this requisition.';
+    }
+    return 'Capture requester, supplier, priority, and validity details.';
+  };
+
+  const renderSectionBody = (sectionId: string, section: FormLayoutSection) => (
+    <div
+      className="form-layout-section__fields"
+      style={{ '--form-layout-columns': section.fieldsPerRow ?? 3 } as React.CSSProperties}
+    >
+      {section.fieldIds.map((fieldId, fieldIndex) => renderConfiguredField(fieldId, sectionId, fieldIndex))}
+      {isLayoutEditing && (
+        <div
+          className="form-layout-dropzone form-layout-dropzone--end"
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={(event) => handleDropOnField(event, sectionId, section.fieldIds.length)}
+        >
+          Drop field here
+        </div>
+      )}
+    </div>
+  );
+
+  const renderLayoutEditSection = (sectionId: string, section: FormLayoutSection, sectionIndex: number, currentTabId: string) => (
+    <section
+      onDragOver={(event) => isLayoutEditing && event.preventDefault()}
+      onDrop={(event) => handleDropOnSection(event, currentTabId, sectionId, sectionIndex)}
+      className={cn(
+        'form-layout-section',
+        isLayoutEditing && 'form-layout-section--editable',
+        dragPayload?.type === 'section' && dragPayload.id !== sectionId && 'form-layout-section--drop-target'
+      )}
+    >
+      <div className="form-layout-section__header">
+        <div className="form-layout-section__title-wrap">
+          <button
+            type="button"
+            draggable
+            className="form-layout-section__handle"
+            aria-label={`Drag ${section.label}`}
+            onDragStart={(event) => startLayoutDrag(event, { type: 'section', id: sectionId })}
+            onDragEnd={() => setDragPayload(null)}
+          >
+            <GripVertical size={15} aria-hidden="true" />
+          </button>
+          <h3 className="form-layout-section__title">{section.label}</h3>
+          <span className="form-layout-section__count">{section.fieldIds.length} fields</span>
+        </div>
+        <div className="form-layout-section__actions">
+          <button type="button" className="btn btn--ghost btn--sm" onClick={() => handleRenameSection(sectionId, section.label)}>
+            Rename
+          </button>
+          <label className="form-layout-row-control">
+            <span>Fields/row</span>
+            <select
+              className="form-layout-select"
+              aria-label={`Fields per row for ${section.label}`}
+              value={section.fieldsPerRow ?? 3}
+              onChange={(event) => {
+                setLayoutConfig((currentConfig) =>
+                  updateSectionFieldsPerRow(currentConfig, sectionId, Number(event.target.value))
+                );
+              }}
+            >
+              {[1, 2, 3, 4].map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+          </label>
+          <select
+            className="form-layout-select"
+            aria-label={`Merge ${section.label} into another section`}
+            value=""
+            onChange={(event) => {
+              if (event.target.value) {
+                setLayoutConfig((currentConfig) => mergeSections(currentConfig, sectionId, event.target.value));
+              }
+            }}
+          >
+            <option value="">Merge into...</option>
+            {Object.values(layoutConfig.sections)
+              .filter((availableSection) => availableSection.id !== sectionId)
+              .map((availableSection) => (
+                <option key={availableSection.id} value={availableSection.id}>
+                  {availableSection.label}
+                </option>
+              ))}
+          </select>
+        </div>
+      </div>
+      {renderSectionBody(sectionId, section)}
+    </section>
+  );
+
   const renderConfiguredSections = () => {
-    const currentTab = layoutConfig.tabs.find((tab) => tab.id === effectiveActiveTab) ?? layoutConfig.tabs[0];
+    const currentTab = visibleLayoutTabs.find((tab) => tab.id === effectiveActiveTab) ?? visibleLayoutTabs[0];
     if (!currentTab) {
       return null;
     }
@@ -1824,92 +2258,23 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
                   Drop section here
                 </div>
               )}
-              <section
-                onDragOver={(event) => isLayoutEditing && event.preventDefault()}
-                onDrop={(event) => handleDropOnSection(event, currentTab.id, sectionId, sectionIndex)}
-                className={cn(
-                  'form-layout-section',
-                  isLayoutEditing && 'form-layout-section--editable',
-                  dragPayload?.type === 'section' && dragPayload.id !== sectionId && 'form-layout-section--drop-target'
-                )}
-                style={{ '--form-layout-columns': section.fieldsPerRow ?? 3 } as React.CSSProperties}
-              >
-              <div className="form-layout-section__header">
-                <div className="form-layout-section__title-wrap">
-                  {isLayoutEditing && (
-                    <button
-                      type="button"
-                      draggable
-                      className="form-layout-section__handle"
-                      aria-label={`Drag ${section.label}`}
-                      onDragStart={(event) => startLayoutDrag(event, { type: 'section', id: sectionId })}
-                      onDragEnd={() => setDragPayload(null)}
-                    >
-                      <GripVertical size={15} aria-hidden="true" />
-                    </button>
-                  )}
-                  <h3 className="form-layout-section__title">{section.label}</h3>
-                  {isLayoutEditing && <span className="form-layout-section__count">{section.fieldIds.length} fields</span>}
-                </div>
-                {isLayoutEditing && (
-                  <div className="form-layout-section__actions">
-                    <button type="button" className="btn btn--ghost btn--sm" onClick={() => handleRenameSection(sectionId, section.label)}>
-                      Rename
-                    </button>
-                    <label className="form-layout-row-control">
-                      <span>Fields/row</span>
-                      <select
-                        className="form-layout-select"
-                        aria-label={`Fields per row for ${section.label}`}
-                        value={section.fieldsPerRow ?? 3}
-                        onChange={(event) => {
-                          setLayoutConfig((currentConfig) =>
-                            updateSectionFieldsPerRow(currentConfig, sectionId, Number(event.target.value))
-                          );
-                        }}
-                      >
-                        {[1, 2, 3, 4].map((value) => (
-                          <option key={value} value={value}>
-                            {value}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <select
-                      className="form-layout-select"
-                      aria-label={`Merge ${section.label} into another section`}
-                      value=""
-                      onChange={(event) => {
-                        if (event.target.value) {
-                          setLayoutConfig((currentConfig) => mergeSections(currentConfig, sectionId, event.target.value));
-                        }
-                      }}
-                    >
-                      <option value="">Merge into...</option>
-                      {Object.values(layoutConfig.sections)
-                        .filter((availableSection) => availableSection.id !== sectionId)
-                        .map((availableSection) => (
-                          <option key={availableSection.id} value={availableSection.id}>
-                            {availableSection.label}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                )}
-              </div>
-              <div className="form-layout-section__fields">
-                {section.fieldIds.map((fieldId, fieldIndex) => renderConfiguredField(fieldId, sectionId, fieldIndex))}
-                {isLayoutEditing && (
-                  <div
-                    className="form-layout-dropzone form-layout-dropzone--end"
-                    onDragOver={(event) => event.preventDefault()}
-                    onDrop={(event) => handleDropOnField(event, sectionId, section.fieldIds.length)}
+              {isLayoutEditing ? (
+                renderLayoutEditSection(sectionId, section, sectionIndex, currentTab.id)
+              ) : (
+                <div className="create-pr-master-section">
+                  <MasterFormAccordionSection
+                    title={getSectionTitle(section)}
+                    description={getSectionDescription(section)}
+                    defaultOpen
+                    state={getSectionState(section)}
+                    stateLabel={getSectionStateLabel(section)}
+                    statePresentation="label"
+                    summary={<MasterFormSectionSummary items={getSectionSummaryItems(section)} />}
                   >
-                    Drop field here
-                  </div>
-                )}
-              </div>
-            </section>
+                    {renderSectionBody(sectionId, section)}
+                  </MasterFormAccordionSection>
+                </div>
+              )}
             </React.Fragment>
           );
         })}
@@ -1925,7 +2290,6 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
       </div>
     );
   };
-
   const layoutDialogCopy = (() => {
     if (!layoutDialog) {
       return null;
@@ -1967,6 +2331,77 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
   })();
 
   const shouldCollapseProductHeader = effectiveActiveTab === 'product' && isProductHeaderCollapsed;
+  const pageTitle = configurationMode
+    ? 'Configure Purchase Requisition Layout'
+    : editingDocument
+      ? 'Edit Purchase Requisition'
+      : 'New Purchase Requisition';
+  const renderDocumentActions = () => (
+    <div className="transaction-create-action-cluster">
+      <button type="button" onClick={handleDiscardRequest} className="btn btn--outline">
+        Discard
+      </button>
+      <button type="button" onClick={handleSave} className="btn btn--primary" data-tour="pr-save-button">
+        Save
+      </button>
+    </div>
+  );
+
+  const renderQuantitySummaryBar = () => (
+    <div
+      ref={quantitySummaryBarRef}
+      className={cn(
+        'create-pr-summary-bar',
+        isCompactCreateActionsViewport && 'create-pr-summary-bar--with-actions',
+        isBottomFixedTabs && 'create-pr-summary-bar--with-bottom-tabs'
+      )}
+    >
+      <div className="create-pr-summary-shell">
+        <div className="create-pr-summary-intelligence" aria-live="polite">
+          <span
+            className={cn(
+              'create-pr-summary-status-chip',
+              `create-pr-summary-status-chip--${quantityFooterState.tone}`
+            )}
+          >
+            {quantityFooterState.label}
+          </span>
+          <span className="create-pr-summary-context">{quantityFooterState.context}</span>
+        </div>
+
+        <div className="create-pr-summary-metric create-pr-summary-metric--right">
+          <span className="create-pr-summary-label">Total requested qty</span>
+          <span className="create-pr-summary-value">{formatCount(totalRequestedQty)}</span>
+        </div>
+
+        <div className="create-pr-summary-divider" aria-hidden="true" />
+
+        <div className="create-pr-summary-metric create-pr-summary-metric--emphasis create-pr-summary-metric--right">
+          <span className="create-pr-summary-label">Total pending qty</span>
+          <div className="create-pr-summary-net-row">
+            <button
+              type="button"
+              className="create-pr-summary-trigger"
+              onClick={() => setIsQuantityDrawerOpen(true)}
+              aria-label={`Open quantity breakdown, total pending quantity ${formatCount(totalPendingQty)}`}
+            >
+              <span className="create-pr-summary-value create-pr-summary-value--accent">
+                {formatCount(totalPendingQty)}
+              </span>
+              <ChevronRight size={18} className="create-pr-summary-chevron" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+
+        {isCompactCreateActionsViewport && (
+          <div className="create-pr-summary-actions">
+            {renderDocumentActions()}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   const configuratorHeaderActions = configurationMode ? (
     <>
       <label className="form-layout-row-control">
@@ -2033,7 +2468,7 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
       style={tabsClassName === 'create-pr-tabs--bottom-fixed' ? bottomTabsStyle : undefined}
     >
       <div className="create-pr-tabs__list" role="tablist" aria-label="Purchase requisition sections">
-        {layoutConfig.tabs.map((tab, tabIndex) => (
+        {visibleLayoutTabs.map((tab, tabIndex) => (
           <button
             key={tab.id}
             type="button"
@@ -2082,6 +2517,7 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
   return (
     <AppShell
       activeLeaf="purchase-requisition"
+      bottomBar={isQuantitySummaryBarVisible ? renderQuantitySummaryBar() : undefined}
       onPurchaseRequisitionClick={onNavigateToList}
       onPurchaseOrderClick={onNavigateToPurchaseOrderList}
       contentRef={contentScrollRef}
@@ -2094,68 +2530,166 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
           shouldCollapseProductHeader ? 'max-h-0 -translate-y-2 opacity-0' : 'max-h-64 translate-y-0 opacity-100'
         )}
       >
-        <PageHeader
-          documentNumber={requisition.number}
-          documentDate={formatDate(requisition.documentDate)}
-          title={
-            configurationMode
-              ? 'Configure Purchase Requisition Layout'
-              : editingDocument
-                ? 'Edit Purchase Requisition'
-                : 'New Purchase Requisition'
-          }
-          status={getHeaderStatusLabel(requisition.status)}
+        <TransactionCreateHeader
+          title={pageTitle}
+          statusLabel={getHeaderStatusLabel(requisition.status)}
+          meta={[
+            { label: 'Doc No', value: requisition.number },
+            {
+              label: 'Doc Date',
+              value: (
+                <span className="transaction-create-header__meta-inline">
+                  <span>{formatDate(requisition.documentDate)}</span>
+                  <PencilLine size={12} className="transaction-create-header__meta-icon" aria-hidden="true" />
+                </span>
+              ),
+            },
+          ]}
           onBack={onBack}
-          onCancel={handleDiscardRequest}
-          onSave={handleSave}
-          hideDocumentMeta={configurationMode}
+          backLabel="Back to purchase requisition list"
+          primaryActions={configurationMode ? configuratorHeaderActions : !isCompactCreateActionsViewport ? renderDocumentActions() : undefined}
+          hideMeta={configurationMode}
           hideStatus={configurationMode}
-          actions={configuratorHeaderActions}
         />
       </div>
 
       <div
         ref={createPageRef}
         className={cn(
-          'create-pr-page mx-auto w-full max-w-[1800px] px-6 py-6 space-y-6',
+          'create-pr-page create-pr-page--structured mx-auto w-full max-w-[1800px]',
+          isQuantitySummaryBarVisible && 'create-pr-page--with-summary-bar',
           isBottomFixedTabs && 'create-pr-page--tabs-bottom'
         )}
+        style={{ '--create-pr-summary-bar-height': `${quantitySummaryBarHeight}px` } as React.CSSProperties}
       >
-            {/* ============================================================================
-            REQUISITION DETAILS SECTION
-            ============================================================================ */}
-            <div
-              className={cn(
-                'space-y-4 overflow-hidden transition-all duration-300 ease-out',
-                shouldCollapseProductHeader ? 'max-h-0 -translate-y-2 opacity-0' : 'max-h-80 translate-y-0 opacity-100'
-              )}
-            >
-              {!isBottomFixedTabs && renderTabs()}
+        {!isBottomFixedTabs && (
+          <div
+            className={cn(
+              'create-pr-tab-row transition-all duration-300 ease-out',
+              shouldCollapseProductHeader
+                ? 'max-h-0 -translate-y-2 overflow-hidden opacity-0'
+                : 'max-h-80 translate-y-0 overflow-visible opacity-100'
+            )}
+          >
+            {renderTabs()}
+          </div>
+        )}
 
-              {formMessage && (
-                <div className="brand-message px-4 py-3 text-sm">
-                  {formMessage}
-                </div>
-              )}
+        <div className="create-pr-body space-y-6">
+          {formMessage && (
+            <div className="brand-message px-4 py-3 text-sm">
+              {formMessage}
+            </div>
+          )}
+
+          {renderConfiguredSections()}
+
+          {configurationMode && (
+            <GridColumnConfigurator
+              layoutConfig={layoutConfig}
+              onChange={(updater) => setLayoutConfig((currentConfig) => updater(currentConfig))}
+            />
+          )}
+
+          {previewPayload && (
+            <div className="rounded border border-slate-200 bg-slate-950 p-4 text-sm text-slate-100 shadow-sm">
+              <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Payload Preview</div>
+              <pre className="overflow-x-auto whitespace-pre-wrap break-words">{previewPayload}</pre>
+            </div>
+          )}
+        </div>
+
+        {isBottomFixedTabs && renderTabs('create-pr-tabs--bottom-fixed')}
+      </div>
+      {isBulkEditDialogOpen && (
+        <div className="create-pr-bulk-edit" role="presentation">
+          <div
+            className="create-pr-bulk-edit__panel"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="create-pr-bulk-edit-title"
+          >
+            <div className="create-pr-bulk-edit__header">
+              <div>
+                <h3 id="create-pr-bulk-edit-title">Bulk edit product lines</h3>
+                <p>{selectedLineIdsInOrder.length} selected</p>
+              </div>
+              <button
+                type="button"
+                className="create-pr-bulk-edit__close"
+                onClick={handleCloseBulkEdit}
+                aria-label="Close bulk edit"
+              >
+                <X size={16} aria-hidden="true" />
+              </button>
             </div>
 
-            {renderConfiguredSections()}
+            <div className="create-pr-bulk-edit__body">
+              <label className="create-pr-bulk-edit__field">
+                <span className="create-pr-bulk-edit__field-toggle">
+                  <input
+                    type="checkbox"
+                    checked={bulkEditDraft.priorityEnabled}
+                    onChange={(event) => setBulkEditDraft((draft) => ({ ...draft, priorityEnabled: event.target.checked }))}
+                  />
+                  Priority
+                </span>
+                <Select
+                  value={bulkEditDraft.priority}
+                  disabled={!bulkEditDraft.priorityEnabled}
+                  options={linePriorityOptions}
+                  onChange={(event) => setBulkEditDraft((draft) => ({ ...draft, priority: event.target.value as LineItem['priority'] }))}
+                />
+              </label>
 
-            {configurationMode && (
-              <GridColumnConfigurator
-                layoutConfig={layoutConfig}
-                onChange={(updater) => setLayoutConfig((currentConfig) => updater(currentConfig))}
-              />
-            )}
+              <label className="create-pr-bulk-edit__field">
+                <span className="create-pr-bulk-edit__field-toggle">
+                  <input
+                    type="checkbox"
+                    checked={bulkEditDraft.requirementDateEnabled}
+                    onChange={(event) => setBulkEditDraft((draft) => ({ ...draft, requirementDateEnabled: event.target.checked }))}
+                  />
+                  Requirement Date
+                </span>
+                <Input
+                  type="date"
+                  value={bulkEditDraft.requirementDate}
+                  disabled={!bulkEditDraft.requirementDateEnabled}
+                  onChange={(event) => setBulkEditDraft((draft) => ({ ...draft, requirementDate: event.target.value }))}
+                />
+              </label>
 
-            {previewPayload && (
-              <div className="rounded border border-slate-200 bg-slate-950 p-4 text-sm text-slate-100 shadow-sm">
-                <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Payload Preview</div>
-                <pre className="overflow-x-auto whitespace-pre-wrap break-words">{previewPayload}</pre>
-              </div>
-            )}
-            {isBottomFixedTabs && renderTabs('create-pr-tabs--bottom-fixed')}
-      </div>
+              <label className="create-pr-bulk-edit__field create-pr-bulk-edit__field--wide">
+                <span className="create-pr-bulk-edit__field-toggle">
+                  <input
+                    type="checkbox"
+                    checked={bulkEditDraft.remarksEnabled}
+                    onChange={(event) => setBulkEditDraft((draft) => ({ ...draft, remarksEnabled: event.target.checked }))}
+                  />
+                  Remarks
+                </span>
+                <Textarea
+                  rows={3}
+                  maxLength={500}
+                  value={bulkEditDraft.remarks}
+                  placeholder="Add remarks... (max 500 characters)"
+                  disabled={!bulkEditDraft.remarksEnabled}
+                  onChange={(event) => setBulkEditDraft((draft) => ({ ...draft, remarks: event.target.value.slice(0, 500) }))}
+                />
+              </label>
+            </div>
+
+            <div className="create-pr-bulk-edit__footer">
+              <button type="button" className="btn btn--outline" onClick={handleCloseBulkEdit}>
+                Discard
+              </button>
+              <button type="button" className="btn btn--primary" onClick={handleApplyBulkEdit}>
+                Apply to {selectedLineIdsInOrder.length}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <ConfirmationDialog
         isOpen={isDiscardDialogOpen}
         title="Discard changes?"
@@ -2200,6 +2734,17 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
         onPrint={handlePrintSummary}
         onShare={handleShareSummary}
         onClose={handleSaveSuccessClose}
+      />
+      <AmountBreakdownDrawer
+        isOpen={isQuantityDrawerOpen}
+        title="Requisition quantity details"
+        subtitle="Review the quantity summary for this purchase requisition."
+        mainSectionTitle="Quantity breakdown"
+        items={quantityBreakdownItems}
+        totalLabel="Total requested qty"
+        totalValue={formatCount(totalRequestedQty)}
+        note={`This summary is calculated from ${lineItems.length} product line${lineItems.length === 1 ? '' : 's'} in the product details grid.`}
+        onClose={() => setIsQuantityDrawerOpen(false)}
       />
       <GuidedTour
         isOpen={isCreateTourActive}

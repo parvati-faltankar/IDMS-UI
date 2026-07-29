@@ -1,7 +1,12 @@
-import type React from 'react';
+export interface GridKeyboardEventLike {
+  key: string;
+  shiftKey: boolean;
+  defaultPrevented: boolean;
+  preventDefault: () => void;
+}
 
 export interface GridLastCellTabOptions<TLine> {
-  event: React.KeyboardEvent<HTMLElement>;
+  event: GridKeyboardEventLike;
   line: TLine;
   lineIndex: number;
   lines: TLine[];
