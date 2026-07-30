@@ -1,4 +1,5 @@
 import { extendedDeliveryDocuments, type DeliveryDocument } from '../pages/delivery/deliveryData';
+import { extendedJobCardDocuments, type JobCardDocument } from '../pages/job-card/jobCardCatalogueData';
 import {
   extendedPurchaseOrderDocuments as extendedPurchaseInvoiceDocuments,
   type PurchaseOrderDocument as PurchaseInvoiceDocument,
@@ -23,6 +24,7 @@ import type { PrintEntityRegistryItem, PrintFieldGroup, PrintFieldToken, PrintTa
 
 type RegistryDocument =
   | PurchaseRequisitionDocument
+  | JobCardDocument
   | PurchaseOrderDocument
   | PurchaseReceiptDocument
   | PurchaseInvoiceDocument
@@ -150,6 +152,7 @@ function buildItem<TDocument extends RegistryDocument>(
 
 export const printEntityRegistry = [
   buildItem('purchase-requisition', 'Purchase Requisition', '#/purchase-requisition', extendedPurchaseRequisitionDocuments),
+  buildItem('job-card', 'Job Card', '#/job-card', extendedJobCardDocuments),
   buildItem('purchase-order', 'Purchase Order', '#/purchase-order', extendedPurchaseOrderDocuments),
   buildItem('purchase-receipt', 'Purchase Receipt', '#/purchase-receipt', extendedPurchaseReceiptDocuments),
   buildItem('purchase-invoice', 'Purchase Invoice', '#/purchase-invoice', extendedPurchaseInvoiceDocuments),

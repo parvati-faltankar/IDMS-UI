@@ -342,7 +342,9 @@ const AppTopHeader: React.FC<TopHeaderProps> = ({
     activeLeaf === 'purchase-receipt' ||
     activeLeaf === 'purchase-invoice'
       ? t('module.procurement')
-      : activeLeaf === 'sale-order' ||
+      : activeLeaf === 'job-card'
+        ? t('module.services')
+        : activeLeaf === 'sale-order' ||
           activeLeaf === 'sale-allocation-requisition' ||
           activeLeaf === 'sale-allocation' ||
           activeLeaf === 'sale-invoice' ||

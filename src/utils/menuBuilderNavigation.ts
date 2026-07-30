@@ -71,6 +71,7 @@ const canonicalMenuItemKeys = new Set(
 export const defaultMenuItemRouteByKey: Record<string, string> = {
   'approval-studio': paths.approvalStudioList,
   'purchase-requisition': paths.purchaseRequisitionList,
+  'job-card': paths.jobCardList,
   'purchase-order': paths.purchaseOrderList,
   'purchase-receipt': paths.purchaseReceiptList,
   'purchase-invoice': paths.purchaseInvoiceList,

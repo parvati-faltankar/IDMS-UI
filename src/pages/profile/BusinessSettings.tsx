@@ -17,6 +17,7 @@ interface BusinessSettingsProps {
 
 const documentRows: Array<{ key: DocumentTypeKey; label: string; helper: string }> = [
   { key: 'purchaseRequisition', label: 'Purchase Requisition', helper: 'Request, approval, edit, and cancellation behavior.' },
+  { key: 'jobCard', label: 'Job Card', helper: 'Service job card create, edit, submit, and cancellation behavior.' },
   { key: 'purchaseOrder', label: 'Purchase Order', helper: 'Ordering workflow, source rules, and allowed actions.' },
   { key: 'purchaseReceipt', label: 'Purchase Receipt', helper: 'Receiving workflow and conversion permissions.' },
   { key: 'purchaseInvoice', label: 'Purchase Invoice', helper: 'Invoice create, edit, approval, and cancellation behavior.' },

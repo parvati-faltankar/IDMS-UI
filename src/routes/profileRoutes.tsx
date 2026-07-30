@@ -45,6 +45,11 @@ export function renderProfileRoutes({ locationSearch, navigateTo, routeQuery }: 
                 return;
               }
 
+              if (formId === 'job-card-create') {
+                navigateTo(paths.jobCardCreate, { config: 'form-layout' });
+                return;
+              }
+
               navigateTo(paths.formLayoutEditor, { formId });
             }}
             onNavigateToPurchaseRequisitionList={() => navigateTo(paths.purchaseRequisitionList)}

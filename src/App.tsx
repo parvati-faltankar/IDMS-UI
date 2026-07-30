@@ -40,6 +40,7 @@ function App() {
   const location = useLocation();
   const navigate = useNavigate();
   const [requisitionCatalogueFilters, setRequisitionCatalogueFilters] = useState(emptyCatalogueFilters);
+  const [jobCardCatalogueFilters, setJobCardCatalogueFilters] = useState(emptyCatalogueFilters);
   const [purchaseOrderCatalogueFilters, setPurchaseOrderCatalogueFilters] = useState(emptyCatalogueFilters);
   const [purchaseReceiptCatalogueFilters, setPurchaseReceiptCatalogueFilters] = useState(emptyCatalogueFilters);
   const [purchaseInvoiceCatalogueFilters, setPurchaseInvoiceCatalogueFilters] = useState(emptyCatalogueFilters);
@@ -64,11 +65,13 @@ function App() {
           isLayoutConfigurationMode={routeQuery.get('config') === 'form-layout'}
           locationSearch={location.search}
           navigateTo={navigateTo}
+          jobCardCatalogueFilters={jobCardCatalogueFilters}
           purchaseInvoiceCatalogueFilters={purchaseInvoiceCatalogueFilters}
           purchaseOrderCatalogueFilters={purchaseOrderCatalogueFilters}
           purchaseReceiptCatalogueFilters={purchaseReceiptCatalogueFilters}
           requisitionCatalogueFilters={requisitionCatalogueFilters}
           routeQuery={routeQuery}
+          setJobCardCatalogueFilters={setJobCardCatalogueFilters}
           setPurchaseInvoiceCatalogueFilters={setPurchaseInvoiceCatalogueFilters}
           setPurchaseOrderCatalogueFilters={setPurchaseOrderCatalogueFilters}
           setPurchaseReceiptCatalogueFilters={setPurchaseReceiptCatalogueFilters}

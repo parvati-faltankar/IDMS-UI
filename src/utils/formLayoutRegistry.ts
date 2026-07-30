@@ -26,6 +26,7 @@ const PURCHASE_REQUISITION_PRODUCT_COLUMNS = [
   column('remarks', 'Remarks'),
 ];
 
+const JOB_CARD_PRODUCT_COLUMNS = PURCHASE_REQUISITION_PRODUCT_COLUMNS.map((item) => ({ ...item }));
 const PURCHASE_ORDER_PRODUCT_COLUMNS = [
   column('action', 'Action', { locked: true }),
   column('productCode', 'Product Code', { locked: true }),
@@ -192,6 +193,44 @@ export const PURCHASE_REQUISITION_LAYOUT: FormLayoutConfig = {
   },
 };
 
+export const JOB_CARD_LAYOUT: FormLayoutConfig = {
+  formId: 'job-card-create',
+  version: 2,
+  tabPlacement: 'header',
+  tabs: [
+    { id: 'general', label: 'General Details', sectionIds: ['job-card-details'] },
+    { id: 'product', label: 'Product Details', sectionIds: ['job-card-product-lines'] },
+    { id: 'additional', label: 'Additional Details', sectionIds: ['job-card-attachments-notes'] },
+  ],
+  sections: {
+    'job-card-details': {
+      id: 'job-card-details',
+      label: 'Job Card Details',
+      fieldsPerRow: 3,
+      fieldIds: ['department', 'supplier', 'priority', 'requirementDate', 'validTillDate', 'referenceNumber', 'remarks'],
+    },
+    'job-card-product-lines': {
+      id: 'job-card-product-lines',
+      label: 'Line Details',
+      fieldsPerRow: 1,
+      fieldIds: ['productGrid'],
+    },
+    'job-card-attachments-notes': {
+      id: 'job-card-attachments-notes',
+      label: 'Attachments And Notes',
+      fieldsPerRow: 1,
+      fieldIds: ['attachments'],
+    },
+  },
+  grids: {
+    productGrid: {
+      id: 'productGrid',
+      label: 'Product Details Columns',
+      columns: JOB_CARD_PRODUCT_COLUMNS,
+    },
+  },
+};
+
 export interface FormLayoutRegistryItem {
   id: string;
   formName: string;
@@ -214,6 +253,17 @@ export const purchaseRequisitionFieldLabels: Record<string, string> = {
   attachments: 'Attachments And Notes',
 };
 
+export const jobCardFieldLabels: Record<string, string> = {
+  department: 'Department',
+  supplier: 'Supplier',
+  priority: 'Priority',
+  requirementDate: 'Requirement Date',
+  validTillDate: 'Valid Till Date',
+  referenceNumber: 'Reference Number',
+  remarks: 'Remarks',
+  productGrid: 'Product Details Grid',
+  attachments: 'Attachments And Notes',
+};
 function buildLayout(
   formId: string,
   tabs: Array<{ id: string; label: string; sections: Array<{ id: string; label: string; fields: string[]; fieldsPerRow?: number }> }>
@@ -544,6 +594,15 @@ export const formLayoutRegistry: FormLayoutRegistryItem[] = [
     route: '#/purchase-requisition/new',
     defaultConfig: PURCHASE_REQUISITION_LAYOUT,
     fieldLabels: purchaseRequisitionFieldLabels,
+    configurable: true,
+  },
+  {
+    id: 'job-card-create',
+    formName: 'Job Card Create',
+    moduleName: 'Services',
+    route: '#/job-card/new',
+    defaultConfig: JOB_CARD_LAYOUT,
+    fieldLabels: jobCardFieldLabels,
     configurable: true,
   },
   {

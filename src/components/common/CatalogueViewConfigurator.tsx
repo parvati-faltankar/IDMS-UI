@@ -45,6 +45,7 @@ interface CatalogueViewConfiguratorProps {
   priorityOptions: Option[];
   sortOptions: Option[];
   labels?: Partial<CatalogueViewConfiguratorLabels>;
+  documentTypeLabel?: string;
   onClose: () => void;
   onSave: (draft: EditableCatalogueViewDefinition, options: { viewId?: string; pinAsDefault: boolean }) => string;
   onDelete: (viewId: string) => void;
@@ -149,6 +150,7 @@ const CatalogueViewConfigurator: React.FC<CatalogueViewConfiguratorProps> = ({
   priorityOptions,
   sortOptions,
   labels: labelsProp,
+  documentTypeLabel = 'Purchase Requisition',
   onClose,
   onSave,
   onDelete,
@@ -556,7 +558,7 @@ const CatalogueViewConfigurator: React.FC<CatalogueViewConfiguratorProps> = ({
                   checked={pinAsDefault}
                   onChange={(event) => setPinAsDefault(event.target.checked)}
                 />
-                <span>Pin this view as the default Purchase Requisition catalogue view</span>
+                <span>{`Pin this view as the default ${documentTypeLabel} catalogue view`}</span>
               </label>
             </div>
           ) : (

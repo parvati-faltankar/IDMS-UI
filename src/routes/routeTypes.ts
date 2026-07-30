@@ -18,10 +18,12 @@ export type CreateRouteContext = SharedRouteContext & {
 
 export type ListRouteContext = {
   navigateTo: NavigateTo;
+  jobCardCatalogueFilters: CatalogueFilters;
   purchaseInvoiceCatalogueFilters: CatalogueFilters;
   purchaseOrderCatalogueFilters: CatalogueFilters;
   purchaseReceiptCatalogueFilters: CatalogueFilters;
   requisitionCatalogueFilters: CatalogueFilters;
+  setJobCardCatalogueFilters: CatalogueFiltersSetter;
   setPurchaseInvoiceCatalogueFilters: CatalogueFiltersSetter;
   setPurchaseOrderCatalogueFilters: CatalogueFiltersSetter;
   setPurchaseReceiptCatalogueFilters: CatalogueFiltersSetter;

@@ -1,7 +1,16 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import EditableTransactionGrid, { getLastEditableGridColumn, getNextEditableGridColumn, resolveEditableGridColumns } from './EditableTransactionGrid';
+import EditableTransactionGrid, {
+  getLastEditableGridColumn,
+  getNextEditableGridColumn,
+  resolveEditableGridColumns,
+  resolveEditableGridMobileFieldGroups,
+  resolveEditableGridMobileLayout,
+  resolveEditableGridAddedRowId,
+  formatEditableGridMobileFieldCount,
+  resolveEditableGridMobileEditorOpenGroupIds,
+} from './EditableTransactionGrid';
 import type { EditableGridColumn } from './editableTransactionGridTypes';
 
 type TestLine = {
@@ -77,7 +86,106 @@ describe('EditableTransactionGrid keyboard tab order', () => {
   });
 });
 
+describe('EditableTransactionGrid add row contract', () => {
+  it('resolves only valid added row ids for mobile drawer opening', () => {
+    expect(resolveEditableGridAddedRowId('line-2')).toBe('line-2');
+    expect(resolveEditableGridAddedRowId({ rowId: 'line-3' })).toBe('line-3');
+    expect(resolveEditableGridAddedRowId({})).toBeUndefined();
+    expect(resolveEditableGridAddedRowId(undefined)).toBeUndefined();
+  });
+});
+
+describe('EditableTransactionGrid mobile layout contract', () => {
+  it('keeps the default breakpoint phone-only and lets forceMobileLayout override media queries', () => {
+    expect(resolveEditableGridMobileLayout({ isPhoneViewport: true, isTabletPortraitViewport: false })).toBe(true);
+    expect(resolveEditableGridMobileLayout({ isPhoneViewport: false, isTabletPortraitViewport: true })).toBe(false);
+    expect(resolveEditableGridMobileLayout({ breakpoint: 'tablet-portrait', isPhoneViewport: false, isTabletPortraitViewport: true })).toBe(true);
+    expect(resolveEditableGridMobileLayout({ forceMobileLayout: false, breakpoint: 'tablet-portrait', isPhoneViewport: true, isTabletPortraitViewport: true })).toBe(false);
+    expect(resolveEditableGridMobileLayout({ forceMobileLayout: true, isPhoneViewport: false, isTabletPortraitViewport: false })).toBe(true);
+  });
+
+  it('resolves grouped mobile editor fields and appends ungrouped columns to Other details', () => {
+    const groupedColumns = resolveEditableGridMobileFieldGroups(
+      columns.filter((column) => column.kind !== 'actions'),
+      [
+        { id: 'product', label: 'Product', columnIds: ['productCode', 'uom'] },
+        { id: 'quantity', label: 'Quantity', columnIds: ['requestedQty'] },
+      ]
+    );
+
+    expect(groupedColumns.map((group) => [group.id, group.columns.map((column) => column.id)])).toEqual([
+      ['product', ['productCode', 'uom']],
+      ['quantity', ['requestedQty']],
+      ['other-details', ['pendingQty', 'status']],
+    ]);
+  });
+
+  it('formats mobile editor field counts', () => {
+    expect(formatEditableGridMobileFieldCount(0)).toBe('0 fields');
+    expect(formatEditableGridMobileFieldCount(1)).toBe('1 field');
+    expect(formatEditableGridMobileFieldCount(4)).toBe('4 fields');
+  });
+
+  it('resolves mobile editor accordion defaults and first-error override', () => {
+    const groupIds = ['product', 'requirement', 'progress'];
+
+    expect(resolveEditableGridMobileEditorOpenGroupIds({
+      groupIds,
+      isNewRow: true,
+      newRowOpenGroupIds: ['product'],
+      existingRowOpenGroupIds: ['product'],
+      fallbackGroupId: 'product',
+    })).toEqual(['product']);
+
+    expect(resolveEditableGridMobileEditorOpenGroupIds({
+      groupIds,
+      isNewRow: false,
+      newRowOpenGroupIds: ['product'],
+      existingRowOpenGroupIds: ['product'],
+      fallbackGroupId: 'product',
+    })).toEqual(['product']);
+
+    expect(resolveEditableGridMobileEditorOpenGroupIds({
+      groupIds,
+      isNewRow: true,
+      firstErrorGroupId: 'requirement',
+      newRowOpenGroupIds: ['product'],
+      fallbackGroupId: 'product',
+    })).toEqual(['requirement']);
+
+    expect(resolveEditableGridMobileEditorOpenGroupIds({
+      groupIds,
+      isNewRow: true,
+      newRowOpenGroupIds: ['unknown'],
+      fallbackGroupId: 'product',
+    })).toEqual(['product']);
+  });
+});
+
 describe('EditableTransactionGrid rendering', () => {
+  it('treats unsafe object cell values as blank instead of coercing them', () => {
+    const unsafeValue = {
+      [Symbol.toPrimitive]: () => {
+        throw new TypeError('Cannot convert object to primitive value');
+      },
+    };
+    const unsafeColumns: EditableGridColumn<TestLine>[] = [
+      { id: 'productCode', label: 'Product Code', kind: 'text', getValue: () => unsafeValue },
+    ];
+
+    expect(() => renderToStaticMarkup(
+      <EditableTransactionGrid
+        gridId="test-editable-grid-unsafe-object-value"
+        title="Product details"
+        rows={rows}
+        columns={unsafeColumns}
+        rowId={(row) => row.id}
+        ariaLabel="Editable product lines"
+        forceMobileLayout
+      />
+    )).not.toThrow();
+  });
+
   it('renders an accessible editable table with errors and footer totals', () => {
     const markup = renderToStaticMarkup(
       <EditableTransactionGrid
@@ -173,6 +281,267 @@ describe('EditableTransactionGrid rendering', () => {
     expect(markup).toContain('Pending');
   });
 
+  it('renders compact-inline mobile issue summaries and compact rows when opted in', () => {
+    const markup = renderToStaticMarkup(
+      <EditableTransactionGrid
+        gridId="test-editable-grid-compact-mobile"
+        title="Product details"
+        rows={rows}
+        columns={columns}
+        rowId={(row) => row.id}
+        ariaLabel="Editable product lines"
+        forceMobileLayout
+        mobileLayout={{
+          presentation: 'compact-inline',
+          showIssueSummary: true,
+          inlineFieldIds: ['productCode', 'uom', 'requestedQty'],
+        }}
+        errors={{
+          'line-1': {
+            uom: 'UOM is required.',
+            requestedQty: 'Requested quantity must be greater than 0.',
+          },
+        }}
+        getMobileRowSummary={(row) => ({
+          title: row.productCode,
+          subtitle: `UOM ${row.uom}`,
+          metrics: [{ label: 'Pending', value: row.pendingQty }],
+          status: row.status,
+        })}
+      />
+    );
+
+    expect(markup).toContain('editable-transaction-grid__compact-mobile');
+    expect(markup).toContain('editable-transaction-grid__compact-mobile-issues');
+    expect(markup).toContain('editable-transaction-grid__compact-mobile-row--error');
+    expect(markup).toContain('UOM is required.');
+    expect(markup).toContain('1 line - UOM');
+    expect(markup).not.toContain('editable-transaction-grid__mobile-card');
+  });
+
+  it('uses column order for deterministic compact mobile first-error priority', () => {
+    const markup = renderToStaticMarkup(
+      <EditableTransactionGrid
+        gridId="test-editable-grid-compact-mobile-priority"
+        title="Product details"
+        rows={rows}
+        columns={columns}
+        rowId={(row) => row.id}
+        ariaLabel="Editable product lines"
+        forceMobileLayout
+        mobileLayout={{ presentation: 'compact-inline', showIssueSummary: true }}
+        errors={{
+          'line-1': {
+            requestedQty: 'Requested quantity must be greater than 0.',
+            uom: 'UOM is required.',
+          },
+        }}
+      />
+    );
+
+    expect(markup.indexOf('UOM is required.')).toBeGreaterThan(-1);
+    expect(markup.indexOf('Requested quantity must be greater than 0.')).toBeGreaterThan(-1);
+    expect(markup.indexOf('UOM is required.')).toBeLessThan(markup.indexOf('Requested quantity must be greater than 0.'));
+  });
+
+  it('hides compact mobile selection checkboxes until selection mode is active', () => {
+    const markup = renderToStaticMarkup(
+      <EditableTransactionGrid
+        gridId="test-editable-grid-compact-mobile-selection-hidden"
+        title="Product details"
+        rows={rows}
+        columns={columns}
+        rowId={(row) => row.id}
+        ariaLabel="Editable product lines"
+        forceMobileLayout
+        mobileLayout={{ presentation: 'compact-inline' }}
+        selection={{ selectedRowIds: [], onSelectionChange: () => undefined }}
+      />
+    );
+
+    expect(markup).not.toContain('editable-transaction-grid__compact-mobile-select');
+    expect(markup).not.toContain('Select');
+    expect(markup).not.toContain('editable-transaction-grid__mobile-selection-checkbox');
+  });
+
+  it('shows compact mobile bulk actions and row checkboxes once selection is active', () => {
+    const markup = renderToStaticMarkup(
+      <EditableTransactionGrid
+        gridId="test-editable-grid-compact-mobile-selection-active"
+        title="Product details"
+        rows={rows}
+        columns={columns}
+        rowId={(row) => row.id}
+        ariaLabel="Editable product lines"
+        forceMobileLayout
+        mobileLayout={{ presentation: 'compact-inline' }}
+        selection={{ selectedRowIds: ['line-1'], onSelectionChange: () => undefined }}
+        bulkActions={[{ id: 'bulk-edit', label: 'Bulk edit', onAction: () => undefined }]}
+      />
+    );
+
+    expect(markup).toContain('editable-transaction-grid__bulk-toolbar--mobile');
+    expect(markup).toContain('editable-transaction-grid__mobile-selection-checkbox');
+    expect(markup).toContain('Bulk edit');
+  });
+  it('renders sticky mobile add action and hides the header add action only when opted in', () => {
+    const markup = renderToStaticMarkup(
+      <EditableTransactionGrid
+        gridId="test-editable-grid-sticky-mobile-add"
+        title="Product details"
+        rows={rows}
+        columns={columns}
+        rowId={(row) => row.id}
+        ariaLabel="Editable product lines"
+        forceMobileLayout
+        mobileLayout={{ stickyAddAction: true, stickyActionOffset: '42px' }}
+        onAddRow={() => undefined}
+      />
+    );
+
+    expect(markup).toContain('editable-transaction-grid__mobile-sticky-action');
+    expect(markup).toContain('editable-transaction-grid__mobile-sticky-add-button');
+    expect(markup).toContain('--editable-transaction-grid-mobile-sticky-offset:42px');
+    expect(markup).not.toContain('editable-transaction-grid__add-button');
+  });
+
+  it('hides sticky mobile add action during mobile bulk selection', () => {
+    const markup = renderToStaticMarkup(
+      <EditableTransactionGrid
+        gridId="test-editable-grid-sticky-mobile-selection"
+        title="Product details"
+        rows={rows}
+        columns={columns}
+        rowId={(row) => row.id}
+        ariaLabel="Editable product lines"
+        forceMobileLayout
+        mobileLayout={{ stickyAddAction: true }}
+        selection={{ selectedRowIds: ['line-1'], onSelectionChange: () => undefined }}
+        bulkActions={[{ id: 'bulk-edit', label: 'Bulk edit', onAction: () => undefined }]}
+        onAddRow={() => undefined}
+      />
+    );
+
+    expect(markup).toContain('editable-transaction-grid__bulk-toolbar--mobile');
+    expect(markup).not.toContain('editable-transaction-grid__mobile-sticky-action');
+  });
+
+  it('hides sticky mobile add action in read-only mode', () => {
+    const markup = renderToStaticMarkup(
+      <EditableTransactionGrid
+        gridId="test-editable-grid-sticky-mobile-readonly"
+        title="Product details"
+        rows={rows}
+        columns={columns}
+        rowId={(row) => row.id}
+        ariaLabel="Editable product lines"
+        forceMobileLayout
+        readOnly
+        mobileLayout={{ stickyAddAction: true }}
+        onAddRow={() => undefined}
+      />
+    );
+
+    expect(markup).not.toContain('editable-transaction-grid__mobile-sticky-action');
+  });
+
+  it('keeps inline cell errors as the default validation display', () => {
+    const markup = renderToStaticMarkup(
+      <EditableTransactionGrid
+        gridId="test-editable-grid-inline-errors"
+        title="Product details"
+        rows={rows}
+        columns={columns}
+        rowId={(row) => row.id}
+        ariaLabel="Editable product lines"
+        errors={{ 'line-1': { requestedQty: 'Requested quantity is required.' } }}
+      />
+    );
+
+    expect(markup).toContain('editable-transaction-grid__meta-row');
+    expect(markup).toContain('Requested quantity is required.');
+    expect(markup).toContain('test-editable-grid-inline-errors-line-1-requestedQty-error');
+    expect(markup).not.toContain('editable-transaction-grid__validation-row');
+  });
+
+  it('renders compact row validation summaries when explicitly enabled', () => {
+    const markup = renderToStaticMarkup(
+      <EditableTransactionGrid
+        gridId="test-editable-grid-row-summary"
+        title="Product details"
+        rows={rows}
+        columns={columns}
+        rowId={(row) => row.id}
+        ariaLabel="Editable product lines"
+        validationDisplay="row-summary"
+        maxRowValidationMessages={2}
+        errors={{
+          'line-1': {
+            productCode: 'is required.',
+            requestedQty: 'must be greater than 0.',
+          },
+        }}
+        warnings={{
+          'line-1': {
+            uom: 'review the selected UOM.',
+            status: 'review status.',
+          },
+        }}
+      />
+    );
+
+    expect(markup).toContain('editable-transaction-grid__validation-row');
+    expect(markup).toContain('editable-transaction-grid__validation-cell--error');
+    expect(markup).toContain('Product Code - is required.');
+    expect(markup).toContain('Requested Qty - must be greater than 0.');
+    expect(markup).toContain('+2 more');
+    expect(markup).toContain('UOM - review the selected UOM.');
+    expect(markup).toContain('Status - review status.');
+    expect(markup).toContain('class="sr-only"');
+    expect(markup).toContain('aria-describedby="test-editable-grid-row-summary-line-1-requestedQty-error"');
+    expect(markup).toContain('aria-describedby="test-editable-grid-row-summary-line-1-uom-warning"');
+    expect(markup).not.toContain('editable-transaction-grid__meta-row');
+  });
+
+  it('uses warning styling for warning-only row validation summaries', () => {
+    const markup = renderToStaticMarkup(
+      <EditableTransactionGrid
+        gridId="test-editable-grid-row-warning"
+        title="Product details"
+        rows={rows}
+        columns={columns}
+        rowId={(row) => row.id}
+        ariaLabel="Editable product lines"
+        validationDisplay="row-summary"
+        warnings={{ 'line-1': { uom: 'review the selected UOM.' } }}
+      />
+    );
+
+    expect(markup).toContain('editable-transaction-grid__validation-cell--warning');
+    expect(markup).toContain('editable-transaction-grid__control--warning');
+    expect(markup).toContain('UOM - review the selected UOM.');
+    expect(markup).not.toContain('editable-transaction-grid__validation-cell--error');
+  });
+  it('lets errors win over warnings on the same cell', () => {
+    const markup = renderToStaticMarkup(
+      <EditableTransactionGrid
+        gridId="test-editable-grid-error-wins"
+        title="Product details"
+        rows={rows}
+        columns={columns}
+        rowId={(row) => row.id}
+        ariaLabel="Editable product lines"
+        validationDisplay="row-summary"
+        errors={{ 'line-1': { uom: 'is required.' } }}
+        warnings={{ 'line-1': { uom: 'review the selected UOM.' } }}
+      />
+    );
+
+    expect(markup).toContain('editable-transaction-grid__validation-cell--error');
+    expect(markup).toContain('UOM - is required.');
+    expect(markup).not.toContain('editable-transaction-grid__control--warning');
+    expect(markup).not.toContain('UOM - review the selected UOM.');
+  });
 
   it('keeps selection off by default so existing transaction grids do not change structure', () => {
     const markup = renderToStaticMarkup(

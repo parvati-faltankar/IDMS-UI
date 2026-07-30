@@ -99,7 +99,7 @@ const GuidedTour: React.FC<GuidedTourProps> = ({
   }
 
   return (
-    <div className="guided-tour" role="dialog" aria-modal="true" aria-label="Purchase Requisition guided tour">
+    <div className="guided-tour" role="dialog" aria-modal="true" aria-label="Guided tour">
       <button type="button" className="guided-tour__backdrop" onClick={onSkip} aria-label="Skip tour" />
       {targetRect && (
         <div

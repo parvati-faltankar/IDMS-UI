@@ -14,7 +14,7 @@ export type EditableGridColumnKind =
 export type EditableGridPin = 'left' | 'right' | null;
 export type EditableGridColumnAlignment = 'left' | 'center' | 'right';
 
-export type EditableGridCellElement = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
+export type EditableGridCellElement = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | HTMLButtonElement;
 
 export interface EditableGridOption {
   value: string;
@@ -51,6 +51,34 @@ export interface EditableGridMobileSummary {
   detail?: React.ReactNode;
 }
 
+export type EditableGridMobileBreakpoint = 'phone' | 'tablet-portrait';
+export type EditableGridMobilePresentation = 'cards' | 'compact-inline';
+export type EditableGridMobileEditorPresentation = 'groups' | 'accordions';
+export type EditableGridMobileControlPresentation = 'default' | 'segmented';
+
+export interface EditableGridMobileFieldGroup<TRow> {
+  id: string;
+  label: string;
+  columnIds: Array<keyof TRow | string>;
+}
+
+
+export interface EditableGridMobileEditorAccordionDefaults {
+  newRowOpenGroupIds?: string[];
+  existingRowOpenGroupIds?: string[];
+}
+export interface EditableGridMobileLayoutConfig<TRow> {
+  breakpoint?: EditableGridMobileBreakpoint;
+  presentation?: EditableGridMobilePresentation;
+  stickyAddAction?: boolean;
+  stickyActionOffset?: string;
+  inlineFieldIds?: Array<keyof TRow | string>;
+  showIssueSummary?: boolean;
+  editorPresentation?: EditableGridMobileEditorPresentation;
+  editorAccordionDefaults?: EditableGridMobileEditorAccordionDefaults;
+  fieldGroups?: EditableGridMobileFieldGroup<TRow>[];
+}
+
 export interface EditableGridColumnContext<TRow> {
   gridId: string;
   row: TRow;
@@ -58,6 +86,7 @@ export interface EditableGridColumnContext<TRow> {
   rowIndex: number;
   column: EditableGridColumn<TRow>;
   error?: string;
+  warning?: string;
   readOnly: boolean;
   disabled: boolean;
 }
@@ -84,6 +113,7 @@ export interface EditableGridColumn<TRow> {
   inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode'];
   maxLength?: number;
   options?: EditableGridOption[] | ((row: TRow, context: EditableGridColumnContext<TRow>) => EditableGridOption[]);
+  mobileControlPresentation?: EditableGridMobileControlPresentation;
   mobileLookup?: boolean;
   lookupTitle?: EditableGridRowText<TRow>;
   searchPlaceholder?: EditableGridRowText<TRow>;
@@ -106,6 +136,14 @@ export interface EditableGridColumn<TRow> {
 }
 
 export type EditableGridErrors<TRow> = Record<string, Partial<Record<keyof TRow | string, string | undefined>> | undefined>;
+export type EditableGridWarnings<TRow> = EditableGridErrors<TRow>;
+export type EditableGridValidationDisplay = 'cell-inline' | 'row-summary';
+
+export interface EditableGridAddRowContext {
+  source: 'desktop' | 'mobile';
+}
+
+export type EditableGridAddRowResult = string | { rowId?: string } | void;
 
 export type EditableGridFooterAggregates<TRow> =
   | Record<string, React.ReactNode>
@@ -164,8 +202,12 @@ export interface EditableTransactionGridProps<TRow> {
   columns: EditableGridColumn<TRow>[];
   rowId: (row: TRow) => string;
   errors?: EditableGridErrors<TRow>;
+  warnings?: EditableGridWarnings<TRow>;
+  validationDisplay?: EditableGridValidationDisplay;
+  maxRowValidationMessages?: number;
   onRowsChange?: (rows: TRow[]) => void;
-  onAddRow?: () => void;
+  onAddRow?: (context: EditableGridAddRowContext) => EditableGridAddRowResult;
+  onMobileEditorClose?: (rowId: string, row: TRow, rowIndex: number) => void;
   onDuplicateRow?: (rowId: string, row: TRow, rowIndex: number) => void;
   onDeleteRow?: (rowId: string, row: TRow, rowIndex: number) => void;
   selection?: EditableGridSelectionConfig<TRow>;
@@ -188,5 +230,6 @@ export interface EditableTransactionGridProps<TRow> {
     row: TRow,
     context: { rowId: string; rowIndex: number; firstError?: string }
   ) => EditableGridMobileSummary;
+  mobileLayout?: EditableGridMobileLayoutConfig<TRow>;
   forceMobileLayout?: boolean;
 }

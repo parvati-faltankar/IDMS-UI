@@ -21,6 +21,7 @@ const AppSidebar: React.FC<SidebarComponentProps> = ({
   onPurchaseOrderClick,
   onPurchaseReceiptClick,
   onPurchaseInvoiceClick,
+  onJobCardClick,
   onSaleOrderClick,
   onSaleOrderV2Click,
   onSaleAllocationRequisitionClick,
@@ -45,21 +46,22 @@ const AppSidebar: React.FC<SidebarComponentProps> = ({
     activeLeaf === 'sale-allocation' ||
     activeLeaf === 'sale-invoice' ||
     activeLeaf === 'delivery';
+  const isServicesLeaf = activeLeaf === 'job-card';
   const [expandedLevel1, setExpandedLevel1] = useState<Record<string, boolean>>({
     'UI Studio': activeLeaf === 'ui-studio',
     'Approval Studio': activeLeaf === 'approval-studio',
-    Procurement: !isSalesLeaf,
+    Procurement: !isSalesLeaf && !isServicesLeaf,
     Sales: isSalesLeaf,
     Inventory: false,
-    Services: false,
+    Services: isServicesLeaf,
   });
   const [expandedLevel2, setExpandedLevel2] = useState<Record<string, boolean>>({
     'UI Studio_Pages': activeLeaf === 'ui-studio',
     'Approval Studio_Pages': activeLeaf === 'approval-studio',
-    Procurement_Pages: !isSalesLeaf,
+    Procurement_Pages: !isSalesLeaf && !isServicesLeaf,
     Sales_Pages: isSalesLeaf,
     Inventory_Pages: false,
-    Services_Pages: false,
+    Services_Pages: isServicesLeaf,
   });
   const [navigationSearchQuery, setNavigationSearchQuery] = useState('');
   const [recentDocuments, setRecentDocuments] = useState<SidebarRecentDocument[]>(() => loadSidebarRecentDocuments());
@@ -90,6 +92,7 @@ const AppSidebar: React.FC<SidebarComponentProps> = ({
     if (item.route) return item.route;
 
     if (item.key === 'purchase-requisition') return '/purchase-requisition';
+    if (item.key === 'job-card') return '/job-card';
     if (item.key === 'purchase-order') return '/purchase-order';
     if (item.key === 'purchase-receipt') return '/purchasereceiptlist';
     if (item.key === 'purchase-invoice') return '/purchaseinvoicelist';
@@ -266,6 +269,7 @@ const AppSidebar: React.FC<SidebarComponentProps> = ({
     else if (item.externalUrl) window.open(item.externalUrl, item.openInNewTab ? '_blank' : '_self', item.openInNewTab ? 'noopener,noreferrer' : undefined);
     else if (item.route) navigateToHash(`#${item.route}`);
     else if (item.key === 'purchase-requisition') onPurchaseRequisitionClick ? onPurchaseRequisitionClick() : navigateToHash('#/purchase-requisition');
+    else if (item.key === 'job-card') onJobCardClick ? onJobCardClick() : navigateToHash('#/job-card');
     else if (item.key === 'purchase-order') onPurchaseOrderClick ? onPurchaseOrderClick() : navigateToHash('#/purchase-order');
     else if (item.key === 'purchase-receipt') onPurchaseReceiptClick ? onPurchaseReceiptClick() : navigateToHash('#/purchasereceiptlist');
     else if (item.key === 'purchase-invoice') onPurchaseInvoiceClick ? onPurchaseInvoiceClick() : navigateToHash('#/purchaseinvoicelist');

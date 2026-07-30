@@ -13,11 +13,13 @@ export type AppRoutesProps = {
   isLayoutConfigurationMode: boolean;
   locationSearch: string;
   navigateTo: NavigateTo;
+  jobCardCatalogueFilters: CatalogueFilters;
   purchaseInvoiceCatalogueFilters: CatalogueFilters;
   purchaseOrderCatalogueFilters: CatalogueFilters;
   purchaseReceiptCatalogueFilters: CatalogueFilters;
   requisitionCatalogueFilters: CatalogueFilters;
   routeQuery: URLSearchParams;
+  setJobCardCatalogueFilters: CatalogueFiltersSetter;
   setPurchaseInvoiceCatalogueFilters: CatalogueFiltersSetter;
   setPurchaseOrderCatalogueFilters: CatalogueFiltersSetter;
   setPurchaseReceiptCatalogueFilters: CatalogueFiltersSetter;
@@ -29,11 +31,13 @@ export function AppRoutes({
   isLayoutConfigurationMode,
   locationSearch,
   navigateTo,
+  jobCardCatalogueFilters,
   purchaseInvoiceCatalogueFilters,
   purchaseOrderCatalogueFilters,
   purchaseReceiptCatalogueFilters,
   requisitionCatalogueFilters,
   routeQuery,
+  setJobCardCatalogueFilters,
   setPurchaseInvoiceCatalogueFilters,
   setPurchaseOrderCatalogueFilters,
   setPurchaseReceiptCatalogueFilters,
@@ -49,10 +53,12 @@ export function AppRoutes({
       {renderCreateRoutes({ editingDocumentId, isLayoutConfigurationMode, locationSearch, navigateTo, routeQuery })}
       {renderListRoutes({
         navigateTo,
+        jobCardCatalogueFilters,
         purchaseInvoiceCatalogueFilters,
         purchaseOrderCatalogueFilters,
         purchaseReceiptCatalogueFilters,
         requisitionCatalogueFilters,
+        setJobCardCatalogueFilters,
         setPurchaseInvoiceCatalogueFilters,
         setPurchaseOrderCatalogueFilters,
         setPurchaseReceiptCatalogueFilters,

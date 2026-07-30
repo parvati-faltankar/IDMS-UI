@@ -16,6 +16,8 @@ export const paths = {
   formLayoutEditor: '/profile/form-layout/edit',
   purchaseRequisitionList: '/purchase-requisition',
   purchaseRequisitionCreate: '/purchase-requisition/new',
+  jobCardList: '/job-card',
+  jobCardCreate: '/job-card/new',
   purchaseOrderList: '/purchase-order',
   purchaseOrderCreate: '/purchase-order/new',
   purchaseReceiptList: '/purchasereceiptlist',

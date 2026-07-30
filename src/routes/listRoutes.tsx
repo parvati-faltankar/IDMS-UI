@@ -3,6 +3,7 @@ import { paths } from './routeConfig';
 import {
   ApprovalStudioList,
   DeliveryList,
+  JobCardCatalogueView,
   PurchaseInvoiceList,
   PurchaseReceiptList,
   PurchaseRequisitionCatalogueView,
@@ -17,10 +18,12 @@ import type { ListRouteContext } from './routeTypes';
 
 export function renderListRoutes({
   navigateTo,
+  jobCardCatalogueFilters,
   purchaseInvoiceCatalogueFilters,
   purchaseOrderCatalogueFilters,
   purchaseReceiptCatalogueFilters,
   requisitionCatalogueFilters,
+  setJobCardCatalogueFilters,
   setPurchaseInvoiceCatalogueFilters,
   setPurchaseOrderCatalogueFilters,
   setPurchaseReceiptCatalogueFilters,
@@ -151,6 +154,20 @@ export function renderListRoutes({
         }
       />
 
+      <Route
+        path={paths.jobCardList}
+        element={
+          <JobCardCatalogueView
+            filters={jobCardCatalogueFilters}
+            onFiltersChange={setJobCardCatalogueFilters}
+            onNew={() => navigateTo(paths.jobCardCreate)}
+            onStartCreateTour={() => navigateTo(paths.jobCardCreate, { tour: 'job-card-create' })}
+            onEdit={(documentId) => navigateTo(paths.jobCardCreate, { id: documentId, mode: 'edit' })}
+            onNavigateToList={() => navigateTo(paths.jobCardList)}
+            onNavigateToPurchaseOrderList={() => navigateTo(paths.purchaseOrderList)}
+          />
+        }
+      />
       <Route
         path={paths.purchaseRequisitionList}
         element={

@@ -1,5 +1,6 @@
 import { Route } from 'react-router-dom';
 import { getPurchaseRequisitionById } from '../pages/purchase-requisition/purchaseRequisitionCatalogueData';
+import { getJobCardById } from '../pages/job-card/jobCardCatalogueData';
 import { getPurchaseOrderById } from '../pages/purchase-order/purchaseOrderData';
 import { getPurchaseOrderById as getPurchaseReceiptById } from '../pages/purchase-receipt/purchaseReceiptData';
 import { getPurchaseOrderById as getPurchaseInvoiceById } from '../pages/purchase-invoice/purchaseInvoiceData';
@@ -14,6 +15,7 @@ import { paths } from './routeConfig';
 import {
   CreateApprovalWorkflow,
   CreateDelivery,
+  CreateJobCard,
   CreatePurchaseInvoice,
   CreatePurchaseOrder,
   CreatePurchaseReceipt,
@@ -65,6 +67,22 @@ export function renderCreateRoutes({
         }
       />
 
+      <Route
+        path={paths.jobCardCreate}
+        element={
+          <CreateJobCard
+            key={`${editingDocumentId ?? 'new-job-card'}-${isLayoutConfigurationMode ? 'config' : 'live'}`}
+            editingDocument={getJobCardById(editingDocumentId)}
+            tourMode={routeQuery.get('tour') === 'job-card-create' ? 'job-card-create' : undefined}
+            configurationMode={isLayoutConfigurationMode}
+            onBack={() =>
+              isLayoutConfigurationMode ? navigateTo(paths.formLayoutSettings) : navigateTo(paths.jobCardList)
+            }
+            onNavigateToList={() => navigateTo(paths.jobCardList)}
+            onNavigateToPurchaseOrderList={() => navigateTo(paths.purchaseOrderList)}
+          />
+        }
+      />
       <Route
         path={paths.purchaseOrderCreate}
         element={

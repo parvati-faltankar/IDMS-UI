@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 
 export type DocumentTypeKey =
   | 'purchaseRequisition'
+  | 'jobCard'
   | 'purchaseOrder'
   | 'purchaseReceipt'
   | 'purchaseInvoice'
@@ -81,6 +82,7 @@ export const defaultBusinessSettings: BusinessSettings = {
   },
   actions: {
     purchaseRequisition: { ...defaultActionSettings },
+    jobCard: { ...defaultActionSettings },
     purchaseOrder: { ...defaultActionSettings },
     purchaseReceipt: { ...defaultActionSettings },
     purchaseInvoice: { ...defaultActionSettings },

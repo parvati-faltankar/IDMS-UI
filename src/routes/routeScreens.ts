@@ -12,6 +12,7 @@ export const CreatePurchaseInvoice = lazy(() => import('../pages/purchase-invoic
 export const CreatePurchaseOrder = lazy(() => import('../pages/purchase-order/CreatePurchaseOrder'));
 export const CreatePurchaseReceipt = lazy(() => import('../pages/purchase-receipt/CreatePurchaseReceipt'));
 export const CreatePurchaseRequisition = lazy(() => import('../pages/purchase-requisition/CreatePurchaseRequisition'));
+export const CreateJobCard = lazy(() => import('../pages/job-card/CreateJobCard'));
 export const CreateSaleAllocation = lazy(() => import('../pages/sale-allocation/CreateSaleAllocation'));
 export const CreateSaleAllocationRequisition = lazy(() => import('../pages/sale-allocation-requisition/CreateSaleAllocationRequisition'));
 export const CreateSaleInvoice = lazy(() => import('../pages/sale-invoice/CreateSaleInvoice'));
@@ -25,6 +26,7 @@ export const FormLayoutSettings = lazy(() => import('../pages/form-layout/FormLa
 export const PurchaseInvoiceList = lazy(() => import('../pages/purchase-invoice/purchaseinvoicelist'));
 export const PurchaseReceiptList = lazy(() => import('../pages/purchase-receipt/purchasereceiptlist'));
 export const PurchaseRequisitionCatalogueView = lazy(() => import('../pages/purchase-requisition/PurchaseRequisitionCatalogueView'));
+export const JobCardCatalogueView = lazy(() => import('../pages/job-card/JobCardCatalogueView'));
 export const PurchaseOrderList = lazy(() => import('../pages/purchase-order/purchaseorderlist'));
 export const SaleAllocationList = lazy(() => import('../pages/sale-allocation/saleallocationlist'));
 export const SaleAllocationRequisitionList = lazy(() => import('../pages/sale-allocation-requisition/saleallocationrequisitionlist'));

@@ -16,8 +16,8 @@ import { MasterFormAccordionSection, MasterFormSectionSummary, type MasterFormAc
 import type { EditableGridAddRowContext, EditableGridBulkAction, EditableGridCellElement, EditableGridColumn, EditableGridMobileFieldGroup, EditableGridViewPreset } from '../../components/common/editableTransactionGridTypes';
 import StatusBadge from '../../components/common/StatusBadge';
 import { useDocumentPrint } from '../../print-builder/useDocumentPrint';
-import { PURCHASE_REQUISITION_LAYOUT, purchaseRequisitionFieldLabels } from '../../utils/formLayoutRegistry';
-import type { PurchaseRequisitionDocument } from './purchaseRequisitionCatalogueData';
+import { JOB_CARD_LAYOUT, jobCardFieldLabels } from '../../utils/formLayoutRegistry';
+import type { JobCardDocument } from './jobCardCatalogueData';
 import { cn } from '../../utils/classNames';
 import { formatDate, formatDateTime } from '../../utils/dateFormat'
 import {
@@ -58,7 +58,7 @@ interface LineItem {
   remarks: string;
 }
 
-interface RequisitionData {
+interface JobCardData {
   number: string;
   documentDate: string;
   title: string;
@@ -271,42 +271,42 @@ type LayoutDialogState =
   | { mode: 'rename-section'; sectionId: string; initialValue: string }
   | null;
 
-const purchaseRequisitionCreateTourSteps: GuidedTourStep[] = [
+const jobCardCreateTourSteps: GuidedTourStep[] = [
   {
     id: 'supplier',
-    target: '[data-tour="pr-supplier-field"]',
+    target: '[data-tour="job-card-supplier-field"]',
     title: 'Choose the supplier',
-    body: 'Use the supplier field when the requester already knows the preferred supplier for this requisition.',
+    body: 'Use the supplier field when the requester already knows the preferred supplier for this Job Card.',
   },
   {
     id: 'priority',
-    target: '[data-tour="pr-priority-field"]',
+    target: '[data-tour="job-card-priority-field"]',
     title: 'Set priority and dates',
-    body: 'Priority and requirement dates help procurement teams understand urgency and plan fulfilment.',
+    body: 'Priority and requirement dates help teams understand urgency and plan fulfilment.',
   },
   {
     id: 'product-grid',
-    target: '[data-tour="pr-product-grid"]',
+    target: '[data-tour="job-card-product-grid"]',
     title: 'Add product details',
     body: 'The product grid captures requested items. Product code starts the line and related details populate automatically.',
   },
   {
     id: 'product-code',
-    target: '[data-tour="pr-product-code"]',
+    target: '[data-tour="job-card-product-code"]',
     title: 'Select a product',
     body: 'Start each line with a product code. The grid keeps keyboard-friendly entry for fast line creation.',
   },
   {
     id: 'requested-qty',
-    target: '[data-tour="pr-requested-qty"]',
+    target: '[data-tour="job-card-requested-qty"]',
     title: 'Enter requested quantity',
     body: 'Enter the quantity needed. Read-only columns show ordered, cancelled, and pending quantities.',
   },
   {
     id: 'save',
-    target: '[data-tour="pr-save-button"]',
-    title: 'Save the requisition',
-    body: 'When required line details are complete, Save creates the requisition and shows a confirmation summary.',
+    target: '[data-tour="job-card-save-button"]',
+    title: 'Save the Job Card',
+    body: 'When required line details are complete, Save creates the Job Card and shows a confirmation summary.',
   },
 ];
 
@@ -407,7 +407,7 @@ function isBlankDraftLine(line: LineItem): boolean {
 // PAGE HEADER
 // ============================================================================
 
-function getHeaderStatusLabel(status: RequisitionData['status']): string {
+function getHeaderStatusLabel(status: JobCardData['status']): string {
   switch (status) {
     case 'PendingApproval':
       return 'Pending Approval';
@@ -510,7 +510,7 @@ const LineItemsSection: React.FC<{
       required: true,
       getValue: (line) => line.productCode,
       inputRef: (line, element) => setFieldRef(line.id, 'productCode')(element),
-      dataTour: (_line, index) => index === 0 ? 'pr-product-code' : undefined,
+      dataTour: (_line, index) => index === 0 ? 'job-card-product-code' : undefined,
       lookupTitle: 'Select Product',
       searchPlaceholder: 'Search product code or name',
       searchable: true,
@@ -602,7 +602,7 @@ const LineItemsSection: React.FC<{
       inputMode: 'decimal',
       getValue: (line) => line.requestedQty,
       inputRef: (line, element) => setFieldRef(line.id, 'requestedQty')(element),
-      dataTour: (_line, index) => index === 0 ? 'pr-requested-qty' : undefined,
+      dataTour: (_line, index) => index === 0 ? 'job-card-requested-qty' : undefined,
       onChange: (line, value) => onFieldChange(line.id, 'requestedQty', value),
       onBlur: (line) => onNumericBlur(line.id, 'requestedQty'),
     },
@@ -743,7 +743,7 @@ const LineItemsSection: React.FC<{
 
   return (
     <EditableTransactionGrid
-      gridId="purchase-requisition-product-grid"
+      gridId="job-card-product-grid"
       title="Product lines"
       lineCountLabel={String(items.length)}
       hideHeaderIdentity
@@ -764,7 +764,7 @@ const LineItemsSection: React.FC<{
       viewPresets={gridViewPresets}
       defaultViewId="entry"
       footerAggregates={footerAggregates}
-      ariaLabel="Purchase requisition product lines editable grid"
+      ariaLabel="Job Card product lines editable grid"
       mobileEditorTitle={(_line, index) => `Product line ${index + 1}`}
       mobileLayout={{
         breakpoint: 'tablet-portrait',
@@ -780,7 +780,7 @@ const LineItemsSection: React.FC<{
         },
         fieldGroups: mobileFieldGroups,
       }}
-      emptyState="Add the first product line to start this requisition."
+      emptyState="Add the first product line to start this Job Card."
       isRowComplete={isLineComplete}
       onAddRow={onAddLine}
       onMobileEditorClose={(lineId, line) => onMobileLineEditorClose(lineId, line)}
@@ -863,16 +863,16 @@ const AttachmentsSection: React.FC = () => {
 // MAIN PAGE COMPONENT
 // ============================================================================
 
-interface CreatePurchaseRequisitionProps {
+interface CreateJobCardProps {
   onBack?: () => void;
   onNavigateToList?: () => void;
   onNavigateToPurchaseOrderList?: () => void;
-  editingDocument?: PurchaseRequisitionDocument | null;
-  tourMode?: 'pr-create';
+  editingDocument?: JobCardDocument | null;
+  tourMode?: 'job-card-create';
   configurationMode?: boolean;
 }
 
-function getInitialRequisition(editingDocument?: PurchaseRequisitionDocument | null): RequisitionData {
+function getInitialJobCard(editingDocument?: JobCardDocument | null): JobCardData {
   if (editingDocument) {
     return {
       number: editingDocument.number,
@@ -913,7 +913,7 @@ function getInitialRequisition(editingDocument?: PurchaseRequisitionDocument | n
   }
 
   return {
-    number: 'PR-2025-00847',
+    number: 'JC-2025-00847',
     documentDate: new Date().toISOString().slice(0, 10),
     title: 'Industrial Components & Hardware - Q1 2025',
     requestor: 'Alex Kumar',
@@ -941,7 +941,7 @@ function getInitialRequisition(editingDocument?: PurchaseRequisitionDocument | n
   };
 }
 
-const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
+const CreateJobCard: React.FC<CreateJobCardProps> = ({
   onBack,
   onNavigateToList,
   onNavigateToPurchaseOrderList,
@@ -949,10 +949,10 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
   tourMode,
   configurationMode = false,
 }) => {
-  const printTools = useDocumentPrint('purchase-requisition');
+  const printTools = useDocumentPrint('job-card');
   type TabKey = string;
 
-  const [requisition, setRequisition] = useState<RequisitionData>(() => getInitialRequisition(editingDocument));
+  const [requisition, setRequisition] = useState<JobCardData>(() => getInitialJobCard(editingDocument));
 
   const [lineItems, setLineItems] = useState<LineItem[]>(mockLineItems);
   const [lineErrors, setLineErrors] = useState<Record<string, LineValidationErrors>>({});
@@ -962,8 +962,8 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
   const [activeTab, setActiveTab] = useState<TabKey>('general');
   const [layoutConfig, setLayoutConfig] = useState<FormLayoutConfig>(() =>
     configurationMode
-      ? loadDraftFormLayoutConfig(PURCHASE_REQUISITION_LAYOUT)
-      : loadPublishedFormLayoutConfig(PURCHASE_REQUISITION_LAYOUT)
+      ? loadDraftFormLayoutConfig(JOB_CARD_LAYOUT)
+      : loadPublishedFormLayoutConfig(JOB_CARD_LAYOUT)
   );
   const [isLayoutEditing, setIsLayoutEditing] = useState(configurationMode);
   const [dragPayload, setDragPayload] = useState<LayoutDragPayload | null>(null);
@@ -973,7 +973,7 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
   const [isProductHeaderCollapsed, setIsProductHeaderCollapsed] = useState(false);
   const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
   const [isSaveSuccessDialogOpen, setIsSaveSuccessDialogOpen] = useState(false);
-  const [isCreateTourActive, setIsCreateTourActive] = useState(tourMode === 'pr-create');
+  const [isCreateTourActive, setIsCreateTourActive] = useState(tourMode === 'job-card-create');
   const [createTourStepIndex, setCreateTourStepIndex] = useState(0);
   const [isLayoutPreviewOpen, setIsLayoutPreviewOpen] = useState(false);
   const [isQuantityDrawerOpen, setIsQuantityDrawerOpen] = useState(false);
@@ -994,13 +994,13 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
   };
 
   const handleCreateTourNext = () => {
-    const currentStep = purchaseRequisitionCreateTourSteps[createTourStepIndex];
+    const currentStep = jobCardCreateTourSteps[createTourStepIndex];
 
     if (currentStep?.id === 'priority') {
       handleTabChange('product');
     }
 
-    if (createTourStepIndex >= purchaseRequisitionCreateTourSteps.length - 1) {
+    if (createTourStepIndex >= jobCardCreateTourSteps.length - 1) {
       setIsCreateTourActive(false);
       return;
     }
@@ -1009,7 +1009,7 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
   };
 
   const handleCreateTourBack = () => {
-    const currentStep = purchaseRequisitionCreateTourSteps[createTourStepIndex];
+    const currentStep = jobCardCreateTourSteps[createTourStepIndex];
 
     if (currentStep?.id === 'product-grid') {
       handleTabChange('general');
@@ -1131,7 +1131,7 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
     const { dateLabel, timeLabel } = formatDateTime(requisition.createdOn);
     return `${dateLabel}, ${timeLabel}`;
   }, [requisition.createdOn]);
-  const purchaseRequisitionPreviewValues = useMemo(
+  const jobCardPreviewValues = useMemo(
     () => ({
       department: requisition.department || '-',
       supplier: requisition.supplier || '-',
@@ -1541,8 +1541,8 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
     setSelectedLineIds([]);
     setFormMessage(`Deleted ${selectedCount} selected ${selectedCount === 1 ? 'line' : 'lines'}.`);
   };
-  const buildRequisitionPayload = () => ({
-    requisition: {
+  const buildJobCardPayload = () => ({
+    jobCard: {
       ...requisition,
       documentNumber: requisition.number,
       documentDate: requisition.documentDate,
@@ -1579,8 +1579,8 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
       return;
     }
 
-    setPreviewPayload(JSON.stringify(buildRequisitionPayload(), null, 2));
-    setFormMessage(`Requisition payload is ready with ${lineItems.length} line(s).`);
+    setPreviewPayload(JSON.stringify(buildJobCardPayload(), null, 2));
+    setFormMessage(`Job Card payload is ready with ${lineItems.length} line(s).`);
     setIsSaveSuccessDialogOpen(true);
   };
 
@@ -1612,8 +1612,8 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
     }
   };
 
-  const buildRequisitionPrintPreviewDocument = (): Record<string, unknown> => ({
-    id: editingDocument?.id ?? `purchase-requisition-preview-${requisition.number}`,
+  const buildJobCardPrintPreviewDocument = (): Record<string, unknown> => ({
+    id: editingDocument?.id ?? `job-card-preview-${requisition.number}`,
     number: requisition.number,
     title: requisition.title,
     documentDateTime: requisition.documentDate ? `${requisition.documentDate}T09:00:00.000Z` : '',
@@ -1650,13 +1650,13 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
   });
 
   const handlePrintSummary = () => {
-    printTools.openPrintPreview(buildRequisitionPrintPreviewDocument(), () => window.print());
+    printTools.openPrintPreview(buildJobCardPrintPreviewDocument(), () => window.print());
   };
 
   const handleShareSummary = async () => {
     const summaryText = [
-      'Purchase requisition saved successfully',
-      `Purchase requisition No: ${requisition.number}`,
+      'Job Card saved successfully',
+      `Job Card No: ${requisition.number}`,
       `Total line count: ${formatCount(lineItems.length)}`,
       `Valid till date: ${requisition.validTillDate ? formatDate(requisition.validTillDate) : '-'}`,
       `Priority: ${requisition.priority || '-'}`,
@@ -1667,7 +1667,7 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
 
     if (navigator.share) {
       await navigator.share({
-        title: 'Purchase requisition summary',
+        title: 'Job Card summary',
         text: summaryText,
       });
       return;
@@ -1982,7 +1982,7 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
     }
 
     publishFormLayoutConfig(layoutConfig);
-    setFormMessage('Layout published. The live Purchase Requisition create form now uses this layout.');
+    setFormMessage('Layout published. The live Job Card create form now uses this layout.');
     return true;
   };
 
@@ -2040,7 +2040,7 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
         );
       case 'supplier':
         return (
-          <div data-tour="pr-supplier-field">
+          <div data-tour="job-card-supplier-field">
           <FormField label="Supplier">
             <Select
               options={[
@@ -2057,11 +2057,11 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
         );
       case 'priority':
         return (
-          <div data-tour="pr-priority-field">
+          <div data-tour="job-card-priority-field">
           <FormField label="Priority">
             <Select
               value={requisition.priority}
-              onChange={(e) => setRequisition({ ...requisition, priority: e.target.value as RequisitionData['priority'] })}
+              onChange={(e) => setRequisition({ ...requisition, priority: e.target.value as JobCardData['priority'] })}
               options={[
                 { value: '', label: 'Select priority' },
                 { value: 'Low', label: 'Low' },
@@ -2123,7 +2123,7 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
         );
       case 'productGrid':
         return (
-          <div data-tour="pr-product-grid">
+          <div data-tour="job-card-product-grid">
             <LineItemsSection
               items={lineItems}
               lineErrors={lineErrors}
@@ -2297,7 +2297,7 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
       return 'Add product lines, quantities, dates, and line remarks.';
     }
     if (section.fieldIds.includes('attachments')) {
-      return 'Keep supporting files and notes with this requisition.';
+      return 'Keep supporting files and notes with this Job Card.';
     }
     return 'Capture requester, supplier, priority, and validity details.';
   };
@@ -2492,16 +2492,16 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
 
   const shouldCollapseProductHeader = effectiveActiveTab === 'product' && isProductHeaderCollapsed;
   const pageTitle = configurationMode
-    ? 'Configure Purchase Requisition Layout'
+    ? 'Configure Job Card Layout'
     : editingDocument
-      ? 'Edit Purchase Requisition'
-      : 'New Purchase Requisition';
+      ? 'Edit Job Card'
+      : 'New Job Card';
   const renderDocumentActions = () => (
     <div className="transaction-create-action-cluster">
       <button type="button" onClick={handleDiscardRequest} className="btn btn--outline">
         Discard
       </button>
-      <button type="button" onClick={handleSave} className="btn btn--primary" data-tour="pr-save-button">
+      <button type="button" onClick={handleSave} className="btn btn--primary" data-tour="job-card-save-button">
         Save
       </button>
     </div>
@@ -2568,7 +2568,7 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
         type="button"
         onClick={handleSave}
         className="btn btn--primary create-pr-mobile-save-bar__button"
-        data-tour="pr-save-button"
+        data-tour="job-card-save-button"
       >
         Save
       </button>
@@ -2616,9 +2616,9 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
         type="button"
         className="btn btn--ghost btn--sm"
         onClick={() => {
-          setLayoutConfig(resetFormLayoutConfig(PURCHASE_REQUISITION_LAYOUT));
+          setLayoutConfig(resetFormLayoutConfig(JOB_CARD_LAYOUT));
           setActiveTab('general');
-          setFormMessage('Draft layout reset to the default Purchase Requisition layout.');
+          setFormMessage('Draft layout reset to the default Job Card layout.');
         }}
       >
         <RotateCcw size={14} aria-hidden="true" />
@@ -2639,7 +2639,7 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
       className={cn('create-pr-tabs', tabsClassName)}
       style={tabsClassName === 'create-pr-tabs--bottom-fixed' ? bottomTabsStyle : undefined}
     >
-      <div className="create-pr-tabs__list" role="tablist" aria-label="Purchase requisition sections">
+      <div className="create-pr-tabs__list" role="tablist" aria-label="Job Card sections">
         {visibleLayoutTabs.map((tab, tabIndex) => (
           <button
             key={tab.id}
@@ -2688,9 +2688,9 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
 
   return (
     <AppShell
-      activeLeaf="purchase-requisition"
+      activeLeaf="job-card"
       bottomBar={isQuantitySummaryBarVisible ? renderQuantitySummaryBar() : isMobileSaveBarVisible ? renderMobileSaveBar() : undefined}
-      onPurchaseRequisitionClick={onNavigateToList}
+      onJobCardClick={onNavigateToList}
       onPurchaseOrderClick={onNavigateToPurchaseOrderList}
       contentRef={contentScrollRef}
       onContentScroll={handleContentScroll}
@@ -2718,7 +2718,7 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
             },
           ]}
           onBack={onBack}
-          backLabel="Back to purchase requisition list"
+          backLabel="Back to Job Card list"
           primaryActions={configurationMode ? configuratorHeaderActions : !isCompactCreateActionsViewport ? renderDocumentActions() : undefined}
           hideMeta={configurationMode}
           hideStatus={configurationMode}
@@ -2892,9 +2892,9 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
       <SuccessSummaryDialog
         isOpen={isSaveSuccessDialogOpen}
         title="Saved successfully!"
-        documentLabel="Purchase requisition No"
+        documentLabel="Job Card No"
         documentNumber={requisition.number}
-        sectionTitle="Requisition Summary"
+        sectionTitle="Job Card Summary"
         items={[
           { label: 'Total line count', value: formatCount(lineItems.length) },
           { label: 'Valid till date', value: requisition.validTillDate ? formatDate(requisition.validTillDate) : '-' },
@@ -2912,8 +2912,8 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
       />
       <AmountBreakdownDrawer
         isOpen={isQuantityDrawerOpen}
-        title="Requisition quantity details"
-        subtitle="Review the quantity summary for this purchase requisition."
+        title="Job Card quantity details"
+        subtitle="Review the quantity summary for this Job Card."
         mainSectionTitle="Quantity breakdown"
         items={quantityBreakdownItems}
         totalLabel="Total requested qty"
@@ -2923,7 +2923,7 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
       />
       <GuidedTour
         isOpen={isCreateTourActive}
-        steps={purchaseRequisitionCreateTourSteps}
+        steps={jobCardCreateTourSteps}
         currentStepIndex={createTourStepIndex}
         onNext={handleCreateTourNext}
         onBack={handleCreateTourBack}
@@ -2932,9 +2932,9 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
       <FormLayoutPreviewOverlay
         isOpen={isLayoutPreviewOpen}
         config={layoutConfig}
-        formName="Purchase Requisition Create"
-        fieldLabels={purchaseRequisitionFieldLabels}
-        fieldValues={purchaseRequisitionPreviewValues}
+        formName="Job Card Create"
+        fieldLabels={jobCardFieldLabels}
+        fieldValues={jobCardPreviewValues}
         onClose={() => setIsLayoutPreviewOpen(false)}
         onPublish={handlePublishLayout}
       />
@@ -2943,4 +2943,4 @@ const CreatePurchaseRequisition: React.FC<CreatePurchaseRequisitionProps> = ({
   );
 };
 
-export default CreatePurchaseRequisition;
+export default CreateJobCard;

@@ -1,6 +1,6 @@
 export type CatalogueViewModeId = 'list' | 'grid' | 'split';
 
-export type CatalogueDocumentType = 'purchase-requisition';
+export type CatalogueDocumentType = 'purchase-requisition' | 'job-card';
 
 export interface CatalogueViewModeDefinition {
   id: CatalogueViewModeId;
@@ -46,6 +46,17 @@ export const catalogueViewModeRegistry: Record<CatalogueViewModeId, CatalogueVie
 const catalogueDocumentViewConfigs: Record<CatalogueDocumentType, CatalogueDocumentViewConfig> = {
   'purchase-requisition': {
     documentType: 'purchase-requisition',
+    enabledViews: ['list', 'grid', 'split'],
+    defaultView: 'list',
+    viewSettings: {
+      split: {
+        listDensity: 'compact',
+        previewMode: 'detail',
+      },
+    },
+  },
+  'job-card': {
+    documentType: 'job-card',
     enabledViews: ['list', 'grid', 'split'],
     defaultView: 'list',
     viewSettings: {

@@ -121,6 +121,7 @@ export const seededTranslations: TranslationDictionary = {
 
   'module.approvalStudio': { en: 'Approval Studio', hi: 'अप्रूवल स्टूडियो', ar: 'استوديو الموافقات', ta: 'அங்கீகார ஸ்டூடியோ', mr: 'अप्रूवल स्टुडिओ' },
   'module.procurement': { en: 'Procurement', hi: 'प्रोक्योरमेंट', ar: 'المشتريات', ta: 'கொள்முதல்', mr: 'खरेदी' },
+  'module.services': { en: 'Services', hi: 'Services', ar: 'Services', ta: 'Services', mr: 'Services' },
   'module.sales': { en: 'Sales', hi: 'सेल्स', ar: 'المبيعات', ta: 'விற்பனை', mr: 'विक्री' },
   'module.workspace': { en: 'Workspace', hi: 'वर्कस्पेस', ar: 'مساحة العمل', ta: 'வேலைப்பகுதி', mr: 'वर्कस्पेस' },
 
@@ -130,6 +131,7 @@ export const seededTranslations: TranslationDictionary = {
   'nav.inventory': { en: 'Inventory', hi: 'इन्वेंट्री', ar: 'المخزون', ta: 'சரக்கு', mr: 'साठा' },
   'nav.services': { en: 'Services', hi: 'सेवाएँ', ar: 'الخدمات', ta: 'சேவைகள்', mr: 'सेवा' },
   'nav.pages': { en: 'Pages', hi: 'पेज', ar: 'الصفحات', ta: 'பக்கங்கள்', mr: 'पाने' },
+  'nav.jobCard': { en: 'Job Card', hi: 'Job Card', ar: 'Job Card', ta: 'Job Card', mr: 'Job Card' },
   'nav.purchaseRequisition': { en: 'Purchase Requisition', hi: 'परचेज़ रिक्विज़िशन', ar: 'طلب شراء', ta: 'கொள்முதல் கோரிக்கை', mr: 'खरेदी विनंती' },
   'nav.purchaseOrder': { en: 'Purchase Order', hi: 'परचेज़ ऑर्डर', ar: 'أمر شراء', ta: 'கொள்முதல் ஆர்டர்', mr: 'खरेदी आदेश' },
   'nav.purchaseReceipt': { en: 'Purchase Receipt', hi: 'परचेज़ रसीद', ar: 'إيصال شراء', ta: 'கொள்முதல் ரசீது', mr: 'खरेदी पावती' },
@@ -219,6 +221,7 @@ export const navigationSectionTranslationKeys: Record<string, string> = {
 export const navigationItemTranslationKeys: Record<string, string> = {
   'approval-studio': 'nav.approvalStudio',
   'purchase-requisition': 'nav.purchaseRequisition',
+  'job-card': 'nav.jobCard',
   'purchase-order': 'nav.purchaseOrder',
   'purchase-receipt': 'nav.purchaseReceipt',
   'purchase-invoice': 'nav.purchaseInvoice',

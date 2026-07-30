@@ -1,5 +1,6 @@
 export type PrintEntityType =
   | 'purchase-requisition'
+  | 'job-card'
   | 'purchase-order'
   | 'purchase-receipt'
   | 'purchase-invoice'

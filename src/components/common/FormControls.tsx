@@ -85,12 +85,22 @@ interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   emptyLabel?: string;
 }
 
-function getStringSelectValue(value: SelectProps['value'] | SelectProps['defaultValue']): string {
-  if (Array.isArray(value)) {
-    return value[0] ? String(value[0]) : '';
+function getScalarSelectValue(value: unknown): string {
+  if (value === undefined || value === null) {
+    return '';
   }
 
-  return value === undefined || value === null ? '' : String(value);
+  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
+    ? String(value)
+    : '';
+}
+
+function getStringSelectValue(value: SelectProps['value'] | SelectProps['defaultValue']): string {
+  if (Array.isArray(value)) {
+    return getScalarSelectValue(value[0]);
+  }
+
+  return getScalarSelectValue(value);
 }
 
 export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
@@ -145,7 +155,11 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
           .map((option) => (option.value === '' && emptyLabel ? { ...option, label: emptyLabel } : option)),
       [emptyLabel, options]
     );
-    const selectedValue = getStringSelectValue(value ?? defaultValue);
+    const normalizedValue = value === undefined ? undefined : getStringSelectValue(value);
+    const normalizedDefaultValue = value === undefined && defaultValue !== undefined
+      ? getStringSelectValue(defaultValue)
+      : undefined;
+    const selectedValue = normalizedValue ?? normalizedDefaultValue ?? '';
     const shouldUseMobileLookup = Boolean(mobileLookup && isMobileLookupViewport && !disabled && lookupOptions.length > 0);
     const shouldShowSearch = searchable ?? lookupOptions.length > 7;
     const normalizedSearchTerm = searchTerm.trim().toLowerCase();
@@ -253,8 +267,8 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
         <AppSelectPrimitive
           ref={setCombinedRef}
           {...props}
-          value={value}
-          defaultValue={defaultValue}
+          value={normalizedValue}
+          defaultValue={normalizedDefaultValue}
           disabled={disabled}
           hasError={Boolean(error)}
           aria-haspopup={shouldUseMobileLookup ? 'dialog' : undefined}

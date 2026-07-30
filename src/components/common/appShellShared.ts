@@ -23,6 +23,7 @@ export type ActiveLeaf =
   | 'purchase-order'
   | 'purchase-receipt'
   | 'purchase-invoice'
+  | 'job-card'
   | 'sale-order'
   | 'sale-order-v2'
   | 'sale-allocation-requisition'
@@ -36,6 +37,7 @@ export interface SidebarProps {
   onPurchaseOrderClick?: () => void;
   onPurchaseReceiptClick?: () => void;
   onPurchaseInvoiceClick?: () => void;
+  onJobCardClick?: () => void;
   onSaleOrderClick?: () => void;
   onSaleOrderV2Click?: () => void;
   onSaleAllocationRequisitionClick?: () => void;

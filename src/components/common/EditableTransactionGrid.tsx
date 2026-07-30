@@ -1,19 +1,21 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Drawer from '@mui/material/Drawer';
 import Tooltip from '@mui/material/Tooltip';
 import useMediaQuery from '@mui/material/useMediaQuery';
-import { ChevronDown, CircleHelp, Copy, Plus, Trash2, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, CircleHelp, Copy, Plus, Trash2, X } from 'lucide-react';
 import { cn } from '../../utils/classNames';
 import { handleGridLastCellTab } from './gridKeyboard';
 import type { GridKeyboardEventLike } from './gridKeyboard';
 import { Input, Select, Textarea } from './FormControls';
 import type {
+  EditableGridAddRowResult,
   EditableGridBulkActionContext,
   EditableGridCellElement,
   EditableGridColumn,
   EditableGridColumnContext,
   EditableGridFooterAggregates,
   EditableGridLayoutColumn,
+  EditableGridMobileFieldGroup,
   EditableGridMobileSummary,
   EditableGridViewPreset,
   EditableTransactionGridProps,
@@ -21,6 +23,135 @@ import type {
 
 const selectionColumnId = '__editable-grid-selection__';
 
+type EditableGridValidationTone = 'error' | 'warning';
+
+interface EditableGridRowValidationMessage {
+  columnId: string;
+  columnLabel: string;
+  message: string;
+  tone: EditableGridValidationTone;
+}
+
+interface EditableGridMobileIssueSummaryItem<TRow> extends EditableGridRowValidationMessage {
+  key: string;
+  rowCount: number;
+  rowIds: string[];
+  rows: TRow[];
+  firstRow: TRow;
+  firstRowIndex: number;
+}
+
+export interface EditableGridMobileLayoutResolutionInput {
+  forceMobileLayout?: boolean;
+  breakpoint?: 'phone' | 'tablet-portrait';
+  isPhoneViewport: boolean;
+  isTabletPortraitViewport: boolean;
+}
+
+export interface ResolvedEditableGridMobileFieldGroup<TRow> {
+  id: string;
+  label: string;
+  columns: EditableGridColumn<TRow>[];
+}
+
+export interface EditableGridMobileEditorOpenGroupResolutionInput {
+  groupIds: string[];
+  isNewRow: boolean;
+  firstErrorGroupId?: string;
+  newRowOpenGroupIds?: string[];
+  existingRowOpenGroupIds?: string[];
+  fallbackGroupId?: string;
+}
+
+
+export function resolveEditableGridMobileLayout({
+  forceMobileLayout,
+  breakpoint = 'phone',
+  isPhoneViewport,
+  isTabletPortraitViewport,
+}: EditableGridMobileLayoutResolutionInput): boolean {
+  if (forceMobileLayout !== undefined) {
+    return forceMobileLayout;
+  }
+
+  return breakpoint === 'tablet-portrait'
+    ? isPhoneViewport || isTabletPortraitViewport
+    : isPhoneViewport;
+}
+
+export function resolveEditableGridMobileFieldGroups<TRow>(
+  columns: EditableGridColumn<TRow>[],
+  fieldGroups?: EditableGridMobileFieldGroup<TRow>[]
+): ResolvedEditableGridMobileFieldGroup<TRow>[] {
+  if (!fieldGroups?.length) {
+    return [];
+  }
+
+  const columnById = new Map(columns.map((column) => [column.id, column]));
+  const usedColumnIds = new Set<string>();
+  const resolvedGroups = fieldGroups
+    .map((group) => {
+      const groupColumns = group.columnIds
+        .map((columnId) => columnById.get(String(columnId)))
+        .filter((column): column is EditableGridColumn<TRow> => column !== undefined && !usedColumnIds.has(column.id));
+
+      groupColumns.forEach((column) => usedColumnIds.add(column.id));
+
+      return { id: group.id, label: group.label, columns: groupColumns };
+    })
+    .filter((group) => group.columns.length > 0);
+
+  const ungroupedColumns = columns.filter((column) => !usedColumnIds.has(column.id));
+  if (ungroupedColumns.length > 0) {
+    resolvedGroups.push({ id: 'other-details', label: 'Other details', columns: ungroupedColumns });
+  }
+
+  return resolvedGroups;
+}
+
+export function formatEditableGridMobileFieldCount(count: number): string {
+  return `${count} ${count === 1 ? 'field' : 'fields'}`;
+}
+
+export function resolveEditableGridMobileEditorOpenGroupIds({
+  groupIds,
+  isNewRow,
+  firstErrorGroupId,
+  newRowOpenGroupIds,
+  existingRowOpenGroupIds,
+  fallbackGroupId,
+}: EditableGridMobileEditorOpenGroupResolutionInput): string[] {
+  const validGroupIds = new Set(groupIds);
+  if (firstErrorGroupId && validGroupIds.has(firstErrorGroupId)) {
+    return [firstErrorGroupId];
+  }
+
+  const configuredGroupIds = isNewRow ? newRowOpenGroupIds : existingRowOpenGroupIds;
+  const resolvedGroupIds = Array.from(new Set(configuredGroupIds ?? [])).filter((groupId) => validGroupIds.has(groupId));
+  if (resolvedGroupIds.length > 0) {
+    return resolvedGroupIds.slice(0, 1);
+  }
+
+  if (fallbackGroupId && validGroupIds.has(fallbackGroupId)) {
+    return [fallbackGroupId];
+  }
+
+  return groupIds.slice(0, 1);
+}
+
+export function resolveEditableGridAddedRowId(result: EditableGridAddRowResult): string | undefined {
+  if (typeof result === 'string') {
+    const rowId = result.trim();
+    return rowId || undefined;
+  }
+
+  if (result && typeof result === 'object') {
+    const rowId = result.rowId;
+    return typeof rowId === 'string' && rowId.trim() ? rowId : undefined;
+  }
+
+  return undefined;
+}
 const defaultColumnWidthByKind: Record<EditableGridColumn<unknown>['kind'], number> = {
   actions: 78,
   text: 168,
@@ -55,7 +186,11 @@ function getStringValue(value: unknown): string {
     return '';
   }
 
-  return String(value);
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+
+  return '';
 }
 
 function getColumnValue<TRow>(
@@ -112,7 +247,7 @@ export function getEditableGridInputColumns<TRow>(
 export function getNextEditableGridColumn<TRow>(
   columns: EditableGridColumn<TRow>[],
   currentColumnId: string,
-  isColumnEnabled: (column: EditableGridColumn<TRow>) => boolean = () => true
+  isColumnEnabled: (column: EditableGridColumn<TRow>) => boolean = (column) => column.disabled !== true && column.readOnly !== true
 ): EditableGridColumn<TRow> | undefined {
   const editableColumns = getEditableGridInputColumns(columns, isColumnEnabled);
   const currentIndex = editableColumns.findIndex((column) => column.id === currentColumnId);
@@ -122,7 +257,7 @@ export function getNextEditableGridColumn<TRow>(
 
 export function getLastEditableGridColumn<TRow>(
   columns: EditableGridColumn<TRow>[],
-  isColumnEnabled: (column: EditableGridColumn<TRow>) => boolean = () => true
+  isColumnEnabled: (column: EditableGridColumn<TRow>) => boolean = (column) => column.disabled !== true && column.readOnly !== true
 ): EditableGridColumn<TRow> | undefined {
   const editableColumns = getEditableGridInputColumns(columns, isColumnEnabled);
 
@@ -147,6 +282,31 @@ function getRowColumnError<TRow>(
   columnId: string
 ): string | undefined {
   return errors?.[rowId]?.[columnId];
+}
+
+function getRowColumnWarning<TRow>(
+  warnings: EditableTransactionGridProps<TRow>['warnings'],
+  rowId: string,
+  columnId: string
+): string | undefined {
+  return warnings?.[rowId]?.[columnId];
+}
+
+function getCellValidationDescriptionId(
+  gridId: string,
+  rowId: string,
+  columnId: string,
+  tone: EditableGridValidationTone = 'error'
+): string {
+  return `${gridId}-${rowId}-${columnId}-${tone}`;
+}
+
+function getValidationColumnLabel<TRow>(column: EditableGridColumn<TRow>): string {
+  return column.label.replace(/[.:]+$/, '');
+}
+
+function formatValidationMessage(message: EditableGridRowValidationMessage): string {
+  return `${message.columnLabel} - ${message.message}`;
 }
 
 export function resolveEditableGridColumns<TRow>(
@@ -261,8 +421,12 @@ const EditableTransactionGrid = <TRow,>({
   columns,
   rowId,
   errors,
+  warnings,
+  validationDisplay = 'cell-inline',
+  maxRowValidationMessages = 2,
   onRowsChange,
   onAddRow,
+  onMobileEditorClose,
   onDuplicateRow,
   onDeleteRow,
   isRowComplete,
@@ -279,11 +443,25 @@ const EditableTransactionGrid = <TRow,>({
   ariaLabel,
   mobileEditorTitle,
   getMobileRowSummary,
+  mobileLayout,
   forceMobileLayout,
 }: EditableTransactionGridProps<TRow>) => {
-  const isSmallViewport = useMediaQuery('(max-width: 640px)');
-  const useMobileLayout = forceMobileLayout ?? isSmallViewport;
+  const isPhoneViewport = useMediaQuery('(max-width: 640px)');
+  const isTabletPortraitViewport = useMediaQuery('(max-width: 1024px) and (orientation: portrait)');
+  const useMobileLayout = resolveEditableGridMobileLayout({
+    forceMobileLayout,
+    breakpoint: mobileLayout?.breakpoint,
+    isPhoneViewport,
+    isTabletPortraitViewport,
+  });
+  const mobilePresentation = mobileLayout?.presentation ?? 'cards';
+  const shouldUseCompactInlineMobile = useMobileLayout && mobilePresentation === 'compact-inline';
+  const shouldUseMobileEditorAccordions = useMobileLayout && mobileLayout?.editorPresentation === 'accordions';
   const [mobileEditingRowId, setMobileEditingRowId] = useState<string | null>(null);
+  const [mobileAddedRowId, setMobileAddedRowId] = useState<string | null>(null);
+  const [mobileExpandedRowId, setMobileExpandedRowId] = useState<string | null>(null);
+  const [mobileFocusColumnId, setMobileFocusColumnId] = useState<string | null>(null);
+  const [mobileEditorOpenGroupIds, setMobileEditorOpenGroupIds] = useState<string[]>([]);
   const [isMobileSelectionMode, setIsMobileSelectionMode] = useState(false);
   const cellControlRefs = useRef(new Map<string, EditableGridCellElement>());
   const lastSelectionAnchorIndexRef = useRef<number | null>(null);
@@ -304,7 +482,7 @@ const EditableTransactionGrid = <TRow,>({
     [activeViewId, defaultViewId, uncontrolledActiveViewId, usableViewPresets]
   );
   const shouldUseViewPresets = usableViewPresets.length >= 2;
-  const shouldShowViewTabs = shouldUseViewPresets;
+  const shouldShowViewTabs = shouldUseViewPresets && !shouldUseCompactInlineMobile;
   const layoutVisibleColumns = useMemo(
     () => resolveEditableGridColumns(columns, layoutColumns),
     [columns, layoutColumns]
@@ -319,6 +497,54 @@ const EditableTransactionGrid = <TRow,>({
   const editableColumns = useMemo(
     () => visibleColumns.filter((column) => column.kind !== 'actions'),
     [visibleColumns]
+  );
+  const layoutColumnById = useMemo(
+    () => new Map(layoutVisibleColumns.map((column) => [column.id, column])),
+    [layoutVisibleColumns]
+  );
+  const mobileValidationColumns = useMemo(
+    () => layoutVisibleColumns.filter((column) => column.kind !== 'actions'),
+    [layoutVisibleColumns]
+  );
+  const configuredMobileInlineColumnIds = useMemo(
+    () => (mobileLayout?.inlineFieldIds ?? []).map((columnId) => String(columnId)),
+    [mobileLayout?.inlineFieldIds]
+  );
+  const configuredMobileInlineColumnIdSet = useMemo(
+    () => new Set(configuredMobileInlineColumnIds),
+    [configuredMobileInlineColumnIds]
+  );
+  const baseMobileInlineColumns = useMemo(() => {
+    const configuredColumns = configuredMobileInlineColumnIds
+      .map((columnId) => layoutColumnById.get(columnId))
+      .filter((column): column is EditableGridColumn<TRow> => column !== undefined && isEditableGridInputColumn(column));
+
+    return configuredColumns.length > 0
+      ? configuredColumns
+      : editableColumns.filter(isEditableGridInputColumn);
+  }, [configuredMobileInlineColumnIds, editableColumns, layoutColumnById]);
+  const mobileProgressColumns = useMemo(() => {
+    const progressGroup = mobileLayout?.fieldGroups?.find((group) => group.id === 'progress');
+    const candidateColumns = progressGroup
+      ? progressGroup.columnIds
+        .map((columnId) => layoutColumnById.get(String(columnId)))
+        .filter((column): column is EditableGridColumn<TRow> => column !== undefined)
+      : layoutVisibleColumns;
+
+    return candidateColumns.filter(
+      (column) =>
+        (column.kind === 'computed' || column.kind === 'status') &&
+        !configuredMobileInlineColumnIdSet.has(column.id)
+    );
+  }, [configuredMobileInlineColumnIdSet, layoutColumnById, layoutVisibleColumns, mobileLayout?.fieldGroups]);
+  const mobileEditorColumns = useMemo(
+    () => (shouldUseMobileEditorAccordions ? layoutVisibleColumns : editableColumns)
+      .filter((column) => column.kind !== 'actions'),
+    [editableColumns, layoutVisibleColumns, shouldUseMobileEditorAccordions]
+  );
+  const mobileEditorGroups = useMemo(
+    () => resolveEditableGridMobileFieldGroups(mobileEditorColumns, mobileLayout?.fieldGroups),
+    [mobileEditorColumns, mobileLayout?.fieldGroups]
   );
   const selectionColumn = useMemo<EditableGridColumn<TRow> | null>(() => {
     if (!selection) {
@@ -348,9 +574,12 @@ const EditableTransactionGrid = <TRow,>({
   );
   const mobileEditingRow = rows.find((row) => rowId(row) === mobileEditingRowId);
   const mobileEditingRowIndex = mobileEditingRow ? rows.indexOf(mobileEditingRow) : -1;
+  const isMobileEditingAddedRow = Boolean(mobileEditingRowId && mobileAddedRowId === mobileEditingRowId);
   const resolvedLineCountLabel = lineCountLabel ?? String(rows.length);
   const resolvedLineCountAriaLabel = `${rows.length} ${rows.length === 1 ? 'line' : 'lines'}`;
   const hasHeaderSummary = Boolean(summaryItems?.length || attentionMessage || description);
+  const shouldUseRowValidationSummary = validationDisplay === 'row-summary';
+  const resolvedMaxRowValidationMessages = Math.max(1, maxRowValidationMessages);
 
   const controlledSelectedRowIdSet = useMemo(
     () => new Set(selection?.selectedRowIds ?? []),
@@ -375,10 +604,42 @@ const EditableTransactionGrid = <TRow,>({
   const selectedRowIdsInOrder = selectedRows.map((row) => rowId(row));
   const selectedRowIdSet = new Set(selectedRowIdsInOrder);
   const selectedCount = selectedRows.length;
+  const isMobileBulkSelectionActive = useMobileLayout && (isMobileSelectionMode || selectedCount > 0);
   const selectedSelectableCount = selectedRowIdsInOrder.filter((id) => selectableRowIdSet.has(id)).length;
   const areAllSelectableRowsSelected = selectableRowIds.length > 0 && selectedSelectableCount === selectableRowIds.length;
   const isSomeSelectableRowSelected = selectedSelectableCount > 0 && !areAllSelectableRowsSelected;
 
+  useEffect(() => {
+    if (!mobileExpandedRowId || !mobileFocusColumnId) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      const element = cellControlRefs.current.get(`${mobileExpandedRowId}:${mobileFocusColumnId}`);
+      if (element && !element.disabled) {
+        element.focus();
+        element.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      }
+      setMobileFocusColumnId(null);
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [mobileExpandedRowId, mobileFocusColumnId, rows]);
+
+  useEffect(() => {
+    if (!mobileEditingRow || !shouldUseMobileEditorAccordions || mobileEditorGroups.length === 0) {
+      setMobileEditorOpenGroupIds([]);
+      return;
+    }
+
+    setMobileEditorOpenGroupIds(getInitialMobileEditorOpenGroupIds(mobileEditingRow, mobileEditingRowIndex));
+  }, [mobileEditingRowId, shouldUseMobileEditorAccordions, mobileEditorGroups]);
+
+  const toggleMobileEditorGroup = (groupId: string) => {
+    setMobileEditorOpenGroupIds((currentGroupIds) => (
+      currentGroupIds.includes(groupId) ? [] : [groupId]
+    ));
+  };
   const changeSelection = (nextIds: string[], reason: 'row' | 'range' | 'all' | 'clear' | 'external') => {
     if (!selection || readOnly) {
       return;
@@ -482,19 +743,43 @@ const EditableTransactionGrid = <TRow,>({
     onRowsChange(rows.map((row) => (rowId(row) === targetRowId ? updater(row) : row)));
   };
 
+  const openMobileEditorForAddedRow = (addResult: EditableGridAddRowResult) => {
+    const addedRowId = resolveEditableGridAddedRowId(addResult);
+    if (!useMobileLayout || !addedRowId) {
+      return;
+    }
+
+    setIsMobileSelectionMode(false);
+    setMobileExpandedRowId(null);
+    setMobileAddedRowId(addedRowId);
+    setMobileEditingRowId(addedRowId);
+  };
+
   const handleAddRow = () => {
     if (readOnly) {
       return;
     }
 
     if (onAddRow) {
-      onAddRow();
+      openMobileEditorForAddedRow(onAddRow({ source: useMobileLayout ? 'mobile' : 'desktop' }));
       return;
     }
 
     if (createRow && onRowsChange) {
-      onRowsChange([...rows, createRow(rows.length + 1)]);
+      const nextRow = createRow(rows.length + 1);
+      onRowsChange([...rows, nextRow]);
+      openMobileEditorForAddedRow(rowId(nextRow));
     }
+  };
+
+  const closeMobileEditor = () => {
+    if (mobileEditingRow) {
+      onMobileEditorClose?.(rowId(mobileEditingRow), mobileEditingRow, mobileEditingRowIndex);
+    }
+
+    setMobileEditingRowId(null);
+    setMobileAddedRowId(null);
+    setMobileEditorOpenGroupIds([]);
   };
 
   const renderBulkToolbar = (variant: 'desktop' | 'mobile' = 'desktop') => {
@@ -586,6 +871,41 @@ const EditableTransactionGrid = <TRow,>({
             </button>
           );
         })}
+      </div>
+    );
+  };
+
+  const shouldUseStickyMobileAddAction = Boolean(mobileLayout?.stickyAddAction);
+  const shouldHideHeaderAddAction = useMobileLayout && shouldUseStickyMobileAddAction;
+  const shouldShowStickyMobileAddAction =
+    shouldHideHeaderAddAction && !readOnly && !isMobileBulkSelectionActive && !mobileEditingRow;
+  const mobileStickyActionOffsetStyle = mobileLayout?.stickyActionOffset
+    ? ({ '--editable-transaction-grid-mobile-sticky-offset': mobileLayout.stickyActionOffset } as React.CSSProperties)
+    : undefined;
+
+  const renderStickyMobileAddAction = (placement: 'sticky' | 'compact-footer' = 'sticky') => {
+    if (!shouldShowStickyMobileAddAction) {
+      return null;
+    }
+
+    const isCompactFooter = placement === 'compact-footer';
+
+    return (
+      <div
+        className={cn(
+          'editable-transaction-grid__mobile-sticky-action',
+          isCompactFooter && 'editable-transaction-grid__compact-mobile-add-action'
+        )}
+        style={isCompactFooter ? undefined : mobileStickyActionOffsetStyle}
+      >
+        <button
+          type="button"
+          onClick={handleAddRow}
+          className="btn btn--outline btn--icon-left editable-transaction-grid__mobile-sticky-add-button"
+        >
+          <Plus size={14} aria-hidden="true" />
+          {primaryActionLabel}
+        </button>
       </div>
     );
   };
@@ -729,7 +1049,8 @@ const EditableTransactionGrid = <TRow,>({
     row: TRow,
     rowIndex: number,
     column: EditableGridColumn<TRow>,
-    error?: string
+    error?: string,
+    warning?: string
   ): EditableGridColumnContext<TRow> => {
     const id = rowId(row);
     const baseContext = {
@@ -739,6 +1060,7 @@ const EditableTransactionGrid = <TRow,>({
       rowIndex,
       column,
       error,
+      warning,
       readOnly: false,
       disabled: false,
     };
@@ -773,6 +1095,63 @@ const EditableTransactionGrid = <TRow,>({
     const context = buildCellContext(row, rowIndex, column);
     return column.validate(row, getColumnValue(column, row), context);
   };
+
+  const getResolvedColumnWarning = (
+    row: TRow,
+    _rowIndex: number,
+    column: EditableGridColumn<TRow>
+  ): string | undefined => getRowColumnWarning(warnings, rowId(row), column.id);
+
+  const getRowValidationMessages = (
+    row: TRow,
+    rowIndex: number,
+    sourceColumns: EditableGridColumn<TRow>[] = visibleColumns
+  ): EditableGridRowValidationMessage[] => {
+    const messages: EditableGridRowValidationMessage[] = [];
+
+    sourceColumns.forEach((column) => {
+      if (column.kind === 'actions') {
+        return;
+      }
+
+      const columnLabel = getValidationColumnLabel(column);
+      const error = getResolvedColumnError(row, rowIndex, column);
+      if (error) {
+        messages.push({ columnId: column.id, columnLabel, message: error, tone: 'error' });
+        return;
+      }
+
+      const warning = getResolvedColumnWarning(row, rowIndex, column);
+      if (warning) {
+        messages.push({ columnId: column.id, columnLabel, message: warning, tone: 'warning' });
+      }
+    });
+
+    return messages;
+  };
+
+  const getFirstMobileEditorErrorGroupId = (row: TRow, rowIndex: number): string | undefined =>
+    mobileEditorGroups.find((group) =>
+      group.columns.some((column) => Boolean(getResolvedColumnError(row, rowIndex, column)))
+    )?.id;
+
+  const getFirstMobileEditorIncompleteRequiredGroupId = (row: TRow, rowIndex: number): string | undefined =>
+    mobileEditorGroups.find((group) =>
+      group.columns.some((column) => {
+        const context = buildCellContext(row, rowIndex, column);
+        return resolveFlag(column.required, row, context) && !getFormattedValue(column, row, context).trim();
+      })
+    )?.id;
+
+  const getInitialMobileEditorOpenGroupIds = (row: TRow, rowIndex: number) =>
+    resolveEditableGridMobileEditorOpenGroupIds({
+      groupIds: mobileEditorGroups.map((group) => group.id),
+      isNewRow: Boolean(mobileAddedRowId && mobileAddedRowId === rowId(row)),
+      firstErrorGroupId: getFirstMobileEditorErrorGroupId(row, rowIndex),
+      newRowOpenGroupIds: mobileLayout?.editorAccordionDefaults?.newRowOpenGroupIds,
+      existingRowOpenGroupIds: mobileLayout?.editorAccordionDefaults?.existingRowOpenGroupIds,
+      fallbackGroupId: mobileEditorGroups[0]?.id,
+    });
 
   const getLastEditableColumn = (row: TRow, rowIndex: number) =>
     getLastEditableGridColumn(visibleColumns, (candidate) => {
@@ -851,12 +1230,18 @@ const EditableTransactionGrid = <TRow,>({
   ) => {
     const id = rowId(row);
     const error = getResolvedColumnError(row, rowIndex, column);
-    const context = buildCellContext(row, rowIndex, column, error);
+    const warning = error ? undefined : getResolvedColumnWarning(row, rowIndex, column);
+    const context = buildCellContext(row, rowIndex, column, error, warning);
     const value = getFormattedValue(column, row, context);
-    const errorId = error ? `${gridId}-${id}-${column.id}-error` : undefined;
+    const validationDescriptionId = error
+      ? getCellValidationDescriptionId(gridId, id, column.id, 'error')
+      : warning
+        ? getCellValidationDescriptionId(gridId, id, column.id, 'warning')
+        : undefined;
     const className = cn(
       'editable-transaction-grid__control',
       column.kind === 'number' && 'editable-transaction-grid__control--number',
+      warning && 'editable-transaction-grid__control--warning',
       getColumnAlignmentClass(column, 'control'),
       (context.readOnly || column.kind === 'computed' || column.kind === 'status') && 'editable-transaction-grid__control--readonly',
       variant === 'mobile' && 'editable-transaction-grid__control--mobile',
@@ -917,13 +1302,67 @@ const EditableTransactionGrid = <TRow,>({
           readOnly
           disabled
           className={className}
-          aria-describedby={errorId}
+          aria-describedby={validationDescriptionId}
         />
       );
     }
 
     if (column.kind === 'select' || column.kind === 'lookup') {
       const options = typeof column.options === 'function' ? column.options(row, context) : column.options;
+
+      if (variant === 'mobile' && column.kind === 'select' && column.mobileControlPresentation === 'segmented') {
+        const choiceOptions = (options ?? []).filter((option) => option.value !== '');
+        const selectedChoiceIndex = choiceOptions.findIndex((option) => option.value === value);
+        const fallbackRefIndex = selectedChoiceIndex >= 0 ? selectedChoiceIndex : 0;
+
+        return (
+          <div
+            role="radiogroup"
+            aria-label={column.label}
+            aria-invalid={Boolean(error) || undefined}
+            aria-describedby={validationDescriptionId}
+            className={cn(
+              'editable-transaction-grid__mobile-choice-control',
+              error && 'editable-transaction-grid__mobile-choice-control--error',
+              warning && 'editable-transaction-grid__mobile-choice-control--warning',
+              context.disabled && 'editable-transaction-grid__mobile-choice-control--disabled'
+            )}
+          >
+            {choiceOptions.map((option, optionIndex) => {
+              const selected = option.value === value;
+              const disabled = context.disabled || option.disabled;
+
+              return (
+                <button
+                  key={option.value}
+                  ref={optionIndex === fallbackRefIndex ? setControlRef : undefined}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  className={cn(
+                    'editable-transaction-grid__mobile-choice-option',
+                    selected && 'editable-transaction-grid__mobile-choice-option--selected'
+                  )}
+                  disabled={disabled}
+                  data-tour={optionIndex === fallbackRefIndex ? resolveDataTour(column, row, rowIndex) : undefined}
+                  onClick={() => {
+                    if (disabled) {
+                      return;
+                    }
+
+                    handleCellChange(column, row, option.value, context);
+                  }}
+                  onBlur={() => column.onBlur?.(row, context)}
+                  onKeyDownCapture={handleControlKeyDownCapture}
+                  onKeyDown={(event) => handleCellKeyDown(event, column, row, rowIndex, context)}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+        );
+      }
 
       return (
         <Select
@@ -935,13 +1374,13 @@ const EditableTransactionGrid = <TRow,>({
           lookupTitle={resolveText(column.lookupTitle, row, context)}
           searchPlaceholder={resolveText(column.searchPlaceholder, row, context)}
           searchable={column.searchable}
-          aria-describedby={errorId}
+          aria-describedby={validationDescriptionId}
           data-tour={resolveDataTour(column, row, rowIndex)}
           options={options}
           onChange={(event) => handleCellChange(column, row, event.target.value, context)}
           onBlur={() => column.onBlur?.(row, context)}
           onKeyDownCapture={handleControlKeyDownCapture}
-        onKeyDown={(event) => handleCellKeyDown(event, column, row, rowIndex, context)}
+          onKeyDown={(event) => handleCellKeyDown(event, column, row, rowIndex, context)}
           className={className}
         />
       );
@@ -957,7 +1396,7 @@ const EditableTransactionGrid = <TRow,>({
           placeholder={resolveText(column.placeholder, row, context)}
           readOnly={context.readOnly}
           disabled={context.disabled}
-          aria-describedby={errorId}
+          aria-describedby={validationDescriptionId}
           data-tour={resolveDataTour(column, row, rowIndex)}
           onChange={(event) => handleCellChange(column, row, event.target.value, context)}
           onBlur={() => column.onBlur?.(row, context)}
@@ -979,7 +1418,7 @@ const EditableTransactionGrid = <TRow,>({
         placeholder={resolveText(column.placeholder, row, context)}
         readOnly={context.readOnly}
         disabled={context.disabled}
-        aria-describedby={errorId}
+        aria-describedby={validationDescriptionId}
         data-tour={resolveDataTour(column, row, rowIndex)}
         onChange={(event) => handleCellChange(column, row, event.target.value, context)}
         onBlur={() => column.onBlur?.(row, context)}
@@ -1028,7 +1467,7 @@ const EditableTransactionGrid = <TRow,>({
       lines: rows,
       canAddLine: !readOnly,
       isLineComplete: isRowComplete,
-      onAddLine: onAddRow,
+      onAddLine: () => onAddRow({ source: 'desktop' }),
       onIncompleteLine: onIncompleteRow,
     });
   }, [isRowComplete, onAddRow, onIncompleteRow, readOnly, rows]);
@@ -1056,9 +1495,82 @@ const EditableTransactionGrid = <TRow,>({
     }
 
     return (
-      <p id={`${gridId}-${id}-${column.id}-error`} className="editable-transaction-grid__error">
+      <p id={getCellValidationDescriptionId(gridId, id, column.id, 'error')} className="editable-transaction-grid__error">
         {error}
       </p>
+    );
+  };
+
+  const renderWarning = (row: TRow, rowIndex: number, column: EditableGridColumn<TRow>) => {
+    const id = rowId(row);
+    const warning = getResolvedColumnWarning(row, rowIndex, column);
+    if (!warning || getResolvedColumnError(row, rowIndex, column)) {
+      return null;
+    }
+
+    return (
+      <p id={getCellValidationDescriptionId(gridId, id, column.id, 'warning')} className="editable-transaction-grid__error editable-transaction-grid__error--warning">
+        {warning}
+      </p>
+    );
+  };
+
+  const renderValidationDescriptionNodes = (
+    row: TRow,
+    messages: EditableGridRowValidationMessage[]
+  ) => {
+    const id = rowId(row);
+
+    return messages.map((message) => (
+      <span
+        key={`${message.columnId}-${message.tone}`}
+        id={getCellValidationDescriptionId(gridId, id, message.columnId, message.tone)}
+        className="sr-only"
+      >
+        {formatValidationMessage(message)}
+      </span>
+    ));
+  };
+
+  const renderRowValidationSummary = (
+    row: TRow,
+    messages: EditableGridRowValidationMessage[]
+  ) => {
+    if (messages.length === 0) {
+      return null;
+    }
+
+    const visibleMessages = messages.slice(0, resolvedMaxRowValidationMessages);
+    const hiddenCount = Math.max(0, messages.length - visibleMessages.length);
+    const tone = messages.some((message) => message.tone === 'error') ? 'error' : 'warning';
+
+    return (
+      <tr className="editable-transaction-grid__validation-row">
+        <td
+          colSpan={tableColumns.length}
+          className={cn(
+            'editable-transaction-grid__validation-cell',
+            tone === 'error'
+              ? 'editable-transaction-grid__validation-cell--error'
+              : 'editable-transaction-grid__validation-cell--warning'
+          )}
+        >
+          <div className="editable-transaction-grid__validation-content">
+            {visibleMessages.map((message) => (
+              <span key={`${message.columnId}-${message.tone}`} className="editable-transaction-grid__validation-message">
+                {formatValidationMessage(message)}
+              </span>
+            ))}
+            {hiddenCount > 0 && (
+              <span className="editable-transaction-grid__validation-message">+{hiddenCount} more</span>
+            )}
+            <span className="sr-only">
+              {messages.map(formatValidationMessage).join(' ')}
+            </span>
+            {renderValidationDescriptionNodes(row, messages)}
+          </div>
+        </td>
+      </tr>
     );
   };
 
@@ -1068,6 +1580,7 @@ const EditableTransactionGrid = <TRow,>({
     }
 
     const error = getResolvedColumnError(row, rowIndex, column);
+    const warning = error ? undefined : getResolvedColumnWarning(row, rowIndex, column);
     const isNumberColumn = column.kind === 'number';
     const pinState = column.pinned;
     const style =
@@ -1086,15 +1599,16 @@ const EditableTransactionGrid = <TRow,>({
           isNumberColumn && 'editable-transaction-grid__body-cell--number',
           getColumnAlignmentClass(column, 'body-cell'),
           error && 'editable-transaction-grid__body-cell--error',
+          warning && 'editable-transaction-grid__body-cell--warning',
           pinState === 'left' && 'editable-transaction-grid__cell--pinned-left',
           pinState === 'right' && 'editable-transaction-grid__cell--pinned-right'
         )}
         style={style}
       >
         {renderCellControl(column, row, rowIndex, 'table')}
-        {error && (
+        {!shouldUseRowValidationSummary && (error || warning) && (
           <div className="editable-transaction-grid__meta-row">
-            {renderError(row, rowIndex, column)}
+            {error ? renderError(row, rowIndex, column) : renderWarning(row, rowIndex, column)}
           </div>
         )}
       </td>
@@ -1103,7 +1617,9 @@ const EditableTransactionGrid = <TRow,>({
 
   const renderMobileSummary = (row: TRow, rowIndex: number): EditableGridMobileSummary => {
     const id = rowId(row);
-    const firstError = getFirstRowError(errors, id);
+    const firstValidationError = getRowValidationMessages(row, rowIndex, mobileValidationColumns)
+      .find((message) => message.tone === 'error')?.message;
+    const firstError = firstValidationError ?? getFirstRowError(errors, id);
     if (getMobileRowSummary) {
       return getMobileRowSummary(row, { rowId: id, rowIndex, firstError });
     }
@@ -1125,7 +1641,319 @@ const EditableTransactionGrid = <TRow,>({
     };
   };
 
-  const renderMobileLayout = () => (
+  const getMobileIssueSummaryItems = (): EditableGridMobileIssueSummaryItem<TRow>[] => {
+    const issueMap = new Map<string, EditableGridMobileIssueSummaryItem<TRow>>();
+
+    rows.forEach((row, rowIndex) => {
+      getRowValidationMessages(row, rowIndex, mobileValidationColumns).forEach((message) => {
+        const key = `${message.tone}:${message.columnId}:${message.message}`;
+        const existingIssue = issueMap.get(key);
+
+        if (existingIssue) {
+          existingIssue.rowCount += 1;
+          existingIssue.rowIds.push(rowId(row));
+          existingIssue.rows.push(row);
+          return;
+        }
+
+        issueMap.set(key, {
+          ...message,
+          key,
+          rowCount: 1,
+          rowIds: [rowId(row)],
+          rows: [row],
+          firstRow: row,
+          firstRowIndex: rowIndex,
+        });
+      });
+    });
+
+    return Array.from(issueMap.values());
+  };
+
+  const renderCompactMobileIssueSummary = () => {
+    if (!mobileLayout?.showIssueSummary) {
+      return null;
+    }
+
+    const issues = getMobileIssueSummaryItems();
+    if (issues.length === 0) {
+      return null;
+    }
+
+    return (
+      <div className="editable-transaction-grid__compact-mobile-issues" aria-label="Line issues">
+        {issues.map((issue) => (
+          <button
+            key={issue.key}
+            type="button"
+            className={cn(
+              'editable-transaction-grid__compact-mobile-issue',
+              issue.tone === 'warning' && 'editable-transaction-grid__compact-mobile-issue--warning'
+            )}
+            onClick={() => {
+              const firstRowId = issue.rowIds[0];
+              setMobileExpandedRowId(firstRowId);
+              setMobileFocusColumnId(issue.columnId);
+            }}
+          >
+            <span className="editable-transaction-grid__compact-mobile-issue-dot" aria-hidden="true" />
+            <span className="editable-transaction-grid__compact-mobile-issue-copy">
+              <span className="editable-transaction-grid__compact-mobile-issue-title">{issue.message}</span>
+              <span className="editable-transaction-grid__compact-mobile-issue-meta">
+                {issue.rowCount} {issue.rowCount === 1 ? 'line' : 'lines'} - {issue.columnLabel}
+              </span>
+            </span>
+            <ChevronDown size={14} aria-hidden="true" />
+          </button>
+        ))}
+      </div>
+    );
+  };
+
+  const renderCompactMobileSelectionControls = () => {
+    if (!canUseSelection || !isMobileBulkSelectionActive) {
+      return null;
+    }
+
+    return (
+      <div className="editable-transaction-grid__compact-mobile-selection-bar">
+        <span>{selectedCount} selected</span>
+        <button type="button" onClick={clearSelection}>Done</button>
+      </div>
+    );
+  };
+
+  const renderMobileField = (
+    column: EditableGridColumn<TRow>,
+    row: TRow,
+    rowIndex: number,
+    variant: 'drawer' | 'compact' = 'drawer'
+  ) => {
+    const error = getResolvedColumnError(row, rowIndex, column);
+    const warning = error ? undefined : getResolvedColumnWarning(row, rowIndex, column);
+    const context = buildCellContext(row, rowIndex, column, error, warning);
+    const required = resolveFlag(column.required, row, context);
+    const value = getFormattedValue(column, row, context);
+    const showClearAction =
+      variant === 'drawer' &&
+      column.kind === 'select' &&
+      column.mobileControlPresentation === 'segmented' &&
+      Boolean(value) &&
+      !context.disabled &&
+      !context.readOnly;
+
+    return (
+      <div
+        key={column.id}
+        className={cn(
+          variant === 'compact'
+            ? 'editable-transaction-grid__compact-mobile-field'
+            : 'editable-transaction-grid__mobile-field'
+        )}
+      >
+        <div className="editable-transaction-grid__mobile-field-heading">
+          <span className={variant === 'compact'
+            ? 'editable-transaction-grid__compact-mobile-field-label'
+            : 'editable-transaction-grid__mobile-field-label'}>
+            {column.label}
+            {required && <span aria-hidden="true"> *</span>}
+          </span>
+          {showClearAction && (
+            <button
+              type="button"
+              className="editable-transaction-grid__mobile-field-clear"
+              onClick={() => {
+                handleCellChange(column, row, '', context);
+                column.onBlur?.(row, context);
+              }}
+            >
+              Clear
+            </button>
+          )}
+        </div>
+        {renderCellControl(column, row, rowIndex, 'mobile')}
+        {(error || warning) && (
+          <span className="editable-transaction-grid__meta-row editable-transaction-grid__meta-row--mobile">
+            {error ? renderError(row, rowIndex, column) : renderWarning(row, rowIndex, column)}
+          </span>
+        )}
+      </div>
+    );
+  };
+
+  const renderCompactMobileProgress = (row: TRow, rowIndex: number) => {
+    if (mobileProgressColumns.length === 0) {
+      return null;
+    }
+
+    return (
+      <div className="editable-transaction-grid__compact-mobile-progress">
+        {mobileProgressColumns.map((column) => {
+          const context = buildCellContext(row, rowIndex, column);
+          return (
+            <div key={column.id} className="editable-transaction-grid__compact-mobile-progress-item">
+              <span>{column.label}</span>
+              <strong>{getFormattedValue(column, row, context) || '-'}</strong>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const openMobileEditorForExistingRow = (id: string) => {
+    setMobileAddedRowId(null);
+    setMobileEditingRowId(id);
+  };
+
+  const renderCompactMobileExpanded = (row: TRow, rowIndex: number) => {
+    const id = rowId(row);
+
+    return (
+      <div className="editable-transaction-grid__compact-mobile-expanded">
+        {baseMobileInlineColumns.length > 0 && (
+          <div className="editable-transaction-grid__compact-mobile-fields">
+            {baseMobileInlineColumns.map((column) => renderMobileField(column, row, rowIndex, 'compact'))}
+          </div>
+        )}
+        {renderCompactMobileProgress(row, rowIndex)}
+        <div className="editable-transaction-grid__compact-mobile-actions">
+          <button type="button" onClick={() => openMobileEditorForExistingRow(id)}>
+            All details
+          </button>
+          {!readOnly && onDuplicateRow && (
+            <button type="button" onClick={() => onDuplicateRow(id, row, rowIndex)}>
+              <Copy size={14} aria-hidden="true" />
+              Duplicate
+            </button>
+          )}
+          {!readOnly && onDeleteRow && (
+            <button
+              type="button"
+              className="editable-transaction-grid__compact-mobile-action--danger"
+              onClick={() => onDeleteRow(id, row, rowIndex)}
+            >
+              <Trash2 size={14} aria-hidden="true" />
+              Delete
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderCompactMobileRow = (row: TRow, rowIndex: number) => {
+    const id = rowId(row);
+    const summary = renderMobileSummary(row, rowIndex);
+    const messages = getRowValidationMessages(row, rowIndex, mobileValidationColumns);
+    const firstError = messages.find((message) => message.tone === 'error');
+    const firstWarning = messages.find((message) => message.tone === 'warning');
+    const primaryIssue = firstError ?? firstWarning;
+    const selected = selectedRowIdSet.has(id);
+    const selectable = isRowSelectable(row, rowIndex);
+    const isExpanded = mobileExpandedRowId === id;
+    const secondaryItems: React.ReactNode[] = primaryIssue
+      ? [`Line ${rowIndex + 1}`, primaryIssue.columnLabel]
+      : [
+          summary.subtitle,
+          ...(summary.metrics ?? []).map((metric) => (
+            <React.Fragment key={metric.label}>{metric.label} {metric.value}</React.Fragment>
+          )),
+        ].filter((item): item is React.ReactNode => Boolean(item));
+
+    return (
+      <article
+        key={id}
+        className={cn(
+          'editable-transaction-grid__compact-mobile-row',
+          firstError && 'editable-transaction-grid__compact-mobile-row--error',
+          !firstError && firstWarning && 'editable-transaction-grid__compact-mobile-row--warning',
+          selected && 'editable-transaction-grid__compact-mobile-row--selected'
+        )}
+        onPointerDown={() => handleMobileLongPressStart(row, rowIndex)}
+        onPointerUp={cancelMobileLongPress}
+        onPointerLeave={cancelMobileLongPress}
+        onPointerCancel={cancelMobileLongPress}
+      >
+        <div className="editable-transaction-grid__compact-mobile-row-shell">
+          {isMobileBulkSelectionActive && canUseSelection && (
+            <input
+              type="checkbox"
+              className="editable-transaction-grid__selection-checkbox editable-transaction-grid__mobile-selection-checkbox"
+              aria-label={`Select line ${rowIndex + 1}`}
+              checked={selected}
+              disabled={!selectable}
+              onPointerDown={(event) => event.stopPropagation()}
+              onChange={(event) => {
+                setIsMobileSelectionMode(true);
+                const nativeEvent = event.nativeEvent;
+                handleRowSelectionChange(row, rowIndex, event.target.checked, nativeEvent instanceof MouseEvent && nativeEvent.shiftKey);
+              }}
+            />
+          )}
+          <button
+            type="button"
+            className="editable-transaction-grid__compact-mobile-summary"
+            aria-expanded={isExpanded}
+            onClick={() => {
+              cancelMobileLongPress();
+              if (isMobileBulkSelectionActive && selectable) {
+                handleRowSelectionChange(row, rowIndex, !selected, false);
+                return;
+              }
+
+              setMobileExpandedRowId(isExpanded ? null : id);
+            }}
+          >
+            <span
+              className={cn(
+                'editable-transaction-grid__compact-mobile-dot',
+                firstError && 'editable-transaction-grid__compact-mobile-dot--error',
+                !firstError && firstWarning && 'editable-transaction-grid__compact-mobile-dot--warning',
+                !firstError && !firstWarning && 'editable-transaction-grid__compact-mobile-dot--valid'
+              )}
+              aria-hidden="true"
+            />
+            <span className="editable-transaction-grid__compact-mobile-content">
+              <span className="editable-transaction-grid__compact-mobile-primary">
+                {primaryIssue?.message ?? summary.title}
+              </span>
+              {secondaryItems.length > 0 && (
+                <span className="editable-transaction-grid__compact-mobile-secondary">
+                  {secondaryItems.map((item, itemIndex) => (
+                    <span key={itemIndex}>{item}</span>
+                  ))}
+                </span>
+              )}
+            </span>
+            <span className="editable-transaction-grid__compact-mobile-chevron" aria-hidden="true">
+              <ChevronRight size={16} />
+            </span>
+          </button>
+        </div>
+        {isExpanded && renderCompactMobileExpanded(row, rowIndex)}
+      </article>
+    );
+  };
+
+  const renderCompactMobileLayout = () => (
+    <div className="editable-transaction-grid__compact-mobile">
+      {renderBulkToolbar('mobile')}
+      {renderCompactMobileSelectionControls()}
+      {renderCompactMobileIssueSummary()}
+      {rows.length === 0 ? (
+        <div className="editable-transaction-grid__empty">{emptyState ?? 'No lines added yet.'}</div>
+      ) : (
+        <div className="editable-transaction-grid__compact-mobile-list">
+          {rows.map((row, rowIndex) => renderCompactMobileRow(row, rowIndex))}
+        </div>
+      )}
+      {renderStickyMobileAddAction('compact-footer')}
+    </div>
+  );
+
+  const renderLegacyMobileLayout = () => (
     <div className="editable-transaction-grid__mobile-list">
       {renderBulkToolbar('mobile')}
       {rows.length === 0 ? (
@@ -1203,8 +2031,111 @@ const EditableTransactionGrid = <TRow,>({
           );
         })
       )}
+      {renderStickyMobileAddAction()}
     </div>
   );
+
+  const renderMobileLayout = () => (
+    shouldUseCompactInlineMobile ? renderCompactMobileLayout() : renderLegacyMobileLayout()
+  );
+
+  const handleMobileEditorSubmit = () => {
+    if (!mobileEditingRow) {
+      return;
+    }
+
+    if (isMobileEditingAddedRow && isRowComplete && !isRowComplete(mobileEditingRow)) {
+      onIncompleteRow?.(mobileEditingRow);
+      const firstGroupId =
+        getFirstMobileEditorErrorGroupId(mobileEditingRow, mobileEditingRowIndex) ??
+        getFirstMobileEditorIncompleteRequiredGroupId(mobileEditingRow, mobileEditingRowIndex) ??
+        mobileEditorGroups[0]?.id;
+
+      if (firstGroupId) {
+        setMobileEditorOpenGroupIds([firstGroupId]);
+      }
+      return;
+    }
+
+    closeMobileEditor();
+  };
+
+  const renderMobileEditorAccordion = (
+    group: ResolvedEditableGridMobileFieldGroup<TRow>,
+    row: TRow,
+    rowIndex: number
+  ) => {
+    const groupHasError = group.columns.some((column) => Boolean(getResolvedColumnError(row, rowIndex, column)));
+    const groupHasWarning = !groupHasError && group.columns.some((column) => Boolean(getResolvedColumnWarning(row, rowIndex, column)));
+    const isOpen = mobileEditorOpenGroupIds.includes(group.id);
+    const panelId = `${gridId}-${rowId(row)}-${group.id}-panel`;
+    const editableFieldCount = group.columns.filter((column) => {
+      const context = buildCellContext(row, rowIndex, column);
+      return isEditableGridInputColumn(column) && !context.disabled && !context.readOnly;
+    }).length;
+    const fieldCountText = formatEditableGridMobileFieldCount(group.columns.length);
+    const metaText = editableFieldCount > 0 && editableFieldCount !== group.columns.length
+      ? `${fieldCountText} - ${editableFieldCount} editable`
+      : fieldCountText;
+
+    return (
+      <section
+        key={group.id}
+        className={cn(
+          'editable-transaction-grid__mobile-editor-accordion',
+          isOpen && 'editable-transaction-grid__mobile-editor-accordion--open',
+          groupHasError && 'editable-transaction-grid__mobile-editor-accordion--error',
+          groupHasWarning && 'editable-transaction-grid__mobile-editor-accordion--warning'
+        )}
+      >
+        <button
+          type="button"
+          className="editable-transaction-grid__mobile-editor-accordion-header"
+          aria-expanded={isOpen}
+          aria-controls={panelId}
+          onClick={() => toggleMobileEditorGroup(group.id)}
+        >
+          <span className="editable-transaction-grid__mobile-editor-accordion-title">{group.label}</span>
+          <span className="editable-transaction-grid__mobile-editor-accordion-meta">
+            {metaText}
+            <ChevronDown size={14} aria-hidden="true" />
+          </span>
+        </button>
+        <div
+          id={panelId}
+          className="editable-transaction-grid__mobile-editor-accordion-panel"
+          hidden={!isOpen}
+        >
+          <div className="editable-transaction-grid__mobile-editor-group-fields">
+            {group.columns.map((column) => renderMobileField(column, row, rowIndex))}
+          </div>
+        </div>
+      </section>
+    );
+  };
+
+  const renderMobileEditorBody = (row: TRow, rowIndex: number) => {
+    if (shouldUseMobileEditorAccordions && mobileEditorGroups.length > 0) {
+      return (
+        <div className="editable-transaction-grid__mobile-editor-accordions">
+          {mobileEditorGroups.map((group) => renderMobileEditorAccordion(group, row, rowIndex))}
+        </div>
+      );
+    }
+
+    if (mobileEditorGroups.length > 0) {
+      return mobileEditorGroups.map((group) => (
+        <section key={group.id} className="editable-transaction-grid__mobile-editor-group">
+          <h4 className="editable-transaction-grid__mobile-editor-group-title">{group.label}</h4>
+          <div className="editable-transaction-grid__mobile-editor-group-fields">
+            {group.columns.map((column) => renderMobileField(column, row, rowIndex))}
+          </div>
+        </section>
+      ));
+    }
+
+    return mobileEditorColumns.map((column) => renderMobileField(column, row, rowIndex));
+  };
 
   const renderMobileEditor = () => {
     if (!mobileEditingRow) {
@@ -1220,7 +2151,7 @@ const EditableTransactionGrid = <TRow,>({
       <Drawer
         anchor="bottom"
         open={Boolean(mobileEditingRow)}
-        onClose={() => setMobileEditingRowId(null)}
+        onClose={closeMobileEditor}
         ModalProps={{ keepMounted: true }}
         slotProps={{
           paper: {
@@ -1228,6 +2159,7 @@ const EditableTransactionGrid = <TRow,>({
             sx: {
               width: '100vw',
               maxWidth: '100vw',
+              height: shouldUseCompactInlineMobile ? '84dvh' : undefined,
               maxHeight: '92dvh',
               m: 0,
               borderRadius: '20px 20px 0 0',
@@ -1237,39 +2169,40 @@ const EditableTransactionGrid = <TRow,>({
           },
         }}
       >
-        <section className="editable-transaction-grid__mobile-editor" aria-label={titleText}>
+        <section
+          className={cn(
+            'editable-transaction-grid__mobile-editor',
+            shouldUseCompactInlineMobile && 'editable-transaction-grid__mobile-editor--compact-inline',
+            isMobileEditingAddedRow && 'editable-transaction-grid__mobile-editor--has-footer'
+          )}
+          aria-label={titleText}
+        >
           <header className="editable-transaction-grid__mobile-editor-header">
             <h3>{titleText}</h3>
             <button
               type="button"
               className="editable-transaction-grid__mobile-editor-close"
-              onClick={() => setMobileEditingRowId(null)}
+              onClick={closeMobileEditor}
               aria-label="Close line editor"
             >
               <X size={18} aria-hidden="true" />
             </button>
           </header>
           <div className="editable-transaction-grid__mobile-editor-body">
-            {editableColumns.map((column) => {
-              const context = buildCellContext(mobileEditingRow, mobileEditingRowIndex, column);
-              const required = resolveFlag(column.required, mobileEditingRow, context);
-
-              return (
-                <label key={column.id} className="editable-transaction-grid__mobile-field">
-                  <span className="editable-transaction-grid__mobile-field-label">
-                    {column.label}
-                    {required && <span aria-hidden="true"> *</span>}
-                  </span>
-                  {renderCellControl(column, mobileEditingRow, mobileEditingRowIndex, 'mobile')}
-                  {getResolvedColumnError(mobileEditingRow, mobileEditingRowIndex, column) && (
-                    <span className="editable-transaction-grid__meta-row editable-transaction-grid__meta-row--mobile">
-                      {renderError(mobileEditingRow, mobileEditingRowIndex, column)}
-                    </span>
-                  )}
-                </label>
-              );
-            })}
+            {renderMobileEditorBody(mobileEditingRow, mobileEditingRowIndex)}
           </div>
+          {isMobileEditingAddedRow && (
+            <footer className="editable-transaction-grid__mobile-editor-footer">
+              <button
+                type="button"
+                className="btn btn--primary btn--icon-left editable-transaction-grid__mobile-editor-add-button"
+                onClick={handleMobileEditorSubmit}
+              >
+                <Plus size={14} aria-hidden="true" />
+                Add line
+              </button>
+            </footer>
+          )}
         </section>
       </Drawer>
     );
@@ -1277,7 +2210,11 @@ const EditableTransactionGrid = <TRow,>({
 
   return (
     <section
-      className={cn('editable-transaction-grid', shouldShowViewTabs && 'editable-transaction-grid--has-view-presets')}
+      className={cn(
+        'editable-transaction-grid',
+        shouldShowViewTabs && 'editable-transaction-grid--has-view-presets',
+        shouldUseCompactInlineMobile && 'editable-transaction-grid--compact-inline-mobile'
+      )}
       data-grid-id={gridId}
     >
       <div className="editable-transaction-grid__header">
@@ -1312,15 +2249,17 @@ const EditableTransactionGrid = <TRow,>({
           )}
           {headerActions}
           {renderHeaderBulkActions()}
-          <button
-            type="button"
-            onClick={handleAddRow}
-            className="btn btn--outline btn--icon-left editable-transaction-grid__add-button"
-            disabled={readOnly}
-          >
-            <Plus size={14} aria-hidden="true" />
-            {primaryActionLabel}
-          </button>
+          {!shouldHideHeaderAddAction && (
+            <button
+              type="button"
+              onClick={handleAddRow}
+              className="btn btn--outline btn--icon-left editable-transaction-grid__add-button"
+              disabled={readOnly}
+            >
+              <Plus size={14} aria-hidden="true" />
+              {primaryActionLabel}
+            </button>
+          )}
         </div>
       </div>
 
@@ -1375,18 +2314,23 @@ const EditableTransactionGrid = <TRow,>({
               ) : (
                 rows.map((row, rowIndex) => {
                   const id = rowId(row);
-                  const firstError = getFirstRowError(errors, id);
+                  const rowValidationMessages = shouldUseRowValidationSummary
+                    ? getRowValidationMessages(row, rowIndex)
+                    : [];
+                  const hasError = rowValidationMessages.some((message) => message.tone === 'error') || Boolean(getFirstRowError(errors, id));
 
                   return (
-                    <tr
-                      key={id}
-                      className={cn(
-                        firstError && 'editable-transaction-grid__row--error',
-                        selectedRowIdSet.has(id) && 'editable-transaction-grid__row--selected'
-                      )}
-                    >
-                      {tableColumns.map((column) => renderTableCell(column, row, rowIndex))}
-                    </tr>
+                    <React.Fragment key={id}>
+                      <tr
+                        className={cn(
+                          hasError && 'editable-transaction-grid__row--error',
+                          selectedRowIdSet.has(id) && 'editable-transaction-grid__row--selected'
+                        )}
+                      >
+                        {tableColumns.map((column) => renderTableCell(column, row, rowIndex))}
+                      </tr>
+                      {shouldUseRowValidationSummary && renderRowValidationSummary(row, rowValidationMessages)}
+                    </React.Fragment>
                   );
                 })
               )}
@@ -1466,29 +2410,3 @@ function resolveDataTour<TRow>(
 }
 
 export default EditableTransactionGrid;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
