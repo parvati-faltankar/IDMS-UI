@@ -15,6 +15,7 @@ import type {
   EditableGridFooterAggregates,
   EditableGridLayoutColumn,
   EditableGridMobileSummary,
+  EditableGridViewPreset,
   EditableTransactionGridProps,
 } from './editableTransactionGridTypes';
 
@@ -35,6 +36,18 @@ const defaultColumnWidthByKind: Record<EditableGridColumn<unknown>['kind'], numb
 function getColumnWidth<TRow>(column: EditableGridColumn<TRow>): number {
   const fallback = defaultColumnWidthByKind[column.kind as EditableGridColumn<unknown>['kind']] ?? 156;
   return column.width ?? Math.max(column.minWidth ?? 0, fallback);
+}
+
+function resolveColumnAlignment<TRow>(column: EditableGridColumn<TRow>): 'left' | 'center' | 'right' | undefined {
+  return column.align ?? (column.kind === 'number' ? 'right' : column.kind === 'actions' ? 'center' : undefined);
+}
+
+function getColumnAlignmentClass<TRow>(
+  column: EditableGridColumn<TRow>,
+  element: 'cell' | 'body-cell' | 'footer-cell' | 'control' | 'display-cell'
+): string | undefined {
+  const alignment = resolveColumnAlignment(column);
+  return alignment ? `editable-transaction-grid__${element}--align-${alignment}` : undefined;
 }
 
 function getStringValue(value: unknown): string {
@@ -175,6 +188,44 @@ export function resolveEditableGridColumns<TRow>(
   return arrangedColumns;
 }
 
+export function getEditableGridUsableViewPresets(
+  viewPresets?: EditableGridViewPreset[]
+): EditableGridViewPreset[] {
+  return viewPresets?.filter((preset) => !preset.hidden && !preset.disabled) ?? [];
+}
+
+export function resolveEditableGridActiveViewPreset(
+  viewPresets: EditableGridViewPreset[],
+  activeViewId?: string,
+  defaultViewId?: string
+): EditableGridViewPreset | undefined {
+  if (viewPresets.length === 0) {
+    return undefined;
+  }
+
+  const findPreset = (viewId?: string) => viewId ? viewPresets.find((preset) => preset.id === viewId) : undefined;
+
+  return findPreset(activeViewId) ?? findPreset(defaultViewId) ?? viewPresets[0];
+}
+
+export function resolveEditableGridViewColumns<TRow>(
+  columns: EditableGridColumn<TRow>[],
+  activeViewPreset?: EditableGridViewPreset
+): EditableGridColumn<TRow>[] {
+  if (!activeViewPreset) {
+    return columns;
+  }
+
+  const viewColumnIds = new Set(activeViewPreset.columnIds);
+  if (viewColumnIds.size === 0) {
+    return columns;
+  }
+
+  const viewColumns = columns.filter((column) => viewColumnIds.has(column.id));
+
+  return viewColumns.length > 0 ? viewColumns : columns;
+}
+
 function buildOffsets<TRow>(
   columns: EditableGridColumn<TRow>[],
   side: 'left' | 'right'
@@ -219,6 +270,10 @@ const EditableTransactionGrid = <TRow,>({
   onIncompleteRow,
   footerAggregates,
   layoutColumns,
+  viewPresets,
+  activeViewId,
+  defaultViewId,
+  onViewChange,
   readOnly = false,
   emptyState,
   ariaLabel,
@@ -234,9 +289,32 @@ const EditableTransactionGrid = <TRow,>({
   const lastSelectionAnchorIndexRef = useRef<number | null>(null);
   const mobileLongPressTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
 
-  const visibleColumns = useMemo(
+  const [uncontrolledActiveViewId, setUncontrolledActiveViewId] = useState<string | undefined>();
+
+  const usableViewPresets = useMemo(
+    () => getEditableGridUsableViewPresets(viewPresets),
+    [viewPresets]
+  );
+  const resolvedActiveViewPreset = useMemo(
+    () => resolveEditableGridActiveViewPreset(
+      usableViewPresets,
+      activeViewId ?? uncontrolledActiveViewId,
+      defaultViewId
+    ),
+    [activeViewId, defaultViewId, uncontrolledActiveViewId, usableViewPresets]
+  );
+  const shouldUseViewPresets = usableViewPresets.length >= 2;
+  const shouldShowViewTabs = shouldUseViewPresets;
+  const layoutVisibleColumns = useMemo(
     () => resolveEditableGridColumns(columns, layoutColumns),
     [columns, layoutColumns]
+  );
+  const visibleColumns = useMemo(
+    () => resolveEditableGridViewColumns(
+      layoutVisibleColumns,
+      shouldUseViewPresets ? resolvedActiveViewPreset : undefined
+    ),
+    [layoutVisibleColumns, resolvedActiveViewPreset, shouldUseViewPresets]
   );
   const editableColumns = useMemo(
     () => visibleColumns.filter((column) => column.kind !== 'actions'),
@@ -512,6 +590,49 @@ const EditableTransactionGrid = <TRow,>({
     );
   };
 
+  const handleViewPresetChange = (viewId: string) => {
+    if (viewId === resolvedActiveViewPreset?.id) {
+      return;
+    }
+
+    if (activeViewId === undefined) {
+      setUncontrolledActiveViewId(viewId);
+    }
+
+    onViewChange?.(viewId);
+  };
+
+  const renderViewPresetTabs = () => {
+    if (!shouldShowViewTabs) {
+      return null;
+    }
+
+    return (
+      <div className="editable-transaction-grid__view-tabs" role="tablist" aria-label={`${title} grid views`}>
+        {usableViewPresets.map((preset) => {
+          const isActive = preset.id === resolvedActiveViewPreset?.id;
+
+          return (
+            <button
+              key={preset.id}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              className={cn(
+                'editable-transaction-grid__view-tab',
+                isActive && 'editable-transaction-grid__view-tab--active'
+              )}
+              title={preset.description}
+              onClick={() => handleViewPresetChange(preset.id)}
+            >
+              {preset.label}
+            </button>
+          );
+        })}
+      </div>
+    );
+  };
+
   const renderSelectionHeaderCell = (column: EditableGridColumn<TRow>) => {
     const style = {
       width: `${getColumnWidth(column)}px`,
@@ -736,6 +857,7 @@ const EditableTransactionGrid = <TRow,>({
     const className = cn(
       'editable-transaction-grid__control',
       column.kind === 'number' && 'editable-transaction-grid__control--number',
+      getColumnAlignmentClass(column, 'control'),
       (context.readOnly || column.kind === 'computed' || column.kind === 'status') && 'editable-transaction-grid__control--readonly',
       variant === 'mobile' && 'editable-transaction-grid__control--mobile',
       column.className
@@ -782,7 +904,7 @@ const EditableTransactionGrid = <TRow,>({
 
     if (column.renderDisplay && (context.readOnly || column.kind === 'computed' || column.kind === 'status')) {
       return (
-        <div className="editable-transaction-grid__display-cell">
+        <div className={cn('editable-transaction-grid__display-cell', getColumnAlignmentClass(column, 'display-cell'))}>
           {column.renderDisplay(row, context)}
         </div>
       );
@@ -962,6 +1084,7 @@ const EditableTransactionGrid = <TRow,>({
           'editable-transaction-grid__body-cell',
           column.kind === 'actions' && 'editable-transaction-grid__body-cell--action',
           isNumberColumn && 'editable-transaction-grid__body-cell--number',
+          getColumnAlignmentClass(column, 'body-cell'),
           error && 'editable-transaction-grid__body-cell--error',
           pinState === 'left' && 'editable-transaction-grid__cell--pinned-left',
           pinState === 'right' && 'editable-transaction-grid__cell--pinned-right'
@@ -1153,7 +1276,10 @@ const EditableTransactionGrid = <TRow,>({
   };
 
   return (
-    <section className="editable-transaction-grid" data-grid-id={gridId}>
+    <section
+      className={cn('editable-transaction-grid', shouldShowViewTabs && 'editable-transaction-grid--has-view-presets')}
+      data-grid-id={gridId}
+    >
       <div className="editable-transaction-grid__header">
         <div className="editable-transaction-grid__title-wrap">
           {!hideHeaderIdentity && (
@@ -1172,6 +1298,7 @@ const EditableTransactionGrid = <TRow,>({
               {description && <span className="editable-transaction-grid__subtitle">{description}</span>}
             </div>
           )}
+          {renderViewPresetTabs()}
           {renderHeaderSelectedCount()}
         </div>
 
@@ -1225,6 +1352,7 @@ const EditableTransactionGrid = <TRow,>({
                         'editable-transaction-grid__cell',
                         column.kind === 'actions' && 'editable-transaction-grid__cell--action',
                         column.kind === 'number' && 'editable-transaction-grid__cell--number',
+                        getColumnAlignmentClass(column, 'cell'),
                         column.pinned === 'left' && 'editable-transaction-grid__cell--pinned-left',
                         column.pinned === 'right' && 'editable-transaction-grid__cell--pinned-right',
                         column.headerClassName
@@ -1280,6 +1408,7 @@ const EditableTransactionGrid = <TRow,>({
                         className={cn(
                           'editable-transaction-grid__footer-cell',
                           column.kind === 'number' && 'editable-transaction-grid__footer-cell--number',
+                          getColumnAlignmentClass(column, 'footer-cell'),
                           column.pinned === 'left' && 'editable-transaction-grid__cell--pinned-left',
                           column.pinned === 'right' && 'editable-transaction-grid__cell--pinned-right',
                           column.footerClassName

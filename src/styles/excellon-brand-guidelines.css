@@ -22698,6 +22698,61 @@ html[dir='rtl'] .app-sidebar__flyout-group-arrow {
   padding-inline: 0;
 }
 
+.editable-transaction-grid__view-tabs {
+  display: inline-flex;
+  width: max-content;
+  max-width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 2px;
+  overflow-x: auto;
+  border: 1px solid #e5eaf0;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 2px;
+  scrollbar-width: none;
+}
+
+.editable-transaction-grid__view-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.editable-transaction-grid__view-tab {
+  display: inline-flex;
+  min-height: 28px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-muted);
+  padding: 0 10px;
+  font-size: var(--font-size-12);
+  line-height: var(--line-height-16);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.editable-transaction-grid__view-tab:hover,
+.editable-transaction-grid__view-tab:focus-visible {
+  background: var(--color-surface);
+  color: var(--color-primary);
+  outline: none;
+}
+
+.editable-transaction-grid__view-tab:focus-visible {
+  box-shadow: 0 0 0 3px var(--color-focus-ring);
+}
+
+.editable-transaction-grid__view-tab--active {
+  background: var(--color-surface);
+  color: var(--color-primary);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 8%);
+}
+
 .editable-transaction-grid__header-actions {
   display: flex;
   min-width: 0;
@@ -22799,7 +22854,7 @@ html[dir='rtl'] .app-sidebar__flyout-group-arrow {
 .editable-transaction-grid__table-wrap {
   max-height: min(58vh, 560px);
   overflow: auto;
-  border: 1px solid #d9e2ec;
+  border: 1px solid #e5eaf0;
   border-radius: 8px;
   background: var(--color-surface);
   scrollbar-gutter: stable;
@@ -22817,11 +22872,11 @@ html[dir='rtl'] .app-sidebar__flyout-group-arrow {
   position: sticky;
   top: 0;
   z-index: 4;
-  border-bottom: 1px solid #d9e2ec;
-  border-right: 1px solid #e8eef5;
-  background: #f7f9fc;
-  color: var(--color-text-muted);
-  padding: 7px 8px;
+  border-bottom: 1px solid #d0d5dd;
+  border-right: 1px solid #e6e8eb;
+  background: #f7f7f8;
+  color: #374151;
+  padding: 6px 8px;
   font-size: var(--font-size-12);
   line-height: var(--line-height-18);
   font-weight: var(--font-weight-semibold);
@@ -22831,11 +22886,11 @@ html[dir='rtl'] .app-sidebar__flyout-group-arrow {
 
 .editable-transaction-grid__body-cell,
 .editable-transaction-grid__footer-cell {
-  border-bottom: 1px solid #edf2f7;
-  border-right: 1px solid #f3f6fa;
+  border-bottom: 1px solid #edf1f5;
+  border-right: 1px solid #edf1f5;
   background: var(--color-surface);
   color: var(--color-text);
-  padding: 5px 8px;
+  padding: 3px 8px;
   font-size: 13px;
   line-height: var(--line-height-20);
   vertical-align: top;
@@ -22844,7 +22899,7 @@ html[dir='rtl'] .app-sidebar__flyout-group-arrow {
 .editable-transaction-grid__body-cell--number,
 .editable-transaction-grid__cell--number,
 .editable-transaction-grid__footer-cell--number {
-  text-align: left;
+  text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
@@ -22859,7 +22914,7 @@ html[dir='rtl'] .app-sidebar__flyout-group-arrow {
   border-right: 0;
 }
 
-.editable-transaction-grid__table tbody tr:hover td {
+.editable-transaction-grid__table tbody tr:not(.editable-transaction-grid__row--error):hover td {
   background: #fbfcfe;
 }
 
@@ -22867,20 +22922,47 @@ html[dir='rtl'] .app-sidebar__flyout-group-arrow {
   background: #fffafa;
 }
 
+.editable-transaction-grid__body-cell:focus-within {
+  position: relative;
+  z-index: 6;
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
 .editable-transaction-grid__body-cell--error {
-  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--color-danger) 42%, transparent);
+  background: #fff7f7;
+  background-image: linear-gradient(90deg, var(--color-danger) 0 3px, transparent 3px);
+}
+
+.editable-transaction-grid__body-cell--error:focus-within {
+  outline-color: var(--color-primary);
+}
+
+.editable-transaction-grid__body-cell--error .editable-transaction-grid__control,
+.editable-transaction-grid__control.field-control--error,
+.editable-transaction-grid__control.field-select--error,
+.editable-transaction-grid__control.field-textarea--error {
+  border-color: color-mix(in srgb, var(--color-danger) 45%, #d9e2ec);
+  background: #ffffff;
+}
+
+.editable-transaction-grid__body-cell--error .editable-transaction-grid__control--readonly,
+.editable-transaction-grid__body-cell--error .editable-transaction-grid__control--readonly:disabled {
+  color: var(--color-text);
+  -webkit-text-fill-color: var(--color-text);
 }
 
 .editable-transaction-grid__cell--pinned-left,
 .editable-transaction-grid__cell--pinned-right {
   position: sticky;
-  background: var(--color-surface);
 }
 
 .editable-transaction-grid__cell.editable-transaction-grid__cell--pinned-left,
 .editable-transaction-grid__cell.editable-transaction-grid__cell--pinned-right {
   z-index: 7;
-  background: #f7f9fc;
+  border-bottom: 1px solid #d0d5dd;
+  background: #f7f7f8;
+  color: #374151;
 }
 
 .editable-transaction-grid__body-cell.editable-transaction-grid__cell--pinned-left,
@@ -22946,35 +23028,87 @@ html[dir='rtl'] .app-sidebar__flyout-group-arrow {
 
 .editable-transaction-grid__control {
   width: 100%;
-  min-height: 32px;
-  border-color: #d9e2ec;
-  background: #fff;
-  padding-top: 5px;
-  padding-bottom: 5px;
+  min-height: 28px;
+  border-color: transparent;
+  background: transparent;
+  padding: 3px 8px;
+  box-shadow: none;
   font-size: 13px;
   line-height: var(--line-height-20);
   font-weight: var(--font-weight-medium);
   color: var(--color-text);
 }
 
-.editable-transaction-grid__control:hover {
-  border-color: #c7d2de;
+.editable-transaction-grid__control.field-control,
+.editable-transaction-grid__control.field-input,
+.editable-transaction-grid__control.field-select,
+.editable-transaction-grid__control.field-textarea {
+  min-height: 28px;
+  border-color: transparent;
+  background-color: transparent;
+  padding: 3px 8px;
+  box-shadow: none;
+}
+
+.editable-transaction-grid__table tbody tr:hover .editable-transaction-grid__control:not(.editable-transaction-grid__control--readonly):not(.editable-transaction-grid__control--mobile):not(:disabled),
+.editable-transaction-grid__control:not(.editable-transaction-grid__control--readonly):not(.editable-transaction-grid__control--mobile):not(:disabled):hover {
+  border-color: #d9e2ec;
+  background-color: #ffffff;
 }
 
 .editable-transaction-grid__control:focus {
   border-color: var(--color-primary);
+  background-color: #ffffff;
   box-shadow: 0 0 0 3px var(--color-focus-ring);
 }
 
 .editable-transaction-grid__control--number {
-  text-align: left;
+  text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
+.editable-transaction-grid__cell--align-left,
+.editable-transaction-grid__body-cell--align-left,
+.editable-transaction-grid__footer-cell--align-left,
+.editable-transaction-grid__control--align-left,
+.editable-transaction-grid__display-cell--align-left {
+  text-align: left;
+}
+
+.editable-transaction-grid__display-cell--align-left {
+  justify-content: flex-start;
+}
+
+.editable-transaction-grid__cell--align-center,
+.editable-transaction-grid__body-cell--align-center,
+.editable-transaction-grid__footer-cell--align-center,
+.editable-transaction-grid__control--align-center,
+.editable-transaction-grid__display-cell--align-center {
+  text-align: center;
+}
+
+.editable-transaction-grid__display-cell--align-center {
+  justify-content: center;
+}
+
+.editable-transaction-grid__cell--align-right,
+.editable-transaction-grid__body-cell--align-right,
+.editable-transaction-grid__footer-cell--align-right,
+.editable-transaction-grid__control--align-right,
+.editable-transaction-grid__display-cell--align-right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.editable-transaction-grid__display-cell--align-right {
+  justify-content: flex-end;
+}
+
 .editable-transaction-grid__control--readonly,
-.editable-transaction-grid__control--readonly:disabled {
-  border-color: #edf2f7;
-  background: #f9fafb;
+.editable-transaction-grid__control--readonly:disabled,
+.editable-transaction-grid__control:disabled {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--color-surface-subtle) 60%, transparent);
   color: var(--color-text-muted);
   opacity: 1;
   cursor: default;
@@ -22991,7 +23125,7 @@ html[dir='rtl'] .app-sidebar__flyout-group-arrow {
 
 .editable-transaction-grid__display-cell {
   display: flex;
-  min-height: 32px;
+  min-height: 28px;
   align-items: center;
   white-space: normal;
 }
@@ -23174,7 +23308,10 @@ html[dir='rtl'] .app-sidebar__flyout-group-arrow {
 
 .editable-transaction-grid__control--mobile {
   min-height: 44px;
+  border-color: #d9e2ec;
   border-radius: 8px;
+  background: #ffffff;
+  padding: 10px 12px;
   font-size: 14px;
 }
 
@@ -23209,6 +23346,10 @@ html[dir='rtl'] .app-sidebar__flyout-group-arrow {
 
   .editable-transaction-grid__summary-row {
     gap: 4px 8px;
+  }
+
+  .editable-transaction-grid__view-tabs {
+    width: 100%;
   }
 
   .editable-transaction-grid__summary-chip,
@@ -23249,6 +23390,18 @@ html[dir='rtl'] .app-sidebar__flyout-group-arrow {
   }
 }
 
+:root[data-appearance='dark'] .editable-transaction-grid__view-tabs {
+  border-color: var(--color-border);
+  background: var(--color-surface-subtle);
+}
+
+:root[data-appearance='dark'] .editable-transaction-grid__view-tab:hover,
+:root[data-appearance='dark'] .editable-transaction-grid__view-tab:focus-visible,
+:root[data-appearance='dark'] .editable-transaction-grid__view-tab--active {
+  background: var(--color-surface);
+  color: var(--color-primary);
+}
+
 :root[data-appearance='dark'] .editable-transaction-grid__table-wrap,
 :root[data-appearance='dark'] .editable-transaction-grid__mobile-card,
 :root[data-appearance='dark'] .editable-transaction-grid__mobile-editor,
@@ -23263,10 +23416,12 @@ html[dir='rtl'] .app-sidebar__flyout-group-arrow {
   background: var(--color-surface-subtle);
 }
 
+:root[data-appearance='dark'] .editable-transaction-grid__cell {
+  color: var(--color-text-muted);
+}
+
 :root[data-appearance='dark'] .editable-transaction-grid__body-cell,
-:root[data-appearance='dark'] .editable-transaction-grid__footer-cell,
-:root[data-appearance='dark'] .editable-transaction-grid__cell--pinned-left,
-:root[data-appearance='dark'] .editable-transaction-grid__cell--pinned-right {
+:root[data-appearance='dark'] .editable-transaction-grid__footer-cell {
   border-color: var(--color-border);
   background: var(--color-surface);
 }
@@ -23283,12 +23438,65 @@ html[dir='rtl'] .app-sidebar__flyout-group-arrow {
   color: #fdba74;
 }
 
-:root[data-appearance='dark'] .editable-transaction-grid__control,
+:root[data-appearance='dark'] .editable-transaction-grid__control {
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text);
+}
+
+:root[data-appearance='dark'] .editable-transaction-grid__table tbody tr:hover .editable-transaction-grid__control:not(.editable-transaction-grid__control--readonly):not(.editable-transaction-grid__control--mobile):not(:disabled),
+:root[data-appearance='dark'] .editable-transaction-grid__control:not(.editable-transaction-grid__control--readonly):not(.editable-transaction-grid__control--mobile):not(:disabled):hover {
+  border-color: var(--color-border);
+  background: var(--color-surface);
+}
+
+:root[data-appearance='dark'] .editable-transaction-grid__control:focus {
+  border-color: var(--color-primary);
+  background: var(--color-surface);
+  box-shadow: 0 0 0 3px var(--color-focus-ring);
+}
+
 :root[data-appearance='dark'] .editable-transaction-grid__control--readonly,
-:root[data-appearance='dark'] .editable-transaction-grid__control--readonly:disabled {
+:root[data-appearance='dark'] .editable-transaction-grid__control--readonly:disabled,
+:root[data-appearance='dark'] .editable-transaction-grid__control:disabled {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--color-surface-subtle) 60%, transparent);
+  color: var(--color-text-muted);
+  opacity: 1;
+  -webkit-text-fill-color: var(--color-text-muted);
+}
+
+:root[data-appearance='dark'] .editable-transaction-grid__control--mobile {
   border-color: var(--color-border);
   background: var(--color-surface-subtle);
-  color: var(--color-text-muted);
+  color: var(--color-text);
+  -webkit-text-fill-color: var(--color-text);
+}
+
+:root[data-appearance='dark'] .editable-transaction-grid__row--error td,
+:root[data-appearance='dark'] .editable-transaction-grid__body-cell--error,
+:root[data-appearance='dark'] .editable-transaction-grid__row--selected .editable-transaction-grid__body-cell--error,
+:root[data-appearance='dark'] .editable-transaction-grid__row--selected:hover .editable-transaction-grid__body-cell--error {
+  background: color-mix(in srgb, #7f1d1d 18%, var(--color-surface));
+  background-image: linear-gradient(90deg, #f87171 0 3px, transparent 3px);
+}
+
+:root[data-appearance='dark'] .editable-transaction-grid__body-cell--error .editable-transaction-grid__control,
+:root[data-appearance='dark'] .editable-transaction-grid__control.field-control--error,
+:root[data-appearance='dark'] .editable-transaction-grid__control.field-select--error,
+:root[data-appearance='dark'] .editable-transaction-grid__control.field-textarea--error {
+  border-color: color-mix(in srgb, #f87171 45%, var(--color-border));
+  background: var(--color-surface);
+  color: var(--color-text);
+  -webkit-text-fill-color: var(--color-text);
+}
+
+:root[data-appearance='dark'] .editable-transaction-grid__body-cell--error .editable-transaction-grid__control--readonly,
+:root[data-appearance='dark'] .editable-transaction-grid__body-cell--error .editable-transaction-grid__control--readonly:disabled {
+  border-color: color-mix(in srgb, #f87171 38%, var(--color-border));
+  background: var(--color-surface);
+  color: var(--color-text);
+  -webkit-text-fill-color: var(--color-text);
 }
 :root[data-appearance='dark'] .editable-transaction-grid__control.field-select {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14' fill='none'%3E%3Cpath d='M3.5 5.25L7 8.75L10.5 5.25' stroke='%2394a3b8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
@@ -23405,6 +23613,12 @@ html[dir='rtl'] .app-sidebar__flyout-group-arrow {
 
 .editable-transaction-grid__row--selected:hover td {
   background: #dbeafe;
+}
+
+.editable-transaction-grid__row--selected .editable-transaction-grid__body-cell--error,
+.editable-transaction-grid__row--selected:hover .editable-transaction-grid__body-cell--error {
+  background: #fff7f7;
+  background-image: linear-gradient(90deg, var(--color-danger) 0 3px, transparent 3px);
 }
 
 .editable-transaction-grid__mobile-card--selected {

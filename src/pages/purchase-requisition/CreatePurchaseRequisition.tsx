@@ -13,7 +13,7 @@ import { FormField, Input, Select, Textarea } from '../../components/common/Form
 import EditableTransactionGrid from '../../components/common/EditableTransactionGrid';
 import TransactionCreateHeader, { transactionCreateCompactActionsMediaQuery } from '../../components/common/TransactionCreateHeader';
 import { MasterFormAccordionSection, MasterFormSectionSummary, type MasterFormAccordionSectionState } from '../../experience/components';
-import type { EditableGridBulkAction, EditableGridCellElement, EditableGridColumn } from '../../components/common/editableTransactionGridTypes';
+import type { EditableGridBulkAction, EditableGridCellElement, EditableGridColumn, EditableGridViewPreset } from '../../components/common/editableTransactionGridTypes';
 import StatusBadge from '../../components/common/StatusBadge';
 import { useDocumentPrint } from '../../print-builder/useDocumentPrint';
 import { PURCHASE_REQUISITION_LAYOUT, purchaseRequisitionFieldLabels } from '../../utils/formLayoutRegistry';
@@ -530,6 +530,7 @@ const LineItemsSection: React.FC<{
       id: 'requestedQty',
       label: 'Requested Qty.',
       kind: 'number',
+      align: 'right',
       width: 148,
       minWidth: 124,
       locked: true,
@@ -548,6 +549,7 @@ const LineItemsSection: React.FC<{
       id: 'orderedQty',
       label: 'Ordered Qty.',
       kind: 'computed',
+      align: 'right',
       width: 148,
       minWidth: 124,
       locked: true,
@@ -562,6 +564,7 @@ const LineItemsSection: React.FC<{
       id: 'cancelledQty',
       label: 'Cancelled Qty.',
       kind: 'computed',
+      align: 'right',
       width: 148,
       minWidth: 124,
       locked: true,
@@ -576,6 +579,7 @@ const LineItemsSection: React.FC<{
       id: 'pendingQty',
       label: 'Pending Qty.',
       kind: 'computed',
+      align: 'right',
       width: 148,
       minWidth: 124,
       locked: true,
@@ -625,6 +629,27 @@ const LineItemsSection: React.FC<{
     },
   ], [onFieldChange, onLineBlur, onNumericBlur, setFieldRef]);
 
+  const gridViewPresets = useMemo<EditableGridViewPreset[]>(() => [
+    {
+      id: 'entry',
+      label: 'Entry',
+      columnIds: ['productCode', 'uom', 'requestedQty', 'requirementDate', 'priority', 'remarks'],
+      description: 'Capture the required product line entry fields.',
+    },
+    {
+      id: 'progress',
+      label: 'Progress',
+      columnIds: ['productCode', 'uom', 'requestedQty', 'orderedQty', 'cancelledQty', 'pendingQty', 'status', 'cancellationReason'],
+      description: 'Review fulfilment, cancellation, pending quantity, and line status.',
+    },
+    {
+      id: 'all',
+      label: 'All',
+      columnIds: editableColumns.map((column) => column.id),
+      description: 'Show all layout-visible product line columns.',
+    },
+  ], [editableColumns]);
+
   const renderedLayoutColumns = useMemo(
     () => gridColumns.filter((column) => column.key !== 'action'),
     [gridColumns]
@@ -657,6 +682,8 @@ const LineItemsSection: React.FC<{
       bulkActions={bulkActions}
       selectionColumnLabel="Select product lines"
       layoutColumns={renderedLayoutColumns}
+      viewPresets={gridViewPresets}
+      defaultViewId="entry"
       footerAggregates={footerAggregates}
       ariaLabel="Purchase requisition product lines editable grid"
       mobileEditorTitle={(_line, index) => `Product line ${index + 1}`}

@@ -12,6 +12,7 @@ export type EditableGridColumnKind =
   | 'remarks';
 
 export type EditableGridPin = 'left' | 'right' | null;
+export type EditableGridColumnAlignment = 'left' | 'center' | 'right';
 
 export type EditableGridCellElement = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
 
@@ -26,6 +27,15 @@ export interface EditableGridLayoutColumn {
   label?: string;
   visible?: boolean;
   locked?: boolean;
+}
+
+export interface EditableGridViewPreset {
+  id: string;
+  label: string;
+  columnIds: string[];
+  description?: string;
+  hidden?: boolean;
+  disabled?: boolean;
 }
 
 export interface EditableGridMobileMetric {
@@ -59,6 +69,7 @@ export interface EditableGridColumn<TRow> {
   id: string;
   label: string;
   kind: EditableGridColumnKind;
+  align?: EditableGridColumnAlignment;
   width?: number;
   minWidth?: number;
   maxWidth?: number;
@@ -165,6 +176,10 @@ export interface EditableTransactionGridProps<TRow> {
   onIncompleteRow?: (row: TRow) => void;
   footerAggregates?: EditableGridFooterAggregates<TRow>;
   layoutColumns?: EditableGridLayoutColumn[];
+  viewPresets?: EditableGridViewPreset[];
+  activeViewId?: string;
+  defaultViewId?: string;
+  onViewChange?: (viewId: string) => void;
   readOnly?: boolean;
   emptyState?: React.ReactNode;
   ariaLabel: string;
