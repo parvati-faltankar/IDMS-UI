@@ -18,6 +18,7 @@ import StatusBadge from '../../components/common/StatusBadge';
 import { useDocumentPrint } from '../../print-builder/useDocumentPrint';
 import { JOB_CARD_LAYOUT, jobCardFieldLabels } from '../../utils/formLayoutRegistry';
 import type { JobCardDocument } from './jobCardCatalogueData';
+import { JOB_CARD_INTAKE_DRAFT_STORAGE_KEY, type JobCardIntakeDraft } from './jobCardIntakeData';
 import { cn } from '../../utils/classNames';
 import { formatDate, formatDateTime } from '../../utils/dateFormat'
 import {
@@ -84,6 +85,18 @@ interface JobCardData {
   spendCategory: string;
   internalNotes: string;
   externalNotes: string;
+  customerName?: string;
+  vehicleRegistration?: string;
+  vehicleModel?: string;
+  vehicleVin?: string;
+  vehicleEngineNumber?: string;
+  vehicleMobileNumber?: string;
+  odometerReading?: number;
+  serviceType?: string;
+  clusterUnreadable?: boolean;
+  lastRecordedOdometer?: number;
+  lastRecordedDate?: string;
+  intakeSource?: JobCardIntakeDraft['source'];
 }
 
 interface LineValidationErrors {
@@ -104,6 +117,11 @@ interface BulkEditDraft {
   remarksEnabled: boolean;
   remarks: string;
 }
+
+type EditableLineFieldName = keyof Pick<LineItem, 'productCode' | 'uom' | 'priority' | 'requirementDate' | 'requestedQty' | 'cancellationReason' | 'remarks'>;
+type LineGridKey = 'part' | 'labour';
+
+const JOB_CARD_LABOUR_SECTION_ID = 'job-card-labour-lines';
 
 interface ProductOption {
   code: string;
@@ -253,11 +271,12 @@ const prFieldLabels: Record<string, string> = {
   validTillDate: 'Valid Till Date',
   referenceNumber: 'Reference Number',
   remarks: 'Remarks',
-  productGrid: 'Product Details Grid',
+  productGrid: 'Part Details Grid',
+  labourGrid: 'Labour Details Grid',
   attachments: 'Attachments And Notes',
 };
 
-const widePrFieldIds = new Set(['remarks', 'productGrid', 'attachments']);
+const widePrFieldIds = new Set(['remarks', 'productGrid', 'labourGrid', 'attachments']);
 
 type LayoutDragPayload = {
   type: 'field' | 'section' | 'tab';
@@ -287,8 +306,8 @@ const jobCardCreateTourSteps: GuidedTourStep[] = [
   {
     id: 'product-grid',
     target: '[data-tour="job-card-product-grid"]',
-    title: 'Add product details',
-    body: 'The product grid captures requested items. Product code starts the line and related details populate automatically.',
+    title: 'Add part details',
+    body: 'The Part Details grid captures requested items. Product code starts the line and related details populate automatically.',
   },
   {
     id: 'product-code',
@@ -370,9 +389,9 @@ function getLineStatus(line: LineItem): 'Open' | 'Partially Cancelled' | 'Partia
   return 'Partially Ordered';
 }
 
-function createEmptyLine(index: number): LineItem {
+function createEmptyLine(index: number, idPrefix = 'line'): LineItem {
   return {
-    id: `line-${Date.now()}-${index}`,
+    id: `${idPrefix}-${Date.now()}-${index}`,
     productCode: '',
     productName: '',
     description: '',
@@ -403,6 +422,56 @@ function isBlankDraftLine(line: LineItem): boolean {
   );
 }
 
+function normalizeJobCardLayoutConfig(config: FormLayoutConfig): FormLayoutConfig {
+  const defaultLabourSection = JOB_CARD_LAYOUT.sections[JOB_CARD_LABOUR_SECTION_ID];
+  if (!defaultLabourSection) {
+    return config;
+  }
+
+  const currentLabourSection = config.sections[JOB_CARD_LABOUR_SECTION_ID];
+  const sections: FormLayoutConfig['sections'] = {
+    ...config.sections,
+    [JOB_CARD_LABOUR_SECTION_ID]: {
+      ...defaultLabourSection,
+      ...(currentLabourSection ?? {}),
+      fieldIds: currentLabourSection?.fieldIds.includes('labourGrid')
+        ? currentLabourSection.fieldIds
+        : [...(currentLabourSection?.fieldIds ?? []), 'labourGrid'],
+    },
+  };
+
+  const productSectionId =
+    Object.entries(sections).find(([, section]) => section.fieldIds.includes('productGrid'))?.[0] ??
+    'job-card-product-lines';
+  const productTabIndex = config.tabs.findIndex((tab) => tab.sectionIds.includes(productSectionId));
+  const labourTabIndex = config.tabs.findIndex((tab) => tab.sectionIds.includes(JOB_CARD_LABOUR_SECTION_ID));
+  const shouldMoveLabourSection =
+    labourTabIndex < 0 ||
+    labourTabIndex === productTabIndex ||
+    (productTabIndex >= 0 && labourTabIndex >= 0 && config.tabs[labourTabIndex].label === config.tabs[productTabIndex].label);
+
+  if (!shouldMoveLabourSection) {
+    return { ...config, sections };
+  }
+
+  const tabsWithoutLabour = config.tabs
+    .map((tab) => ({ ...tab, sectionIds: tab.sectionIds.filter((sectionId) => sectionId !== JOB_CARD_LABOUR_SECTION_ID) }))
+    .filter((tab) => tab.sectionIds.length > 0);
+  const nextProductTabIndex = tabsWithoutLabour.findIndex((tab) => tab.sectionIds.includes(productSectionId));
+  const targetTabIndex = nextProductTabIndex >= 0 ? nextProductTabIndex : 0;
+  const tabs = tabsWithoutLabour.map((tab, tabIndex) => {
+    if (tabIndex !== targetTabIndex) {
+      return tab;
+    }
+
+    const insertIndex = Math.max(0, tab.sectionIds.indexOf(productSectionId)) + 1;
+    const sectionIds = [...tab.sectionIds];
+    sectionIds.splice(insertIndex, 0, JOB_CARD_LABOUR_SECTION_ID);
+    return { ...tab, sectionIds };
+  });
+
+  return { ...config, sections, tabs };
+}
 // ============================================================================
 // PAGE HEADER
 // ============================================================================
@@ -427,6 +496,15 @@ function getHeaderStatusLabel(status: JobCardData['status']): string {
 // ============================================================================
 
 const LineItemsSection: React.FC<{
+  gridId: string;
+  title: string;
+  lineLabel: string;
+  lineLabelPlural: string;
+  emptyState: React.ReactNode;
+  selectionAriaLabel: string;
+  productCodeDataTour?: string;
+  requestedQtyDataTour?: string;
+  mobileEditorTitle: (line: LineItem, index: number) => string;
   items: LineItem[];
   lineErrors: Record<string, LineValidationErrors>;
   selectedLineIds: string[];
@@ -438,17 +516,26 @@ const LineItemsSection: React.FC<{
   onOpenBulkEdit: () => void;
   onBulkDuplicateLines: () => void;
   onBulkDeleteLines: () => void;
-  onFieldChange: (lineId: string, fieldName: keyof Pick<LineItem, 'productCode' | 'uom' | 'priority' | 'requirementDate' | 'requestedQty' | 'cancellationReason' | 'remarks'>, value: string) => void;
+  onFieldChange: (lineId: string, fieldName: EditableLineFieldName, value: string) => void;
   onNumericBlur: (lineId: string, fieldName: 'requestedQty') => void;
   onLineBlur: (lineId: string) => void;
   onIncompleteLine: (line: LineItem) => void;
   isLineComplete: (line: LineItem) => boolean;
   setFieldRef: (
     lineId: string,
-    fieldName: 'productCode' | 'uom' | 'priority' | 'requirementDate' | 'requestedQty' | 'cancellationReason' | 'remarks'
+    fieldName: EditableLineFieldName
   ) => (element: EditableGridCellElement | null) => void;
   gridColumns: FormLayoutGridColumn[];
 }> = ({
+  gridId,
+  title,
+  lineLabel,
+  lineLabelPlural,
+  emptyState,
+  selectionAriaLabel,
+  productCodeDataTour,
+  requestedQtyDataTour,
+  mobileEditorTitle,
   items,
   lineErrors,
   selectedLineIds,
@@ -510,7 +597,7 @@ const LineItemsSection: React.FC<{
       required: true,
       getValue: (line) => line.productCode,
       inputRef: (line, element) => setFieldRef(line.id, 'productCode')(element),
-      dataTour: (_line, index) => index === 0 ? 'job-card-product-code' : undefined,
+      dataTour: (_line, index) => index === 0 ? productCodeDataTour : undefined,
       lookupTitle: 'Select Product',
       searchPlaceholder: 'Search product code or name',
       searchable: true,
@@ -602,7 +689,7 @@ const LineItemsSection: React.FC<{
       inputMode: 'decimal',
       getValue: (line) => line.requestedQty,
       inputRef: (line, element) => setFieldRef(line.id, 'requestedQty')(element),
-      dataTour: (_line, index) => index === 0 ? 'job-card-requested-qty' : undefined,
+      dataTour: (_line, index) => index === 0 ? requestedQtyDataTour : undefined,
       onChange: (line, value) => onFieldChange(line.id, 'requestedQty', value),
       onBlur: (line) => onNumericBlur(line.id, 'requestedQty'),
     },
@@ -688,14 +775,14 @@ const LineItemsSection: React.FC<{
       onChange: (line, value) => onFieldChange(line.id, 'remarks', value),
       onBlur: (line) => onLineBlur(line.id),
     },
-  ], [onFieldChange, onLineBlur, onNumericBlur, setFieldRef]);
+  ], [onFieldChange, onLineBlur, onNumericBlur, productCodeDataTour, requestedQtyDataTour, setFieldRef]);
 
   const gridViewPresets = useMemo<EditableGridViewPreset[]>(() => [
     {
       id: 'entry',
       label: 'Entry',
       columnIds: ['productCode', 'uom', 'requestedQty', 'requirementDate', 'priority', 'remarks'],
-      description: 'Capture the required product line entry fields.',
+      description: `Capture the required ${lineLabel.toLowerCase()} entry fields.`,
     },
     {
       id: 'progress',
@@ -707,9 +794,9 @@ const LineItemsSection: React.FC<{
       id: 'all',
       label: 'All',
       columnIds: editableColumns.map((column) => column.id),
-      description: 'Show all layout-visible product line columns.',
+      description: `Show all layout-visible ${lineLabel.toLowerCase()} columns.`,
     },
-  ], [editableColumns]);
+  ], [editableColumns, lineLabel]);
 
   const mobileFieldGroups = useMemo<EditableGridMobileFieldGroup<LineItem>[]>(() => [
     {
@@ -743,8 +830,8 @@ const LineItemsSection: React.FC<{
 
   return (
     <EditableTransactionGrid
-      gridId="job-card-product-grid"
-      title="Product lines"
+      gridId={gridId}
+      title={title}
       lineCountLabel={String(items.length)}
       hideHeaderIdentity
       primaryActionLabel="Add line"
@@ -756,16 +843,16 @@ const LineItemsSection: React.FC<{
       selection={{
         selectedRowIds: selectedLineIds,
         onSelectionChange: (nextIds) => onSelectedLineIdsChange(nextIds),
-        ariaLabel: 'Select all product lines',
+        ariaLabel: selectionAriaLabel,
       }}
       bulkActions={bulkActions}
-      selectionColumnLabel="Select product lines"
+      selectionColumnLabel={selectionAriaLabel}
       layoutColumns={renderedLayoutColumns}
       viewPresets={gridViewPresets}
       defaultViewId="entry"
       footerAggregates={footerAggregates}
-      ariaLabel="Job Card product lines editable grid"
-      mobileEditorTitle={(_line, index) => `Product line ${index + 1}`}
+      ariaLabel={`Job Card ${lineLabelPlural.toLowerCase()} editable grid`}
+      mobileEditorTitle={mobileEditorTitle}
       mobileLayout={{
         breakpoint: 'tablet-portrait',
         presentation: 'compact-inline',
@@ -780,7 +867,7 @@ const LineItemsSection: React.FC<{
         },
         fieldGroups: mobileFieldGroups,
       }}
-      emptyState="Add the first product line to start this Job Card."
+      emptyState={emptyState}
       isRowComplete={isLineComplete}
       onAddRow={onAddLine}
       onMobileEditorClose={(lineId, line) => onMobileLineEditorClose(lineId, line)}
@@ -791,7 +878,7 @@ const LineItemsSection: React.FC<{
         const status = getLineStatus(line);
         const productLabel = line.productCode
           ? `${line.productCode}${line.productName ? ` - ${line.productName}` : ''}`
-          : `Line ${rowIndex + 1}`;
+          : `${lineLabel} ${rowIndex + 1}`;
 
         return {
           title: productLabel,
@@ -872,7 +959,119 @@ interface CreateJobCardProps {
   configurationMode?: boolean;
 }
 
-function getInitialJobCard(editingDocument?: JobCardDocument | null): JobCardData {
+function isJobCardIntakeDraft(value: unknown): value is JobCardIntakeDraft {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const draft = value as Partial<JobCardIntakeDraft>;
+  return Boolean(
+    draft.vehicleId &&
+    draft.registrationNumber &&
+    draft.engineNumber &&
+    draft.vin &&
+    draft.mobileNumber &&
+    draft.customerName &&
+    draft.model &&
+    typeof draft.odometer === 'number'
+  );
+}
+
+function loadJobCardIntakeDraft(): JobCardIntakeDraft | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    const rawDraft = window.sessionStorage.getItem(JOB_CARD_INTAKE_DRAFT_STORAGE_KEY);
+
+    if (!rawDraft) {
+      return null;
+    }
+
+    const parsedDraft = JSON.parse(rawDraft);
+    return isJobCardIntakeDraft(parsedDraft) ? parsedDraft : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearJobCardIntakeDraft() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    window.sessionStorage.removeItem(JOB_CARD_INTAKE_DRAFT_STORAGE_KEY);
+  } catch {
+    // Nothing else to clean up if storage is unavailable.
+  }
+}
+
+function buildJobCardIntakeRemarks(draft: JobCardIntakeDraft): string {
+  const odometerText = draft.clusterUnreadable
+    ? `Odometer: Cluster unreadable (using last recorded ${draft.odometer.toLocaleString('en-IN')} km)`
+    : `Odometer: ${draft.odometer.toLocaleString('en-IN')} km`;
+
+  return [
+    `Vehicle: ${draft.registrationNumber} (${draft.model})`,
+    `Customer: ${draft.customerName}`,
+    `VIN: ${draft.vin}`,
+    `Engine: ${draft.engineNumber}`,
+    `Mobile: ${draft.mobileNumber}`,
+    odometerText,
+    draft.lastRecordedOdometer && draft.lastRecordedDate
+      ? `Last recorded: ${draft.lastRecordedOdometer.toLocaleString('en-IN')} km on ${formatDate(draft.lastRecordedDate)}`
+      : '',
+    draft.appointmentTime ? `Appointment: ${draft.appointmentTime}` : '',
+    draft.concern ? `Concern: ${draft.concern}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+function applyJobCardIntakeDraft(baseJobCard: JobCardData, draft: JobCardIntakeDraft): JobCardData {
+  return {
+    ...baseJobCard,
+    title: `${draft.registrationNumber} - ${draft.serviceType || 'Service job'}`,
+    supplier: draft.customerName,
+    supplierContact: draft.mobileNumber,
+    referenceNumber: draft.registrationNumber,
+    deliveryLocation: draft.serviceBay || baseJobCard.deliveryLocation,
+    spendCategory: draft.serviceType || baseJobCard.spendCategory,
+    remarks: buildJobCardIntakeRemarks(draft),
+    internalNotes: draft.concern,
+    customerName: draft.customerName,
+    vehicleRegistration: draft.registrationNumber,
+    vehicleModel: draft.model,
+    vehicleVin: draft.vin,
+    vehicleEngineNumber: draft.engineNumber,
+    vehicleMobileNumber: draft.mobileNumber,
+    odometerReading: draft.odometer,
+    serviceType: draft.serviceType,
+    clusterUnreadable: draft.clusterUnreadable,
+    lastRecordedOdometer: draft.lastRecordedOdometer,
+    lastRecordedDate: draft.lastRecordedDate,
+    intakeSource: draft.source,
+  };
+}
+
+function getJobCardSupplierOptions(currentSupplier?: string) {
+  const options = [
+    { value: '', label: 'Select supplier' },
+    { value: 'Techsupply Corp', label: 'Techsupply Corp' },
+    { value: 'Global Supplies Ltd', label: 'Global Supplies Ltd' },
+    { value: 'Apex Industries', label: 'Apex Industries' },
+  ];
+
+  if (currentSupplier && !options.some((option) => option.value === currentSupplier)) {
+    return [...options, { value: currentSupplier, label: currentSupplier }];
+  }
+
+  return options;
+}
+
+function getInitialJobCard(editingDocument?: JobCardDocument | null, intakeDraft?: JobCardIntakeDraft | null): JobCardData {
   if (editingDocument) {
     return {
       number: editingDocument.number,
@@ -912,7 +1111,7 @@ function getInitialJobCard(editingDocument?: JobCardDocument | null): JobCardDat
     };
   }
 
-  return {
+  const defaultJobCard: JobCardData = {
     number: 'JC-2025-00847',
     documentDate: new Date().toISOString().slice(0, 10),
     title: 'Industrial Components & Hardware - Q1 2025',
@@ -939,6 +1138,8 @@ function getInitialJobCard(editingDocument?: JobCardDocument | null): JobCardDat
     internalNotes: '',
     externalNotes: '',
   };
+
+  return intakeDraft ? applyJobCardIntakeDraft(defaultJobCard, intakeDraft) : defaultJobCard;
 }
 
 const CreateJobCard: React.FC<CreateJobCardProps> = ({
@@ -952,18 +1153,31 @@ const CreateJobCard: React.FC<CreateJobCardProps> = ({
   const printTools = useDocumentPrint('job-card');
   type TabKey = string;
 
-  const [requisition, setRequisition] = useState<JobCardData>(() => getInitialJobCard(editingDocument));
+  const intakeDraft = useMemo(() => (editingDocument ? null : loadJobCardIntakeDraft()), [editingDocument]);
+  const [requisition, setRequisition] = useState<JobCardData>(() => getInitialJobCard(editingDocument, intakeDraft));
+
+  useEffect(() => {
+    if (!intakeDraft || editingDocument) {
+      return;
+    }
+
+    clearJobCardIntakeDraft();
+  }, [editingDocument, intakeDraft]);
 
   const [lineItems, setLineItems] = useState<LineItem[]>(mockLineItems);
   const [lineErrors, setLineErrors] = useState<Record<string, LineValidationErrors>>({});
   const [selectedLineIds, setSelectedLineIds] = useState<string[]>([]);
+  const [labourLineItems, setLabourLineItems] = useState<LineItem[]>([]);
+  const [labourLineErrors, setLabourLineErrors] = useState<Record<string, LineValidationErrors>>({});
+  const [selectedLabourLineIds, setSelectedLabourLineIds] = useState<string[]>([]);
   const [isBulkEditDialogOpen, setIsBulkEditDialogOpen] = useState(false);
   const [bulkEditDraft, setBulkEditDraft] = useState<BulkEditDraft>(defaultBulkEditDraft);
+  const [bulkEditTarget, setBulkEditTarget] = useState<LineGridKey>('part');
   const [activeTab, setActiveTab] = useState<TabKey>('general');
   const [layoutConfig, setLayoutConfig] = useState<FormLayoutConfig>(() =>
     configurationMode
-      ? loadDraftFormLayoutConfig(JOB_CARD_LAYOUT)
-      : loadPublishedFormLayoutConfig(JOB_CARD_LAYOUT)
+      ? normalizeJobCardLayoutConfig(loadDraftFormLayoutConfig(JOB_CARD_LAYOUT))
+      : normalizeJobCardLayoutConfig(loadPublishedFormLayoutConfig(JOB_CARD_LAYOUT))
   );
   const [isLayoutEditing, setIsLayoutEditing] = useState(configurationMode);
   const [dragPayload, setDragPayload] = useState<LayoutDragPayload | null>(null);
@@ -985,6 +1199,9 @@ const CreateJobCard: React.FC<CreateJobCardProps> = ({
   const focusLineIdRef = useRef<string | null>(null);
   const pendingMobileLineIdRef = useRef<string | null>(null);
   const fieldRefs = useRef<Record<string, EditableGridCellElement | null>>({});
+  const focusLabourLineIdRef = useRef<string | null>(null);
+  const pendingMobileLabourLineIdRef = useRef<string | null>(null);
+  const labourFieldRefs = useRef<Record<string, EditableGridCellElement | null>>({});
   const isCompactCreateActionsViewport = useMediaQuery(transactionCreateCompactActionsMediaQuery, { noSsr: true });
 
   const handleTabChange = (nextTab: TabKey) => {
@@ -1039,12 +1256,32 @@ const CreateJobCard: React.FC<CreateJobCardProps> = ({
   }, [lineItems]);
 
   useEffect(() => {
+    if (!focusLabourLineIdRef.current) {
+      return;
+    }
+
+    const field = labourFieldRefs.current[`${focusLabourLineIdRef.current}:productCode`];
+    if (field) {
+      field.focus();
+      focusLabourLineIdRef.current = null;
+    }
+  }, [labourLineItems]);
+
+  useEffect(() => {
     const existingLineIds = new Set(lineItems.map((line) => line.id));
     setSelectedLineIds((currentIds) => {
       const nextIds = currentIds.filter((lineId) => existingLineIds.has(lineId));
       return nextIds.length === currentIds.length ? currentIds : nextIds;
     });
   }, [lineItems]);
+
+  useEffect(() => {
+    const existingLineIds = new Set(labourLineItems.map((line) => line.id));
+    setSelectedLabourLineIds((currentIds) => {
+      const nextIds = currentIds.filter((lineId) => existingLineIds.has(lineId));
+      return nextIds.length === currentIds.length ? currentIds : nextIds;
+    });
+  }, [labourLineItems]);
 
   useEffect(() => {
     lastProductScrollTopRef.current = contentScrollRef.current?.scrollTop ?? 0;
@@ -1093,7 +1330,7 @@ const CreateJobCard: React.FC<CreateJobCardProps> = ({
       return {
         label: 'No lines',
         tone: 'muted' as const,
-        context: 'No product lines',
+        context: 'No part lines',
       };
     }
 
@@ -1106,9 +1343,9 @@ const CreateJobCard: React.FC<CreateJobCardProps> = ({
     }
 
     return {
-      label: 'Product lines ready',
+      label: 'Part lines ready',
       tone: 'success' as const,
-      context: `${formatCount(lineItems.length)} ${lineItems.length === 1 ? 'product line' : 'product lines'}`,
+      context: `${formatCount(lineItems.length)} ${lineItems.length === 1 ? 'part line' : 'part lines'}`,
     };
   }, [cancelledLineCount, lineAttentionCount, lineItems.length]);
 
@@ -1127,6 +1364,11 @@ const CreateJobCard: React.FC<CreateJobCardProps> = ({
     const selectedIdSet = new Set(selectedLineIds);
     return lineItems.filter((line) => selectedIdSet.has(line.id)).map((line) => line.id);
   }, [lineItems, selectedLineIds]);
+
+  const selectedLabourLineIdsInOrder = useMemo(() => {
+    const selectedIdSet = new Set(selectedLabourLineIds);
+    return labourLineItems.filter((line) => selectedIdSet.has(line.id)).map((line) => line.id);
+  }, [labourLineItems, selectedLabourLineIds]);
   const createdOnLabel = useMemo(() => {
     const { dateLabel, timeLabel } = formatDateTime(requisition.createdOn);
     return `${dateLabel}, ${timeLabel}`;
@@ -1175,11 +1417,62 @@ const CreateJobCard: React.FC<CreateJobCardProps> = ({
     lastProductScrollTopRef.current = nextScrollTop;
   };
 
-  const setFieldRef =
-    (lineId: string, fieldName: 'productCode' | 'uom' | 'priority' | 'requirementDate' | 'requestedQty' | 'cancellationReason' | 'remarks') =>
+  const lineGridCopy: Record<LineGridKey, { idPrefix: string; lineLabel: string; lineLabelPlural: string }> = {
+    part: {
+      idPrefix: 'line',
+      lineLabel: 'part line',
+      lineLabelPlural: 'part lines',
+    },
+    labour: {
+      idPrefix: 'labour-line',
+      lineLabel: 'labour line',
+      lineLabelPlural: 'labour lines',
+    },
+  };
+
+  const getLineGridItems = (gridKey: LineGridKey) => (gridKey === 'labour' ? labourLineItems : lineItems);
+  const getSelectedLineIdsInOrder = (gridKey: LineGridKey) =>
+    gridKey === 'labour' ? selectedLabourLineIdsInOrder : selectedLineIdsInOrder;
+
+  const setLineGridItems = (gridKey: LineGridKey, updater: (currentLines: LineItem[]) => LineItem[]) => {
+    if (gridKey === 'labour') {
+      setLabourLineItems(updater);
+      return;
+    }
+
+    setLineItems(updater);
+  };
+
+  const setLineGridErrors = (
+    gridKey: LineGridKey,
+    updater: (currentErrors: Record<string, LineValidationErrors>) => Record<string, LineValidationErrors>
+  ) => {
+    if (gridKey === 'labour') {
+      setLabourLineErrors(updater);
+      return;
+    }
+
+    setLineErrors(updater);
+  };
+
+  const setLineGridSelectedIds = (gridKey: LineGridKey, updater: (currentIds: string[]) => string[]) => {
+    if (gridKey === 'labour') {
+      setSelectedLabourLineIds(updater);
+      return;
+    }
+
+    setSelectedLineIds(updater);
+  };
+
+  const setScopedFieldRef =
+    (gridKey: LineGridKey, lineId: string, fieldName: EditableLineFieldName) =>
     (element: EditableGridCellElement | null) => {
-      fieldRefs.current[`${lineId}:${fieldName}`] = element;
+      const refs = gridKey === 'labour' ? labourFieldRefs : fieldRefs;
+      refs.current[`${lineId}:${fieldName}`] = element;
     };
+
+  const setFieldRef = (lineId: string, fieldName: EditableLineFieldName) => setScopedFieldRef('part', lineId, fieldName);
+  const setLabourFieldRef = (lineId: string, fieldName: EditableLineFieldName) => setScopedFieldRef('labour', lineId, fieldName);
 
   const validateLine = (line: LineItem): LineValidationErrors => {
     const errors: LineValidationErrors = {};
@@ -1229,8 +1522,12 @@ const CreateJobCard: React.FC<CreateJobCardProps> = ({
     return errors;
   };
 
-  const validateAllLines = () => {
-    const nextErrors = lineItems.reduce<Record<string, LineValidationErrors>>((accumulator, line) => {
+  const validateLineGrid = (gridKey: LineGridKey, options: { ignoreBlankRows?: boolean } = {}) => {
+    const nextErrors = getLineGridItems(gridKey).reduce<Record<string, LineValidationErrors>>((accumulator, line) => {
+      if (options.ignoreBlankRows && isBlankDraftLine(line)) {
+        return accumulator;
+      }
+
       const errors = validateLine(line);
       if (Object.keys(errors).length > 0) {
         accumulator[line.id] = errors;
@@ -1238,12 +1535,15 @@ const CreateJobCard: React.FC<CreateJobCardProps> = ({
       return accumulator;
     }, {});
 
-    setLineErrors(nextErrors);
+    setLineGridErrors(gridKey, () => nextErrors);
     return Object.keys(nextErrors).length === 0;
   };
 
-  const updateLine = (lineId: string, updater: (line: LineItem) => LineItem) => {
-    setLineItems((currentLines) =>
+  const validateAllLines = () => validateLineGrid('part');
+  const validateStartedLabourLines = () => validateLineGrid('labour', { ignoreBlankRows: true });
+
+  const updateScopedLine = (gridKey: LineGridKey, lineId: string, updater: (line: LineItem) => LineItem) => {
+    setLineGridItems(gridKey, (currentLines) =>
       currentLines.map((line) => {
         if (line.id !== lineId) {
           return line;
@@ -1253,16 +1553,17 @@ const CreateJobCard: React.FC<CreateJobCardProps> = ({
     );
   };
 
-  const handleLineFieldChange = (
+  const handleScopedLineFieldChange = (
+    gridKey: LineGridKey,
     lineId: string,
-    fieldName: 'productCode' | 'uom' | 'priority' | 'requirementDate' | 'requestedQty' | 'cancellationReason' | 'remarks',
+    fieldName: EditableLineFieldName,
     value: string
   ) => {
     if (fieldName === 'requestedQty' && !isValidDecimalInput(value)) {
       return;
     }
 
-    updateLine(lineId, (line) => {
+    updateScopedLine(gridKey, lineId, (line) => {
       if (fieldName === 'productCode') {
         const product = getProductOption(value);
         return {
@@ -1290,7 +1591,7 @@ const CreateJobCard: React.FC<CreateJobCardProps> = ({
       };
     });
 
-    setLineErrors((currentErrors) => {
+    setLineGridErrors(gridKey, (currentErrors) => {
       if (!currentErrors[lineId]) {
         return currentErrors;
       }
@@ -1301,8 +1602,14 @@ const CreateJobCard: React.FC<CreateJobCardProps> = ({
     });
   };
 
-  const handleNumericBlur = (lineId: string, fieldName: 'requestedQty') => {
-    const currentLine = lineItems.find((line) => line.id === lineId);
+  const handleLineFieldChange = (lineId: string, fieldName: EditableLineFieldName, value: string) =>
+    handleScopedLineFieldChange('part', lineId, fieldName, value);
+
+  const handleLabourLineFieldChange = (lineId: string, fieldName: EditableLineFieldName, value: string) =>
+    handleScopedLineFieldChange('labour', lineId, fieldName, value);
+
+  const handleScopedNumericBlur = (gridKey: LineGridKey, lineId: string, fieldName: 'requestedQty') => {
+    const currentLine = getLineGridItems(gridKey).find((line) => line.id === lineId);
     if (!currentLine) {
       return;
     }
@@ -1310,58 +1617,87 @@ const CreateJobCard: React.FC<CreateJobCardProps> = ({
     const currentValue = currentLine[fieldName];
     const normalizedValue = currentValue === '' ? '' : formatDecimal(parseDecimal(currentValue));
 
-    updateLine(lineId, (line) => ({ ...line, [fieldName]: normalizedValue }));
-    setLineErrors((currentErrors) => ({
+    updateScopedLine(gridKey, lineId, (line) => ({ ...line, [fieldName]: normalizedValue }));
+    setLineGridErrors(gridKey, (currentErrors) => ({
       ...currentErrors,
       [lineId]: validateLine({ ...currentLine, [fieldName]: normalizedValue }),
     }));
   };
 
-  const handleLineBlur = (lineId: string) => {
-    const currentLine = lineItems.find((line) => line.id === lineId);
+  const handleNumericBlur = (lineId: string, fieldName: 'requestedQty') => handleScopedNumericBlur('part', lineId, fieldName);
+  const handleLabourNumericBlur = (lineId: string, fieldName: 'requestedQty') => handleScopedNumericBlur('labour', lineId, fieldName);
+
+  const handleScopedLineBlur = (gridKey: LineGridKey, lineId: string) => {
+    const currentLine = getLineGridItems(gridKey).find((line) => line.id === lineId);
     if (!currentLine) {
       return;
     }
 
-    setLineErrors((currentErrors) => ({
-      ...currentErrors,
-      [lineId]: validateLine(currentLine),
-    }));
+    setLineGridErrors(gridKey, (currentErrors) => {
+      if (gridKey === 'labour' && isBlankDraftLine(currentLine)) {
+        const nextErrors = { ...currentErrors };
+        delete nextErrors[lineId];
+        return nextErrors;
+      }
+
+      return {
+        ...currentErrors,
+        [lineId]: validateLine(currentLine),
+      };
+    });
   };
 
-  const handleAddLine = (context?: EditableGridAddRowContext): string | undefined => {
-    if (!validateAllLines()) {
-      setFormMessage('Complete the current line details before adding another line.');
+  const handleLineBlur = (lineId: string) => handleScopedLineBlur('part', lineId);
+  const handleLabourLineBlur = (lineId: string) => handleScopedLineBlur('labour', lineId);
+
+  const handleScopedAddLine = (gridKey: LineGridKey, context?: EditableGridAddRowContext): string | undefined => {
+    const gridCopy = lineGridCopy[gridKey];
+    if (!validateLineGrid(gridKey)) {
+      setFormMessage(`Complete the current ${gridCopy.lineLabel} details before adding another line.`);
       handleTabChange('product');
       return undefined;
     }
 
-    const nextLine = createEmptyLine(lineItems.length + 1);
-    focusLineIdRef.current = nextLine.id;
-    if (context?.source === 'mobile') {
-      pendingMobileLineIdRef.current = nextLine.id;
+    const currentLines = getLineGridItems(gridKey);
+    const nextLine = createEmptyLine(currentLines.length + 1, gridCopy.idPrefix);
+    if (gridKey === 'labour') {
+      focusLabourLineIdRef.current = nextLine.id;
+      if (context?.source === 'mobile') {
+        pendingMobileLabourLineIdRef.current = nextLine.id;
+      }
+    } else {
+      focusLineIdRef.current = nextLine.id;
+      if (context?.source === 'mobile') {
+        pendingMobileLineIdRef.current = nextLine.id;
+      }
     }
-    setLineItems((currentLines) => [...currentLines, nextLine]);
+
+    setLineGridItems(gridKey, (currentLines) => [...currentLines, nextLine]);
     setFormMessage('');
     return nextLine.id;
   };
 
-  const handleMobileLineEditorClose = (lineId: string, line: LineItem) => {
-    if (pendingMobileLineIdRef.current !== lineId) {
+  const handleAddLine = (context?: EditableGridAddRowContext): string | undefined => handleScopedAddLine('part', context);
+  const handleAddLabourLine = (context?: EditableGridAddRowContext): string | undefined => handleScopedAddLine('labour', context);
+
+  const handleScopedMobileLineEditorClose = (gridKey: LineGridKey, lineId: string, line: LineItem) => {
+    const pendingMobileLineIdRefForGrid = gridKey === 'labour' ? pendingMobileLabourLineIdRef : pendingMobileLineIdRef;
+    const focusLineIdRefForGrid = gridKey === 'labour' ? focusLabourLineIdRef : focusLineIdRef;
+    if (pendingMobileLineIdRefForGrid.current !== lineId) {
       return;
     }
 
-    pendingMobileLineIdRef.current = null;
-    if (focusLineIdRef.current === lineId) {
-      focusLineIdRef.current = null;
+    pendingMobileLineIdRefForGrid.current = null;
+    if (focusLineIdRefForGrid.current === lineId) {
+      focusLineIdRefForGrid.current = null;
     }
 
     if (!isBlankDraftLine(line)) {
       return;
     }
 
-    setLineItems((currentLines) => currentLines.filter((currentLine) => currentLine.id !== lineId));
-    setLineErrors((currentErrors) => {
+    setLineGridItems(gridKey, (currentLines) => currentLines.filter((currentLine) => currentLine.id !== lineId));
+    setLineGridErrors(gridKey, (currentErrors) => {
       if (!currentErrors[lineId]) {
         return currentErrors;
       }
@@ -1370,26 +1706,30 @@ const CreateJobCard: React.FC<CreateJobCardProps> = ({
       delete nextErrors[lineId];
       return nextErrors;
     });
-    setSelectedLineIds((currentIds) => currentIds.filter((selectedLineId) => selectedLineId !== lineId));
+    setLineGridSelectedIds(gridKey, (currentIds) => currentIds.filter((selectedLineId) => selectedLineId !== lineId));
     setFormMessage('');
   };
 
-  const handleDuplicateLine = (lineId: string) => {
-    const sourceIndex = lineItems.findIndex((line) => line.id === lineId);
-    const sourceLine = lineItems[sourceIndex];
+  const handleMobileLineEditorClose = (lineId: string, line: LineItem) => handleScopedMobileLineEditorClose('part', lineId, line);
+  const handleLabourMobileLineEditorClose = (lineId: string, line: LineItem) => handleScopedMobileLineEditorClose('labour', lineId, line);
+
+  const handleScopedDuplicateLine = (gridKey: LineGridKey, lineId: string) => {
+    const currentLines = getLineGridItems(gridKey);
+    const sourceIndex = currentLines.findIndex((line) => line.id === lineId);
+    const sourceLine = currentLines[sourceIndex];
     if (!sourceLine) {
       return;
     }
 
     const duplicatedLine: LineItem = {
       ...sourceLine,
-      id: `line-${Date.now()}-${lineItems.length + 1}`,
+      id: `${lineGridCopy[gridKey].idPrefix}-${Date.now()}-${currentLines.length + 1}`,
     };
 
-    const nextLines = [...lineItems];
+    const nextLines = [...currentLines];
     nextLines.splice(sourceIndex + 1, 0, duplicatedLine);
-    setLineItems(nextLines);
-    setLineErrors((currentErrors) => {
+    setLineGridItems(gridKey, () => nextLines);
+    setLineGridErrors(gridKey, (currentErrors) => {
       const nextErrors = { ...currentErrors };
       const duplicatedErrors = validateLine(duplicatedLine);
       if (Object.keys(duplicatedErrors).length > 0) {
@@ -1397,32 +1737,41 @@ const CreateJobCard: React.FC<CreateJobCardProps> = ({
       }
       return nextErrors;
     });
-    setSelectedLineIds([]);
+    setLineGridSelectedIds(gridKey, () => []);
     setFormMessage('Line duplicated. Review quantity and requirement date before submitting.');
   };
 
-  const handleDeleteLine = (lineId: string) => {
-    const lineNumber = lineItems.findIndex((line) => line.id === lineId) + 1;
-    if (!window.confirm(`Delete line ${lineNumber}?`)) {
+  const handleDuplicateLine = (lineId: string) => handleScopedDuplicateLine('part', lineId);
+  const handleDuplicateLabourLine = (lineId: string) => handleScopedDuplicateLine('labour', lineId);
+
+  const handleScopedDeleteLine = (gridKey: LineGridKey, lineId: string) => {
+    const currentLines = getLineGridItems(gridKey);
+    const lineNumber = currentLines.findIndex((line) => line.id === lineId) + 1;
+    if (!window.confirm(`Delete ${lineGridCopy[gridKey].lineLabel} ${lineNumber}?`)) {
       return;
     }
 
-    setLineItems((currentLines) => currentLines.filter((line) => line.id !== lineId));
-    setLineErrors((currentErrors) => {
+    setLineGridItems(gridKey, (currentLines) => currentLines.filter((line) => line.id !== lineId));
+    setLineGridErrors(gridKey, (currentErrors) => {
       const nextErrors = { ...currentErrors };
       delete nextErrors[lineId];
       return nextErrors;
     });
-    setSelectedLineIds((currentIds) => currentIds.filter((selectedLineId) => selectedLineId !== lineId));
+    setLineGridSelectedIds(gridKey, (currentIds) => currentIds.filter((selectedLineId) => selectedLineId !== lineId));
     setFormMessage('');
   };
 
-  const handleOpenBulkEdit = () => {
-    if (selectedLineIdsInOrder.length === 0) {
-      setFormMessage('Select one or more product lines before using bulk edit.');
+  const handleDeleteLine = (lineId: string) => handleScopedDeleteLine('part', lineId);
+  const handleDeleteLabourLine = (lineId: string) => handleScopedDeleteLine('labour', lineId);
+
+  const handleOpenBulkEdit = (gridKey: LineGridKey) => {
+    const selectedIds = getSelectedLineIdsInOrder(gridKey);
+    if (selectedIds.length === 0) {
+      setFormMessage(`Select one or more ${lineGridCopy[gridKey].lineLabelPlural} before using bulk edit.`);
       return;
     }
 
+    setBulkEditTarget(gridKey);
     setBulkEditDraft(defaultBulkEditDraft);
     setIsBulkEditDialogOpen(true);
     handleTabChange('product');
@@ -1433,11 +1782,12 @@ const CreateJobCard: React.FC<CreateJobCardProps> = ({
   };
 
   const handleApplyBulkEdit = () => {
-    const selectedIdSet = new Set(selectedLineIdsInOrder);
-    const selectedCount = selectedLineIdsInOrder.length;
+    const selectedIds = getSelectedLineIdsInOrder(bulkEditTarget);
+    const selectedIdSet = new Set(selectedIds);
+    const selectedCount = selectedIds.length;
     if (selectedCount === 0) {
       setIsBulkEditDialogOpen(false);
-      setFormMessage('No product lines are selected.');
+      setFormMessage(`No ${lineGridCopy[bulkEditTarget].lineLabelPlural} are selected.`);
       return;
     }
 
@@ -1447,7 +1797,7 @@ const CreateJobCard: React.FC<CreateJobCardProps> = ({
       return;
     }
 
-    const nextLines = lineItems.map((line) => {
+    const nextLines = getLineGridItems(bulkEditTarget).map((line) => {
       if (!selectedIdSet.has(line.id)) {
         return line;
       }
@@ -1461,8 +1811,8 @@ const CreateJobCard: React.FC<CreateJobCardProps> = ({
     });
     const updatedLines = nextLines.filter((line) => selectedIdSet.has(line.id));
 
-    setLineItems(nextLines);
-    setLineErrors((currentErrors) => {
+    setLineGridItems(bulkEditTarget, () => nextLines);
+    setLineGridErrors(bulkEditTarget, (currentErrors) => {
       const nextErrors = { ...currentErrors };
       updatedLines.forEach((line) => {
         const errors = validateLine(line);
@@ -1474,39 +1824,41 @@ const CreateJobCard: React.FC<CreateJobCardProps> = ({
       });
       return nextErrors;
     });
-    setSelectedLineIds([]);
+    setLineGridSelectedIds(bulkEditTarget, () => []);
     setIsBulkEditDialogOpen(false);
-    setFormMessage(`Updated ${selectedCount} selected ${selectedCount === 1 ? 'line' : 'lines'}.`);
+    setFormMessage(`Updated ${selectedCount} selected ${selectedCount === 1 ? lineGridCopy[bulkEditTarget].lineLabel : lineGridCopy[bulkEditTarget].lineLabelPlural}.`);
   };
 
-  const handleBulkDuplicateLines = () => {
-    if (selectedLineIdsInOrder.length === 0) {
-      setFormMessage('Select one or more product lines to duplicate.');
+  const handleBulkDuplicateLines = (gridKey: LineGridKey) => {
+    const selectedIds = getSelectedLineIdsInOrder(gridKey);
+    if (selectedIds.length === 0) {
+      setFormMessage(`Select one or more ${lineGridCopy[gridKey].lineLabelPlural} to duplicate.`);
       return;
     }
 
-    const selectedIdSet = new Set(selectedLineIdsInOrder);
-    const selectedSourceLines = lineItems.filter((line) => selectedIdSet.has(line.id));
-    const lastSelectedIndex = lineItems.reduce(
+    const selectedIdSet = new Set(selectedIds);
+    const currentLines = getLineGridItems(gridKey);
+    const selectedSourceLines = currentLines.filter((line) => selectedIdSet.has(line.id));
+    const lastSelectedIndex = currentLines.reduce(
       (latestIndex, line, index) => selectedIdSet.has(line.id) ? index : latestIndex,
       -1
     );
     const timestamp = Date.now();
     const duplicatedLines = selectedSourceLines.map((line, index) => ({
       ...line,
-      id: `line-${timestamp}-bulk-${index + 1}`,
+      id: `${lineGridCopy[gridKey].idPrefix}-${timestamp}-bulk-${index + 1}`,
     }));
 
     if (lastSelectedIndex < 0 || duplicatedLines.length === 0) {
-      setSelectedLineIds([]);
+      setLineGridSelectedIds(gridKey, () => []);
       setFormMessage('Selected lines are no longer available.');
       return;
     }
 
-    const nextLines = [...lineItems];
+    const nextLines = [...currentLines];
     nextLines.splice(lastSelectedIndex + 1, 0, ...duplicatedLines);
-    setLineItems(nextLines);
-    setLineErrors((currentErrors) => {
+    setLineGridItems(gridKey, () => nextLines);
+    setLineGridErrors(gridKey, (currentErrors) => {
       const nextErrors = { ...currentErrors };
       duplicatedLines.forEach((line) => {
         const errors = validateLine(line);
@@ -1516,61 +1868,72 @@ const CreateJobCard: React.FC<CreateJobCardProps> = ({
       });
       return nextErrors;
     });
-    setSelectedLineIds([]);
-    setFormMessage(`Duplicated ${duplicatedLines.length} selected ${duplicatedLines.length === 1 ? 'line' : 'lines'}.`);
+    setLineGridSelectedIds(gridKey, () => []);
+    setFormMessage(`Duplicated ${duplicatedLines.length} selected ${duplicatedLines.length === 1 ? lineGridCopy[gridKey].lineLabel : lineGridCopy[gridKey].lineLabelPlural}.`);
   };
 
-  const handleBulkDeleteLines = () => {
-    const selectedCount = selectedLineIdsInOrder.length;
+  const handleBulkDeleteLines = (gridKey: LineGridKey) => {
+    const selectedIds = getSelectedLineIdsInOrder(gridKey);
+    const selectedCount = selectedIds.length;
     if (selectedCount === 0) {
-      setFormMessage('Select one or more product lines to delete.');
+      setFormMessage(`Select one or more ${lineGridCopy[gridKey].lineLabelPlural} to delete.`);
       return;
     }
 
-    if (!window.confirm(`Delete ${selectedCount} selected product ${selectedCount === 1 ? 'line' : 'lines'}?`)) {
+    if (!window.confirm(`Delete ${selectedCount} selected ${selectedCount === 1 ? lineGridCopy[gridKey].lineLabel : lineGridCopy[gridKey].lineLabelPlural}?`)) {
       return;
     }
 
-    const selectedIdSet = new Set(selectedLineIdsInOrder);
-    setLineItems((currentLines) => currentLines.filter((line) => !selectedIdSet.has(line.id)));
-    setLineErrors((currentErrors) => {
+    const selectedIdSet = new Set(selectedIds);
+    setLineGridItems(gridKey, (currentLines) => currentLines.filter((line) => !selectedIdSet.has(line.id)));
+    setLineGridErrors(gridKey, (currentErrors) => {
       const nextErrors = { ...currentErrors };
-      selectedLineIdsInOrder.forEach((lineId) => delete nextErrors[lineId]);
+      selectedIds.forEach((lineId) => delete nextErrors[lineId]);
       return nextErrors;
     });
-    setSelectedLineIds([]);
-    setFormMessage(`Deleted ${selectedCount} selected ${selectedCount === 1 ? 'line' : 'lines'}.`);
+    setLineGridSelectedIds(gridKey, () => []);
+    setFormMessage(`Deleted ${selectedCount} selected ${selectedCount === 1 ? lineGridCopy[gridKey].lineLabel : lineGridCopy[gridKey].lineLabelPlural}.`);
   };
-  const buildJobCardPayload = () => ({
-    jobCard: {
-      ...requisition,
-      documentNumber: requisition.number,
-      documentDate: requisition.documentDate,
-      requester: requisition.requestor,
-      requirementDate: requisition.neededByDate || null,
-      referenceNumber: requisition.referenceNumber || null,
-      remarks: requisition.remarks || null,
-      createdBy: requisition.createdBy,
-      createdOn: requisition.createdOn,
-      lineCount: lineItems.length,
-    },
-    lines: lineItems.map((line, index) => ({
-      lineNumber: index + 1,
-      productCode: line.productCode,
-      productName: line.productName,
-      description: line.description,
-      uom: line.uom,
-      priority: line.priority || null,
-      requirementDate: line.requirementDate || null,
-      requestedQty: parseDecimal(line.requestedQty),
-      orderedQty: parseDecimal(line.orderedQty),
-      cancelledQty: parseDecimal(line.cancelledQty),
-      pendingQty: Math.max(getPendingQty(line), 0),
-      status: getLineStatus(line),
-      cancellationReason: line.cancellationReason || null,
-      remarks: line.remarks,
-    })),
+
+  const getSubmittableLabourLines = () => labourLineItems.filter((line) => !isBlankDraftLine(line));
+
+  const serializeLine = (line: LineItem, index: number) => ({
+    lineNumber: index + 1,
+    productCode: line.productCode,
+    productName: line.productName,
+    description: line.description,
+    uom: line.uom,
+    priority: line.priority || null,
+    requirementDate: line.requirementDate || null,
+    requestedQty: parseDecimal(line.requestedQty),
+    orderedQty: parseDecimal(line.orderedQty),
+    cancelledQty: parseDecimal(line.cancelledQty),
+    pendingQty: Math.max(getPendingQty(line), 0),
+    status: getLineStatus(line),
+    cancellationReason: line.cancellationReason || null,
+    remarks: line.remarks,
   });
+  const buildJobCardPayload = () => {
+    const labourLines = getSubmittableLabourLines();
+
+    return {
+      jobCard: {
+        ...requisition,
+        documentNumber: requisition.number,
+        documentDate: requisition.documentDate,
+        requester: requisition.requestor,
+        requirementDate: requisition.neededByDate || null,
+        referenceNumber: requisition.referenceNumber || null,
+        remarks: requisition.remarks || null,
+        createdBy: requisition.createdBy,
+        createdOn: requisition.createdOn,
+        lineCount: lineItems.length,
+        labourLineCount: labourLines.length,
+      },
+      lines: lineItems.map(serializeLine),
+      labourLines: labourLines.map(serializeLine),
+    };
+  };
 
   const handleSave = () => {
     if (!validateAllLines()) {
@@ -1579,11 +1942,21 @@ const CreateJobCard: React.FC<CreateJobCardProps> = ({
       return;
     }
 
+    if (!validateStartedLabourLines()) {
+      handleTabChange('product');
+      setFormMessage('Save is blocked until started Labour Details rows are complete.');
+      return;
+    }
+
+    const labourLineCount = getSubmittableLabourLines().length;
     setPreviewPayload(JSON.stringify(buildJobCardPayload(), null, 2));
-    setFormMessage(`Job Card payload is ready with ${lineItems.length} line(s).`);
+    setFormMessage(
+      labourLineCount > 0
+        ? `Job Card payload is ready with ${lineItems.length} part line(s) and ${labourLineCount} labour line(s).`
+        : `Job Card payload is ready with ${lineItems.length} line(s).`
+    );
     setIsSaveSuccessDialogOpen(true);
   };
-
   const handleDiscardRequest = () => {
     setIsDiscardDialogOpen(true);
   };
@@ -1612,27 +1985,9 @@ const CreateJobCard: React.FC<CreateJobCardProps> = ({
     }
   };
 
-  const buildJobCardPrintPreviewDocument = (): Record<string, unknown> => ({
-    id: editingDocument?.id ?? `job-card-preview-${requisition.number}`,
-    number: requisition.number,
-    title: requisition.title,
-    documentDateTime: requisition.documentDate ? `${requisition.documentDate}T09:00:00.000Z` : '',
-    supplierName: requisition.supplier,
-    requesterName: requisition.requestor,
-    department: requisition.department,
-    branch: requisition.deliveryLocation,
-    legalEntity: requisition.legalEntity,
-    costCenter: requisition.costCenter,
-    requirementDate: requisition.neededByDate,
-    validTillDate: requisition.validTillDate,
-    priority: requisition.priority,
-    status: getHeaderStatusLabel(requisition.status),
-    currency: requisition.currency,
-    lineCount: lineItems.length,
-    contractReference: requisition.contractReference,
-    budgetCode: requisition.budgetCode,
-    notes: requisition.remarks,
-    productLines: lineItems.map((line) => ({
+  const buildJobCardPrintPreviewDocument = (): Record<string, unknown> => {
+    const labourLines = getSubmittableLabourLines();
+    const formatPrintLine = (line: LineItem) => ({
       productCode: line.productCode,
       productName: line.productName,
       description: line.description,
@@ -1646,9 +2001,33 @@ const CreateJobCard: React.FC<CreateJobCardProps> = ({
       status: getLineStatus(line),
       cancellationReason: line.cancellationReason,
       remarks: line.remarks,
-    })),
-  });
+    });
 
+    return {
+      id: editingDocument?.id ?? `job-card-preview-${requisition.number}`,
+      number: requisition.number,
+      title: requisition.title,
+      documentDateTime: requisition.documentDate ? `${requisition.documentDate}T09:00:00.000Z` : '',
+      supplierName: requisition.supplier,
+      requesterName: requisition.requestor,
+      department: requisition.department,
+      branch: requisition.deliveryLocation,
+      legalEntity: requisition.legalEntity,
+      costCenter: requisition.costCenter,
+      requirementDate: requisition.neededByDate,
+      validTillDate: requisition.validTillDate,
+      priority: requisition.priority,
+      status: getHeaderStatusLabel(requisition.status),
+      currency: requisition.currency,
+      lineCount: lineItems.length,
+      labourLineCount: labourLines.length,
+      contractReference: requisition.contractReference,
+      budgetCode: requisition.budgetCode,
+      notes: requisition.remarks,
+      productLines: lineItems.map(formatPrintLine),
+      labourLines: labourLines.map(formatPrintLine),
+    };
+  };
   const handlePrintSummary = () => {
     printTools.openPrintPreview(buildJobCardPrintPreviewDocument(), () => window.print());
   };
@@ -2043,12 +2422,7 @@ const CreateJobCard: React.FC<CreateJobCardProps> = ({
           <div data-tour="job-card-supplier-field">
           <FormField label="Supplier">
             <Select
-              options={[
-                { value: '', label: 'Select supplier' },
-                { value: 'Techsupply Corp', label: 'Techsupply Corp' },
-                { value: 'Global Supplies Ltd', label: 'Global Supplies Ltd' },
-                { value: 'Apex Industries', label: 'Apex Industries' },
-              ]}
+              options={getJobCardSupplierOptions(requisition.supplier)}
               value={requisition.supplier || ''}
               onChange={(e) => setRequisition({ ...requisition, supplier: e.target.value })}
             />
@@ -2125,6 +2499,15 @@ const CreateJobCard: React.FC<CreateJobCardProps> = ({
         return (
           <div data-tour="job-card-product-grid">
             <LineItemsSection
+              gridId="job-card-product-grid"
+              title="Part lines"
+              lineLabel="Part line"
+              lineLabelPlural="Part lines"
+              emptyState="Add the first part line to start this Job Card."
+              selectionAriaLabel="Select part lines"
+              productCodeDataTour="job-card-product-code"
+              requestedQtyDataTour="job-card-requested-qty"
+              mobileEditorTitle={(_line, index) => `Part line ${index + 1}`}
               items={lineItems}
               lineErrors={lineErrors}
               selectedLineIds={selectedLineIds}
@@ -2134,9 +2517,9 @@ const CreateJobCard: React.FC<CreateJobCardProps> = ({
               onDuplicateLine={handleDuplicateLine}
               onDeleteLine={handleDeleteLine}
               onSelectedLineIdsChange={setSelectedLineIds}
-              onOpenBulkEdit={handleOpenBulkEdit}
-              onBulkDuplicateLines={handleBulkDuplicateLines}
-              onBulkDeleteLines={handleBulkDeleteLines}
+              onOpenBulkEdit={() => handleOpenBulkEdit('part')}
+              onBulkDuplicateLines={() => handleBulkDuplicateLines('part')}
+              onBulkDeleteLines={() => handleBulkDeleteLines('part')}
               onFieldChange={handleLineFieldChange}
               onNumericBlur={handleNumericBlur}
               onLineBlur={handleLineBlur}
@@ -2147,6 +2530,42 @@ const CreateJobCard: React.FC<CreateJobCardProps> = ({
                 setFormMessage('Resolve the current row errors before adding another line.');
               }}
               setFieldRef={setFieldRef}
+            />
+          </div>
+        );
+      case 'labourGrid':
+        return (
+          <div data-tour="job-card-labour-grid">
+            <LineItemsSection
+              gridId="job-card-labour-grid"
+              title="Labour lines"
+              lineLabel="Labour line"
+              lineLabelPlural="Labour lines"
+              emptyState="Add the first labour line to start this Job Card."
+              selectionAriaLabel="Select labour lines"
+              mobileEditorTitle={(_line, index) => `Labour line ${index + 1}`}
+              items={labourLineItems}
+              lineErrors={labourLineErrors}
+              selectedLineIds={selectedLabourLineIds}
+              gridColumns={getVisibleGridColumns(layoutConfig, 'labourGrid')}
+              onAddLine={handleAddLabourLine}
+              onMobileLineEditorClose={handleLabourMobileLineEditorClose}
+              onDuplicateLine={handleDuplicateLabourLine}
+              onDeleteLine={handleDeleteLabourLine}
+              onSelectedLineIdsChange={setSelectedLabourLineIds}
+              onOpenBulkEdit={() => handleOpenBulkEdit('labour')}
+              onBulkDuplicateLines={() => handleBulkDuplicateLines('labour')}
+              onBulkDeleteLines={() => handleBulkDeleteLines('labour')}
+              onFieldChange={handleLabourLineFieldChange}
+              onNumericBlur={handleLabourNumericBlur}
+              onLineBlur={handleLabourLineBlur}
+              isLineComplete={(line) => Object.keys(validateLine(line)).length === 0}
+              onIncompleteLine={(line) => {
+                const nextErrors = validateLine(line);
+                setLabourLineErrors((currentErrors) => ({ ...currentErrors, [line.id]: nextErrors }));
+                setFormMessage('Resolve the current labour row errors before adding another line.');
+              }}
+              setFieldRef={setLabourFieldRef}
             />
           </div>
         );
@@ -2207,6 +2626,20 @@ const CreateJobCard: React.FC<CreateJobCardProps> = ({
       ];
     }
 
+    if (section.fieldIds.includes('labourGrid')) {
+      const startedLabourLines = getSubmittableLabourLines();
+      const issueLineCount = Object.values(labourLineErrors).filter((errors) => Object.values(errors).some(Boolean)).length;
+      const totalLabourRequestedQty = startedLabourLines.reduce((sum, line) => sum + parseDecimal(line.requestedQty), 0);
+      const totalLabourPendingQty = startedLabourLines.reduce((sum, line) => sum + Math.max(getPendingQty(line), 0), 0);
+
+      return [
+        `${startedLabourLines.length} ${startedLabourLines.length === 1 ? 'line' : 'lines'}`,
+        totalLabourRequestedQty > 0 && `Requested: ${formatCount(totalLabourRequestedQty)}`,
+        totalLabourPendingQty > 0 && `Pending: ${formatCount(totalLabourPendingQty)}`,
+        issueLineCount > 0 && `${issueLineCount} ${issueLineCount === 1 ? 'line' : 'lines'} need attention`,
+      ];
+    }
+
     if (section.fieldIds.includes('attachments')) {
       return ['Product_Specifications.pdf'];
     }
@@ -2241,6 +2674,20 @@ const CreateJobCard: React.FC<CreateJobCardProps> = ({
       }
 
       return hasStartedLine ? 'partial' : 'default';
+    }
+
+    if (section.fieldIds.includes('labourGrid')) {
+      const hasLineError = Object.values(labourLineErrors).some((errors) => Object.values(errors).some(Boolean));
+      if (hasLineError) {
+        return 'error';
+      }
+
+      const startedLabourLines = getSubmittableLabourLines();
+      if (startedLabourLines.length === 0) {
+        return 'default';
+      }
+
+      return startedLabourLines.every((line) => Object.keys(validateLine(line)).length === 0) ? 'complete' : 'partial';
     }
 
     if (section.fieldIds.includes('attachments')) {
@@ -2287,21 +2734,26 @@ const CreateJobCard: React.FC<CreateJobCardProps> = ({
 
   const getSectionTitle = (section: FormLayoutSection) => {
     if (section.fieldIds.includes('productGrid')) {
-      return 'Products';
+      return 'Part Details';
+    }
+    if (section.fieldIds.includes('labourGrid')) {
+      return 'Labour Details';
     }
 
     return section.label;
   };
   const getSectionDescription = (section: FormLayoutSection) => {
     if (section.fieldIds.includes('productGrid')) {
-      return 'Add product lines, quantities, dates, and line remarks.';
+      return 'Add part lines, quantities, dates, and line remarks.';
+    }
+    if (section.fieldIds.includes('labourGrid')) {
+      return 'Add labour lines, quantities, dates, and line remarks.';
     }
     if (section.fieldIds.includes('attachments')) {
       return 'Keep supporting files and notes with this Job Card.';
     }
     return 'Capture requester, supplier, priority, and validity details.';
   };
-
   const renderSectionBody = (sectionId: string, section: FormLayoutSection) => (
     <div
       className="form-layout-section__fields"
@@ -2786,8 +3238,8 @@ const CreateJobCard: React.FC<CreateJobCardProps> = ({
           >
             <div className="create-pr-bulk-edit__header">
               <div>
-                <h3 id="create-pr-bulk-edit-title">Bulk edit product lines</h3>
-                <p>{selectedLineIdsInOrder.length} selected</p>
+                <h3 id="create-pr-bulk-edit-title">Bulk edit {lineGridCopy[bulkEditTarget].lineLabelPlural}</h3>
+                <p>{getSelectedLineIdsInOrder(bulkEditTarget).length} selected</p>
               </div>
               <button
                 type="button"
@@ -2859,7 +3311,7 @@ const CreateJobCard: React.FC<CreateJobCardProps> = ({
                 Discard
               </button>
               <button type="button" className="btn btn--primary" onClick={handleApplyBulkEdit}>
-                Apply to {selectedLineIdsInOrder.length}
+                Apply to {getSelectedLineIdsInOrder(bulkEditTarget).length}
               </button>
             </div>
           </div>
@@ -2918,7 +3370,7 @@ const CreateJobCard: React.FC<CreateJobCardProps> = ({
         items={quantityBreakdownItems}
         totalLabel="Total requested qty"
         totalValue={formatCount(totalRequestedQty)}
-        note={`This summary is calculated from ${lineItems.length} product line${lineItems.length === 1 ? '' : 's'} in the product details grid.`}
+        note={`This summary is calculated from ${lineItems.length} part line${lineItems.length === 1 ? '' : 's'} in the Part Details grid.`}
         onClose={() => setIsQuantityDrawerOpen(false)}
       />
       <GuidedTour

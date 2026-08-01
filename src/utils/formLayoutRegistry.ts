@@ -27,6 +27,7 @@ const PURCHASE_REQUISITION_PRODUCT_COLUMNS = [
 ];
 
 const JOB_CARD_PRODUCT_COLUMNS = PURCHASE_REQUISITION_PRODUCT_COLUMNS.map((item) => ({ ...item }));
+const JOB_CARD_LABOUR_COLUMNS = JOB_CARD_PRODUCT_COLUMNS.map((item) => ({ ...item }));
 const PURCHASE_ORDER_PRODUCT_COLUMNS = [
   column('action', 'Action', { locked: true }),
   column('productCode', 'Product Code', { locked: true }),
@@ -199,7 +200,7 @@ export const JOB_CARD_LAYOUT: FormLayoutConfig = {
   tabPlacement: 'header',
   tabs: [
     { id: 'general', label: 'General Details', sectionIds: ['job-card-details'] },
-    { id: 'product', label: 'Product Details', sectionIds: ['job-card-product-lines'] },
+    { id: 'product', label: 'Product Details', sectionIds: ['job-card-product-lines', 'job-card-labour-lines'] },
     { id: 'additional', label: 'Additional Details', sectionIds: ['job-card-attachments-notes'] },
   ],
   sections: {
@@ -211,9 +212,15 @@ export const JOB_CARD_LAYOUT: FormLayoutConfig = {
     },
     'job-card-product-lines': {
       id: 'job-card-product-lines',
-      label: 'Line Details',
+      label: 'Part Details',
       fieldsPerRow: 1,
       fieldIds: ['productGrid'],
+    },
+    'job-card-labour-lines': {
+      id: 'job-card-labour-lines',
+      label: 'Labour Details',
+      fieldsPerRow: 1,
+      fieldIds: ['labourGrid'],
     },
     'job-card-attachments-notes': {
       id: 'job-card-attachments-notes',
@@ -225,8 +232,13 @@ export const JOB_CARD_LAYOUT: FormLayoutConfig = {
   grids: {
     productGrid: {
       id: 'productGrid',
-      label: 'Product Details Columns',
+      label: 'Part Details Columns',
       columns: JOB_CARD_PRODUCT_COLUMNS,
+    },
+    labourGrid: {
+      id: 'labourGrid',
+      label: 'Labour Details Columns',
+      columns: JOB_CARD_LABOUR_COLUMNS,
     },
   },
 };
@@ -261,7 +273,8 @@ export const jobCardFieldLabels: Record<string, string> = {
   validTillDate: 'Valid Till Date',
   referenceNumber: 'Reference Number',
   remarks: 'Remarks',
-  productGrid: 'Product Details Grid',
+  productGrid: 'Part Details Grid',
+  labourGrid: 'Labour Details Grid',
   attachments: 'Attachments And Notes',
 };
 function buildLayout(

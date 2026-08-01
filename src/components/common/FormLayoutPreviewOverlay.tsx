@@ -217,7 +217,7 @@ const FormLayoutPreviewOverlay: React.FC<FormLayoutPreviewOverlayProps> = ({
                       <div
                         key={fieldId}
                         className={cn(
-                          ['productGrid', 'attachments', 'serializedGrid', 'nonSerializedGrid'].includes(fieldId) &&
+                          ['productGrid', 'labourGrid', 'attachments', 'serializedGrid', 'nonSerializedGrid'].includes(fieldId) &&
                             'form-layout-preview__field-shell--wide'
                         )}
                       >

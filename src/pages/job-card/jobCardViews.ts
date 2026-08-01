@@ -64,6 +64,26 @@ function matchesDatePreset(documentDateTime: string, datePreset: CatalogueViewDe
   return true;
 }
 
+function criteriaIncludesAny(criteriaValues: string[], candidates: string[]): boolean {
+  return criteriaValues.length === 0 || candidates.some((candidate) => criteriaValues.includes(candidate));
+}
+
+function getCriteriaCustomer(document: JobCardDocument): string {
+  return document.customerName?.trim() || document.supplierName;
+}
+
+function getCriteriaBay(document: JobCardDocument): string {
+  return document.serviceBay?.trim() || document.branch;
+}
+
+function getCriteriaWorkshopStatus(document: JobCardDocument): string {
+  return document.workshopStatus?.trim() || document.status;
+}
+
+function getCriteriaDateTime(document: JobCardDocument): string {
+  return document.openedAt?.trim() || document.documentDateTime;
+}
+
 function matchesCriteria(
   document: JobCardDocument,
   view: CatalogueViewDefinition,
@@ -79,7 +99,7 @@ function matchesCriteria(
     return false;
   }
 
-  if (criteria.statuses.length > 0 && !criteria.statuses.includes(document.status)) {
+  if (!criteriaIncludesAny(criteria.statuses, [getCriteriaWorkshopStatus(document), document.status])) {
     return false;
   }
 
@@ -87,15 +107,15 @@ function matchesCriteria(
     return false;
   }
 
-  if (criteria.suppliers.length > 0 && !criteria.suppliers.includes(document.supplierName)) {
+  if (!criteriaIncludesAny(criteria.suppliers, [getCriteriaCustomer(document), document.supplierName])) {
     return false;
   }
 
-  if (criteria.branches.length > 0 && !criteria.branches.includes(document.branch)) {
+  if (!criteriaIncludesAny(criteria.branches, [getCriteriaBay(document), document.branch])) {
     return false;
   }
 
-  return matchesDatePreset(document.documentDateTime, criteria.datePreset, context.now ?? new Date());
+  return matchesDatePreset(getCriteriaDateTime(document), criteria.datePreset, context.now ?? new Date());
 }
 
 export function getJobCardSystemViews(currentUserName: string): CatalogueViewDefinition[] {
@@ -150,7 +170,7 @@ export function getJobCardSystemViews(currentUserName: string): CatalogueViewDef
     },
     {
       id: 'system-jc-today',
-      name: 'Today's Job Cards',
+      name: "Today's Job Cards",
       kind: 'system',
       entityKey: JOB_CARD_CATALOGUE_VIEW_ENTITY,
       criteria: {

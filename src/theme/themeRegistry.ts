@@ -1,5 +1,7 @@
 export const THEME_STORAGE_KEY = 'app-theme';
-export const DEFAULT_THEME_KEY = 'excellon';
+export const DEFAULT_THEME_KEY = 'tata-motors';
+const LEGACY_DEFAULT_THEME_KEY = 'excellon';
+const DEFAULT_THEME_MIGRATION_STORAGE_KEY = 'app-theme-default-migration:tata-motors:v1';
 export const APPEARANCE_STORAGE_KEY = 'app-theme-mode';
 export const DEFAULT_APPEARANCE_MODE = 'light';
 export const appearanceModes = ['light', 'dark'] as const;
@@ -210,8 +212,25 @@ export function getStoredThemeKey(): ThemeKey {
   }
 
   try {
-    const storedThemeKey = window.localStorage.getItem(THEME_STORAGE_KEY);
-    return storedThemeKey || DEFAULT_THEME_KEY;
+    const storage = window.localStorage;
+    const storedThemeKey = storage.getItem(THEME_STORAGE_KEY);
+    const hasMigratedDefaultTheme = storage.getItem(DEFAULT_THEME_MIGRATION_STORAGE_KEY) === 'complete';
+
+    if (!hasMigratedDefaultTheme) {
+      setStorageValue(storage, DEFAULT_THEME_MIGRATION_STORAGE_KEY, 'complete');
+
+      if (!storedThemeKey || storedThemeKey === LEGACY_DEFAULT_THEME_KEY) {
+        setStorageValue(storage, THEME_STORAGE_KEY, DEFAULT_THEME_KEY);
+        return DEFAULT_THEME_KEY;
+      }
+    }
+
+    if (!storedThemeKey) {
+      setStorageValue(storage, THEME_STORAGE_KEY, DEFAULT_THEME_KEY);
+      return DEFAULT_THEME_KEY;
+    }
+
+    return storedThemeKey;
   } catch {
     return DEFAULT_THEME_KEY;
   }
@@ -235,7 +254,7 @@ export function persistThemeKey(themeKey: ThemeKey) {
   }
 
   try {
-    window.localStorage.setItem(THEME_STORAGE_KEY, themeKey);
+    setStorageValue(window.localStorage, THEME_STORAGE_KEY, themeKey);
   } catch {
     // Storage can be unavailable in private/browser-restricted contexts.
   }
@@ -247,7 +266,15 @@ export function persistAppearanceMode(appearanceMode: AppearanceMode) {
   }
 
   try {
-    window.localStorage.setItem(APPEARANCE_STORAGE_KEY, appearanceMode);
+    setStorageValue(window.localStorage, APPEARANCE_STORAGE_KEY, appearanceMode);
+  } catch {
+    // Storage can be unavailable in private/browser-restricted contexts.
+  }
+}
+
+function setStorageValue(storage: Storage, key: string, value: string) {
+  try {
+    storage.setItem(key, value);
   } catch {
     // Storage can be unavailable in private/browser-restricted contexts.
   }

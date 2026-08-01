@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import useMediaQuery from '@mui/material/useMediaQuery';
-import { Ban, Check, ChevronRight, Circle, Columns3, Eye, FileText, Filter, LayoutGrid, List, PencilLine, Plus, Search, X } from 'lucide-react';
+import { Ban, CarFront, Check, ChevronRight, Circle, Columns3, Eye, FileText, Filter, LayoutGrid, List, PencilLine, Plus, Search, X } from 'lucide-react';
 import AppShell from '../../components/common/AppShell';
 import CatalogueInsightCards from '../../components/common/CatalogueInsightCards';
 import CatalogueFieldDisplaySettings from '../../components/common/CatalogueFieldDisplaySettings';
@@ -19,6 +19,8 @@ import JobCardPreviewDrawer from '../../components/common/JobCardPreviewDrawer';
 import StatusBadge from '../../components/common/StatusBadge';
 import TourInvitePopup from '../../components/common/TourInvitePopup';
 import { Input } from '../../components/common/FormControls';
+import JobCardNewIntakeDialog from './JobCardNewIntakeDialog';
+import { JOB_CARD_INTAKE_DRAFT_STORAGE_KEY, type JobCardIntakeDraft } from './jobCardIntakeData';
 import { emptyCatalogueFilters, getActiveFilterCount, validateDateRange } from '../../utils/catalogueFilters';
 import type { CatalogueFilters } from '../../utils/catalogueFilters';
 import {
@@ -76,6 +78,14 @@ interface JobCardCatalogueViewProps {
 
 type SortKey =
   | 'number'
+  | 'vehicleRegistration'
+  | 'customerName'
+  | 'jobType'
+  | 'odometerReading'
+  | 'serviceBay'
+  | 'serviceAdvisor'
+  | 'openedAt'
+  | 'workshopStatus'
   | 'documentDateTime'
   | 'supplierName'
   | 'requesterName'
@@ -114,14 +124,6 @@ const jobCardCatalogueTourSteps: GuidedTourStep[] = [
   },
 ];
 
-const jobCardStatusOptions = [
-  { value: 'Draft', label: 'Draft' },
-  { value: 'Pending Approval', label: 'Pending Approval' },
-  { value: 'Approved', label: 'Approved' },
-  { value: 'Rejected', label: 'Rejected' },
-  { value: 'Cancelled', label: 'Cancelled' },
-];
-
 const jobCardPriorityOptions = [
   { value: 'Low', label: 'Low' },
   { value: 'Medium', label: 'Medium' },
@@ -130,24 +132,24 @@ const jobCardPriorityOptions = [
 ];
 
 const jobCardSortOptions = [
-  { value: 'number', label: 'Document No.' },
-  { value: 'documentDateTime', label: 'Document date & time' },
-  { value: 'supplierName', label: 'Supplier name' },
-  { value: 'requesterName', label: 'Requester name' },
-  { value: 'priority', label: 'Priority' },
-  { value: 'requirementDate', label: 'Requirement date' },
-  { value: 'validTillDate', label: 'Valid till date' },
-  { value: 'status', label: 'Status' },
+  { value: 'number', label: 'Job Card' },
+  { value: 'vehicleRegistration', label: 'Vehicle' },
+  { value: 'customerName', label: 'Customer' },
+  { value: 'jobType', label: 'Type' },
+  { value: 'odometerReading', label: 'Odometer' },
+  { value: 'serviceBay', label: 'Bay' },
+  { value: 'serviceAdvisor', label: 'Advisor' },
+  { value: 'openedAt', label: 'Opened' },
+  { value: 'workshopStatus', label: 'Status' },
 ];
 
 const jobCardCatalogueDocumentType = 'job-card';
 
-type MultiSelectCatalogueFilterField = 'suppliers' | 'priorities' | 'branches';
-type LegacySingleCatalogueFilterField = 'supplier' | 'priority' | 'branch';
+type MultiSelectCatalogueFilterField = 'suppliers' | 'statuses' | 'branches';
+type LegacySingleCatalogueFilterField = 'supplier' | 'branch';
 
-const multiSelectFilterFieldMap: Record<MultiSelectCatalogueFilterField, LegacySingleCatalogueFilterField> = {
+const multiSelectFilterFieldMap: Partial<Record<MultiSelectCatalogueFilterField, LegacySingleCatalogueFilterField>> = {
   suppliers: 'supplier',
-  priorities: 'priority',
   branches: 'branch',
 };
 type FilterChoiceOption = {
@@ -176,6 +178,105 @@ function getActiveChoicesSummary(values: string[], fallback: string): string {
 
 function getSelectedFilterValues(values: string[] | undefined, legacyValue: string): string[] {
   return values && values.length > 0 ? values : legacyValue ? [legacyValue] : [];
+}
+
+const jobCardWorkshopStatusOptions = [
+  { value: 'Open', label: 'Open' },
+  { value: 'In progress', label: 'In progress' },
+  { value: 'Waiting parts', label: 'Waiting parts' },
+  { value: 'Ready', label: 'Ready' },
+  { value: 'Delivered', label: 'Delivered' },
+  { value: 'Cancelled', label: 'Cancelled' },
+];
+
+const jobCardOdometerFormatter = new Intl.NumberFormat('en-IN', {
+  maximumFractionDigits: 0,
+});
+
+function getReadableValue(value: string | undefined, fallback: string): string {
+  const trimmedValue = value?.trim();
+  return trimmedValue && trimmedValue.length > 0 ? trimmedValue : fallback;
+}
+
+function getJobCardServiceMeta(item: JobCardDocument) {
+  return {
+    vehicleRegistration: getReadableValue(item.vehicleRegistration, 'Unassigned vehicle'),
+    vehicleModel: getReadableValue(item.vehicleModel, 'Vehicle model pending'),
+    customerName: getReadableValue(item.customerName, item.supplierName),
+    jobType: getReadableValue(item.jobType, item.spendCategory || 'Service job'),
+    odometerReading: Number.isFinite(item.odometerReading) ? item.odometerReading ?? null : null,
+    serviceBay: getReadableValue(item.serviceBay, item.branch),
+    serviceAdvisor: getReadableValue(item.serviceAdvisor, item.requesterName),
+    openedAt: getReadableValue(item.openedAt, item.documentDateTime),
+    workshopStatus: getReadableValue(item.workshopStatus, item.status),
+  };
+}
+
+function getIsoDatePart(value: string): string {
+  return value.length >= 10 ? value.slice(0, 10) : value;
+}
+
+function formatOdometer(value: number | null): string {
+  return value === null ? '-' : jobCardOdometerFormatter.format(value);
+}
+
+function getWorkshopStatusTone(status: string): string {
+  switch (status) {
+    case 'Delivered':
+      return 'delivered';
+    case 'Ready':
+    case 'Approved':
+      return 'ready';
+    case 'Waiting parts':
+    case 'Pending Approval':
+      return 'waiting';
+    case 'In progress':
+      return 'progress';
+    case 'Cancelled':
+    case 'Rejected':
+      return 'cancelled';
+    default:
+      return 'open';
+  }
+}
+
+function renderVehicleCell(item: JobCardDocument) {
+  const serviceMeta = getJobCardServiceMeta(item);
+  const hasRegistration = serviceMeta.vehicleRegistration !== 'Unassigned vehicle';
+
+  return (
+    <div className="job-card-vehicle-cell" title={`${serviceMeta.vehicleRegistration} - ${serviceMeta.vehicleModel}`}>
+      <span className="job-card-vehicle-cell__icon" aria-hidden="true">
+        <CarFront size={14} />
+      </span>
+      <span className="job-card-vehicle-cell__copy">
+        <span className={cn('job-card-vehicle-cell__plate', !hasRegistration && 'job-card-vehicle-cell__plate--empty')}>
+          {serviceMeta.vehicleRegistration}
+        </span>
+        <span className="job-card-vehicle-cell__model">{serviceMeta.vehicleModel}</span>
+      </span>
+    </div>
+  );
+}
+
+function renderWorkshopStatusCell(item: JobCardDocument) {
+  const status = getJobCardServiceMeta(item).workshopStatus;
+
+  return (
+    <span className={cn('job-card-workshop-status', `job-card-workshop-status--${getWorkshopStatusTone(status)}`)}>
+      {status}
+    </span>
+  );
+}
+
+function renderOpenedCell(item: JobCardDocument) {
+  const openedDateTime = formatDateTime(getJobCardServiceMeta(item).openedAt);
+
+  return (
+    <div className="catalogue-table__datetime job-card-opened-cell">
+      {openedDateTime.dateLabel}, {openedDateTime.timeLabel}
+    </div>
+  );
 }
 
 const FilterChoiceGroup: React.FC<{
@@ -328,100 +429,100 @@ const FilterDrawer: React.FC<{
     }));
   };
 
-  const supplierChoiceOptions: FilterChoiceOption[] = [
-    { value: '', label: 'All suppliers' },
-    ...supplierOptions.map((supplier) => ({ value: supplier, label: supplier })),
+  const customerChoiceOptions: FilterChoiceOption[] = [
+    { value: '', label: 'All customers' },
+    ...supplierOptions.map((customer) => ({ value: customer, label: customer })),
   ];
-  const priorityChoiceOptions: FilterChoiceOption[] = [
-    { value: '', label: 'All priorities' },
-    ...jobCardPriorityOptions,
+  const statusChoiceOptions: FilterChoiceOption[] = [
+    { value: '', label: 'All statuses' },
+    ...jobCardWorkshopStatusOptions,
   ];
-  const branchChoiceOptions: FilterChoiceOption[] = [
-    { value: '', label: 'All branches' },
-    ...branchOptions.map((branch) => ({ value: branch, label: branch })),
+  const bayChoiceOptions: FilterChoiceOption[] = [
+    { value: '', label: 'All bays' },
+    ...branchOptions.map((bay) => ({ value: bay, label: bay })),
   ];
-  const selectedSuppliers = getSelectedFilterValues(draftFilters.suppliers, draftFilters.supplier);
-  const selectedPriorities = getSelectedFilterValues(draftFilters.priorities, draftFilters.priority);
-  const selectedBranches = getSelectedFilterValues(draftFilters.branches, draftFilters.branch);
+  const selectedCustomers = getSelectedFilterValues(draftFilters.suppliers, draftFilters.supplier);
+  const selectedStatuses = draftFilters.statuses ?? [];
+  const selectedBays = getSelectedFilterValues(draftFilters.branches, draftFilters.branch);
   const dateBadgeCount = Number(Boolean(draftFilters.startDate)) + Number(Boolean(draftFilters.endDate));
   const dateSummary = dateBadgeCount
     ? `${draftFilters.startDate || 'Any start'} to ${draftFilters.endDate || 'Any end'}`
-    : 'Any document date';
+    : 'Any opened date';
 
   const sections: EnterpriseFilterSection[] = [
     {
-      id: 'supplier',
-      label: 'Supplier',
-      summary: getActiveChoicesSummary(selectedSuppliers, 'All suppliers'),
-      badgeCount: selectedSuppliers.length || undefined,
+      id: 'customer',
+      label: 'Customer',
+      summary: getActiveChoicesSummary(selectedCustomers, 'All customers'),
+      badgeCount: selectedCustomers.length || undefined,
       render: () => (
         <FilterChoiceGroup
-          sectionId="supplier"
-          name="job-card-supplier-filter"
-          ariaLabel="Supplier filter"
+          sectionId="customer"
+          name="job-card-customer-filter"
+          ariaLabel="Customer filter"
           selectionMode="multiple"
-          values={selectedSuppliers}
-          options={supplierChoiceOptions}
-          searchValue={getChoiceSearchValue('supplier')}
-          searchPlaceholder="Search suppliers"
-          emptyLabel="No suppliers found."
-          onSearchChange={(value) => handleChoiceSearchChange('supplier', value)}
+          values={selectedCustomers}
+          options={customerChoiceOptions}
+          searchValue={getChoiceSearchValue('customer')}
+          searchPlaceholder="Search customers"
+          emptyLabel="No customers found."
+          onSearchChange={(value) => handleChoiceSearchChange('customer', value)}
           onValuesChange={(values) => onFilterValuesChange('suppliers', values)}
         />
       ),
     },
     {
-      id: 'priority',
-      label: 'Priority',
-      summary: getActiveChoicesSummary(selectedPriorities, 'All priorities'),
-      badgeCount: selectedPriorities.length || undefined,
+      id: 'status',
+      label: 'Status',
+      summary: getActiveChoicesSummary(selectedStatuses, 'All statuses'),
+      badgeCount: selectedStatuses.length || undefined,
       render: () => (
         <FilterChoiceGroup
-          sectionId="priority"
-          name="job-card-priority-filter"
-          ariaLabel="Priority filter"
+          sectionId="status"
+          name="job-card-status-filter"
+          ariaLabel="Status filter"
           selectionMode="multiple"
-          values={selectedPriorities}
-          options={priorityChoiceOptions}
-          searchValue={getChoiceSearchValue('priority')}
-          searchPlaceholder="Search priorities"
-          emptyLabel="No priorities found."
-          onSearchChange={(value) => handleChoiceSearchChange('priority', value)}
-          onValuesChange={(values) => onFilterValuesChange('priorities', values)}
+          values={selectedStatuses}
+          options={statusChoiceOptions}
+          searchValue={getChoiceSearchValue('status')}
+          searchPlaceholder="Search statuses"
+          emptyLabel="No statuses found."
+          onSearchChange={(value) => handleChoiceSearchChange('status', value)}
+          onValuesChange={(values) => onFilterValuesChange('statuses', values)}
         />
       ),
     },
     {
-      id: 'branch',
-      label: 'Branch',
-      summary: getActiveChoicesSummary(selectedBranches, 'All branches'),
-      badgeCount: selectedBranches.length || undefined,
+      id: 'bay',
+      label: 'Bay',
+      summary: getActiveChoicesSummary(selectedBays, 'All bays'),
+      badgeCount: selectedBays.length || undefined,
       render: () => (
         <FilterChoiceGroup
-          sectionId="branch"
-          name="job-card-branch-filter"
-          ariaLabel="Branch filter"
+          sectionId="bay"
+          name="job-card-bay-filter"
+          ariaLabel="Bay filter"
           selectionMode="multiple"
-          values={selectedBranches}
-          options={branchChoiceOptions}
-          searchValue={getChoiceSearchValue('branch')}
-          searchPlaceholder="Search branches"
-          emptyLabel="No branches found."
-          onSearchChange={(value) => handleChoiceSearchChange('branch', value)}
+          values={selectedBays}
+          options={bayChoiceOptions}
+          searchValue={getChoiceSearchValue('bay')}
+          searchPlaceholder="Search bays"
+          emptyLabel="No bays found."
+          onSearchChange={(value) => handleChoiceSearchChange('bay', value)}
           onValuesChange={(values) => onFilterValuesChange('branches', values)}
         />
       ),
     },
     {
-      id: 'date-range',
-      label: 'Date range',
+      id: 'opened-date',
+      label: 'Opened date',
       summary: dateSummary,
       badgeCount: dateBadgeCount || undefined,
       render: () => (
         <div className="enterprise-filter-dialog__date-section">
           <div className="enterprise-filter-dialog__date-grid">
             <label className="enterprise-filter-dialog__field">
-              <span className="field-label">Start Date</span>
+              <span className="field-label">Opened From</span>
               <Input
                 type="date"
                 value={draftFilters.startDate}
@@ -431,7 +532,7 @@ const FilterDrawer: React.FC<{
             </label>
 
             <label className="enterprise-filter-dialog__field">
-              <span className="field-label">End Date</span>
+              <span className="field-label">Opened To</span>
               <Input
                 type="date"
                 value={draftFilters.endDate}
@@ -452,7 +553,7 @@ const FilterDrawer: React.FC<{
     <EnterpriseFilterDialog
       isOpen={isOpen}
       title="Filters"
-      subtitle="Narrow down Job Cards using business-ready criteria."
+      subtitle="Narrow down Job Cards by customer, bay, and workshop progress."
       sections={sections}
       onClose={onClose}
       onApply={onApply}
@@ -460,7 +561,6 @@ const FilterDrawer: React.FC<{
     />
   );
 };
-
 const requisitionAmountNumberFormatter = new Intl.NumberFormat('en-IN', {
   maximumFractionDigits: 2,
 });
@@ -1057,6 +1157,7 @@ const JobCardCatalogueView: React.FC<JobCardCatalogueViewProps> = ({
   );
   const [dateRangeError, setDateRangeError] = useState('');
   const [cancelDocumentId, setCancelDocumentId] = useState<string | null>(null);
+  const [isNewIntakeOpen, setIsNewIntakeOpen] = useState(false);
   const [activeInsightKey, setActiveInsightKey] = useState<string | null>(null);
   const [isTourInviteVisible, setIsTourInviteVisible] = useState(() => !isJobCardTourDismissedForSession);
   const [isTourActive, setIsTourActive] = useState(false);
@@ -1178,20 +1279,20 @@ const JobCardCatalogueView: React.FC<JobCardCatalogueViewProps> = ({
 
 
   const supplierOptions = useMemo(
-    () => Array.from(new Set(viewFilteredRows.map((item) => item.supplierName))).sort(),
+    () => Array.from(new Set(viewFilteredRows.map((item) => getJobCardServiceMeta(item).customerName))).sort(),
     [viewFilteredRows]
   );
   const allSupplierOptions = useMemo(
-    () => Array.from(new Set(documents.map((item) => item.supplierName))).sort(),
+    () => Array.from(new Set(documents.map((item) => getJobCardServiceMeta(item).customerName))).sort(),
     [documents]
   );
 
   const branchOptions = useMemo(
-    () => Array.from(new Set(viewFilteredRows.map((item) => item.branch))).sort(),
+    () => Array.from(new Set(viewFilteredRows.map((item) => getJobCardServiceMeta(item).serviceBay))).sort(),
     [viewFilteredRows]
   );
   const allBranchOptions = useMemo(
-    () => Array.from(new Set(documents.map((item) => item.branch))).sort(),
+    () => Array.from(new Set(documents.map((item) => getJobCardServiceMeta(item).serviceBay))).sort(),
     [documents]
   );
 
@@ -1209,26 +1310,36 @@ const JobCardCatalogueView: React.FC<JobCardCatalogueViewProps> = ({
     const normalizedSearch = tableSearch.trim().toLowerCase();
 
     return viewFilteredRows.filter((item) => {
-      const selectedSuppliers = getSelectedFilterValues(filters.suppliers, filters.supplier);
-      const selectedPriorities = getSelectedFilterValues(filters.priorities, filters.priority);
-      const selectedBranches = getSelectedFilterValues(filters.branches, filters.branch);
-      const matchesSupplier = selectedSuppliers.length === 0 || selectedSuppliers.includes(item.supplierName);
-      const matchesPriority = selectedPriorities.length === 0 || selectedPriorities.includes(item.priority);
-      const matchesBranch = selectedBranches.length === 0 || selectedBranches.includes(item.branch);
-      const matchesStartDate = !startDate || item.requirementDate >= startDate;
-      const matchesEndDate = !endDate || item.validTillDate <= endDate;
+      const serviceMeta = getJobCardServiceMeta(item);
+      const selectedCustomers = getSelectedFilterValues(filters.suppliers, filters.supplier);
+      const selectedStatuses = filters.statuses ?? [];
+      const selectedBays = getSelectedFilterValues(filters.branches, filters.branch);
+      const openedDate = getIsoDatePart(serviceMeta.openedAt);
+      const openedDateTime = formatDateTime(serviceMeta.openedAt);
+      const matchesCustomer = selectedCustomers.length === 0 || selectedCustomers.includes(serviceMeta.customerName);
+      const matchesStatus = selectedStatuses.length === 0 || selectedStatuses.includes(serviceMeta.workshopStatus) || selectedStatuses.includes(item.status);
+      const matchesBay = selectedBays.length === 0 || selectedBays.includes(serviceMeta.serviceBay);
+      const matchesStartDate = !startDate || openedDate >= startDate;
+      const matchesEndDate = !endDate || openedDate <= endDate;
+      const searchableValues = [
+        item.number,
+        serviceMeta.vehicleRegistration,
+        serviceMeta.vehicleModel,
+        serviceMeta.customerName,
+        serviceMeta.jobType,
+        formatOdometer(serviceMeta.odometerReading),
+        serviceMeta.serviceBay,
+        serviceMeta.serviceAdvisor,
+        serviceMeta.workshopStatus,
+        item.status,
+        openedDateTime.dateLabel,
+        openedDateTime.timeLabel,
+      ];
       const matchesSearch =
         normalizedSearch.length === 0 ||
-        item.number.toLowerCase().includes(normalizedSearch) ||
-        item.supplierName.toLowerCase().includes(normalizedSearch) ||
-        (item.supplierGstin ?? '').toLowerCase().includes(normalizedSearch) ||
-        item.requesterName.toLowerCase().includes(normalizedSearch) ||
-        item.priority.toLowerCase().includes(normalizedSearch) ||
-        item.status.toLowerCase().includes(normalizedSearch) ||
-        formatDate(item.requirementDate).toLowerCase().includes(normalizedSearch) ||
-        formatDate(item.validTillDate).toLowerCase().includes(normalizedSearch);
+        searchableValues.some((value) => value.toLowerCase().includes(normalizedSearch));
 
-      return matchesSupplier && matchesPriority && matchesBranch && matchesStartDate && matchesEndDate && matchesSearch;
+      return matchesCustomer && matchesStatus && matchesBay && matchesStartDate && matchesEndDate && matchesSearch;
     });
   }, [filters, tableSearch, viewFilteredRows]);
 
@@ -1238,16 +1349,18 @@ const JobCardCatalogueView: React.FC<JobCardCatalogueViewProps> = ({
         return true;
       }
 
-      if (activeInsightKey === 'pending') {
-        return item.status === 'Pending Approval';
+      const workshopStatus = getJobCardServiceMeta(item).workshopStatus;
+
+      if (activeInsightKey === 'in-progress') {
+        return workshopStatus === 'In progress';
       }
 
-      if (activeInsightKey === 'approved') {
-        return item.status === 'Approved';
+      if (activeInsightKey === 'waiting-parts') {
+        return workshopStatus === 'Waiting parts';
       }
 
-      if (activeInsightKey === 'converted') {
-        return item.productLines.some((line) => line.status === 'Partially Ordered' || line.status === 'Fully Ordered');
+      if (activeInsightKey === 'ready') {
+        return workshopStatus === 'Ready';
       }
 
       return true;
@@ -1281,15 +1394,53 @@ const JobCardCatalogueView: React.FC<JobCardCatalogueViewProps> = ({
       Cancelled: 5,
     };
 
+    const workshopStatusOrder: Record<string, number> = {
+      Open: 1,
+      'In progress': 2,
+      'Waiting parts': 3,
+      Ready: 4,
+      Delivered: 5,
+      Cancelled: 6,
+    };
+
     const directionFactor = effectiveSortState.direction === 'asc' ? 1 : -1;
     const rows = [...insightFilteredRows];
 
     rows.sort((left, right) => {
+      const leftServiceMeta = getJobCardServiceMeta(left);
+      const rightServiceMeta = getJobCardServiceMeta(right);
       let comparison = 0;
 
       switch (effectiveSortState.key) {
         case 'number':
           comparison = left.number.localeCompare(right.number, undefined, { numeric: true });
+          break;
+        case 'vehicleRegistration':
+          comparison = leftServiceMeta.vehicleRegistration.localeCompare(rightServiceMeta.vehicleRegistration, undefined, { numeric: true });
+          break;
+        case 'customerName':
+          comparison = leftServiceMeta.customerName.localeCompare(rightServiceMeta.customerName);
+          break;
+        case 'jobType':
+          comparison = leftServiceMeta.jobType.localeCompare(rightServiceMeta.jobType);
+          break;
+        case 'odometerReading':
+          comparison = (leftServiceMeta.odometerReading ?? -1) - (rightServiceMeta.odometerReading ?? -1);
+          break;
+        case 'serviceBay':
+          comparison = leftServiceMeta.serviceBay.localeCompare(rightServiceMeta.serviceBay, undefined, { numeric: true });
+          break;
+        case 'serviceAdvisor':
+          comparison = leftServiceMeta.serviceAdvisor.localeCompare(rightServiceMeta.serviceAdvisor);
+          break;
+        case 'openedAt':
+          comparison = new Date(leftServiceMeta.openedAt).getTime() - new Date(rightServiceMeta.openedAt).getTime();
+          break;
+        case 'workshopStatus':
+          comparison = (workshopStatusOrder[leftServiceMeta.workshopStatus] ?? 99) - (workshopStatusOrder[rightServiceMeta.workshopStatus] ?? 99);
+          if (comparison === 0) {
+            comparison = leftServiceMeta.workshopStatus.localeCompare(rightServiceMeta.workshopStatus);
+          }
           break;
         case 'documentDateTime':
           comparison = new Date(left.documentDateTime).getTime() - new Date(right.documentDateTime).getTime();
@@ -1326,11 +1477,9 @@ const JobCardCatalogueView: React.FC<JobCardCatalogueViewProps> = ({
 
   const insightItems = useMemo(() => {
     const total = baseFilteredRows.length;
-    const pending = baseFilteredRows.filter((item) => item.status === 'Pending Approval').length;
-    const approved = baseFilteredRows.filter((item) => item.status === 'Approved').length;
-    const converted = baseFilteredRows.filter((item) =>
-      item.productLines.some((line) => line.status === 'Partially Ordered' || line.status === 'Fully Ordered')
-    ).length;
+    const inProgress = baseFilteredRows.filter((item) => getJobCardServiceMeta(item).workshopStatus === 'In progress').length;
+    const waitingParts = baseFilteredRows.filter((item) => getJobCardServiceMeta(item).workshopStatus === 'Waiting parts').length;
+    const ready = baseFilteredRows.filter((item) => getJobCardServiceMeta(item).workshopStatus === 'Ready').length;
 
     return [
       buildCountInsight({
@@ -1343,36 +1492,45 @@ const JobCardCatalogueView: React.FC<JobCardCatalogueViewProps> = ({
         tone: 'neutral',
       }),
       buildCountInsight({
-        key: 'pending',
-        label: 'Pending approval',
-        count: pending,
+        key: 'in-progress',
+        label: 'In progress',
+        count: inProgress,
         total,
-        support: `${pending} awaiting approval`,
-        hint: `${getInsightPercent(pending, total)}% of visible PRs`,
+        support: `${inProgress} active workshop jobs`,
+        hint: `${getInsightPercent(inProgress, total)}% currently moving`,
+        tone: 'primary',
+      }),
+      buildCountInsight({
+        key: 'waiting-parts',
+        label: 'Waiting parts',
+        count: waitingParts,
+        total,
+        support: `${waitingParts} awaiting parts`,
+        hint: `${getInsightPercent(waitingParts, total)}% parts constrained`,
         tone: 'warning',
       }),
       buildCountInsight({
-        key: 'approved',
-        label: 'Approved',
-        count: approved,
+        key: 'ready',
+        label: 'Ready',
+        count: ready,
         total,
-        support: `${approved} ready for conversion`,
-        hint: `${getInsightPercent(approved, total)}% approval health`,
+        support: `${ready} ready for delivery`,
+        hint: `${getInsightPercent(ready, total)}% ready`,
         tone: 'success',
-      }),
-      buildCountInsight({
-        key: 'converted',
-        label: 'Converted lines',
-        count: converted,
-        total,
-        support: `${converted} PRs linked to ordering`,
-        hint: 'Partially or fully ordered',
-        tone: 'primary',
       }),
     ];
   }, [baseFilteredRows]);
 
-  const activeFilterCount = useMemo(() => getActiveFilterCount(filters), [filters]);
+  const activeFilterCount = useMemo(() => getActiveFilterCount({
+    ...emptyCatalogueFilters,
+    supplier: filters.supplier,
+    suppliers: filters.suppliers,
+    branch: filters.branch,
+    branches: filters.branches,
+    statuses: filters.statuses,
+    startDate: filters.startDate,
+    endDate: filters.endDate,
+  }), [filters]);
   const hasActiveFilters = activeFilterCount > 0;
   const viewCounts = useMemo(
     () =>
@@ -1425,7 +1583,7 @@ const JobCardCatalogueView: React.FC<JobCardCatalogueViewProps> = ({
     const nextFilters = {
       ...draftFilters,
       [field]: values,
-      [legacyField]: '',
+      ...(legacyField ? { [legacyField]: '' } : {}),
     };
 
     setDraftFilters(nextFilters);
@@ -1559,7 +1717,7 @@ const JobCardCatalogueView: React.FC<JobCardCatalogueViewProps> = ({
         documentNumber: document.number,
         moduleKey: 'job-card',
         moduleLabel: 'Job Card',
-        partyLabel: document.supplierName,
+        partyLabel: getJobCardServiceMeta(document).customerName,
         status: document.status,
         route: '/job-card',
       });
@@ -1570,6 +1728,24 @@ const JobCardCatalogueView: React.FC<JobCardCatalogueViewProps> = ({
     registerRecentlyViewedDocument(documentId);
     setPreviewDocumentId(documentId);
   }, [registerRecentlyViewedDocument]);
+
+  const handleOpenNewIntake = useCallback(() => {
+    setIsNewIntakeOpen(true);
+  }, []);
+
+  const handleProceedFromIntake = useCallback((draft: JobCardIntakeDraft) => {
+    try {
+      window.sessionStorage.setItem(JOB_CARD_INTAKE_DRAFT_STORAGE_KEY, JSON.stringify(draft));
+    } catch {
+      // Continue with normal create if storage is blocked by the browser.
+    }
+
+    onNew();
+  }, [onNew]);
+
+  const handleOpenExistingFromIntake = useCallback((documentId: string) => {
+    handleViewDocument(documentId);
+  }, [handleViewDocument]);
 
   const handleEditDocument = useCallback((documentId: string) => {
     if (!actionSettings.allowEdit) {
@@ -1649,105 +1825,112 @@ const JobCardCatalogueView: React.FC<JobCardCatalogueViewProps> = ({
   const gridColumns = useMemo<DataGridColumn<JobCardDocument>[]>(() => [
     {
       id: 'number',
-      label: 'Document No.',
+      label: 'Job Card',
       type: 'text',
-      width: 164,
+      width: 124,
+      minWidth: 116,
       getValue: (item) => item.number,
       renderCell: (item) => (
-        <button
-          type="button"
-          onClick={() => handleViewDocument(item.id)}
-          className="catalogue-table__document-link"
-        >
-          {item.number}
-        </button>
-      ),
-    },
-    {
-      id: 'documentDateTime',
-      label: 'Document date & time',
-      type: 'date',
-      width: 192,
-      getValue: (item) => item.documentDateTime,
-      renderCell: (item) => {
-        const documentDateTime = formatDateTime(item.documentDateTime);
-        return (
-          <div className="catalogue-table__datetime">
-            {documentDateTime.dateLabel}, {documentDateTime.timeLabel}
-          </div>
-        );
-      },
-    },
-    {
-      id: 'supplierName',
-      label: 'Supplier name',
-      type: 'text',
-      width: 188,
-      getValue: (item) => item.supplierName,
-      renderCell: (item) => (
-        <div className="catalogue-table__truncate" title={item.supplierName}>
-          {item.supplierName}
+        <div className="job-card-document-cell">
+          <span className="job-card-document-cell__accent" aria-hidden="true" />
+          <button
+            type="button"
+            onClick={() => handleViewDocument(item.id)}
+            className="catalogue-table__document-link job-card-document-cell__link"
+          >
+            {item.number}
+          </button>
         </div>
       ),
     },
     {
-      id: 'requesterName',
-      label: 'Requester name',
+      id: 'vehicleRegistration',
+      label: 'Vehicle',
       type: 'text',
-      width: 164,
-      getValue: (item) => item.requesterName,
-      renderCell: (item) => <div className="catalogue-table__primary">{item.requesterName}</div>,
+      width: 178,
+      minWidth: 168,
+      getValue: (item) => getJobCardServiceMeta(item).vehicleRegistration,
+      getExportValue: (item) => {
+        const serviceMeta = getJobCardServiceMeta(item);
+        return `${serviceMeta.vehicleRegistration} - ${serviceMeta.vehicleModel}`;
+      },
+      renderCell: renderVehicleCell,
     },
     {
-      id: 'priority',
-      label: 'Priority',
-      type: 'status',
-      width: 118,
-      getValue: (item) => item.priority,
-      options: [
-        { value: 'Low', label: 'Low' },
-        { value: 'Medium', label: 'Medium' },
-        { value: 'High', label: 'High' },
-        { value: 'Critical', label: 'Critical' },
-      ],
-      renderCell: (item) => <StatusBadge kind="priority" value={item.priority} />,
+      id: 'customerName',
+      label: 'Customer',
+      type: 'text',
+      width: 150,
+      minWidth: 140,
+      getValue: (item) => getJobCardServiceMeta(item).customerName,
+      renderCell: (item) => {
+        const customerName = getJobCardServiceMeta(item).customerName;
+        return <div className="catalogue-table__truncate" title={customerName}>{customerName}</div>;
+      },
     },
     {
-      id: 'requirementDate',
-      label: 'Requirement date',
+      id: 'jobType',
+      label: 'Type',
+      type: 'text',
+      width: 132,
+      minWidth: 124,
+      getValue: (item) => getJobCardServiceMeta(item).jobType,
+      renderCell: (item) => <div className="catalogue-table__primary">{getJobCardServiceMeta(item).jobType}</div>,
+    },
+    {
+      id: 'odometerReading',
+      label: 'Odometer',
+      type: 'number',
+      width: 104,
+      minWidth: 96,
+      className: 'job-card-catalogue__numeric-cell',
+      getValue: (item) => getJobCardServiceMeta(item).odometerReading ?? '',
+      getExportValue: (item) => formatOdometer(getJobCardServiceMeta(item).odometerReading),
+      renderCell: (item) => <span className="job-card-odometer-cell">{formatOdometer(getJobCardServiceMeta(item).odometerReading)}</span>,
+    },
+    {
+      id: 'serviceBay',
+      label: 'Bay',
+      type: 'text',
+      width: 74,
+      minWidth: 72,
+      getValue: (item) => getJobCardServiceMeta(item).serviceBay,
+      renderCell: (item) => <span className="job-card-bay-cell">{getJobCardServiceMeta(item).serviceBay}</span>,
+    },
+    {
+      id: 'serviceAdvisor',
+      label: 'Advisor',
+      type: 'text',
+      width: 110,
+      minWidth: 100,
+      getValue: (item) => getJobCardServiceMeta(item).serviceAdvisor,
+      renderCell: (item) => <div className="catalogue-table__truncate" title={getJobCardServiceMeta(item).serviceAdvisor}>{getJobCardServiceMeta(item).serviceAdvisor}</div>,
+    },
+    {
+      id: 'openedAt',
+      label: 'Opened',
       type: 'date',
-      width: 156,
-      getValue: (item) => item.requirementDate,
-      renderCell: (item) => formatDate(item.requirementDate),
+      width: 132,
+      minWidth: 124,
+      getValue: (item) => getJobCardServiceMeta(item).openedAt,
+      renderCell: renderOpenedCell,
     },
     {
-      id: 'validTillDate',
-      label: 'Valid till date',
-      type: 'date',
-      width: 148,
-      getValue: (item) => item.validTillDate,
-      renderCell: (item) => formatDate(item.validTillDate),
-    },
-    {
-      id: 'status',
+      id: 'workshopStatus',
       label: 'Status',
       type: 'status',
-      width: 154,
-      getValue: (item) => item.status,
-      options: [
-        { value: 'Draft', label: 'Draft' },
-        { value: 'Pending Approval', label: 'Pending Approval' },
-        { value: 'Approved', label: 'Approved' },
-        { value: 'Rejected', label: 'Rejected' },
-        { value: 'Cancelled', label: 'Cancelled' },
-      ],
-      renderCell: (item) => <StatusBadge kind="requisition-status" value={item.status} />,
+      width: 112,
+      minWidth: 104,
+      getValue: (item) => getJobCardServiceMeta(item).workshopStatus,
+      options: jobCardWorkshopStatusOptions,
+      renderCell: renderWorkshopStatusCell,
     },
     {
       id: 'actions',
       label: 'Action',
       type: 'actions',
-      width: 86,
+      width: 68,
+      minWidth: 64,
       sortable: false,
       filterable: false,
       groupable: false,
@@ -1792,7 +1975,7 @@ const JobCardCatalogueView: React.FC<JobCardCatalogueViewProps> = ({
       onPurchaseOrderClick={onNavigateToPurchaseOrderList}
       bottomBar={
         <div className="purchase-requisition-mobile-cta">
-          <button type="button" className="purchase-requisition-mobile-cta__button" onClick={onNew} data-tour="job-card-new-button-mobile">
+          <button type="button" className="purchase-requisition-mobile-cta__button" onClick={handleOpenNewIntake} data-tour="job-card-new-button-mobile">
             <Plus size={18} />
             New Job Card
           </button>
@@ -1831,13 +2014,13 @@ const JobCardCatalogueView: React.FC<JobCardCatalogueViewProps> = ({
         primaryAction={{
           label: 'New',
           icon: Plus,
-          onClick: onNew,
+          onClick: handleOpenNewIntake,
           dataTour: 'job-card-new-button',
           hideOnMobile: true,
           moveToBottomBarOnCompact: true,
         }}
       />
-      <div className="purchase-requisition-catalogue-content mx-auto flex w-full max-w-[1800px] flex-col gap-4 px-4 py-4">
+      <div className="purchase-requisition-catalogue-content job-card-catalogue-content mx-auto flex w-full max-w-[1800px] flex-col gap-4 px-4 py-4">
         {loadState === 'ready' && (
           <div data-tour="job-card-insight-cards">
             <CatalogueInsightCards
@@ -1889,7 +2072,7 @@ const JobCardCatalogueView: React.FC<JobCardCatalogueViewProps> = ({
                       Clear filters
                     </button>
                   )}
-                  <button type="button" onClick={onNew} className="btn btn--primary">
+                  <button type="button" onClick={handleOpenNewIntake} className="btn btn--primary">
                     Create New Job Card
                   </button>
                 </div>
@@ -1899,7 +2082,7 @@ const JobCardCatalogueView: React.FC<JobCardCatalogueViewProps> = ({
             {loadState === 'ready' && sortedRows.length > 0 && activeCatalogueViewMode === 'list' && (
               <div data-tour="job-card-catalogue-table">
                 <CommonDataGrid
-                  gridId="job-card-catalogue"
+                  gridId="job-card-catalogue-service-v1"
                   rows={sortedRows}
                   columns={gridColumns}
                   rowId={(item) => item.id}
@@ -1957,16 +2140,24 @@ const JobCardCatalogueView: React.FC<JobCardCatalogueViewProps> = ({
         isOpen={isViewConfiguratorOpen}
         title="Job Card Views"
         documentTypeLabel="Job Card"
-        labels={{ ownerMine: 'My Job Cards' }}
+        labels={{
+          ownerMine: 'My Job Cards',
+          primaryEntityField: 'Customer',
+          primaryEntityAll: 'All customers',
+          primaryEntityTag: 'Customer',
+          secondaryEntityField: 'Bay',
+          secondaryEntityAll: 'All bays',
+          secondaryEntityTag: 'Bay',
+        }}
         views={availableViews}
         activeViewId={activeView.id}
         pinnedViewId={effectiveViewState.pinnedViewId}
         viewCounts={viewCounts}
         currentUserName={currentUserName}
         requesterOptions={requesterOptions}
-        supplierOptions={allSupplierOptions.map((supplier) => ({ value: supplier, label: supplier }))}
-        branchOptions={allBranchOptions.map((branch) => ({ value: branch, label: branch }))}
-        statusOptions={jobCardStatusOptions}
+        supplierOptions={allSupplierOptions.map((customer) => ({ value: customer, label: customer }))}
+        branchOptions={allBranchOptions.map((bay) => ({ value: bay, label: bay }))}
+        statusOptions={jobCardWorkshopStatusOptions}
         priorityOptions={jobCardPriorityOptions}
         sortOptions={jobCardSortOptions}
         onClose={() => setIsViewConfiguratorOpen(false)}
@@ -1975,6 +2166,13 @@ const JobCardCatalogueView: React.FC<JobCardCatalogueViewProps> = ({
         onPin={(viewId) =>
           setViewState(setPinnedCatalogueViewId(JOB_CARD_CATALOGUE_VIEW_ENTITY, viewId))
         }
+      />
+
+      <JobCardNewIntakeDialog
+        isOpen={isNewIntakeOpen}
+        onClose={() => setIsNewIntakeOpen(false)}
+        onProceed={handleProceedFromIntake}
+        onOpenExistingJobCard={handleOpenExistingFromIntake}
       />
 
       <JobCardPreviewDrawer

@@ -1,5 +1,6 @@
 export type JobCardStatus = 'Draft' | 'Pending Approval' | 'Approved' | 'Rejected' | 'Cancelled';
 export type JobCardPriority = 'Low' | 'Medium' | 'High' | 'Critical';
+export type JobCardWorkshopStatus = 'Open' | 'In progress' | 'Waiting parts' | 'Ready' | 'Delivered' | 'Cancelled';
 
 export interface JobCardLinePreview {
   productCode: string;
@@ -42,6 +43,15 @@ export interface JobCardDocument {
   contractReference: string;
   budgetCode: string;
   notes: string;
+  vehicleRegistration?: string;
+  vehicleModel?: string;
+  customerName?: string;
+  jobType?: string;
+  odometerReading?: number;
+  serviceBay?: string;
+  serviceAdvisor?: string;
+  openedAt?: string;
+  workshopStatus?: JobCardWorkshopStatus;
   productLines: JobCardLinePreview[];
 }
 
@@ -71,6 +81,15 @@ export const jobCardDocuments: JobCardDocument[] = [
     contractReference: 'CONTR-2024-001',
     budgetCode: 'BUDGET-MFG-Q1',
     notes: 'Bulk procurement for planned manufacturing output ramp-up.',
+    vehicleRegistration: 'MH 14 CD 5678',
+    vehicleModel: 'Harrier XZ+',
+    customerName: 'Rajesh Kumar',
+    jobType: 'Running repair',
+    odometerReading: 61240,
+    serviceBay: 'Bay 3',
+    serviceAdvisor: 'M. Pawar',
+    openedAt: '2025-02-06T10:15:00',
+    workshopStatus: 'In progress',
     productLines: [
       {
         productCode: 'P-1001',
@@ -129,6 +148,15 @@ export const jobCardDocuments: JobCardDocument[] = [
     contractReference: 'CONTR-2024-114',
     budgetCode: 'BUDGET-OPS-SHUT',
     notes: 'Required before the planned shutdown maintenance begins.',
+    vehicleRegistration: 'MH 12 KT 9081',
+    vehicleModel: 'Nexon EV Max',
+    customerName: 'Neha Sharma',
+    jobType: 'Scheduled service',
+    odometerReading: 24580,
+    serviceBay: 'Bay 1',
+    serviceAdvisor: 'S. Kulkarni',
+    openedAt: '2025-02-04T14:40:00',
+    workshopStatus: 'Waiting parts',
     productLines: [
       {
         productCode: 'P-1003',
@@ -187,6 +215,15 @@ export const jobCardDocuments: JobCardDocument[] = [
     contractReference: 'CONTR-2023-992',
     budgetCode: 'BUDGET-ENG-MRO',
     notes: 'Routine replenishment for ongoing plant maintenance activities.',
+    vehicleRegistration: 'KA 05 MQ 7742',
+    vehicleModel: 'Safari Adventure',
+    customerName: 'Rohit Menon',
+    jobType: 'Diagnosis',
+    odometerReading: 88420,
+    serviceBay: 'Bay 5',
+    serviceAdvisor: 'A. Singh',
+    openedAt: '2025-01-30T09:05:00',
+    workshopStatus: 'Ready',
     productLines: [
       {
         productCode: 'P-1002',
@@ -230,6 +267,15 @@ export const jobCardDocuments: JobCardDocument[] = [
     contractReference: 'CONTR-2024-217',
     budgetCode: 'BUDGET-EHS-Q1',
     notes: 'Restock request for safety consumables across the depot.',
+    vehicleRegistration: 'GJ 01 RL 3099',
+    vehicleModel: 'Punch Accomplished',
+    customerName: 'Priya Nair',
+    jobType: 'Body repair',
+    odometerReading: 31200,
+    serviceBay: 'Bay 2',
+    serviceAdvisor: 'P. Mehta',
+    openedAt: '2025-01-24T16:20:00',
+    workshopStatus: 'Cancelled',
     productLines: [
       {
         productCode: 'P-1002',
@@ -273,6 +319,15 @@ export const jobCardDocuments: JobCardDocument[] = [
     contractReference: 'CONTR-2024-145',
     budgetCode: 'BUDGET-MFG-SPARES',
     notes: 'Urgent replenishment to protect assembly line uptime.',
+    vehicleRegistration: 'DL 8C AX 2210',
+    vehicleModel: 'Altroz XZ+',
+    customerName: 'Arjun Patel',
+    jobType: 'Breakdown repair',
+    odometerReading: 105860,
+    serviceBay: 'Bay 4',
+    serviceAdvisor: 'D. Rao',
+    openedAt: '2025-01-18T11:50:00',
+    workshopStatus: 'Open',
     productLines: [
       {
         productCode: 'P-1001',
@@ -320,6 +375,21 @@ function shiftIsoDate(source: string, offsetDays: number): string {
   return date.toISOString().slice(0, 10);
 }
 
+const generatedVehicleProfiles = [
+  { registration: 'MH 14 CD 5678', model: 'Harrier XZ+', customer: 'Rajesh Kumar' },
+  { registration: 'MH 12 KT 9081', model: 'Nexon EV Max', customer: 'Neha Sharma' },
+  { registration: 'KA 05 MQ 7742', model: 'Safari Adventure', customer: 'Rohit Menon' },
+  { registration: 'GJ 01 RL 3099', model: 'Punch Accomplished', customer: 'Priya Nair' },
+  { registration: 'DL 8C AX 2210', model: 'Altroz XZ+', customer: 'Arjun Patel' },
+  { registration: 'TN 09 BR 4451', model: 'Tiago NRG', customer: 'Karthik Raman' },
+  { registration: 'RJ 14 PX 7788', model: 'Tigor XZ+', customer: 'Meera Bansal' },
+  { registration: 'UP 16 CQ 9024', model: 'Nexon XZA+', customer: 'Amit Verma' },
+];
+
+const generatedJobTypes = ['Running repair', 'Scheduled service', 'Diagnosis', 'Body repair', 'Breakdown repair'];
+const generatedServiceBays = ['Bay 1', 'Bay 2', 'Bay 3', 'Bay 4', 'Bay 5', 'Express Bay'];
+const generatedServiceAdvisors = ['M. Pawar', 'S. Kulkarni', 'A. Singh', 'P. Mehta', 'D. Rao', 'R. Iyer'];
+const generatedWorkshopStatuses: JobCardWorkshopStatus[] = ['Open', 'In progress', 'Waiting parts', 'Ready', 'Delivered', 'Cancelled'];
 export const extendedJobCardDocuments: JobCardDocument[] = [
   ...jobCardDocuments,
   ...Array.from({ length: 100 }, (_, index) => {
@@ -330,6 +400,7 @@ export const extendedJobCardDocuments: JobCardDocument[] = [
     const priorityRotation: JobCardPriority[] = ['Low', 'Medium', 'High', 'Critical'];
     const status = statusRotation[index % statusRotation.length];
     const priority = priorityRotation[index % priorityRotation.length];
+    const vehicleProfile = generatedVehicleProfiles[index % generatedVehicleProfiles.length];
 
     return {
       ...template,
@@ -341,6 +412,17 @@ export const extendedJobCardDocuments: JobCardDocument[] = [
       validTillDate: shiftIsoDate(template.validTillDate, Math.max(sequence - 3, 0)),
       status,
       priority,
+      vehicleRegistration: vehicleProfile.registration,
+      vehicleModel: vehicleProfile.model,
+      customerName: vehicleProfile.customer,
+      jobType: generatedJobTypes[index % generatedJobTypes.length],
+      odometerReading: (template.odometerReading ?? 18000) + sequence * 175,
+      serviceBay: generatedServiceBays[index % generatedServiceBays.length],
+      serviceAdvisor: generatedServiceAdvisors[index % generatedServiceAdvisors.length],
+      openedAt: shiftIsoDateTime(template.openedAt ?? template.documentDateTime, sequence),
+      workshopStatus: status === 'Cancelled'
+        ? 'Cancelled'
+        : generatedWorkshopStatuses[index % (generatedWorkshopStatuses.length - 1)],
       notes: `${template.notes} Auto-generated catalogue record ${sequence}.`,
       productLines: template.productLines.map((line, lineIndex) => ({
         ...line,
